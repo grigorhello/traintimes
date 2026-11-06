@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lock screen delay notification that opens the trip</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding: 54px 12px 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; background: #1B2333; color: #FFFFFF; font-family: var(--font-system)">
+
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 24px 0 40px" aria-hidden="true">
+    <span class="headline" style="color: #FFFFFF; font-weight: 500">Thursday, November 5</span>
+    <span class="tnum" style="font-size: 84px; line-height: 92px; font-weight: 500; letter-spacing: -1px; color: #FFFFFF">7:29</span>
+  </div>
+
+  <a class="notif" href="Trip-Details.dc.html" aria-label="Train Times, now. 7:32 AM train delayed 9 min. Oakville to Union. Now expected 7:41 AM, as reported at 7:14 AM. Opens the trip">
+    <div class="appicon" style="background: #0C7B53; overflow: hidden"><svg viewBox="0 0 100 100" aria-hidden="true" style="display: block; width: 38px; height: 38px"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></div>
+    <span class="headline t tnum">7:32 AM train delayed 9 min</span>
+    <span class="footnote when">now</span>
+    <span class="subhead b tnum">Oakville to Union. Now expected 7:41 AM, as reported at 7:14 AM.</span>
+  </a>
+
+  <a class="notif" href="Trip-Details.dc.html" aria-label="Train Times, 14 minutes ago. Lakeshore West notice. Delays of up to 15 min near Port Credit">
+    <div class="appicon" style="background: #0C7B53; overflow: hidden"><svg viewBox="0 0 100 100" aria-hidden="true" style="display: block; width: 38px; height: 38px"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></div>
+    <span class="headline t">Lakeshore West notice</span>
+    <span class="footnote when">14m ago</span>
+    <span class="subhead b tnum">Delays of up to 15 min near Port Credit, as reported at 7:02 AM. Your 7:32 AM train is still expected.</span>
+  </a>
+
+  <div class="notif" style="opacity: 0.92">
+    <div class="appicon" style="background: #0C7B53; overflow: hidden"><svg viewBox="0 0 100 100" aria-hidden="true" style="display: block; width: 38px; height: 38px"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></div>
+    <span class="headline t tnum">5:10 PM train back on time</span>
+    <span class="footnote when">Yesterday</span>
+    <span class="subhead b tnum">Union to Oakville. Expected 5:10 PM, as reported at 4:48 PM.</span>
+  </div>
+
+  <div style="flex: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 6px; padding: 0 8px 28px; color: #B8C3D4">
+    <span class="footnote" style="color: #B8C3D4">Tapping a notification opens Trip details for that trip and service date.</span>
+    <span class="footnote tnum" style="color: #B8C3D4">Expires after the trip window. No further delay alerts after departure.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

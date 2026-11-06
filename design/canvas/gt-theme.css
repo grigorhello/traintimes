@@ -1,0 +1,169 @@
+/* Train Times (GO train app) — token variables and text styles for the canvas artboards.
+   Values are copied from ds/go-train-app/tokens.json (the system ships no tokens.css). */
+:root, .light {
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --canvas: #F6F7FB;
+  --surface: #FFFFFF;
+  --surface-raised: #EDEFF5;
+  --hairline: #E2E6EE;
+  --control-border: #7C8AA0;
+  --ink: #111827;
+  --ink-secondary: #475569;
+  --ink-tertiary: #5E6E85;
+  --accent: #0C7B53;
+  --accent-pressed: #095F40;
+  --on-accent: #FFFFFF;
+  --accent-soft: #DDF3E9;
+  --focus-ring: #0C7B53;
+  --ontime-ink: #1F2937;
+  --ontime-fill: #E9ECF2;
+  --delay-ink: #92400E;
+  --delay-fill: #FEF3C7;
+  --cancel-ink: #B91C1C;
+  --cancel-fill: #FEE2E2;
+  --scheduled-ink: #475569;
+  --scheduled-fill: #EDEFF5;
+  --scrim: rgba(17, 24, 39, 0.32);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-sheet: 28px; --radius-pill: 9999px;
+  --target-min: 44px; --icon-md: 22px; --icon-sm: 15px; --row-min: 76px;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-sheet: 0 -6px 30px rgba(17, 24, 39, 0.14);
+}
+.dark {
+  --canvas: #0C111B;
+  --surface: #161E2C;
+  --surface-raised: #222B3B;
+  --hairline: #2A3446;
+  --control-border: #6B7891;
+  --ink: #F4F7FB;
+  --ink-secondary: #B8C3D4;
+  --ink-tertiary: #8C99AD;
+  --accent: #6EE7B7;
+  --accent-pressed: #A7F3D0;
+  --on-accent: #0B1F17;
+  --accent-soft: #163A2C;
+  --focus-ring: #6EE7B7;
+  --ontime-ink: #D1D5DB;
+  --ontime-fill: #2A3446;
+  --delay-ink: #FDE68A;
+  --delay-fill: #422D12;
+  --cancel-ink: #FCA5A5;
+  --cancel-fill: #431C24;
+  --scheduled-ink: #B8C3D4;
+  --scheduled-fill: #222B3B;
+  --scrim: rgba(0, 0, 0, 0.56);
+  --shadow-card: none;
+  --shadow-sheet: 0 -6px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Text styles (tokens.json → type.groups) */
+.time-lead { font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.4px; }
+.time-row { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.3px; }
+.time-arrival { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.4px; }
+.large-title { font-size: 34px; line-height: 41px; font-weight: 600; letter-spacing: -0.4px; }
+.route { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.3px; }
+.nav-title, .headline { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.4px; }
+.body { font-size: 17px; line-height: 22px; font-weight: 400; letter-spacing: -0.4px; }
+.subhead { font-size: 15px; line-height: 20px; font-weight: 400; letter-spacing: -0.2px; }
+.footnote { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; }
+.badge { font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: -0.1px; }
+.tab-label { font-size: 10px; line-height: 12px; font-weight: 500; letter-spacing: 0.1px; }
+
+/* Phone chrome shared by the screens */
+.phone { font-family: var(--font-system); background: var(--canvas); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.phone a { text-decoration: none; }
+.navbar { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 8px 0 20px; }
+.screen { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 4px 20px 0; }
+.chips { display: flex; align-items: center; gap: 8px; overflow: hidden; flex: none; }
+.group-title { color: var(--ink-secondary); padding: 0 16px; }
+.cell { display: flex; align-items: center; gap: 12px; padding: 12px 16px; min-height: 52px; }
+.cell .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cell .val { color: var(--ink-secondary); }
+.stop { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 0 12px; min-height: 36px; }
+.stop .mark { width: 10px; height: 10px; border-radius: 9999px; box-shadow: inset 0 0 0 2px var(--control-border); margin-left: 5px; }
+.stop.end .mark { background: var(--accent); box-shadow: none; }
+.stop .rail { grid-column: 1; width: 2px; height: 18px; background: var(--hairline); margin-left: 9px; }
+.skip { color: var(--ink-tertiary); }
+
+/* Day strip: seven service days visible, scrolls for later dates */
+.days { display: flex; gap: 6px; flex: none; }
+.dayc { appearance: none; border: 0; font: inherit; flex: 1; min-width: 0; height: 46px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.dayc .footnote { color: var(--ink-secondary); line-height: 16px; }
+.dayc .headline { line-height: 22px; }
+.dayc.sel { background: var(--accent); color: var(--on-accent); }
+.dayc.sel .footnote { color: inherit; }
+.jump { appearance: none; border: 0; background: transparent; font: inherit; color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 13px 0 13px 8px; margin: -13px 0; cursor: pointer; }
+
+/* Timeline schedule: a calendar-style day view. Vertical scale 7px per minute, labels every 15 min. */
+.tl { position: relative; flex: 1; min-height: 0; overflow: hidden; margin: 0 -20px; }
+.tl-rail { position: absolute; left: 61px; top: 0; width: 2px; background: var(--hairline); }
+.tl-rail.dashed { background: none; width: 0; border-left: 2px dashed var(--control-border); }
+.tl-tick { position: absolute; left: 62px; right: 20px; border-top: 1px solid var(--hairline); }
+.tl-lbl { position: absolute; left: 0; width: 52px; text-align: right; color: var(--ink-secondary); line-height: 18px; }
+.tl-now { position: absolute; left: 62px; right: 20px; border-top: 2px solid var(--accent); z-index: 4; }
+.tl-now::before { content: ""; position: absolute; left: -6px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.tl-nowlbl { color: var(--accent); font-weight: 600; }
+.tl-pill { position: absolute; left: 12px; width: 40px; text-align: center; line-height: 18px; padding: 2px 0; border-radius: 9999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; z-index: 3; }
+.tl-pill.lead { background: var(--accent); color: var(--on-accent); }
+.tl-pill.ghost { background: var(--delay-fill); color: var(--delay-ink); font-weight: 400; text-decoration: line-through; }
+.tl-pill.cancel { background: var(--cancel-fill); color: var(--cancel-ink); text-decoration: line-through; }
+.tl-mark { position: absolute; left: 56px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--accent); z-index: 3; }
+.tl-mark.lead { left: 54px; width: 16px; height: 16px; background: var(--accent); box-shadow: 0 0 0 3px var(--canvas); }
+.tl-mark.ghost { box-shadow: inset 0 0 0 2px var(--delay-ink); }
+.tl-mark.cancel { left: 54px; width: 16px; height: 16px; background: var(--canvas); box-shadow: none; display: flex; align-items: center; justify-content: center; color: var(--cancel-ink); }
+.tl-mark.cancel .ico { width: 16px; height: 16px; }
+.tl-delay { position: absolute; left: 60px; width: 4px; border-radius: 2px; background: var(--delay-ink); z-index: 2; }
+.tl-link { position: absolute; left: 68px; width: 14px; border-top: 2px solid var(--accent); z-index: 2; }
+.tl-link.lead { border-top-color: var(--accent); }
+.tl-link.cancel { border-top-color: var(--cancel-ink); }
+.tl-gap { position: absolute; left: 82px; right: 20px; text-align: center; color: var(--ink-tertiary); line-height: 18px; }
+.tl-fold { position: absolute; left: 82px; right: 20px; display: flex; justify-content: center; }
+.tl-fold span { background: var(--surface-raised); color: var(--ink-secondary); border-radius: 9999px; padding: 3px 12px; }
+.tl .dep { position: absolute; left: 82px; right: 20px; min-height: 0; padding: 14px 10px 14px 14px; gap: 4px 8px; grid-template-columns: 1fr auto; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-card); z-index: 2; }
+.tl .dep .arr { grid-column: 2; grid-row: 1; }
+.tl .dep .meta { grid-column: 1 / 3; grid-row: 2; margin-top: 0; flex-wrap: wrap; row-gap: 6px; }
+.tl .dep .meta .footnote { white-space: nowrap; }
+.tl .dep .bell { grid-column: auto; grid-row: auto; margin: -10px -10px -10px auto; }
+.tl .dep .time-row { font-size: 32px; line-height: 38px; letter-spacing: -0.4px; }
+.soon { color: var(--accent); font-weight: 600; white-space: nowrap; }
+/* Express tag: the lightning bolt riders know from GO's trip planner (SF Symbol bolt.fill) plus the word; icon-only when a row carries more tags */
+.i-express { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13.5 1.5 4 14h6.2l-1.7 8.5L20 9.5h-6.2z'/%3E%3C/svg%3E"); }
+/* Nowline symbol (contained variant) as a mask icon, painted in currentColor */
+.i-traintimes { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill-rule='evenodd' d='M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z'/%3E%3Crect x='24' y='86' width='52' height='7' rx='3.5'/%3E%3C/svg%3E"); }
+.appmark { display: inline-block; background: var(--accent); border-radius: 22.5%; overflow: hidden; flex: none; }
+.appmark svg { display: block; width: 100%; height: 100%; }
+.phone .state.on { color: var(--accent); }
+.tag { gap: 4px; padding-left: 6px; }
+.tag .ico { width: 13px; height: 13px; }
+.tag.icon-only { padding: 1px 6px; }
+.tag.icon-only .tag-text { display: none; }
+.toast { position: absolute; left: 20px; right: 20px; bottom: 88px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-sheet); padding: 10px 12px 10px 16px; display: flex; align-items: center; gap: 12px; z-index: 6; }
+
+/* Compact phone (375 x 667): 6 pt per minute, both time sizes 32 pt */
+.cp .tl .dep .time-lead { font-size: 32px; line-height: 38px; }
+
+/* Large text (Dynamic Type xxxLarge): wider rail column, stacked card rows, fewer cards per screen */
+.lt .footnote, .lt .badge { font-size: 19px; line-height: 24px; }
+.lt .subhead { font-size: 21px; line-height: 26px; }
+.lt .body, .lt .headline, .lt .nav-title { font-size: 23px; line-height: 28px; }
+.lt .route { font-size: 28px; line-height: 34px; }
+.lt .tab-label { font-size: 12px; line-height: 14px; }
+.lt .ico { width: 26px; height: 26px; }
+.lt .ico.sm { width: 19px; height: 19px; }
+.lt .days { overflow: hidden; }
+.lt .dayc { height: 60px; min-width: 64px; flex: none; }
+.lt .tl-lbl { width: 66px; }
+.lt .tl-pill { width: 54px; line-height: 24px; padding: 2px 0; }
+.lt .tl-rail { left: 75px; }
+.lt .tl-tick, .lt .tl-now { left: 76px; }
+.lt .tl-mark { left: 70px; }
+.lt .tl-mark.lead, .lt .tl-mark.cancel { left: 68px; }
+.lt .tl-delay { left: 74px; }
+.lt .tl-link { left: 82px; }
+.lt .tl-gap, .lt .tl-fold { left: 96px; }
+.lt .tl .dep { left: 96px; grid-template-columns: 1fr; }
+.lt .tl .dep .time-lead { font-size: 46px; line-height: 52px; }
+.lt .tl .dep .time-row { font-size: 42px; line-height: 48px; }
+.lt .tl .dep .arr { grid-column: 1; grid-row: 2; text-align: left; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.lt .tl .dep .meta { grid-column: 1; grid-row: 3; }

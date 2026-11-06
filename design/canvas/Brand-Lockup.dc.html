@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Train Times lockup, wordmark and rules</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.wm{font-weight:600;letter-spacing:-0.01em;line-height:1;white-space:nowrap}
+.panel{border-radius:18px;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 880px; height: 720px; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between">
+    <h1 class="route" style="white-space: nowrap; flex: none">Train Times · lockup and wordmark</h1>
+    <span class="footnote muted" style="text-align: right; max-width: 520px">SF Pro Display Semibold, two words, sentence case. Ink in light mode, white on green. Never green text on its own: it would read as a link.</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch">
+    <div class="panel" style="background: var(--surface); box-shadow: var(--shadow-card)">
+      <span class="footnote muted">Horizontal lockup · symbol box = 1.6 × cap height, gap = 0.5 × cap height, symbol centred on the x-height</span>
+      <div style="display: flex; align-items: center; gap: 16px">
+        <svg viewBox="0 0 100 100" role="img" aria-label="Train Times symbol" style="display: block; width: 64px; height: 64px; color: var(--accent); flex: none"><path fill="currentColor" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect fill="currentColor" x="24" y="86" width="52" height="7" rx="3.5"/></svg>
+        <span class="wm" style="font-size: 44px">Train Times</span>
+      </div>
+      <span class="footnote muted">Clear space on all sides = the height of the windscreen. Minimum: cap height 12 pt on screen, 3 mm in print; below that, the wordmark alone.</span>
+    </div>
+
+    <div class="panel" style="background: var(--accent); color: var(--on-accent)">
+      <span class="footnote" style="opacity: 0.85">On green · symbol and wordmark both white; in dark mode the symbol is mint #6EE7B7 and the wordmark white</span>
+      <div style="display: flex; align-items: center; gap: 16px">
+        <svg viewBox="0 0 100 100" role="img" aria-label="Train Times symbol" style="display: block; width: 64px; height: 64px; color: #FFFFFF; flex: none"><path fill="currentColor" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect fill="currentColor" x="24" y="86" width="52" height="7" rx="3.5"/></svg>
+        <span class="wm" style="font-size: 44px; color: #FFFFFF">Train Times</span>
+      </div>
+      <span class="footnote" style="opacity: 0.85">For the first App Store screenshot and the website header. Never on the launch screen, the Schedule nav bar, empty states or notifications, and never beside GO Transit or Metrolinx marks.</span>
+    </div>
+
+    <div class="panel" style="background: var(--surface); box-shadow: var(--shadow-card); align-items: flex-start">
+      <span class="footnote muted">Stacked lockup · symbol over wordmark over tagline, left-aligned; tagline SF Pro Text Regular at half the wordmark size</span>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <svg viewBox="0 0 100 100" role="img" aria-label="Train Times symbol" style="display: block; width: 60px; height: 60px; color: var(--accent); margin-left: -10px"><path fill="currentColor" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect fill="currentColor" x="24" y="86" width="52" height="7" rx="3.5"/></svg>
+        <span class="wm" style="font-size: 36px">Train Times</span>
+        <span class="subhead muted" style="font-size: 18px; line-height: 24px">Your next GO train, at a glance.</span>
+      </div>
+    </div>
+
+    <div class="panel" style="background: var(--surface); box-shadow: var(--shadow-card); align-items: flex-start; gap: 14px">
+      <span class="footnote muted">In the app · the name is plain text; the symbol appears only in About</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 0 0 4px"><span class="nav-title">Train Times</span><span class="icon-btn" aria-hidden="true"><span class="ico i-gear"></span></span></div>
+      <span class="footnote muted">Schedule nav bar: inline title, 17 pt semibold, system font. Alerts and Settings keep their large titles. Home-screen label: Train Times (11 characters, no truncation).</span>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--canvas); border-radius: 12px; width: 100%; box-sizing: border-box">
+        <span class="appmark" style="width: 36px; height: 36px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px"><span class="headline">Train Times</span><span class="footnote muted">Version 1.0 (1) · Your next GO train, at a glance.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":880,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

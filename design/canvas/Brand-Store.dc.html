@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Train Times App Store listing</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.shot{width:168px;height:364px;border-radius:16px;overflow:hidden;background:var(--canvas);box-shadow:inset 0 0 0 1px var(--hairline);flex:none}
+.shot>div{transform:scale(0.4308);transform-origin:top left;width:390px;height:844px}
+.capt{font-weight:600;text-align:center;height:36px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.sf{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+</style>
+</helmet>
+<div class="phone sf {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding: 54px 20px 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; position: relative; background: var(--surface); color: var(--ink)">
+
+  <div style="display: flex; gap: 16px; align-items: flex-start">
+    <span class="appmark" style="width: 118px; height: 118px"><svg viewBox="0 0 100 100" role="img" aria-label="Train Times app icon"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 4px">
+      <h1 class="route" style="font-size: 20px; line-height: 24px; font-weight: 700">Train Times: GO train schedule</h1>
+      <span class="subhead muted">Today's GO trains and delays</span>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 12px">
+        <span style="padding: 6px 22px; border-radius: 16px; background: #0A84FF; color: #FFFFFF; font-weight: 600; font-size: 15px">Get</span>
+        <span class="footnote" style="color: var(--ink-tertiary)">Free · No ads</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 18px; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); padding: 10px 0; font-size: 11px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--ink-tertiary)"><span>4.8 ★</span><span>Age 4+</span><span>Travel</span><span>No. 12 in Travel</span></div>
+
+  <div style="display: flex; gap: 10px; margin: 0 -20px; padding: 0 20px; overflow: hidden">
+    <div style="width: 168px; flex: none; display: flex; flex-direction: column; gap: 6px">
+      <span class="footnote capt">Your next GO train, in 11 min</span>
+      <div class="shot"><div><dc-import name="Main" hint-size="390px,844px"></dc-import></div></div>
+    </div>
+    <div style="width: 168px; flex: none; display: flex; flex-direction: column; gap: 6px">
+      <span class="footnote capt">Delays drawn as reported</span>
+      <div class="shot"><div><dc-import name="Schedule-Delayed" hint-size="390px,844px"></dc-import></div></div>
+    </div>
+    <div style="width: 168px; flex: none; display: flex; flex-direction: column; gap: 6px">
+      <span class="footnote capt">Alerts for the trains you watch</span>
+      <div class="shot"><div><dc-import name="Alerts" hint-size="390px,844px"></dc-import></div></div>
+    </div>
+  </div>
+
+  <p class="subhead" style="color: var(--ink)">Independent app, not affiliated with GO Transit or Metrolinx. Train Times shows the next direct GO trains between your two stations on one to-scale timeline, delays as they are reported, and alerts for the trains you watch. No login, no ads. <span style="color: #0A84FF">more</span></p>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; border-top: 1px solid var(--hairline); background: var(--surface); display: flex; justify-content: space-around; align-items: flex-start; padding-top: 10px; font-size: 10px; color: var(--ink-tertiary)"><span>Today</span><span>Games</span><span>Apps</span><span>Arcade</span><span style="color: #0A84FF; font-weight: 600">Search</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

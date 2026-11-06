@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.back{display:inline-flex;align-items:center;gap:2px;color:var(--accent);min-height:44px;margin-left:-8px}
+.back .ico{transform:scaleX(-1)}
+.seg.sm button{min-height:32px}
+.screen>*{flex:none}
+.screen h2.footnote{padding-top:12px!important}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div class="navbar" style="padding-right: 20px">
+    <a class="back body" href="Main.dc.html" aria-label="Back to Train Times"><span class="ico i-chevron" aria-hidden="true"></span>Train Times</a>
+    <span class="nav-title">Settings</span>
+    <span style="width: 64px" aria-hidden="true"></span>
+  </div>
+
+  <div class="screen" style="gap: 8px; padding-top: 12px">
+    <div class="list">
+      <div class="cell" style="flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 16px 12px">
+        <span class="body">Appearance</span>
+        <div class="seg sm" role="radiogroup" aria-label="Appearance"><button class="subhead sel" role="radio" aria-checked="true">System</button><button class="subhead" role="radio" aria-checked="false">Light</button><button class="subhead" role="radio" aria-checked="false">Dark</button></div>
+      </div>
+      <div class="cell" style="flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 16px 12px">
+        <span class="body">Time format</span>
+        <div class="seg sm" role="radiogroup" aria-label="Time format"><button class="subhead sel" role="radio" aria-checked="true">Device</button><button class="subhead" role="radio" aria-checked="false">12-hour</button><button class="subhead" role="radio" aria-checked="false">24-hour</button></div>
+      </div>
+    </div>
+
+    <h2 class="footnote muted" style="padding: 16px 16px 0">Notifications</h2>
+    <div class="list">
+      <div class="cell">
+        <div class="txt"><span class="body">Notification permission</span><span class="state on footnote"><span class="ico sm i-check" aria-hidden="true"></span>Allowed</span></div>
+      </div>
+    </div>
+    <p class="footnote muted" style="padding: 0 16px">Updates are sent as changes are reported during each watched trip. Delivery is best effort.</p>
+
+    <h2 class="footnote muted" style="padding: 16px 16px 0">Data and privacy</h2>
+    <div class="list">
+      <a class="cell" href="Settings.dc.html">
+        <div class="txt"><span class="body">Schedule and status data</span><span class="footnote muted">Metrolinx open data</span></div>
+        <span class="ico i-chevron muted" aria-hidden="true"></span>
+      </a>
+      <a class="cell" href="Settings.dc.html">
+        <div class="txt"><span class="body">Privacy</span><span class="footnote muted">No account. Alert rules use an anonymous device token.</span></div>
+        <span class="ico i-chevron muted" aria-hidden="true"></span>
+      </a>
+      <a class="cell" href="Settings.dc.html">
+        <div class="txt"><span class="body">Official GO service updates</span><span class="footnote muted">Opens gotransit.com</span></div>
+        <span class="ico i-chevron muted" aria-hidden="true"></span>
+      </a>
+    </div>
+    <p class="footnote muted" style="padding: 0 16px">Independent app, not affiliated with GO Transit or Metrolinx. Times may differ from station displays.</p>
+
+    <h2 class="footnote muted" style="padding: 16px 16px 0">About</h2>
+    <div class="list">
+      <div class="cell">
+        <span class="appmark" style="width: 36px; height: 36px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+        <div class="txt"><span class="headline">Train Times</span><span class="footnote muted">Version 1.0 (1) · Your next GO train, at a glance.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

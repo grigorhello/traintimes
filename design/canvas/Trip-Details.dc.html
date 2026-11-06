@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trip details sheet, 7:32 AM train delayed</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.kv{display:flex;flex-direction:column;gap:2px;min-width:0}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="position: absolute; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; gap: 12px; padding: 0 20px" aria-hidden="true">
+    <div class="navbar" style="padding: 0"><span class="nav-title">Train Times</span><span class="icon-btn"><span class="ico i-gear"></span></span></div>
+    <div class="rh"><div class="names"><span class="route">Oakville to Union</span><span class="line subhead"><span class="dot"></span>Lakeshore West</span></div></div>
+    <div class="days"><span class="dayc sel"><span class="footnote">Today</span><span class="headline tnum">5</span></span><span class="dayc"><span class="footnote">Fri</span><span class="headline tnum">6</span></span><span class="dayc"><span class="footnote">Sat</span><span class="headline tnum">7</span></span><span class="dayc"><span class="footnote">Sun</span><span class="headline tnum">8</span></span><span class="dayc"><span class="footnote">Mon</span><span class="headline tnum">9</span></span><span class="dayc"><span class="footnote">Tue</span><span class="headline tnum">10</span></span><span class="dayc"><span class="footnote">Wed</span><span class="headline tnum">11</span></span></div>
+  </div>
+  <div style="position: absolute; inset: 0; background: var(--scrim)" aria-hidden="true"></div>
+
+  <div class="sheet" style="position: absolute; left: 0; right: 0; top: 120px; bottom: 0; display: flex; flex-direction: column; gap: 12px">
+    <div class="grabber"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px">
+      <span class="nav-title tnum">7:32 AM train</span>
+      <a class="icon-btn" href="Schedule-Delayed.dc.html" aria-label="Close" style="margin-right: -10px"><span class="ico i-close" aria-hidden="true"></span></a>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <h1 class="route">Oakville GO to Union Station GO</h1>
+      <span class="subhead muted">Lakeshore West · Thu, Nov 5</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+      <span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span>
+      <span class="fresh footnote">Updated just now</span>
+    </div>
+
+    <div class="card" style="box-shadow: none; background: var(--canvas); padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px">
+      <div class="kv"><span class="footnote muted">Scheduled departure</span><span class="time-arrival tnum">7:32 AM</span></div>
+      <div class="kv"><span class="footnote muted">Expected departure</span><span class="time-arrival tnum" style="color: var(--delay-ink)">7:41 AM</span></div>
+      <div class="kv"><span class="footnote muted">Scheduled arrival</span><span class="time-arrival tnum">8:12 AM</span></div>
+      <div class="kv"><span class="footnote muted">Est. arrival</span><span class="time-arrival tnum">8:21 AM</span></div>
+      <div class="kv" style="grid-column: 1 / 3"><span class="footnote muted">Platform</span><span class="body">Platform 2</span></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px"><h2 class="footnote muted">Stops</h2><span class="footnote muted">Expected</span></div>
+      <div style="display: flex; flex-direction: column">
+        <div class="stop end"><span class="mark" aria-hidden="true"></span><span class="headline">Oakville GO</span><span class="time-arrival tnum">7:41 AM</span></div>
+        <div class="stop"><span class="mark" aria-hidden="true"></span><span class="body">Clarkson GO</span><span class="body tnum">7:49 AM</span></div>
+        <div class="stop"><span class="mark" aria-hidden="true"></span><span class="body">Port Credit GO</span><span class="body tnum">7:55 AM</span></div>
+        <div class="stop"><span class="mark" aria-hidden="true"></span><span class="body">Long Branch GO</span><span class="body tnum">8:01 AM</span></div>
+        <div class="stop"><span class="mark" aria-hidden="true"></span><span class="body">Mimico GO</span><span class="body tnum">8:06 AM</span></div>
+        <div class="stop"><span class="mark" aria-hidden="true"></span><span class="body">Exhibition GO</span><span class="body tnum">8:13 AM</span></div>
+        <div class="stop end"><span class="mark" aria-hidden="true"></span><span class="headline">Union Station GO</span><span class="time-arrival tnum">8:21 AM</span></div>
+      </div>
+      <span class="footnote muted" style="padding: 4px 2px 0">Arrival times are estimates from the live feed. Scheduled arrival 8:12 AM.</span>
+    </div>
+
+    <a class="btn btn-primary block" href="Alert-Setup.dc.html">Manage alert</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

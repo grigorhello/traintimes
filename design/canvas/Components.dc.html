@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Component sheet</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec h2{color:var(--ink-secondary)}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 880px; height: 1900px; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between">
+    <h1 class="route">GO Train App components</h1>
+    <span class="footnote muted">System font · tabular numerals · 44pt targets</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 32px; align-items: start">
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div class="sec">
+        <h2 class="footnote">Status badge · colour + word + icon</h2>
+        <div class="gt-row-x"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Stop skipped</span></div>
+        <div class="gt-row-x"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Last reported 7:29 AM</span><span class="badge sched"><span class="ico sm i-offline" aria-hidden="true"></span>Offline</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="footnote muted">icon only when a row carries more tags</span></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Freshness label</h2>
+        <span class="fresh footnote">Updated just now</span>
+        <span class="fresh footnote"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled times only</span>
+        <span class="fresh footnote">Last reported 7:29 AM · showing scheduled times</span>
+        <span class="fresh footnote"><span class="ico sm i-offline" aria-hidden="true"></span>Offline · last updated 6:52 AM</span>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Buttons</h2>
+        <div class="gt-row-x"><button class="btn btn-primary">Enable alerts</button><button class="btn btn-secondary">Manage favourites</button><button class="btn btn-text">Open Settings</button></div>
+        <div class="gt-row-x"><button class="btn btn-primary">Show trains</button><button class="btn btn-primary" disabled>Show trains</button></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Icon buttons · 44pt target, 22pt glyph</h2>
+        <div class="gt-row-x"><button class="icon-btn" aria-label="Alert me"><span class="ico i-bell" aria-hidden="true"></span></button><button class="icon-btn on" aria-label="Alert on"><span class="ico i-bell-fill" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Add favourite"><span class="ico i-star" aria-hidden="true"></span></button><button class="icon-btn on" aria-label="Favourite"><span class="ico i-star-fill" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></button><button class="icon-btn filled" aria-label="Search"><span class="ico i-search" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Close"><span class="ico i-close" aria-hidden="true"></span></button></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Day strip, Now button and alert day chips</h2>
+        <div class="days" role="tablist" aria-label="Service day" style="max-width: 350px"><button class="dayc sel" role="tab" aria-selected="true"><span class="footnote">Today</span><span class="headline tnum">5</span></button><button class="dayc" role="tab"><span class="footnote">Fri</span><span class="headline tnum">6</span></button><button class="dayc" role="tab"><span class="footnote">Sat</span><span class="headline tnum">7</span></button><button class="dayc" role="tab"><span class="footnote">Sun</span><span class="headline tnum">8</span></button><button class="dayc" role="tab"><span class="footnote">Mon</span><span class="headline tnum">9</span></button><button class="dayc" role="tab"><span class="footnote">Tue</span><span class="headline tnum">10</span></button><button class="dayc" role="tab"><span class="footnote">Wed</span><span class="headline tnum">11</span></button></div>
+        <div class="gt-row-x" style="gap: 16px"><button class="jump footnote" aria-label="Back to now, today" style="margin: 0; padding: 0"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button><button class="jump footnote" aria-label="Back to now, today" style="margin: 0; padding: 0; color: var(--ink-tertiary)"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button><span class="footnote muted">(dimmed while already at now)</span></div>
+        <div class="gt-row-x" style="gap: 6px"><button class="day sel badge" aria-label="Monday">M</button><button class="day sel badge" aria-label="Tuesday">T</button><button class="day sel badge" aria-label="Wednesday">W</button><button class="day sel badge" aria-label="Thursday">T</button><button class="day sel badge" aria-label="Friday">F</button><button class="day badge" aria-label="Saturday">S</button><button class="day badge" aria-label="Sunday">S</button></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Timeline parts · pills, markers, connector, delay bar, fold</h2>
+        <div class="tl" style="flex: none; height: 236px; margin: 0; background: var(--canvas); border-radius: 12px" aria-label="Timeline parts sample">
+          <div class="tl-rail" style="height: 170px" aria-hidden="true"></div>
+          <div class="tl-rail dashed" style="top: 170px; height: 66px" aria-hidden="true"></div>
+          <div class="tl-tick" style="top: 56px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 47px" aria-hidden="true">7:45</span>
+          <div class="tl-now" style="top: 13px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 5px" aria-hidden="true">Now</span>
+          <span class="tl-pill ghost footnote tnum" style="top: 21px" aria-hidden="true">7:32</span>
+          <span class="tl-mark ghost" style="top: 26px" aria-hidden="true"></span>
+          <div class="tl-delay" style="top: 32px; height: 46px" aria-hidden="true"></div>
+          <span class="tl-pill lead footnote tnum" style="top: 67px" aria-hidden="true">7:41</span>
+          <span class="tl-mark lead" style="top: 70px" aria-hidden="true"></span>
+          <div class="tl-link lead" style="top: 77px" aria-hidden="true"></div>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 69px">Next usable train: solid pill, 16 pt dot, accent connector; amber bar = 9 min slip from 7:32</span>
+          <span class="tl-pill footnote tnum" style="top: 109px" aria-hidden="true">7:58</span>
+          <span class="tl-mark" style="top: 114px" aria-hidden="true"></span>
+          <div class="tl-link" style="top: 119px" aria-hidden="true"></div>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 111px">Later train: soft pill, 12 pt ring, connector</span>
+          <span class="tl-pill cancel footnote tnum" style="top: 143px" aria-hidden="true">8:05</span>
+          <span class="tl-mark cancel" style="top: 146px" aria-hidden="true"><span class="ico i-cancel"></span></span>
+          <div class="tl-link cancel" style="top: 153px" aria-hidden="true"></div>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 145px">Cancelled: red struck pill and x marker</span>
+          <div class="tl-fold" style="top: 186px; justify-content: flex-start" aria-hidden="true"><span class="footnote tnum">No trains for 48 min · next 6:40 PM</span></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Segmented control and switch</h2>
+        <div class="seg" role="tablist" style="max-width: 320px"><button role="tab" class="body sel">This trip</button><button role="tab" class="body">Repeat</button></div>
+        <div class="gt-row-x" style="gap: 16px"><span class="switch on" role="switch" aria-checked="true" aria-label="On"></span><span class="switch" role="switch" aria-checked="false" aria-label="Off"></span></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Empty state · no direct connection</h2>
+        <div class="card"><div class="empty"><span class="ico i-notice" aria-hidden="true"></span><h3 class="headline">No direct connection</h3><p class="subhead">These stations are on different lines. Plan a trip with a transfer on the official GO trip planner.</p><button class="btn btn-text">Open GO trip planner</button></div></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Loading rows</h2>
+        <div class="list" aria-label="Loading departures"><div class="dep"><div class="when" style="gap: 8px"><span class="skel" style="width: 60px; height: 12px"></span><span class="skel" style="width: 150px; height: 30px"></span></div><div class="arr" style="gap: 8px; align-items: end"><span class="skel" style="width: 90px; height: 12px"></span><span class="skel" style="width: 70px; height: 18px"></span></div></div></div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <div class="sec">
+        <h2 class="footnote">Departure row · lead, delayed, cancelled, scheduled, last reported</h2>
+        <div class="list">
+          <div class="dep lead">
+            <div class="when"><span class="lbl footnote">Departs</span><span class="time-lead tnum time">7:32 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:12 AM</span></div>
+            <button class="icon-btn bell" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform 2</span></div>
+          </div>
+          <div class="dep delayed">
+            <div class="when"><span class="lbl footnote">Expected departure</span><span class="time-row tnum time">7:41 AM</span><span class="footnote was tnum">Scheduled 7:32 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Est. arrival</span><span class="time-arrival tnum">8:21 AM</span></div>
+            <button class="icon-btn bell on" aria-label="Alert on for 7:32 AM train"><span class="ico i-bell-fill" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="footnote muted">Platform pending</span></div>
+          </div>
+          <div class="dep cancelled">
+            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">7:58 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+            <button class="icon-btn bell" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="footnote muted">Next usable train below</span></div>
+          </div>
+          <div class="dep">
+            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">8:21 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
+            <button class="icon-btn bell" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span></div>
+          </div>
+          <div class="dep">
+            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">8:47 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
+            <button class="icon-btn bell" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Last reported 7:29 AM</span><span class="footnote muted">Platform 2</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Crowded row · Express collapses to its icon first, then extra tags wrap to a second line</h2>
+        <div class="list" style="width: 350px">
+          <div class="dep">
+            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">7:58 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+            <button class="icon-btn bell" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
+            <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote">Bike coach</span><span class="tag footnote">Quiet zone</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Watched-trip strip · kept after departure</h2>
+        <div class="strip"><span class="ico i-bell-fill" aria-hidden="true"></span><div class="txt"><div class="headline tnum">7:32 AM to Union</div><div class="footnote muted tnum">Departed · Est. arrival 8:21 AM</div></div><span class="ico i-chevron" aria-hidden="true"></span></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Disruption banner · never a trip cancellation</h2>
+        <div class="banner" role="status"><span class="ico i-notice" aria-hidden="true"></span><div class="txt"><div class="headline">Lakeshore West notice</div><div class="footnote">Delays of up to 15 min near Port Credit.</div></div><button class="icon-btn" aria-label="Dismiss notice"><span class="ico i-close" aria-hidden="true"></span></button></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Alert rule · every state in words</h2>
+        <div class="list">
+          <div class="rule"><div class="txt"><span class="headline tnum">7:32 AM · Oakville to Union</span><span class="footnote muted">Mon to Fri</span><span class="state on footnote"><span class="ico sm i-check" aria-hidden="true"></span>On</span></div><span class="switch on" role="switch" aria-checked="true" aria-label="Alert active"></span></div>
+          <div class="rule"><div class="txt"><span class="headline tnum">7:32 AM · Oakville to Union</span><span class="footnote muted">Today only</span><span class="state setting footnote"><span class="ico sm i-clock" aria-hidden="true"></span>Setting up</span></div><span class="switch on" role="switch" aria-checked="true" aria-label="Alert active"></span></div>
+          <div class="rule"><div class="txt"><span class="headline tnum">5:10 PM · Union to Oakville</span><span class="footnote muted">Mon to Thu</span><span class="state paused footnote">Paused</span></div><span class="switch" role="switch" aria-checked="false" aria-label="Alert active"></span></div>
+          <div class="rule"><div class="txt"><span class="headline tnum">8:05 AM · Burlington to Union</span><span class="footnote muted">Mon to Fri</span><span class="state review footnote"><span class="ico sm i-delay" aria-hidden="true"></span>Review needed</span></div><span class="ico i-chevron muted" aria-hidden="true"></span></div>
+          <div class="rule"><div class="txt"><span class="headline tnum">8:21 AM · Oakville to Union</span><span class="footnote muted">Today only</span><span class="state off footnote"><span class="ico sm i-cancel" aria-hidden="true"></span>Notifications off · Open Settings</span></div><span class="ico i-chevron muted" aria-hidden="true"></span></div>
+          <div class="rule"><div class="txt"><span class="headline tnum">8:21 AM · Oakville to Union</span><span class="footnote muted">Today only</span><span class="state fail footnote"><span class="ico sm i-cancel" aria-hidden="true"></span>Could not save · Try again</span></div><span class="ico i-chevron muted" aria-hidden="true"></span></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Notification</h2>
+        <div class="notif"><div class="appicon"><span class="ico i-tram" aria-hidden="true"></span></div><span class="headline t tnum">7:32 AM train cancelled</span><span class="footnote when">2m ago</span><span class="subhead b">Oakville to Union. Open to see the next departures.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":880,"height":1900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

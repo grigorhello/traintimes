@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schedule, delayed train with alert on and a line notice</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.notice-link{display:inline-flex;align-items:center;gap:4px;color:var(--delay-ink);font-weight:600;padding:13px 0;margin:-13px 0}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div class="navbar">
+    <span class="nav-title">Train Times</span>
+    <a class="icon-btn" href="Settings.dc.html" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></a>
+  </div>
+
+  <div class="screen">
+    <div class="rh">
+      <div class="names">
+        <a class="route" href="Route-Picker.dc.html" aria-label="Change route, Oakville to Union">Oakville to Union</a>
+        <span class="line subhead"><span class="dot" aria-hidden="true"></span>Lakeshore West</span>
+      </div>
+      <div class="acts">
+        <button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
+        <button class="icon-btn on" aria-label="Remove from favourites"><span class="ico i-star-fill" aria-hidden="true"></span></button>
+      </div>
+    </div>
+
+    <div class="days" role="tablist" aria-label="Service day">
+      <button class="dayc sel" role="tab" aria-selected="true"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: -4px">
+      <span style="display: inline-flex; align-items: center; gap: 8px; min-width: 0">
+        <span class="fresh footnote">Updated just now</span>
+        <span class="footnote muted" aria-hidden="true">·</span>
+        <a class="notice-link footnote" href="Trip-Details.dc.html" aria-label="Lakeshore West notice: delays of up to 15 minutes near Port Credit. Open notice"><span class="ico sm i-notice" aria-hidden="true"></span>Line notice</a>
+      </span>
+      <button class="jump footnote" aria-label="Back to now, today"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button>
+    </div>
+
+    <div class="tl" role="list" aria-label="Departures, 7:21 AM onwards">
+      <div class="tl-rail" style="height: 100%" aria-hidden="true"></div>
+      <div class="tl-tick" style="top: 77px" aria-hidden="true"></div>
+      <div class="tl-tick" style="top: 184px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 175px" aria-hidden="true">7:45</span>
+      <div class="tl-tick" style="top: 299px" aria-hidden="true"></div>
+      <div class="tl-tick" style="top: 404px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 395px" aria-hidden="true">8:15</span>
+      <div class="tl-tick" style="top: 509px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 500px" aria-hidden="true">8:30</span>
+      <div class="tl-tick" style="top: 614px" aria-hidden="true"></div>
+      <div class="tl-now" style="top: 13px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 5px" aria-hidden="true">Now</span>
+
+      <span class="tl-pill ghost footnote tnum" style="top: 80px" aria-hidden="true">7:32</span>
+      <span class="tl-mark ghost" style="top: 85px" aria-hidden="true"></span>
+      <div class="tl-delay" style="top: 91px; height: 63px" aria-hidden="true"></div>
+      <span class="tl-pill lead footnote tnum" style="top: 143px" aria-hidden="true">7:41</span>
+      <span class="tl-mark lead" style="top: 146px" aria-hidden="true"></span>
+      <div class="tl-link lead" style="top: 153px" aria-hidden="true"></div>
+      <div class="dep lead delayed" style="top: 120px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 20 minutes, delayed 9 minutes, expected departure 7:41 AM, estimated arrival 8:21 AM, platform 2"><span class="time-lead tnum time">7:41 AM</span><span class="footnote was tnum">Scheduled 7:32 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Est. arrival</span><span class="time-arrival tnum">8:21 AM</span><span class="footnote muted">Platform 2</span></div>
+        <div class="meta"><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="footnote soon tnum">in 20 min</span><a class="icon-btn bell on" href="Alert-Setup.dc.html" aria-label="Alert on for 7:32 AM train"><span class="ico i-bell-fill" aria-hidden="true"></span></a></div>
+      </div>
+
+      <span class="tl-pill footnote tnum" style="top: 274px" aria-hidden="true">7:58</span>
+      <span class="tl-mark" style="top: 279px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 284px" aria-hidden="true"></div>
+      <div class="dep" style="top: 252px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, scheduled arrival 8:38 AM, platform pending"><span class="time-row tnum time">7:58 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+        <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+      </div>
+
+
+      <span class="tl-pill footnote tnum" style="top: 435px" aria-hidden="true">8:21</span>
+      <span class="tl-mark" style="top: 440px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 445px" aria-hidden="true"></div>
+      <div class="dep" style="top: 413px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, scheduled, scheduled arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
+        <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+      </div>
+
+
+      <span class="tl-pill footnote tnum" style="top: 617px" aria-hidden="true">8:47</span>
+      <span class="tl-mark" style="top: 622px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 627px" aria-hidden="true"></div>
+      <div class="dep" style="top: 595px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, scheduled, scheduled arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
+        <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+    <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+  </nav>
+
+  <div class="toast" role="status">
+    <span class="ico i-bell-fill" aria-hidden="true" style="color: var(--accent)"></span>
+    <span class="subhead" style="flex: 1; min-width: 0">Alert on for the 7:32 AM train</span>
+    <a class="btn btn-text" href="Alert-Setup-Repeat.dc.html" style="min-height: 44px; padding: 0 8px; font-weight: 600">Repeat</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

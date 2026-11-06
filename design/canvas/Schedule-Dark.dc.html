@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schedule in dark appearance, cancelled train and a long gap</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div class="navbar">
+    <span class="nav-title">Train Times</span>
+    <a class="icon-btn" href="Settings.dc.html" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></a>
+  </div>
+
+  <div class="screen">
+    <div class="rh">
+      <div class="names">
+        <a class="route" href="Route-Picker.dc.html" aria-label="Change route, Union to Oakville">Union to Oakville</a>
+        <span class="line subhead"><span class="dot" aria-hidden="true"></span>Lakeshore West</span>
+      </div>
+      <div class="acts">
+        <button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
+        <button class="icon-btn on" aria-label="Remove from favourites"><span class="ico i-star-fill" aria-hidden="true"></span></button>
+      </div>
+    </div>
+
+    <div class="days" role="tablist" aria-label="Service day">
+      <button class="dayc sel" role="tab" aria-selected="true"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+      <button class="dayc" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: -4px">
+      <span class="fresh footnote">Updated just now</span>
+      <button class="jump footnote" aria-label="Back to now, today"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button>
+    </div>
+
+    <div class="tl" role="list" aria-label="Departures, 5:03 PM onwards">
+      <div class="tl-rail" style="height: 487px" aria-hidden="true"></div>
+      <div class="tl-rail dashed" style="top: 487px; height: 200px" aria-hidden="true"></div>
+
+      <div class="tl-tick" style="top: 35px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 26px" aria-hidden="true">5:00</span>
+      <div class="tl-tick" style="top: 141px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 132px" aria-hidden="true">5:15</span>
+      <div class="tl-tick" style="top: 249px" aria-hidden="true"></div>
+      <div class="tl-tick" style="top: 354px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 345px" aria-hidden="true">5:45</span>
+      <div class="tl-tick" style="top: 459px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 450px" aria-hidden="true">6:00</span>
+
+      <div class="tl-now" style="top: 55px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 47px" aria-hidden="true">Now</span>
+
+      <span class="tl-pill lead footnote tnum" style="top: 94px" aria-hidden="true">5:10</span>
+      <span class="tl-mark lead" style="top: 97px" aria-hidden="true"></span>
+      <div class="tl-link lead" style="top: 104px" aria-hidden="true"></div>
+      <div class="dep lead" style="top: 70px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="5:10 PM to Oakville, in 7 minutes, on time, scheduled arrival 5:50 PM, platform 9"><span class="time-lead tnum time">5:10 PM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">5:50 PM</span><span class="footnote muted">Platform 9</span></div>
+        <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote soon tnum">in 7 min</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 5:10 PM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+      </div>
+
+      <span class="tl-pill cancel footnote tnum" style="top: 224px" aria-hidden="true">5:28</span>
+      <span class="tl-mark cancel" style="top: 227px" aria-hidden="true"><span class="ico i-cancel"></span></span>
+      <div class="tl-link cancel" style="top: 234px" aria-hidden="true"></div>
+      <div class="dep cancelled" style="top: 202px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="5:28 PM to Oakville, cancelled"><span class="time-row tnum time">5:28 PM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">6:08 PM</span></div>
+        <div class="meta"><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="footnote muted">Next usable below</span></div>
+      </div>
+
+      <span class="tl-pill footnote tnum" style="top: 392px" aria-hidden="true">5:52</span>
+      <span class="tl-mark" style="top: 397px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 402px" aria-hidden="true"></div>
+      <div class="dep" style="top: 370px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="5:52 PM to Oakville, scheduled, scheduled arrival 6:27 PM, express"><span class="time-row tnum time">5:52 PM</span></a>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">6:27 PM</span></div>
+        <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 5:52 PM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+      </div>
+
+      <div class="tl-fold" style="top: 494px" aria-hidden="true"><span class="footnote tnum">No trains for 48 min · next 6:40 PM</span></div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+    <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'dark') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

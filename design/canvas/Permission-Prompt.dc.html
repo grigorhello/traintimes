@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notification permission requested after the first Enable alerts</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.seg a{display:flex;align-items:center;justify-content:center;min-height:38px;border-radius:9px;color:var(--ink)}
+.seg a.sel{background:var(--surface);box-shadow:var(--shadow-card);font-weight:600}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="position: absolute; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; gap: 12px; padding: 0 20px" aria-hidden="true">
+    <div class="navbar" style="padding: 0"><span class="nav-title">Train Times</span><span class="icon-btn"><span class="ico i-gear"></span></span></div>
+    <div class="rh"><div class="names"><span class="route">Oakville to Union</span><span class="line subhead"><span class="dot"></span>Lakeshore West</span></div></div>
+    <div class="days"><span class="dayc sel"><span class="footnote">Today</span><span class="headline tnum">5</span></span><span class="dayc"><span class="footnote">Fri</span><span class="headline tnum">6</span></span><span class="dayc"><span class="footnote">Sat</span><span class="headline tnum">7</span></span><span class="dayc"><span class="footnote">Sun</span><span class="headline tnum">8</span></span><span class="dayc"><span class="footnote">Mon</span><span class="headline tnum">9</span></span><span class="dayc"><span class="footnote">Tue</span><span class="headline tnum">10</span></span><span class="dayc"><span class="footnote">Wed</span><span class="headline tnum">11</span></span></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: -4px"><span class="fresh footnote">Updated just now</span><span class="jump footnote"><span class="ico sm i-clock"></span>Now</span></div>
+  </div>
+  <div style="position: absolute; inset: 0; background: var(--scrim)" aria-hidden="true"></div>
+
+  <div class="sheet" style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 16px; padding-bottom: 34px" aria-hidden="true">
+    <div class="grabber"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-top: -8px">
+      <span class="nav-title">Alert for this train</span>
+      <span class="icon-btn" style="margin-right: -10px"><span class="ico i-close"></span></span>
+    </div>
+    <div class="card" style="box-shadow: none; background: var(--canvas); padding: 16px; display: flex; flex-direction: column; gap: 2px">
+      <span class="headline">Oakville to Union</span>
+      <span class="subhead muted tnum">7:32 AM train · Thu, Nov 5</span>
+    </div>
+    <div class="seg"><span class="body sel" style="display:flex;align-items:center;justify-content:center;min-height:38px;border-radius:9px;background:var(--surface);box-shadow:var(--shadow-card);font-weight:600">This trip</span><span class="body" style="display:flex;align-items:center;justify-content:center;min-height:38px">Repeat</span></div>
+    <p class="subhead muted">Updates start 1 hour before the scheduled departure. Delays and cancellations are sent as changes are reported.</p>
+    <span class="btn btn-primary block" style="background: var(--surface-raised); color: var(--ink-tertiary)">Enable alerts</span>
+    <span class="state setting footnote" style="justify-content: center"><span class="ico sm i-clock"></span>Setting up</span>
+  </div>
+
+  <div style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.2)" aria-hidden="true"></div>
+
+  <div role="alertdialog" aria-labelledby="perm-title" aria-describedby="perm-body" style="position: absolute; left: 60px; top: 330px; width: 270px; border-radius: 14px; background: rgba(242, 242, 247, 0.96); color: #000000; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); overflow: hidden; display: flex; flex-direction: column">
+    <div style="padding: 19px 16px 20px; display: flex; flex-direction: column; gap: 4px; text-align: center">
+      <h2 id="perm-title" style="margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.4px">“Train Times” Would Like to Send You Notifications</h2>
+      <p id="perm-body" style="margin: 0; font-size: 13px; line-height: 18px; letter-spacing: -0.1px">Notifications may include alerts, sounds and icon badges. These can be configured in Settings.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(60, 60, 67, 0.29)">
+      <a href="Alerts.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 17px; letter-spacing: -0.4px; color: #007AFF; border-right: 1px solid rgba(60, 60, 67, 0.29)">Don’t Allow</a>
+      <a href="Alerts.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 17px; letter-spacing: -0.4px; font-weight: 600; color: #007AFF">Allow</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

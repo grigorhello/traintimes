@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Train Times mark and app icon</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.tile{display:flex;flex-direction:column;align-items:center;gap:12px}
+.tile .footnote{color:var(--ink-secondary);text-align:center;max-width:170px}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 880px; height: 620px; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between">
+    <h1 class="route" style="white-space: nowrap; flex: none">Train Times · mark and app icon</h1>
+    <span class="footnote muted" style="text-align: right; max-width: 460px">A train head, nothing else. Cab, windscreen, two lights, the rail under it. White on brand green; reads as a train at 29 px.</span>
+  </div>
+
+  <div style="display: flex; gap: 32px; align-items: flex-start">
+    <div class="tile">
+      <span class="appmark" style="width: 150px; height: 150px"><svg viewBox="0 0 100 100" role="img" aria-label="Train Times app icon"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <span class="footnote">App icon. White train head on brand green #0C7B53. iOS applies the mask.</span>
+    </div>
+    <div class="tile">
+      <span class="appmark" style="width: 150px; height: 150px; background: #0B1F17"><svg viewBox="0 0 100 100" role="img" aria-label="Train Times app icon, dark"><rect width="100" height="100" fill="#0B1F17"/><path fill="#6EE7B7" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#6EE7B7"/></svg></span>
+      <span class="footnote">Dark icon. Mint #6EE7B7 on #0B1F17. Tinted icon: same shapes, white on black; iOS applies the colour.</span>
+    </div>
+    <div class="tile">
+      <span style="display: inline-block; width: 150px; height: 150px; border-radius: 34px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--hairline); color: var(--accent)"><svg viewBox="0 0 100 100" role="img" aria-label="Train Times symbol" style="display: block; width: 150px; height: 150px"><path fill="currentColor" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect fill="currentColor" x="24" y="86" width="52" height="7" rx="3.5"/></svg></span>
+      <span class="footnote">Contained symbol. In-app, watchOS, macOS and print; takes the current text colour.</span>
+    </div>
+    <div class="tile" style="flex: 1; align-items: flex-start; gap: 8px; padding-top: 4px">
+      <span class="headline">Geometry</span>
+      <span class="footnote" style="text-align: left; max-width: none">Cab 64 × 62 units with 18-unit top corners and 10-unit bottom corners; windscreen 44 × 22, lights 12 in diameter, rail 52 × 7. Three white shapes on one flat field, no gradients, no shadow, no outline.</span>
+      <span class="footnote" style="text-align: left; max-width: none">Never: letters in the icon (a white G or GO on green is GO Transit's mark), GO's olive green, GO or Metrolinx logos or livery, status colours on the mark, a clock or badge added to it.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <span class="footnote muted">Size ladder · iOS icon at 120, 76, 60, 40 and 29 px</span>
+    <div style="display: flex; align-items: flex-end; gap: 28px">
+      <span class="appmark" style="width: 120px; height: 120px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <span class="appmark" style="width: 76px; height: 76px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <span class="appmark" style="width: 60px; height: 60px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <span class="appmark" style="width: 40px; height: 40px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <span class="appmark" style="width: 29px; height: 29px"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+      <div style="display: flex; align-items: center; gap: 12px; margin-left: 24px; padding: 12px 16px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-card)">
+        <span class="ico i-traintimes" aria-hidden="true" style="color: var(--accent); width: 22px; height: 22px"></span>
+        <span class="footnote muted">In-app glyph: the symbol as a 22 pt mask, for Settings › About and anywhere the app refers to itself.</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":880,"height":620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

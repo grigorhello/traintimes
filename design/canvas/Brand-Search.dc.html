@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App Store search result for go train</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.thumb{width:110px;height:238px;border-radius:12px;overflow:hidden;flex:none;box-shadow:inset 0 0 0 1px var(--hairline);background:var(--canvas)}
+.thumb>div{transform:scale(0.282);transform-origin:top left;width:390px;height:844px}
+.cap{width:110px;height:238px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;text-align:center}
+.other{display:flex;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--hairline)}
+.other .sq{width:62px;height:62px;border-radius:14px;background:var(--surface-raised);flex:none}
+.other .get{padding:6px 18px;border-radius:14px;background:var(--surface-raised);color:var(--ink-tertiary);font-weight:600}
+.store-get{padding:6px 18px;border-radius:14px;background:var(--surface-raised);color:#0A84FF;font-weight:600;font-size:14px;flex:none}
+.sf{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+</style>
+</helmet>
+<div class="phone sf {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding: 54px 20px 0; display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--surface); color: var(--ink)">
+
+  <h1 class="large-title" style="font-weight: 700; margin-bottom: 10px">Search</h1>
+  <div style="display: flex; align-items: center; gap: 8px; background: var(--surface-raised); border-radius: 12px; padding: 9px 12px; margin-bottom: 8px"><span class="ico sm i-search muted" aria-hidden="true"></span><span class="body">go train</span><span class="ico sm i-close muted" aria-hidden="true" style="margin-left: auto"></span></div>
+
+  <div style="display: flex; gap: 14px; align-items: center; padding: 12px 0">
+    <span class="appmark" style="width: 62px; height: 62px"><svg viewBox="0 0 100 100" role="img" aria-label="Train Times app icon"><rect width="100" height="100" fill="#0C7B53"/><path fill="#FFFFFF" fill-rule="evenodd" d="M36 18 H64 A18 18 0 0 1 82 36 V70 A10 10 0 0 1 72 80 H28 A10 10 0 0 1 18 70 V36 A18 18 0 0 1 36 18 Z M33 30 H67 A5 5 0 0 1 72 35 V47 A5 5 0 0 1 67 52 H33 A5 5 0 0 1 28 47 V35 A5 5 0 0 1 33 30 Z M30 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z M58 66 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 Z"/><rect x="24" y="86" width="52" height="7" rx="3.5" fill="#FFFFFF"/></svg></span>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+      <span class="subhead" style="font-weight: 600; color: var(--ink)">Train Times: GO train schedule</span>
+      <span class="footnote muted">Today's GO trains and delays</span>
+      <span class="footnote" style="color: var(--ink-tertiary); font-size: 11px">★★★★★ 4.8 · Free</span>
+    </div>
+    <span class="store-get">Get</span>
+  </div>
+
+  <div style="display: flex; gap: 8px; margin: 0 -20px; padding: 0 20px 14px; overflow: hidden">
+    <div class="thumb"><div><dc-import name="Main" hint-size="390px,844px"></dc-import></div></div>
+    <div class="cap" style="background: var(--accent-soft); color: var(--accent)"><span class="footnote" style="font-weight: 600">Your next GO train, in 11 min</span></div>
+    <div class="cap" style="background: var(--surface-raised); color: var(--ink-secondary)"><span class="footnote" style="font-weight: 600">Delays shown as reported</span></div>
+  </div>
+
+  <div class="other"><span class="sq"></span><div style="flex: 1"><div class="subhead" style="font-weight: 600; color: var(--ink-tertiary)">Other result</div><div class="footnote" style="color: var(--control-border)">another app</div></div><span class="get footnote">Get</span></div>
+  <div class="other"><span class="sq"></span><div style="flex: 1"><div class="subhead" style="font-weight: 600; color: var(--ink-tertiary)">Other result</div><div class="footnote" style="color: var(--control-border)">another app</div></div><span class="get footnote">Get</span></div>
+
+  <p class="footnote muted" style="margin-top: 16px">How a rider recognises it: GO train in the title and subtitle, a green train head, and a first thumbnail showing Oakville to Union on Lakeshore West. Title is 30 characters, the App Store limit. Other results are placeholders.</p>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; border-top: 1px solid var(--hairline); background: var(--surface); display: flex; justify-content: space-around; align-items: flex-start; padding-top: 10px; font-size: 10px; color: var(--ink-tertiary)"><span>Today</span><span>Games</span><span>Apps</span><span>Arcade</span><span style="color: #0A84FF; font-weight: 600">Search</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

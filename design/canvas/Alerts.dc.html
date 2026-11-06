@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alerts tab, my alerts and recent updates</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.upd{display:flex;align-items:flex-start;gap:12px;padding:12px 16px}
+.upd .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div class="navbar" style="height: 52px; align-items: flex-end; padding-bottom: 4px">
+    <h1 class="large-title">Alerts</h1>
+    <a class="btn btn-text" href="Main.dc.html" style="margin-bottom: -6px" aria-label="Add alert: go to Schedule and tap the bell on a train">Add alert</a>
+  </div>
+
+  <div class="screen" style="gap: 8px; padding-top: 8px">
+    <h2 class="footnote muted" style="padding: 0 16px">My alerts</h2>
+    <div class="list">
+      <div class="rule">
+        <div class="txt"><span class="headline tnum">7:32 AM · Oakville to Union</span><span class="footnote muted">Mon to Fri</span><span class="state on footnote"><span class="ico sm i-check" aria-hidden="true"></span>On</span></div>
+        <button class="switch on" role="switch" aria-checked="true" aria-label="Pause alert for the 7:32 AM train" style="appearance: none; border: 0; padding: 0; cursor: pointer"></button>
+      </div>
+      <div class="rule">
+        <div class="txt"><span class="headline tnum">5:10 PM · Union to Oakville</span><span class="footnote muted">Mon to Thu</span><span class="state paused footnote">Paused</span></div>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Resume alert for the 5:10 PM train" style="appearance: none; border: 0; padding: 0; cursor: pointer"></button>
+      </div>
+      <a class="rule" href="Alert-Setup-Repeat.dc.html" aria-label="8:05 AM Burlington to Union, weekdays, review needed">
+        <div class="txt"><span class="headline tnum">8:05 AM · Burlington to Union</span><span class="footnote muted">Mon to Fri</span><span class="state review footnote"><span class="ico sm i-delay" aria-hidden="true"></span>Review needed · usual train has changed</span></div>
+        <span class="ico i-chevron muted" aria-hidden="true"></span>
+      </a>
+      <a class="rule" href="Alert-Setup.dc.html" aria-label="8:21 AM Oakville to Union, today only, notifications off, open Settings">
+        <div class="txt"><span class="headline tnum">8:21 AM · Oakville to Union</span><span class="footnote muted">Today only</span><span class="state off footnote"><span class="ico sm i-cancel" aria-hidden="true"></span>Notifications off · Open Settings</span></div>
+        <span class="ico i-chevron muted" aria-hidden="true"></span>
+      </a>
+    </div>
+
+    <h2 class="footnote muted" style="padding: 16px 16px 0">Recent updates</h2>
+    <div class="list">
+      <a class="upd" href="Trip-Details.dc.html">
+        <span class="ico i-delay" aria-hidden="true" style="color: var(--delay-ink)"></span>
+        <div class="txt"><span class="headline tnum">7:32 AM train delayed 9 min</span><span class="subhead muted tnum">Oakville to Union. Now expected 7:41 AM, as reported at 7:14 AM.</span><span class="footnote muted tnum">Today, 7:29 AM</span></div>
+      </a>
+      <a class="upd" href="Trip-Details.dc.html">
+        <span class="ico i-check" aria-hidden="true" style="color: var(--ontime-ink)"></span>
+        <div class="txt"><span class="headline tnum">5:10 PM train back on time</span><span class="subhead muted tnum">Union to Oakville. Expected 5:10 PM, as reported at 4:48 PM.</span><span class="footnote muted tnum">Yesterday, 4:48 PM</span></div>
+      </a>
+    </div>
+
+    <h2 class="footnote muted" style="padding: 16px 16px 0">Line notices</h2>
+    <div class="list">
+      <div class="upd">
+        <span class="ico i-notice" aria-hidden="true" style="color: var(--delay-ink)"></span>
+        <div class="txt"><span class="headline">Lakeshore West</span><span class="subhead muted tnum">Delays of up to 15 min near Port Credit, as reported at 7:12 AM.</span><span class="footnote muted tnum">Today, 7:12 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <a href="Main.dc.html"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+    <a class="sel" href="Alerts.dc.html" aria-current="page"><span class="ico i-bell-fill" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

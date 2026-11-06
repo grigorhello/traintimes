@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Station search sheet</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.field input{all:unset;flex:1;min-width:0;color:var(--ink)}
+.field input::placeholder{color:var(--ink-tertiary)}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="position: absolute; inset: 0; background: var(--scrim)" aria-hidden="true"></div>
+
+  <div class="sheet" style="position: absolute; left: 0; right: 0; top: 64px; bottom: 0; display: flex; flex-direction: column; gap: 12px; padding-bottom: 0">
+    <div class="grabber"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px">
+      <span class="nav-title">From</span>
+      <a class="btn btn-text" href="Route-Picker.dc.html" style="margin-right: -8px">Cancel</a>
+    </div>
+
+    <label class="field body" for="station-query"><span class="ico sm i-search" aria-hidden="true"></span><input id="station-query" type="search" placeholder="Search stations" value="" aria-label="Search stations"></label>
+
+    <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px">
+      <h2 class="footnote muted" style="padding: 4px 16px 0">Your stations</h2>
+      <div class="list">
+        <a class="station" href="Route-Picker.dc.html" aria-label="Oakville GO, Lakeshore West, favourite"><div class="txt"><span class="headline">Oakville GO</span><span class="footnote muted">Lakeshore West</span></div><span class="ico i-star-fill" aria-hidden="true" style="color: var(--accent)"></span></a>
+        <div class="station" aria-disabled="true"><div class="txt"><span class="headline skip">Union Station GO</span><span class="footnote skip">All lines · Same as To</span></div><span class="ico i-star-fill skip" aria-hidden="true"></span></div>
+      </div>
+
+      <h2 class="footnote muted" style="padding: 12px 16px 0">All stations</h2>
+      <div class="list">
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Acton GO</span><span class="footnote muted">Kitchener</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Agincourt GO</span><span class="footnote muted">Stouffville</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Ajax GO</span><span class="footnote muted">Lakeshore East</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Aldershot GO</span><span class="footnote muted">Lakeshore West</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Allandale Waterfront GO</span><span class="footnote muted">Barrie</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Appleby GO</span><span class="footnote muted">Lakeshore West</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Aurora GO</span><span class="footnote muted">Barrie</span></div></a>
+        <a class="station" href="Route-Picker.dc.html"><div class="txt"><span class="headline">Bloor GO</span><span class="footnote muted">Kitchener</span></div></a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

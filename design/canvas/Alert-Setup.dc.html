@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alert setup sheet, this trip</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.seg a{display:flex;align-items:center;justify-content:center;min-height:38px;border-radius:9px;color:var(--ink)}
+.seg a.sel{background:var(--surface);box-shadow:var(--shadow-card);font-weight:600}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div style="position: absolute; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; gap: 12px; padding: 0 20px" aria-hidden="true">
+    <div class="navbar" style="padding: 0"><span class="nav-title">Train Times</span><span class="icon-btn"><span class="ico i-gear"></span></span></div>
+    <div class="rh"><div class="names"><span class="route">Oakville to Union</span><span class="line subhead"><span class="dot"></span>Lakeshore West</span></div></div>
+    <div class="days"><span class="dayc sel"><span class="footnote">Today</span><span class="headline tnum">5</span></span><span class="dayc"><span class="footnote">Fri</span><span class="headline tnum">6</span></span><span class="dayc"><span class="footnote">Sat</span><span class="headline tnum">7</span></span><span class="dayc"><span class="footnote">Sun</span><span class="headline tnum">8</span></span><span class="dayc"><span class="footnote">Mon</span><span class="headline tnum">9</span></span><span class="dayc"><span class="footnote">Tue</span><span class="headline tnum">10</span></span><span class="dayc"><span class="footnote">Wed</span><span class="headline tnum">11</span></span></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: -4px"><span class="fresh footnote">Updated just now</span><span class="jump footnote"><span class="ico sm i-clock"></span>Now</span></div>
+    <div class="tl" style="height: 320px">
+      <div class="tl-rail" style="height: 100%"></div>
+      <div class="tl-tick" style="top: 77px"></div>
+      <div class="tl-tick" style="top: 182px"></div><span class="tl-lbl footnote tnum" style="top: 173px">7:45</span>
+      <div class="tl-tick" style="top: 287px"></div>
+      <div class="tl-now" style="top: 13px"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 5px">Now</span>
+      <span class="tl-pill lead footnote tnum" style="top: 80px">7:32</span>
+      <span class="tl-mark lead" style="top: 83px"></span>
+      <div class="tl-link lead" style="top: 90px"></div>
+      <div class="dep lead" style="top: 56px">
+        <div class="when"><span class="time-lead tnum time">7:32 AM</span></div>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:12 AM</span><span class="footnote muted">Platform 2</span></div>
+        <div class="meta"><span class="badge ontime"><span class="ico sm i-check"></span>On time</span><span class="footnote soon tnum">in 11 min</span><span class="icon-btn bell"><span class="ico i-bell"></span></span></div>
+      </div>
+      <span class="tl-gap footnote tnum" style="top: 188px">26 min</span>
+      <span class="tl-pill footnote tnum" style="top: 262px">7:58</span>
+      <span class="tl-mark" style="top: 267px"></span>
+      <div class="tl-link" style="top: 272px"></div>
+      <div class="dep" style="top: 240px">
+        <div class="when"><span class="time-row tnum time">7:58 AM</span></div>
+        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+        <div class="meta"><span class="badge ontime"><span class="ico sm i-check"></span>On time</span><span class="footnote muted">Platform pending</span><span class="icon-btn bell"><span class="ico i-bell"></span></span></div>
+      </div>
+    </div>
+  </div>
+  <div style="position: absolute; inset: 0; background: var(--scrim)" aria-hidden="true"></div>
+
+  <div class="sheet" style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 16px; padding-bottom: 34px">
+    <div class="grabber"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-top: -8px">
+      <h1 class="nav-title">Alert for this train</h1>
+      <a class="icon-btn" href="Main.dc.html" aria-label="Close" style="margin-right: -10px"><span class="ico i-close" aria-hidden="true"></span></a>
+    </div>
+
+    <div class="card" style="box-shadow: none; background: var(--canvas); padding: 16px; display: flex; flex-direction: column; gap: 2px">
+      <span class="headline">Oakville to Union</span>
+      <span class="subhead muted tnum">7:32 AM train · Thu, Nov 5</span>
+    </div>
+
+    <div class="seg" role="tablist" aria-label="Alert type">
+      <a role="tab" class="body sel" aria-selected="true" href="Alert-Setup.dc.html">This trip</a>
+      <a role="tab" class="body" aria-selected="false" href="Alert-Setup-Repeat.dc.html">Repeat</a>
+    </div>
+
+    <p class="subhead muted">Updates start 1 hour before the scheduled departure. Delays and cancellations are sent as changes are reported.</p>
+
+    <sc-if value="{{isAllowed}}" hint-placeholder-val="{{true}}">
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <a class="btn btn-primary block" href="Permission-Prompt.dc.html">Enable alerts</a>
+      <span class="footnote muted" style="text-align: center">No account needed. Notification permission is requested after enabling.</span>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isDenied}}" hint-placeholder-val="{{false}}">
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: flex-start; gap: 12px; background: var(--cancel-fill); color: var(--cancel-ink); border-radius: 12px; padding: 12px 16px">
+        <span class="ico i-cancel" aria-hidden="true"></span>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span class="headline">Notifications off</span><span class="footnote">The alert is saved, but updates cannot be delivered until notifications are allowed in Settings.</span></div>
+      </div>
+      <button class="btn btn-secondary block">Open Settings</button>
+    </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"permission":{"editor":"enum","options":["not yet asked","denied"],"default":"not yet asked","section":"Demo"},"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const permission = this.props.permission ?? 'not yet asked';
+    return {
+      themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light',
+      isAllowed: permission !== 'denied',
+      isDenied: permission === 'denied'
+    };
+  }
+}
+</script>
+</body>
+</html>

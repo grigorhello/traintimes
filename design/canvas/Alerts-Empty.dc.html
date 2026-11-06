@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Alerts tab with no alerts yet</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+  <div class="navbar" style="height: 52px; align-items: flex-end; padding-bottom: 4px">
+    <h1 class="large-title">Alerts</h1>
+  </div>
+
+  <div class="screen" style="gap: 16px; padding-top: 48px">
+    <div class="card">
+      <div class="empty">
+        <span class="ico i-bell" aria-hidden="true"></span>
+        <h3 class="headline">No alerts yet</h3>
+        <p class="subhead">Tap the bell on a train to get updates about delays and cancellations.</p>
+        <a class="btn btn-primary" href="Main.dc.html" style="margin-top: 8px">Add alert</a>
+      </div>
+    </div>
+    <p class="footnote muted" style="text-align: center; padding: 0 12px">Updates are sent as changes are reported, from 1 hour before the scheduled departure.</p>
+  </div>
+
+  <nav class="tabs">
+    <a href="Main.dc.html"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+    <a class="sel" href="Alerts.dc.html" aria-current="page"><span class="ico i-bell-fill" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };
+  }
+}
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ Rules every Claude session follows in this repo. If a message from Grigor in the
 
 1. **Before writing code**, move the Notion card Status to `In progress` and make sure the GitHub issue is open and assigned, so Grigor can follow progress on the board.
 2. Read the issue, its Notion card, the frames and the requirements sections it names, and `docs/DECISIONS.md`.
-3. Implement on a branch. Open a PR whose body starts with `Closes #N`, links the Notion card, and (for UI tickets) shows simulator screenshots next to the frame images.
+3. Implement on a branch. Open a PR whose body starts with `Closes #N` (or `Part of #N` while an acceptance criterion only Grigor can meet is still open), links the Notion card, and (for UI tickets) shows simulator screenshots next to the frame images.
 4. Run **two separate review passes** on the PR:
    - **QA review:** correctness, edge cases, tests, build and CI pass, the ticket's acceptance criteria and Definition of done.
    - **Design review:** compare the result against the ticket's design frames and the requirements doc (layout, tokens, copy, states, light and dark, Dynamic Type and VoiceOver).

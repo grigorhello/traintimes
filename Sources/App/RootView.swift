@@ -3,6 +3,7 @@ import SwiftUI
 /// Two tabs, Schedule and Alerts, and nothing else at the top level. Launch lands on Schedule with no prompt.
 struct RootView: View {
     @State private var router: AppRouter
+    @Environment(\.colorScheme) private var colorScheme
 
     init(router: AppRouter = AppRouter()) {
         _router = State(initialValue: router)
@@ -20,14 +21,18 @@ struct RootView: View {
                     }
             }
             .tabItem {
-                Label { Text("tab.schedule") } icon: { TabBarStyle.scheduleIcon }
+                Label { Text("tab.schedule") } icon: {
+                    TabBarStyle.icon("line.3.horizontal", isSelected: router.selectedTab == .schedule, colorScheme: colorScheme)
+                }
             }
             .tag(AppTab.schedule)
 
             AlertsView()
                 .tabItem {
                     Label { Text("tab.alerts") } icon: {
-                        TabBarStyle.alertsIcon(showsDot: router.showsAlertsDot, isSelected: router.selectedTab == .alerts)
+                        TabBarStyle.icon(
+                            "bell", isSelected: router.selectedTab == .alerts, showsDot: router.showsAlertsDot, colorScheme: colorScheme
+                        )
                     }
                 }
                 .tag(AppTab.alerts)

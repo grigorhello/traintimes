@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Tab bar look from design/frames/schedule-timeline.png: surface background, hairline top edge,
-/// accent for the selected tab, ink-secondary for the others. The Alerts icon can carry an accent dot, never a number.
+/// accent for the selected tab, ink-secondary for the others. Needs the classic bars (D25).
 enum TabBarStyle {
     @MainActor
     static func apply() {
@@ -22,14 +22,31 @@ enum TabBarStyle {
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
-    static var scheduleIcon: Image { Image(systemName: "text.alignleft") }
-
-    static func alertsIcon(showsDot: Bool, isSelected: Bool) -> Image {
-        guard showsDot,
-              let accent = UIColor(named: "Accent"),
-              let bell = UIColor(named: isSelected ? "Accent" : "InkSecondary"),
-              let image = UIImage(systemName: "bell.badge", withConfiguration: UIImage.SymbolConfiguration(paletteColors: [accent, bell]))
-        else { return Image(systemName: "bell") }
-        return Image(uiImage: image.withRenderingMode(.alwaysOriginal))
+    /// A tab icon drawn in the token colours. It is a plain image rather than a symbol, so the tab bar
+    /// cannot restyle it: the Alerts dot stays accent (the system draws `bell.badge` red) and never shows a number,
+    /// and both tab icons keep one size whether or not the dot is on.
+    @MainActor
+    static func icon(_ systemName: String, isSelected: Bool, showsDot: Bool = false, colorScheme: ColorScheme) -> Image {
+        let traits = UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light)
+        func color(_ name: String) -> UIColor { (UIColor(named: name) ?? .label).resolvedColor(with: traits) }
+        let configuration = UIImage.SymbolConfiguration(pointSize: iconPointSize, weight: .medium)
+        guard let symbol = UIImage(systemName: systemName, withConfiguration: configuration) else {
+            return Image(systemName: systemName)
+        }
+        let glyph = symbol.withTintColor(color(isSelected ? "Accent" : "InkSecondary"), renderingMode: .alwaysOriginal)
+        let image = UIGraphicsImageRenderer(size: symbol.size, format: .preferred()).image { _ in
+            glyph.draw(at: .zero)
+            guard showsDot else { return }
+            // Accent dot at the top trailing corner, cut out of the glyph by a ring in the tab bar colour.
+            let ring = CGRect(x: symbol.size.width - dotDiameter - 3, y: 0, width: dotDiameter + 3, height: dotDiameter + 3)
+            color("Surface").setFill()
+            UIBezierPath(ovalIn: ring).fill()
+            color("Accent").setFill()
+            UIBezierPath(ovalIn: ring.insetBy(dx: 1.5, dy: 1.5)).fill()
+        }
+        return Image(uiImage: image.withRenderingMode(.alwaysOriginal)).renderingMode(.original)
     }
+
+    private static let iconPointSize: CGFloat = 17   // glyphs about 17 pt, as in the frame
+    private static let dotDiameter: CGFloat = 7
 }

@@ -37,6 +37,7 @@ final class AppRouterTests: XCTestCase {
 }
 
 /// Shell states against design/frames/schedule-timeline.png (header and tab bar), light and dark.
+/// Drawn in the host app's key window so the tab bar, navigation stack and safe areas render as on the simulator.
 final class AppShellSnapshotTests: XCTestCase {
     @MainActor func testScheduleTabLight() { snap(RootView(), .light) }
     @MainActor func testScheduleTabDark() { snap(RootView(), .dark) }
@@ -54,7 +55,12 @@ final class AppShellSnapshotTests: XCTestCase {
     private func snap(_ view: some View, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         assertSnapshot(
             of: view,
-            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: style)),
+            as: .image(
+                drawHierarchyInKeyWindow: true,
+                perceptualPrecision: 0.98,
+                layout: .device(config: .iPhone17Pro),
+                traits: UITraitCollection(userInterfaceStyle: style)
+            ),
             testName: testName,
             line: line
         )

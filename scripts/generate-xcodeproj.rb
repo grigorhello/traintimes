@@ -110,7 +110,9 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
-    'INFOPLIST_KEY_UIDesignRequiresCompatibility' => 'YES', # D25: classic bars, as in the frames (TT-104)
+    # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
+    # D25: UIDesignRequiresCompatibility keeps the classic bars from the frames (TT-104).
+    'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',
     'CODE_SIGN_STYLE' => 'Automatic',

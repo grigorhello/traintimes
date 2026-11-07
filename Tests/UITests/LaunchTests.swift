@@ -14,6 +14,7 @@ final class LaunchTests: XCTestCase {
         let title = app.staticTexts["schedule.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         XCTAssertEqual(title.label, "Train Times")
+        XCTAssertLessThan(title.frame.midY, 110, "The header sits right under the status bar, as in the frame")
         XCTAssertTrue(app.tabBars.buttons["Schedule"].isSelected)
         XCTAssertTrue(app.tabBars.buttons["Alerts"].exists)
         XCTAssertFalse(app.alerts.firstMatch.exists)

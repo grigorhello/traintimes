@@ -116,6 +116,9 @@
     "status": "cancelled",
     "reportedAt": "07:05"
   },
+  "offlineScenario": {
+    "lastUpdated": "06:52"
+  },
   "eveningDark": {
     "route": {
       "from": "Union",

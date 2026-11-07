@@ -7,6 +7,8 @@ struct FixtureScheduleRepository: ScheduleRepository {
         case delayed
         case cancelled
         case eveningDark
+        /// No connection: the cached schedule from `offlineScenario.lastUpdated` (TT-115).
+        case offline
     }
 
     enum FixtureError: Error {
@@ -94,7 +96,7 @@ struct FixtureScheduleRepository: ScheduleRepository {
         case .cancelled:
             let cancelled = file.cancelledScenario
             updates[cancelled.tripId] = LiveTripUpdate(isCancelled: true, reportedAt: try at(cancelled.reportedAt))
-        case .normal, .eveningDark:
+        case .normal, .eveningDark, .offline:
             break
         }
 
@@ -110,7 +112,9 @@ struct FixtureScheduleRepository: ScheduleRepository {
                 tags: (train.tags ?? []).compactMap(TrainTag.init(rawValue:))
             )
         }
-        self.live = LiveSnapshot(updatedAt: updatedAt, updates: updates)
+        self.live = scenario == .offline
+            ? LiveSnapshot(updatedAt: try at(file.offlineScenario.lastUpdated), isOffline: true, updates: updates)
+            : LiveSnapshot(updatedAt: updatedAt, updates: updates)
         self.notices = notices
         let stationList = file.stations
             .map { Station(id: $0.id, name: $0.name, lines: $0.lines) }
@@ -122,8 +126,27 @@ struct FixtureScheduleRepository: ScheduleRepository {
         }
     }
 
+    /// The fixture day's trains, and the same timetable with no live data on every later day but Sunday, where the
+    /// route has no direct trains (TT-115, `schedule-no-trains.png`).
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
-        matches(route, day) ? allTrips : []
+        guard matches(route, serviceDay) else { return [] }
+        if day == serviceDay { return allTrips }
+        guard day > serviceDay, day.weekday != 1 else { return [] }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        func onDay(_ date: Date) -> Date {
+            let time = calendar.dateComponents([.hour, .minute], from: date)
+            return day.date(hour: time.hour ?? 0, minute: time.minute ?? 0)
+        }
+        return allTrips.map { trip in
+            Trip(
+                key: TripKey(serviceDay: day, tripId: trip.key.tripId),
+                scheduledDeparture: onDay(trip.scheduledDeparture),
+                scheduledArrival: onDay(trip.scheduledArrival),
+                platform: trip.platform,
+                tags: trip.tags
+            )
+        }
     }
 
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
@@ -134,17 +157,18 @@ struct FixtureScheduleRepository: ScheduleRepository {
         line.id == route.line?.id ? notices : []
     }
 
-    /// The fixture stop list in the route's direction, spread over the trip's scheduled run. A trip with a live arrival
-    /// estimate carries its departure delay to every stop and ends at that estimate; otherwise stops have no estimate.
+    /// The fixture stop list in the route's direction, spread over the trip's scheduled run (on later days too). A trip
+    /// with a live arrival estimate carries its departure delay to every stop and ends at that estimate; otherwise stops
+    /// have no estimate.
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {
-        guard matches(route, trip.serviceDay), let found = allTrips.first(where: { $0.key == trip }),
+        guard let found = try await trips(for: route, on: trip.serviceDay).first(where: { $0.key == trip }),
               let total = lineStops.last?.minutes, total > 0
         else { return [] }
         let ordered = route.from.id == lineStops.first?.station.id
             ? lineStops
             : lineStops.reversed().map { LineStop(station: $0.station, minutes: total - $0.minutes) }
         let run = found.scheduledArrival.timeIntervalSince(found.scheduledDeparture)
-        let update = live.updates[trip.tripId]
+        let update = trip.serviceDay == serviceDay ? live.updates[trip.tripId] : nil
         let delay = update?.expectedArrival == nil ? nil : update?.expectedDeparture?.timeIntervalSince(found.scheduledDeparture)
         return ordered.enumerated().map { index, stop in
             let minutes = (run / 60 * Double(stop.minutes) / Double(total)).rounded()
@@ -201,6 +225,7 @@ private struct FixtureFile: Decodable {
         let lineNotice: NoticeDTO
     }
     struct CancelledDTO: Decodable { let tripId: String; let reportedAt: String }
+    struct OfflineDTO: Decodable { let lastUpdated: String }
     struct EveningDTO: Decodable {
         struct NamesDTO: Decodable { let from: String; let to: String }
         let route: NamesDTO
@@ -216,6 +241,7 @@ private struct FixtureFile: Decodable {
     let trains: [TrainDTO]
     let delayedScenario: DelayedDTO
     let cancelledScenario: CancelledDTO
+    let offlineScenario: OfflineDTO
     let eveningDark: EveningDTO
     let stations: [StationListingDTO]
 }

@@ -58,7 +58,8 @@ struct Trip: Hashable, Sendable, Identifiable {
     let key: TripKey
     let scheduledDeparture: Date
     let scheduledArrival: Date
-    let platform: Platform
+    /// "Platform pending" while offline (`Departure.resolve`).
+    var platform: Platform
     let tags: [TrainTag]
 
     var id: TripKey { key }

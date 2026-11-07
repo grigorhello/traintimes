@@ -93,6 +93,17 @@ final class ScheduleRepositoryTests: XCTestCase {
         XCTAssertTrue(earlier.isEmpty)
     }
 
+    /// A later day's card opens trip details with its stops on that day and no live estimates (TT-115 with TT-118).
+    func testLaterDayTripsHaveStops() async throws {
+        let repo = try repository(.delayed)
+        let friday = ServiceDay(year: 2026, month: 11, day: 6)
+        let stops = try await repo.stops(for: TripKey(serviceDay: friday, tripId: "LW-0732-20261105"), on: repo.route)
+        XCTAssertEqual(stops.count, 7)
+        XCTAssertEqual(stops.first?.scheduled, friday.date(hour: 7, minute: 32))
+        XCTAssertEqual(stops.last?.scheduled, friday.date(hour: 8, minute: 12))
+        XCTAssertTrue(stops.allSatisfy { $0.expected == nil }, "Only the fixture day has live data")
+    }
+
     /// TT-115: offline keeps the cached schedule, every badge Scheduled at its scheduled time, platforms pending.
     func testOfflineScenario() async throws {
         let repo = try repository(.offline)

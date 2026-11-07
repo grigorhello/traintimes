@@ -157,17 +157,18 @@ struct FixtureScheduleRepository: ScheduleRepository {
         line.id == route.line?.id ? notices : []
     }
 
-    /// The fixture stop list in the route's direction, spread over the trip's scheduled run. A trip with a live arrival
-    /// estimate carries its departure delay to every stop and ends at that estimate; otherwise stops have no estimate.
+    /// The fixture stop list in the route's direction, spread over the trip's scheduled run (on later days too). A trip
+    /// with a live arrival estimate carries its departure delay to every stop and ends at that estimate; otherwise stops
+    /// have no estimate.
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {
-        guard matches(route, trip.serviceDay), let found = allTrips.first(where: { $0.key == trip }),
+        guard let found = try await trips(for: route, on: trip.serviceDay).first(where: { $0.key == trip }),
               let total = lineStops.last?.minutes, total > 0
         else { return [] }
         let ordered = route.from.id == lineStops.first?.station.id
             ? lineStops
             : lineStops.reversed().map { LineStop(station: $0.station, minutes: total - $0.minutes) }
         let run = found.scheduledArrival.timeIntervalSince(found.scheduledDeparture)
-        let update = live.updates[trip.tripId]
+        let update = trip.serviceDay == serviceDay ? live.updates[trip.tripId] : nil
         let delay = update?.expectedArrival == nil ? nil : update?.expectedDeparture?.timeIntervalSince(found.scheduledDeparture)
         return ordered.enumerated().map { index, stop in
             let minutes = (run / 60 * Double(stop.minutes) / Double(total)).rounded()

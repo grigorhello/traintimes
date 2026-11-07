@@ -78,7 +78,8 @@ struct LiveTripUpdate: Hashable, Sendable {
 
 /// Everything the live feed said for a route and service day.
 struct LiveSnapshot: Hashable, Sendable {
-    /// When the feed was last fetched; nil when there is no live data.
+    /// When the live data was produced: the feed's own timestamp, never later than the fetch (TT-131). Nil when there
+    /// is no live data.
     var updatedAt: Date?
     var isOffline = false
     /// Keyed by feed trip id.

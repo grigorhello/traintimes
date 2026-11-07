@@ -43,6 +43,9 @@ final class ScheduleViewModel {
     let favourites: Favourites
     private var hasLoaded = false
     private var isLoading = false
+    /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
+    /// freshness threshold while the app was away turns stale at once (D13).
+    @ObservationIgnored private var loaded: (day: ServiceDay, trips: [Trip], live: LiveSnapshot)?
     /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
     @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
 
@@ -201,7 +204,12 @@ final class ScheduleViewModel {
     /// the cards' identity and the scroll position, as pull to refresh does.
     func pollLiveStatus(every interval: Duration = ScheduleViewModel.livePollInterval) async {
         while !Task.isCancelled {
-            if hasLoaded, !isLoading, isToday { await load() }
+            if hasLoaded, !isLoading {
+                // Data left on screen while the app was away ages first, so it never shows as live during the fetch (D13).
+                now = clock.now
+                resolve()
+                if isToday { await load() }
+            }
             try? await Task.sleep(for: interval)
         }
     }
@@ -278,6 +286,7 @@ final class ScheduleViewModel {
             // No timetable on device yet and none could be downloaded (TT-130): "Loading timetable" stays until a refresh
             // gets one, rather than claiming there are no trains.
             guard day == selectedDay, route == self.route else { return }
+            loaded = nil
             departures = []
             freshness = nil
             relayout()
@@ -290,9 +299,21 @@ final class ScheduleViewModel {
         guard day == selectedDay, route == self.route else { return }
         nextDayWithTrains = nextDay
         now = clock.now
-        let freshness = isToday ? Freshness(live, now: now) : .scheduledOnly
-        departures = Departure.resolve(trips, live: live, freshness: freshness, isToday: isToday)
-        self.freshness = freshness
+        loaded = (day, trips, live)
+        resolve()
+    }
+
+    /// The statuses and the freshness row from the last load at the current clock.
+    private func resolve() {
+        guard let loaded else {
+            relayout()
+            return
+        }
+        let isToday = loaded.day == today
+        let freshness = isToday ? Freshness(loaded.live, now: now) : .scheduledOnly
+        let departures = Departure.resolve(loaded.trips, live: isToday ? loaded.live : .empty, freshness: freshness, isToday: isToday)
+        if departures != self.departures { self.departures = departures }
+        if freshness != self.freshness { self.freshness = freshness }
         relayout()
     }
 

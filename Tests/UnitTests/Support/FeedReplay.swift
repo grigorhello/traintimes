@@ -7,6 +7,8 @@ import XCTest
 actor FeedReplay {
     private var next: Result<Data, any Error>
     private(set) var downloads = 0
+    /// Downloads waiting for `release()`; nil while downloads answer at once.
+    private var held: [CheckedContinuation<Void, Never>]?
 
     init(_ sample: String) throws {
         next = .success(try Self.sample(sample))
@@ -20,7 +22,21 @@ actor FeedReplay {
         next = .failure(URLError(.notConnectedToInternet))
     }
 
-    func download() throws -> Data {
+    /// Downloads wait until `release()`, as on a slow connection.
+    func hold() {
+        if held == nil { held = [] }
+    }
+
+    func release() {
+        let waiting = held ?? []
+        held = nil
+        waiting.forEach { $0.resume() }
+    }
+
+    func download() async throws -> Data {
+        if held != nil {
+            await withCheckedContinuation { held?.append($0) }
+        }
         downloads += 1
         return try next.get()
     }

@@ -39,9 +39,10 @@ actor GTFSRealtimeStore {
     static func metrolinx(apiKey: String) -> GTFSRealtimeStore {
         var components = URLComponents(url: feedURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
-        let url = components.url!
+        // A dead connection shows Offline within seconds rather than after URLSession's default minute.
+        let request = URLRequest(url: components.url!, timeoutInterval: 10)
         return GTFSRealtimeStore {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             return data
         }

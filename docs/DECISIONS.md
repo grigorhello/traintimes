@@ -58,5 +58,6 @@ Gates M2 (TT-130 onward) and can take time, so it is requested now.
 |---|---|
 | Owner | Grigor (the application is made under his name and contact details) |
 | Where | GO API registration form https://api.openmetrolinx.com/OpenDataAPI/Help/Registration/en (manual review, up to 10 business days). Questions: OpenData.Program@metrolinx.com. Licence: Open Government Licence – Ontario – Metrolinx |
-| Request sent | **Not yet — pending Grigor.** Record the date here when sent: `YYYY-MM-DD` |
+| Request sent | **2026-11-06** (America/Toronto; 2026-11-07 00:17 UTC). Confirmation: "Your request has been received successfully. Please allow for up to ten business days to process." Chase OpenData.Program@metrolinx.com if nothing by 2026-11-20. |
+| What it covers | The GO API lists Service at a Glance (in-service trips), Stop & Schedule, Service Update (alerts, Union departures) and Fares. GTFS-realtime trip updates are not named; confirm with the key (Q1). |
 | Key received | — (store it as a secret, never in the repo) |

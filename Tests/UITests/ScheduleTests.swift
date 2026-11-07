@@ -10,6 +10,7 @@ final class ScheduleTests: XCTestCase {
     @MainActor
     func testAnotherDayThenTodayReturnsToNow() {
         let app = XCUIApplication()
+        app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
         XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))

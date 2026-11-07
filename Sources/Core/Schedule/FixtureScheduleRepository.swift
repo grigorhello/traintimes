@@ -123,6 +123,18 @@ struct FixtureScheduleRepository: ScheduleRepository {
     }
 }
 
+/// M1 stations are the fixture route's two (TT-120); TT-121 and TT-130 bring the full list.
+extension FixtureScheduleRepository: StationRepository {
+    func stations() async throws -> [Station] {
+        [self.route.from, self.route.to].sorted { $0.name < $1.name }
+    }
+
+    func route(from: Station, to: Station) async throws -> Route {
+        let served = Set([from.id, to.id]) == Set([self.route.from.id, self.route.to.id])
+        return Route(from: from, to: to, line: served ? self.route.line : nil)
+    }
+}
+
 /// The shape of `design/handoff/Fixtures.json`. Feed and JSON types stay private to the repository.
 private struct FixtureFile: Decodable {
     struct StationDTO: Decodable { let id: String; let name: String }

@@ -1,4 +1,4 @@
-# Train Times alert server (TT-140, D37). Setup and deploy steps: README.md.
+# Train Times alert server (TT-140, D38). Setup and deploy steps: README.md.
 name = "traintimes-alerts"
 main = "src/index.ts"
 compatibility_date = "2026-11-01"

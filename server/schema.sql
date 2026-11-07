@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS installations (
   environment TEXT NOT NULL,
   -- '12h' or '24h': the app's Time format, resolved from Device, for times in notifications (D17).
   time_format TEXT NOT NULL,
-  -- Epoch ms of the app's last call; 30 days without one removes the installation (D37).
+  -- Epoch ms of the app's last call; 30 days without one removes the installation (D38).
   last_seen INTEGER NOT NULL
 );
 

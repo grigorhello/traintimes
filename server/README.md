@@ -1,6 +1,6 @@
 # Train Times alert server
 
-TT-140, decision D37. A Cloudflare Worker with a D1 database. The app registers its APNs device token and alert rules here under an anonymous installation id. Every minute the Worker checks the trips those rules watch against GO's GTFS-realtime TripUpdates feed and sends visible notifications through APNs. Every hour it refreshes the GO rail timetable from the public GTFS feed and applies retention.
+TT-140, decision D38. A Cloudflare Worker with a D1 database. The app registers its APNs device token and alert rules here under an anonymous installation id. Every minute the Worker checks the trips those rules watch against GO's GTFS-realtime TripUpdates feed and sends visible notifications through APNs. Every hour it refreshes the GO rail timetable from the public GTFS feed and applies retention.
 
 | File | Holds |
 |---|---|

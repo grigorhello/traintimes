@@ -1,4 +1,4 @@
-// Train Times alert server (TT-140, D37): a Cloudflare Worker with a D1 database.
+// Train Times alert server (TT-140, D38): a Cloudflare Worker with a D1 database.
 // - fetch: the app's API (src/api.ts).
 // - every minute: the monitoring cycle (src/monitor.ts).
 // - hourly: refresh the GO rail timetable and apply retention.

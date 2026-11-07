@@ -1,12 +1,14 @@
 import Foundation
 
-/// Fetches GO's GTFS-realtime TripUpdates feed (TT-131, D36). One feed covers the whole network, so the Schedule
-/// screen and the Trip details sheet share each fetch: a feed fetched in the last 20 s is reused. The last good feed is
-/// kept in memory only, so a feed from an earlier run of the app can never show as live.
+/// Fetches one of GO's GTFS-realtime feeds: TripUpdates (TT-131, D36) or Alerts (TT-132, D37). One feed covers the
+/// whole network, so the Schedule screen and the Trip details sheet share each fetch: a feed fetched in the last 20 s is
+/// reused. The last good feed is kept in memory only, so a feed from an earlier run of the app can never show as live.
 actor GTFSRealtimeStore {
     /// The Metrolinx Open Data API needs the key with every call (Q1). The `key` parameter name is to be confirmed when
     /// the key arrives.
     static let feedURL = URL(string: "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/TripUpdates")!
+    /// Service alerts, for line notices (TT-132).
+    static let alertsURL = URL(string: "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/Alerts")!
     /// A fetch this recent is reused.
     static let reuseInterval: TimeInterval = 20
     /// Info.plist key filled from the `METROLINX_API_KEY` build setting (`Config/Secrets.xcconfig`, never committed).
@@ -35,9 +37,9 @@ actor GTFSRealtimeStore {
         self.download = download
     }
 
-    /// The feed from Metrolinx with the app's key.
-    static func metrolinx(apiKey: String) -> GTFSRealtimeStore {
-        var components = URLComponents(url: feedURL, resolvingAgainstBaseURL: false)!
+    /// A feed from Metrolinx with the app's key: TripUpdates unless another feed's URL is given.
+    static func metrolinx(apiKey: String, url: URL = feedURL) -> GTFSRealtimeStore {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         // A dead connection shows Offline within seconds rather than after URLSession's default minute.
         let request = URLRequest(url: components.url!, timeoutInterval: 10)

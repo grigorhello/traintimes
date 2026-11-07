@@ -53,4 +53,23 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
         XCTAssertTrue(card.exists)
     }
+
+    /// "Line notice" in the freshness row opens the notice sheet; dismissing the notice closes the sheet and hides the
+    /// link (TT-132).
+    @MainActor
+    func testLineNoticeOpensAndDismisses() {
+        let app = XCUIApplication.onDelayedFixture()
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noDismissedNotices
+        app.launch()
+
+        let link = app.buttons["schedule.lineNotice"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        let sheet = app.descendants(matching: .any).matching(identifier: "sheet.lineNotices").firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+
+        app.buttons["notice.dismiss"].tap()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(link.exists)
+    }
 }

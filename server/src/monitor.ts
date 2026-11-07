@@ -1,5 +1,5 @@
 // One monitoring cycle, run every minute: find the trips active rules watch, read the live feed once, and send what the
-// alert rules decide. Plus the hourly jobs: refresh the timetable and apply retention (D37).
+// alert rules decide. Plus the hourly jobs: refresh the timetable and apply retention (D38).
 
 import { decide, expiry, hasDeparted, isWatching, sentKind, STALE_MS, type Sent, type SentKind } from './alerts.ts';
 import { deleteInstallation } from './api.ts';
@@ -280,7 +280,7 @@ export async function refreshTimetables(db: D1Database, download: () => Promise<
 }
 
 /**
- * Retention (Q8, D37): a This-trip rule and its watch go 24 h after their service day ends (3 AM the day after); an
+ * Retention (Q8, D38): a This-trip rule and its watch go 24 h after their service day ends (3 AM the day after); an
  * installation goes after 30 days without the app calling, unless it has an active repeat alert, and as soon as APNs
  * says the app was removed (in `monitor`).
  */

@@ -34,6 +34,8 @@ Sources: [`design/handoff/README.md`](../design/handoff/README.md) and [`design/
 - **D21. Express is a tag, not a status,** and appears only when the feed verifies it (Q4).
 - **D22. Accessibility baseline:** status is never colour alone, 44 pt hit targets, Dynamic Type supported through the accessibility sizes (the requirements doc's AX5 wins over the handoff's xxxLarge, because the handoff README names the requirements doc as the source of truth for behaviour), Reduce Motion respected, no countdowns, pulsing dots or flashing.
 
+- **D23. Device and review scope (Grigor, 2026-11-07, TT-101).** Build, test and review on iPhone 17 Pro only. Accessibility (VoiceOver labels, Dynamic Type and large-text layouts) and iPad layout are not reviewed or tested in ticket work, even where an issue's Definition of done lists them; the app stays iPhone only. D22's colour + word + icon status rule and 44 pt targets still apply because they are part of the design.
+
 ## Open questions
 
 Each question has two points: **needed by** is the ticket that cannot start without an answer; **blocks / closes in** is the ticket that answers it, usually because it needs the live feed or the built screen: that ticket ships its feature only once the question is closed. Answering the feed questions is out of TT-100's scope. When a question closes, tick it and add the answer here as a decision. Owner is Grigor unless noted; dates are the start of the named build step in [`BUILD-ORDER.md`](BUILD-ORDER.md).

@@ -9,7 +9,7 @@ final class RootViewSnapshotTests: XCTestCase {
     func testRootViewLight() {
         assertSnapshot(
             of: RootView(),
-            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone13), traits: UITraitCollection(userInterfaceStyle: .light))
+            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: .light))
         )
     }
 
@@ -17,7 +17,7 @@ final class RootViewSnapshotTests: XCTestCase {
     func testRootViewDark() {
         assertSnapshot(
             of: RootView(),
-            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone13), traits: UITraitCollection(userInterfaceStyle: .dark))
+            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: .dark))
         )
     }
 }

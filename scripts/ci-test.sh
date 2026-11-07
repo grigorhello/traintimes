@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Builds the app and runs the unit, snapshot and UI tests on an iOS simulator (TT-101).
 # Used by CI and runnable on any Mac with Xcode 16 or later: scripts/ci-test.sh
-# Set SIMULATOR_NAME to pick a device (default: "iPhone 16" if installed, else the iPhone on the newest iOS runtime).
+# Set SIMULATOR_NAME to pick a device (default: "iPhone 17 Pro" if installed, else the iPhone on the newest iOS runtime).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PREFERRED="${SIMULATOR_NAME:-iPhone 16}"
+PREFERRED="${SIMULATOR_NAME:-iPhone 17 Pro}"
 UDID=$(xcrun simctl list devices available -j | python3 -c '
 import json, re, sys
 preferred = sys.argv[1]

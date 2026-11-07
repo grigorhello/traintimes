@@ -16,7 +16,8 @@ Rules every Claude session follows in this repo. If a message from Grigor in the
 3. Implement on a branch. Open a PR whose body starts with `Closes #N` (or `Part of #N` while an acceptance criterion only Grigor can meet is still open), links the Notion card, and (for UI tickets) shows simulator screenshots next to the frame images.
 4. Run **two separate review passes** on the PR:
    - **QA review:** correctness, edge cases, tests, build and CI pass, the ticket's acceptance criteria and Definition of done.
-   - **Design review:** compare the result against the ticket's design frames and the requirements doc (layout, tokens, copy, states, light and dark, Dynamic Type and VoiceOver).
+   - **Design review:** compare the result against the ticket's design frames and the requirements doc (layout, tokens, copy, states, light and dark).
+   - **Device scope (Grigor, 2026-11-07):** test and review on **iPhone 17 Pro only**. Skip accessibility (VoiceOver, Dynamic Type, large text) and iPad layout in reviews and tests, even where an issue's Definition of done lists them (D23).
 5. Fix the findings. If the first round found major issues, run one more round of both reviews. **Two rounds maximum**, then ship.
 6. Comment the review outcome on the issue, then **merge the PR yourself** (squash) once the reviews are done and CI is green, and move the Notion card to `Done` (Grigor, 2026-11-07: "merge all PRs, do not wait for me"). Then continue with the next ticket in build order. Stop and tell Grigor only when you hit a blocker you cannot clear (an open "needed by" question, something only he can do, or a red CI you cannot fix).
 7. Report back after each ticket: Notion card status, PR link, and the outcome of each review round.
@@ -61,11 +62,11 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 ### Tests (from each issue's Definition of done)
 
 - Unit tests for every view model and rule.
-- Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone13), traits:))`) for every screen state the ticket touches, in light and dark, plus large text where the frame shows it. Test methods that touch views are `@MainActor`.
+- Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone17Pro), traits:))`, config in `Tests/UnitTests/Support`) for every screen state the ticket touches, in light and dark. iPhone 17 Pro only; no large-text or iPad snapshots (D23). Test methods that touch views are `@MainActor`.
 - An XCUITest flow added or updated when a user flow changes. Find elements by `accessibilityIdentifier`.
 
 ### Building and CI
 
-- CI (`.github/workflows/ci.yml`) runs `scripts/ci-test.sh` on the latest GitHub macOS runner on every pull request and on main. Run the same script on a Mac to test locally.
+- CI (`.github/workflows/ci.yml`) runs `scripts/ci-test.sh` on the iPhone 17 Pro simulator on the latest GitHub macOS runner on every pull request and on main. Run the same script on a Mac to test locally.
 - **Snapshot references are recorded by CI**, since cloud sessions run on Linux without Xcode. Add a snapshot test without a reference and push: CI records the missing image, commits it to the PR branch as "Record reference snapshots…", re-runs the tests against it and goes green. Pull before pushing again, and look at the recorded PNGs in the PR diff during the design review. A changed snapshot is never re-recorded automatically: delete the old reference in the PR to have CI record the new one.
 - When the runner image moves to a new iOS version, snapshots may drift; re-record them in one PR by deleting the `__Snapshots__` folders.

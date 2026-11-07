@@ -62,6 +62,9 @@ final class TripDetailsViewModel {
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
+    /// The last load, resolved again at the current clock before each reload.
+    @ObservationIgnored private var trip: Trip?
+    @ObservationIgnored private var live = LiveSnapshot.empty
 
     init(route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false) {
         self.route = route
@@ -156,6 +159,8 @@ final class TripDetailsViewModel {
     /// with the schedule and never holds it up.
     func run() async {
         while !Task.isCancelled {
+            // Live data left on screen ages first, so it never shows as live while the next fetch runs (D13).
+            if freshness != nil { resolve() }
             await load()
             try? await Task.sleep(for: .seconds(TTTimeline.foregroundRefreshSeconds))
         }
@@ -163,15 +168,24 @@ final class TripDetailsViewModel {
 
     func load() async {
         let day = key.serviceDay
-        let current = clock.now
-        let isToday = day == ServiceDay(containing: current)
+        let isToday = day == ServiceDay(containing: clock.now)
         let trips = (try? await repository.trips(for: route, on: day)) ?? []
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
-        let stops = (try? await repository.stops(for: key, on: route)) ?? []
+        stops = (try? await repository.stops(for: key, on: route)) ?? []
+        trip = trips.first { $0.key == key }
+        self.live = live
+        resolve()
+    }
+
+    /// The trip's status from the last load at the current clock.
+    private func resolve() {
+        let current = clock.now
+        let isToday = key.serviceDay == ServiceDay(containing: current)
         let freshness = isToday ? Freshness(live, now: current) : .scheduledOnly
         now = current
-        departure = Departure.resolve(trips.filter { $0.key == key }, live: live, freshness: freshness, isToday: isToday).first
-        self.stops = stops
+        departure = trip.flatMap { trip in
+            Departure.resolve([trip], live: isToday ? live : .empty, freshness: freshness, isToday: isToday).first
+        }
         self.freshness = freshness
     }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 /// row with the Now button, then the to-scale timeline with its rail and cards (TT-113).
 struct ScheduleView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
     let onSettings: () -> Void
     let onEditRoute: () -> Void
@@ -39,6 +40,11 @@ struct ScheduleView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task { await viewModel.loadIfNeeded() }
         .task { await viewModel.runClock() }
+        // Live status every 30 s, and at once on coming back to the foreground (TT-131).
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await viewModel.pollLiveStatus()
+        }
     }
 
     private var navigationHeader: some View {

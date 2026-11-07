@@ -10,4 +10,8 @@ Native SwiftUI iPhone app for GO train riders: your next direct trains on one ti
 - `docs/DECISIONS.md`: the v1 build decisions (D1…) and the open questions with the ticket each blocks
 - `CLAUDE.md`: the per-ticket workflow every Claude session follows
 
+## Build
+
+Open `TrainTimes.xcodeproj` in Xcode 16 or later and run the TrainTimes scheme, or run `scripts/ci-test.sh` to build and run every test on a simulator. iOS 17 minimum, Swift 6. Conventions are in `CLAUDE.md`.
+
 Tickets live in GitHub issues (TT-100 to TT-154) and on the Notion board "TrainTimes · Product board". Build in the Order shown there.

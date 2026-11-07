@@ -1,0 +1,89 @@
+/* Train Times — user-facing copy. Canadian spelling, sentence case, no exclamation marks, no promises.
+   Times are formatted by the app (Device / 12-hour / 24-hour setting); strings use %@ for a formatted time. */
+
+/* Navigation and tabs */
+"app.name" = "Train Times";
+"tab.schedule" = "Schedule";
+"tab.alerts" = "Alerts";
+"nav.settings" = "Settings";
+"button.now" = "Now";
+"button.today" = "Today";
+"button.show_trains" = "Show trains";
+"button.add_alert" = "Add alert";
+"button.repeat" = "Repeat";
+"button.open_settings" = "Open Settings";
+
+/* Schedule screen */
+"schedule.updated_just_now" = "Updated just now";
+"schedule.updated_ago" = "Updated %@ ago";
+"schedule.offline" = "Offline · showing saved schedule";
+"schedule.line_notice" = "Line notice";
+"schedule.scheduled_arrival" = "Scheduled arrival";
+"schedule.est_arrival" = "Est. arrival";
+"schedule.platform" = "Platform %@";
+"schedule.platform_pending" = "Platform pending";
+"schedule.in_minutes" = "in %d min";
+"schedule.no_trains_gap" = "No trains for %d min · next %@";
+"schedule.next_usable_below" = "Next usable below";
+"schedule.empty.title" = "No direct trains";
+"schedule.empty.body" = "There are no direct trains between these stations on this day.";
+
+/* Status badges */
+"status.on_time" = "On time";
+"status.delayed" = "Delayed %d min";
+"status.cancelled" = "Cancelled";
+"status.scheduled" = "Scheduled";
+"tag.express" = "Express";
+
+/* Route and stations */
+"route.choose" = "Choose a route";
+"route.from" = "From";
+"route.to" = "To";
+"route.choose_station" = "Choose a station";
+"route.footnote" = "No account or permission is needed. The route is saved on this device and opens next time.";
+"stations.yours" = "Your stations";
+
+/* Alerts */
+"alert.toast_on" = "Alert on for the %@ train";
+"alert.this_trip" = "This trip";
+"alert.repeat" = "Repeat";
+"alert.state.on" = "On";
+"alert.state.paused" = "Paused";
+"alert.state.review" = "Review needed · usual train has changed";
+"alert.state.off" = "Notifications off · Open Settings";
+"alerts.my_alerts" = "My alerts";
+"alerts.recent_updates" = "Recent updates";
+"alerts.line_notices" = "Line notices";
+"alerts.empty.title" = "No alerts yet";
+"alerts.empty.body" = "Tap the bell on a train in Schedule to get a notification when it is delayed or cancelled.";
+
+/* Notifications (title / body). Every change carries the time it was reported. */
+"notif.delay.title" = "%@ train delayed %d min";
+"notif.delay.body" = "%@. Now expected %@, as reported at %@.";
+"notif.recovery.title" = "%@ train back on time";
+"notif.recovery.body" = "%@. Expected %@, as reported at %@.";
+"notif.cancel.title" = "%@ train cancelled";
+"notif.cancel.body" = "%@. Cancelled, as reported at %@. Open to see the next trains.";
+"notif.skip.title" = "%@ train will skip %@";
+"notif.skip.body" = "Skips %@, as reported at %@. Open to see the next trains.";
+"notif.rule.title" = "Your usual train has changed";
+"notif.rule.body" = "Review your %@ weekday alert.";
+"notif.line.title" = "%@ notice";
+"notif.line.body" = "%@, as reported at %@. Your %@ train is still expected.";
+
+/* Settings */
+"settings.appearance" = "Appearance";
+"settings.time_format" = "Time format";
+"settings.notifications" = "Notifications";
+"settings.notification_permission" = "Notification permission";
+"settings.notifications_footnote" = "Updates are sent as changes are reported during each watched trip. Delivery is best effort.";
+"settings.data_privacy" = "Data and privacy";
+"settings.schedule_data" = "Schedule and status data";
+"settings.schedule_data_sub" = "Metrolinx open data";
+"settings.privacy" = "Privacy";
+"settings.privacy_sub" = "No account. Alert rules use an anonymous device token.";
+"settings.official_updates" = "Official GO service updates";
+"settings.official_updates_sub" = "Opens gotransit.com";
+"settings.independent" = "Independent app, not affiliated with GO Transit or Metrolinx. Times may differ from station displays.";
+"settings.about" = "About";
+"settings.version" = "Version %@ (%@) · Your next GO train, at a glance.";

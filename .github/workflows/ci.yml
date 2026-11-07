@@ -1,0 +1,98 @@
+name: CI
+
+# Build and test on every pull request and on main (TT-101).
+# Warnings are errors through the project's build settings (SWIFT_TREAT_WARNINGS_AS_ERRORS).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # On a pull request, check out the branch itself so recorded snapshots can be pushed back to it.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: Handoff copies are in sync
+        run: scripts/check-handoff-sync.sh
+
+      - name: Test (records snapshots that have no reference yet)
+        id: test
+        continue-on-error: true
+        env:
+          # Passed to the test process by xcodebuild (TEST_RUNNER_ prefix is stripped).
+          TEST_RUNNER_SNAPSHOT_TESTING_RECORD: missing
+        run: scripts/ci-test.sh
+
+      - name: Commit new reference snapshots
+        id: record
+        if: >-
+          steps.test.outcome == 'failure' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          new=$(git status --porcelain --untracked-files=all -- Tests | grep '__Snapshots__' || true)
+          if [ -z "$new" ]; then
+            echo "No new snapshots; the failure is a real test failure."
+            exit 0
+          fi
+          echo "$new"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- 'Tests/**/__Snapshots__/**'
+          # [skip ci]: a run for a commit pushed with GITHUB_TOKEN waits for manual approval. This job re-runs
+          # the tests itself and reports the result on the pushed commit below.
+          git commit -m "Record reference snapshots on $(xcrun simctl list runtimes | grep -o 'iOS [0-9.]*' | tail -1) [skip ci]"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          echo "recorded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Re-run tests against the recorded snapshots
+        id: rerun
+        if: steps.record.outputs.recorded == 'true'
+        env:
+          TEST_RUNNER_SNAPSHOT_TESTING_RECORD: never
+        run: scripts/ci-test.sh
+
+      - name: Report the result on the recorded-snapshots commit
+        if: always() && steps.record.outputs.recorded == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.rerun.outcome }}
+        run: |
+          state=failure
+          [ "$OUTCOME" = success ] && state=success
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$(git rev-parse HEAD)" \
+            -f state="$state" \
+            -f context="CI / Build and test" \
+            -f description="Tests re-run against the recorded snapshots" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Fail on test failures
+        if: steps.test.outcome == 'failure' && steps.record.outputs.recorded != 'true'
+        run: |
+          echo "::error::Tests failed. See the Test step log and the TestResults artifact."
+          exit 1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: TestResults
+          path: build/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

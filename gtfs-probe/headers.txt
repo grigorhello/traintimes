@@ -1,0 +1,16 @@
+HTTP/2 200 
+content-type: application/zip
+content-length: 10704467
+etag: "c4e6f7d75d2e3354b1363db5801a0784"
+last-modified: Thu, 05 Nov 2026 03:40:56 GMT
+date: Sat, 07 Nov 2026 12:31:41 GMT
+cache-control: public, no-transform, max-age=31536000
+x-request-id: dcfef15c3aa060aa2c74990e919399f8
+access-control-expose-headers: Content-Length,Content-Disposition,Content-Range,Etag,Server-Timing,Vary,X-Cld-Error,X-Robots-Tag
+access-control-allow-origin: *
+accept-ranges: bytes
+timing-allow-origin: *
+server: Cloudinary
+strict-transport-security: max-age=604800
+server-timing: cld-akam;dur=23;start=2026-11-07T12:31:41.385Z;desc=hit,rtt;dur=4
+

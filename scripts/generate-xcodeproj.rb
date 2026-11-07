@@ -95,9 +95,8 @@ app.file_system_synchronized_groups << sources << resources << preview
 app.build_configurations.each do |config|
   s = config.build_settings
   s.delete('INFOPLIST_FILE')
-  # TT-102 may set the global accent colour name. See CLAUDE.md.
-  s.delete('ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME')
   s.merge!(
+    'ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME' => 'Accent', # TT-102: Resources/Colors.xcassets
     'TARGETED_DEVICE_FAMILY' => '1',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon', # Resources/AppIcon.xcassets (TT-103)
     'PRODUCT_NAME' => '$(TARGET_NAME)',

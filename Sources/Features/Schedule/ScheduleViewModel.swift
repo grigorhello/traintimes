@@ -12,8 +12,6 @@ final class ScheduleViewModel {
     static let atNowTolerance = TTTimeline.pointsPerMinute
 
     private(set) var route: Route?
-    /// Kept in memory here; saved on device in TT-122.
-    private(set) var isFavourite: Bool
     private(set) var selectedDay: ServiceDay
     private(set) var departures: [Departure] = []
     private(set) var layout = TimelineLayout()
@@ -35,25 +33,29 @@ final class ScheduleViewModel {
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
+    /// The star (TT-122), shared with the route form's favourites list.
+    let favourites: Favourites
     private var hasLoaded = false
     /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
     @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
 
     init(
-        route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false,
-        routeStore: (any RouteStoring)? = nil
+        route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
+        favourites: Favourites = Favourites(defaults: nil)
     ) {
         self.route = route
         self.repository = repository
         self.clock = clock
         self.routeStore = routeStore
-        self.isFavourite = isFavourite
+        self.favourites = favourites
         let now = clock.now
         self.now = now
         selectedDay = ServiceDay(containing: now)
     }
 
     var today: ServiceDay { ServiceDay(containing: clock.now) }
+    /// The star: on when this route, in this direction, is a favourite.
+    var isFavourite: Bool { route.map { favourites.contains($0) } ?? false }
     var isToday: Bool { selectedDay == today }
     /// The day strip, Today first.
     var days: [ServiceDay] { (0..<Self.dayCount).map { today.adding(days: $0) } }
@@ -190,8 +192,20 @@ final class ScheduleViewModel {
         scrollRequest += 1
     }
 
-    func toggleFavourite() {
-        isFavourite.toggle()
+    enum FavouriteResult {
+        case toggled
+        /// Three favourites already: the star never replaces one, the route sheet opens to manage them instead.
+        case full
+    }
+
+    /// The star toggles the current route as a favourite; at three favourites it leaves the list unchanged.
+    func toggleFavourite() -> FavouriteResult {
+        guard let route else { return .toggled }
+        if favourites.contains(route) {
+            favourites.remove(route)
+            return .toggled
+        }
+        return favourites.add(route) ? .toggled : .full
     }
 
     private func load() async {

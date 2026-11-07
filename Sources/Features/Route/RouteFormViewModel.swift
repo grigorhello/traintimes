@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// The route form (TT-120): From and To, swap, and "Show trains" once both are set and different.
-/// It is the first screen on first launch and the route sheet from the Schedule header.
+/// The route form (TT-120): From and To, swap, and "Show trains" once both are set and different, then the favourites
+/// list (TT-122). It is the first screen on first launch and the route sheet from the Schedule header.
 /// Station search (TT-121) picks for one field at a time: Your stations, then All stations, filtered by `query`.
 @Observable @MainActor
 final class RouteFormViewModel {
@@ -34,16 +34,30 @@ final class RouteFormViewModel {
     /// The station search text; cleared each time the search opens or moves on to another field.
     var query = ""
 
+    /// Manage favourites: each row shows a remove button instead of opening its route.
+    private(set) var isManagingFavourites: Bool
+    /// Shared with the Schedule star (TT-122).
+    let favourites: Favourites
+
     private let repository: any StationRepository
-    private let favouriteStationIds: Set<String>
 
     /// `route` prefills the form when it opens from the Schedule header; nil on first use. `favourites` are the rider's
-    /// favourite routes (TT-122); their stations make up Your stations.
-    init(route: Route?, repository: any StationRepository, favourites: [Route] = []) {
+    /// favourite routes: the list under the form, and their stations make up Your stations. `isManagingFavourites` is set
+    /// when the star opens the sheet at three favourites.
+    init(
+        route: Route?, repository: any StationRepository, favourites: Favourites = Favourites(defaults: nil),
+        isManagingFavourites: Bool = false
+    ) {
         from = route?.from
         to = route?.to
         self.repository = repository
-        favouriteStationIds = Set(favourites.flatMap { [$0.from.id, $0.to.id] })
+        self.favourites = favourites
+        self.isManagingFavourites = isManagingFavourites && !favourites.routes.isEmpty
+    }
+
+    /// The stations of the favourite routes, read live so a removal in Manage favourites shows in Your stations too.
+    private var favouriteStationIds: Set<String> {
+        Set(favourites.routes.flatMap { [$0.from.id, $0.to.id] })
     }
 
     /// Identical stations are rejected inline.
@@ -103,6 +117,32 @@ final class RouteFormViewModel {
     /// Swap is explicit, never automatic.
     func swap() {
         (from, to) = (to, from)
+    }
+
+    // MARK: Favourites
+
+    var favouriteRoutes: [Route] { favourites.routes }
+
+    /// "3 of 3".
+    var favouritesCount: String {
+        String(format: String(localized: "route.favourites_count"), favourites.routes.count, Favourites.limit)
+    }
+
+    /// "Up to three favourites are kept on this device. Remove one to add another." shows once the list is full.
+    var isFavouritesFull: Bool { favourites.isFull }
+
+    /// "Oakville to Union".
+    func title(_ route: Route) -> String {
+        String(format: String(localized: "schedule.route_title"), route.from.name, route.to.name)
+    }
+
+    func toggleManagingFavourites() {
+        isManagingFavourites.toggle()
+    }
+
+    func removeFavourite(_ route: Route) {
+        favourites.remove(route)
+        if favourites.routes.isEmpty { isManagingFavourites = false }
     }
 
     /// The route "Show trains" opens, with its line from the repository; nil until the form is valid.

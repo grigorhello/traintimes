@@ -7,6 +7,8 @@ struct ScheduleView: View {
     let viewModel: ScheduleViewModel
     let onSettings: () -> Void
     let onEditRoute: () -> Void
+    /// The star at three favourites: the route sheet opens with the favourites to remove one (TT-122).
+    var onManageFavourites: () -> Void = {}
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
 
@@ -92,7 +94,7 @@ struct ScheduleView: View {
                     systemName: viewModel.isFavourite ? "star.fill" : "star",
                     label: viewModel.isFavourite ? "route.favourite_remove" : "route.favourite_add"
                 ) {
-                    viewModel.toggleFavourite()
+                    if viewModel.toggleFavourite() == .full { onManageFavourites() }
                 }
                 .accessibilityIdentifier("schedule.favourite")
             }

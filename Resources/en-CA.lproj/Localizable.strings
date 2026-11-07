@@ -15,6 +15,7 @@
 "button.repeat" = "Repeat";
 "button.open_settings" = "Open Settings";
 "button.cancel" = "Cancel";
+"button.done" = "Done";
 
 /* Schedule screen */
 "schedule.route_title" = "%@ to %@";
@@ -58,6 +59,10 @@
 "route.choose_station" = "Choose a station";
 "route.same_station" = "From and To must be different stations.";
 "route.footnote" = "No account or permission is needed. The route is saved on this device and opens next time.";
+"route.favourites" = "Favourites";
+"route.favourites_count" = "%d of %d";
+"route.favourites_footnote" = "Up to three favourites are kept on this device. Remove one to add another.";
+"route.manage_favourites" = "Manage favourites";
 "stations.yours" = "Your stations";
 "stations.all" = "All stations";
 "stations.search" = "Search stations";

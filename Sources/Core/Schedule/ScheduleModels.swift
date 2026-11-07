@@ -86,6 +86,19 @@ struct LiveSnapshot: Hashable, Sendable {
     static let empty = LiveSnapshot(updatedAt: nil)
 }
 
+/// One stop of a trip between the route's stations (Trip details, TT-118).
+struct TripStop: Hashable, Sendable, Identifiable {
+    /// Full stop name from the schedule: "Oakville GO".
+    let station: Station
+    let scheduled: Date
+    /// The live feed's estimate for this stop; nil when it gives none.
+    var expected: Date?
+    /// Reported by the live feed: the train does not stop here.
+    var isSkipped = false
+
+    var id: String { station.id }
+}
+
 struct LineNotice: Hashable, Sendable, Identifiable {
     let id: String
     let lineName: String
@@ -101,4 +114,12 @@ protocol ScheduleRepository: Sendable {
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot
     /// Line-wide notices; they never change a trip's status.
     func lineNotices(for line: Line) async throws -> [LineNotice]
+    /// Every stop of one trip from the route's origin to its destination, in order, with the live feed's estimates and
+    /// skipped stops where it reports them (Trip details, TT-118).
+    func stops(for trip: TripKey, on route: Route) async throws -> [TripStop]
+}
+
+extension ScheduleRepository {
+    /// A source with no stop data lists no stops.
+    func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] { [] }
 }

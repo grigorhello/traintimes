@@ -34,7 +34,7 @@ final class ScheduleTests: XCTestCase {
         XCTAssertEqual(now.label, "Back to now, today")
     }
 
-    /// Tapping a card opens Trip details (TT-113); the sheet's content lands in TT-118.
+    /// Tapping a card opens Trip details for that train (TT-113, TT-118); Close returns to the timetable.
     @MainActor
     func testTapCardOpensTripDetails() {
         let app = XCUIApplication()
@@ -46,5 +46,11 @@ final class ScheduleTests: XCTestCase {
         card.tap()
         let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["trip.alert"].exists)
+
+        app.buttons["trip.close"].tap()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(card.exists)
     }
 }

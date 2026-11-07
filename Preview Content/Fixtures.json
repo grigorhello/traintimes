@@ -18,6 +18,36 @@
   "serviceDate": "2026-11-05",
   "now": "07:21",
   "feedUpdatedAt": "07:21",
+  "stops": [
+    {
+      "id": "OA",
+      "minutes": 0
+    },
+    {
+      "id": "CL",
+      "minutes": 8
+    },
+    {
+      "id": "PO",
+      "minutes": 14
+    },
+    {
+      "id": "LO",
+      "minutes": 20
+    },
+    {
+      "id": "MO",
+      "minutes": 25
+    },
+    {
+      "id": "EX",
+      "minutes": 32
+    },
+    {
+      "id": "UN",
+      "minutes": 40
+    }
+  ],
   "trains": [
     {
       "tripId": "LW-0732-20261105",

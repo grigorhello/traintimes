@@ -53,6 +53,9 @@
 "schedule.no_connection.title" = "No direct connection";
 "schedule.no_connection.body" = "These stations are on different lines. Plan a trip with a transfer on the official GO trip planner.";
 "schedule.no_connection.action" = "Open GO trip planner";
+"schedule.watched.title" = "%@ to %@";
+"schedule.watched.est_arrival" = "Departed · Est. arrival %@";
+"schedule.watched.scheduled_arrival" = "Departed · Scheduled arrival %@";
 
 /* Trip details */
 "trip.title" = "%@ train";

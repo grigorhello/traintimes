@@ -1,0 +1,30 @@
+import SnapshotTesting
+import SwiftUI
+import XCTest
+@testable import TrainTimes
+
+/// Schedule with a watched train kept after departure, against design/frames/schedule-watched.png (TT-144): the
+/// accent-soft strip under the freshness row, light and dark, at 7:28 AM as in the frame.
+final class WatchedStripSnapshotTests: XCTestCase {
+    @MainActor func testWatchedLight() async throws { snap(try await .watchedFixture(), .light) }
+    @MainActor func testWatchedDark() async throws { snap(try await .watchedFixture(), .dark) }
+
+    @MainActor
+    private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        let settings = AppSettings(defaults: .ephemeral())
+        settings.timeFormat = .twelveHour
+        let view = RootView(schedule: schedule, settings: settings)
+        layOutOnce(view)
+        assertSnapshot(
+            of: view,
+            as: .image(
+                drawHierarchyInKeyWindow: true,
+                perceptualPrecision: 0.98,
+                layout: .device(config: .iPhone17Pro),
+                traits: UITraitCollection(userInterfaceStyle: style)
+            ),
+            testName: testName,
+            line: line
+        )
+    }
+}

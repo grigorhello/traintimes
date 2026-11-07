@@ -69,6 +69,7 @@ final class AppShellSnapshotTests: XCTestCase {
 
     @MainActor
     private func snap(_ view: some View, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        layOutOnce(view)
         assertSnapshot(
             of: view,
             as: .image(

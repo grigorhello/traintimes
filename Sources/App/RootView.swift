@@ -39,7 +39,12 @@ struct RootView: View {
                     if schedule.route == nil {
                         RouteFormView(viewModel: routeForm, onSettings: { router.openSettings() }, onShowTrains: { show($0) })
                     } else {
-                        ScheduleView(viewModel: schedule, onSettings: { router.openSettings() }, onEditRoute: { editRoute() })
+                        ScheduleView(
+                            viewModel: schedule,
+                            onSettings: { router.openSettings() },
+                            onEditRoute: { editRoute() },
+                            onOpenTrip: { _ in router.present(.tripDetails) }
+                        )
                     }
                 }
                 .navigationDestination(for: ScheduleRoute.self) { route in
@@ -100,6 +105,7 @@ private struct SheetPlaceholder: View {
     var body: some View {
         TTColor.canvas
             .ignoresSafeArea()
+            .accessibilityElement()
             .accessibilityIdentifier("sheet.\(sheet.rawValue)")
             .presentationDragIndicator(.visible)
     }

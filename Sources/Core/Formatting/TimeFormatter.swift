@@ -18,6 +18,14 @@ protocol TimeFormatting: Sendable {
     func updated(at date: Date, now: Date) -> String
 }
 
+extension TimeFormatting {
+    /// The timeline's rail labels (time pills, gridlines): the clock time without AM or PM, "7:32" or "07:32".
+    func railTime(_ date: Date) -> String {
+        let full = time(date)
+        return full.split(separator: " ").first.map(String.init) ?? full
+    }
+}
+
 /// GO trains run on Toronto time, whatever time zone the phone is in (D17).
 let goTimeZone = TimeZone(identifier: "America/Toronto")!
 

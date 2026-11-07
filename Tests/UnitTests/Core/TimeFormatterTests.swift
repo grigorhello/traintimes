@@ -25,6 +25,16 @@ final class TimeFormatterTests: XCTestCase {
         XCTAssertEqual(twentyFour.time(afterMidnight), "00:40")
     }
 
+    /// Time pills and gridline labels drop AM and PM (TT-113).
+    func testRailTimeDropsTheDayPeriod() {
+        let morning = utc("2026-11-05T12:32:00Z") // 7:32 EST
+        let evening = utc("2026-11-05T23:05:00Z") // 18:05 EST
+        XCTAssertEqual(twelve.railTime(morning), "7:32")
+        XCTAssertEqual(twelve.railTime(evening), "6:05")
+        XCTAssertEqual(twentyFour.railTime(morning), "07:32")
+        XCTAssertEqual(twentyFour.railTime(evening), "18:05")
+    }
+
     func testDeviceModeFollowsLocaleHourCycle() {
         let date = utc("2026-11-05T23:05:00Z")
         let device12 = TimeFormatter(format: .device, locale: locale(hourCycle: .oneToTwelve))

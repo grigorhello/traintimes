@@ -98,7 +98,7 @@ final class ScheduleRepositoryTests: XCTestCase {
         let repo = try repository(.offline)
         let live = try await repo.liveStatus(for: repo.route, on: repo.serviceDay)
         XCTAssertEqual(Freshness(live, now: repo.now), .offline(lastUpdated: at(6, 52)))
-        let result = try await departures(repo)
+        let result = try await departures(repo, offline: true)
         XCTAssertEqual(result.map(\.status), Array(repeating: .scheduled, count: 4))
         XCTAssertTrue(result.allSatisfy { $0.expectedDeparture == nil })
         XCTAssertTrue(result.allSatisfy { $0.trip.platform == .pending }, "A cached platform may have changed")

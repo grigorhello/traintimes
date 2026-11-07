@@ -1,11 +1,15 @@
 import Foundation
 
 /// The schedule from GO Transit's published GTFS feed (TT-130, D35), with live status from its GTFS-realtime
-/// TripUpdates feed (TT-131, D36). With no live feed (an app built without the Metrolinx key) every trip is Scheduled.
-/// Neither feed carries platforms, so every card reads "Platform pending". Line notices come with TT-132.
+/// TripUpdates feed (TT-131, D36) and line notices from its Alerts feed (TT-132, D37). With no live feeds (an app built
+/// without the Metrolinx key) every trip is Scheduled and there are no notices. Neither feed carries platforms, so every
+/// card reads "Platform pending".
 struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
     let store: GTFSFeedStore
     var live: GTFSRealtimeStore?
+    var alerts: GTFSRealtimeStore?
+    /// Decides which notices are active.
+    var clock: any AppClock = SystemClock()
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
         try await store.timetable().trips(from: route.from.id, to: route.to.id, on: day)
@@ -28,7 +32,16 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
         return snapshot
     }
 
-    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
+    /// The Alerts feed's notices for the line that are active now (D37). A failed fetch keeps the last good feed's.
+    func lineNotices(for line: Line) async throws -> [LineNotice] {
+        guard let alerts else { return [] }
+        let result = await alerts.latest()
+        guard let feed = result.feed, let fetchedAt = result.fetchedAt else { return [] }
+        let routeCodes = try await store.timetable().routeCodes(ofLine: line.id)
+        let feedTime = min(feed.timestamp ?? fetchedAt, fetchedAt)
+        let now = clock.now
+        return feed.alerts.compactMap { $0.lineNotice(for: line, routeCodes: routeCodes, now: now, feedTime: feedTime) }
+    }
 
     /// The trip's stops with the live feed's estimate and skipped flag at each, where it gives them (D32).
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {

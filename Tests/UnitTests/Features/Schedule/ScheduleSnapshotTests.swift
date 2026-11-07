@@ -12,7 +12,8 @@ final class ScheduleSnapshotTests: XCTestCase {
     @MainActor func testTodayDark() async throws { snap(try await .loadedFixture(), .dark) }
     @MainActor func testAnotherDayLight() async throws { snap(try await .loadedFixture(dayIndex: 3), .light) }
     @MainActor func testAnotherDayDark() async throws { snap(try await .loadedFixture(dayIndex: 3), .dark) }
-    // TT-114: design/frames/schedule-timeline-delayed.png, schedule-timeline-cancelled.png and schedule-dark.png.
+    // TT-114: design/frames/schedule-timeline-delayed.png, schedule-timeline-cancelled.png and schedule-dark.png. The
+    // delayed scenario also has the Lakeshore West line notice, so its freshness row matches schedule-delayed.png (TT-132).
     @MainActor func testDelayedLight() async throws { snap(try await .loadedFixture(.delayed), .light) }
     @MainActor func testDelayedDark() async throws { snap(try await .loadedFixture(.delayed), .dark) }
     @MainActor func testCancelledLight() async throws { snap(try await .loadedFixture(.cancelled), .light) }

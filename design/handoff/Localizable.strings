@@ -30,6 +30,9 @@
 "freshness.stale" = "Last reported %@ · showing scheduled times";
 "freshness.offline" = "Offline · last updated %@";
 "schedule.line_notice" = "Line notice";
+"notice.title" = "%@ notice";
+"notice.reported" = "Reported at %@";
+"notice.dismiss" = "Dismiss notice";
 "schedule.scheduled_arrival" = "Scheduled arrival";
 "schedule.est_arrival" = "Est. arrival";
 "schedule.scheduled_time" = "Scheduled %@";

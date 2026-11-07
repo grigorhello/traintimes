@@ -23,11 +23,12 @@ struct RootView: View {
         settings: AppSettings = AppSettings(),
         dependencies: ScheduleDependencies = .app(),
         routeStore: any RouteStoring = UserDefaultsRouteStore(),
-        favourites: Favourites = Favourites()
+        favourites: Favourites = Favourites(),
+        dismissedNotices: DismissedNotices = DismissedNotices()
     ) {
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            favourites: favourites
+            favourites: favourites, dismissedNotices: dismissedNotices
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
@@ -54,7 +55,8 @@ struct RootView: View {
                             onSettings: { router.openSettings() },
                             onEditRoute: { editRoute() },
                             onManageFavourites: { editRoute(managingFavourites: true) },
-                            onOpenTrip: { openTrip($0) }
+                            onOpenTrip: { openTrip($0) },
+                            onOpenLineNotice: { router.present(.lineNotices) }
                         )
                     }
                 }
@@ -91,6 +93,8 @@ struct RootView: View {
                 if let tripDetails {
                     TripDetailsView(viewModel: tripDetails, onAlert: { router.present(.alertSetup) })
                 }
+            case .lineNotices:
+                LineNoticeSheet(viewModel: schedule)
             default:
                 SheetPlaceholder(sheet: sheet)
             }
@@ -121,7 +125,7 @@ struct RootView: View {
     }
 }
 
-/// Stand-in until the sheets land: station search (TT-121), alert setup (TT-141) and line notices (TT-132).
+/// Stand-in until the sheets land: station search (TT-121) and alert setup (TT-141).
 private struct SheetPlaceholder: View {
     let sheet: AppSheet
 

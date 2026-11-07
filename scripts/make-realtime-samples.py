@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Writes the GTFS-realtime sample feeds the TT-131 replay tests read (Tests/UnitTests/Core/Realtime/*.pb).
+"""Writes the GTFS-realtime sample feeds the TT-131 and TT-132 replay tests read (Tests/UnitTests/Core/Realtime/*.pb).
 
-The Metrolinx API key has not arrived yet, so these feeds stand in for GO's TripUpdates feed (D36). They use the
-official GTFS-realtime protobuf bindings, so the app's own decoder is checked against an independent encoder, and real
-trip ids and stops from Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip: Lakeshore West, Oakville (OA) to Union (UN),
-Monday Nov 9, 2026, read at 7:00, 7:01 and 7:02 AM Toronto time (EST, UTC-5).
+The Metrolinx API key has not arrived yet, so these feeds stand in for GO's TripUpdates feed (D36) and Alerts feed
+(D37). They use the official GTFS-realtime protobuf bindings, so the app's own decoder is checked against an independent
+encoder, and real route ids, trip ids and stops from Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip: Lakeshore West,
+Oakville (OA) to Union (UN), Monday Nov 9, 2026, read at 7:00, 7:01 and 7:02 AM Toronto time (EST, UTC-5); alerts at
+7:02 and 7:05 AM.
 
     python3 -m venv /tmp/rt && /tmp/rt/bin/pip install gtfs-realtime-bindings
     /tmp/rt/bin/python scripts/make-realtime-samples.py
@@ -115,3 +116,69 @@ stop(propagated, "AP", 1, arrival_delay=240, departure_delay=240)
 trip(m, "LW-1860", delay=180)
 stop(trip(m, "LW-1258"), "UN", 34, arrival_delay=-60)
 write("tripupdates-0702.pb", m)
+
+
+# Alerts (TT-132). Real route ids: 09261126-LW is Lakeshore West (LW), 09261126-GT is Kitchener (KI).
+def alert(message, entity_id, header, description=None, routes=(), stop=None, trip_id=None, start=None, end=None,
+          effect=rt.Alert.SIGNIFICANT_DELAYS, french=None):
+    entity = message.entity.add()
+    entity.id = entity_id
+    a = entity.alert
+    if start or end:
+        period = a.active_period.add()
+        if start:
+            period.start = at(start)
+        if end:
+            period.end = at(end)
+    for route in routes:
+        informed = a.informed_entity.add()
+        informed.agency_id = "GO"
+        informed.route_id = route
+        if stop:
+            informed.stop_id = stop
+    if trip_id:
+        informed = a.informed_entity.add()
+        informed.trip.trip_id = f"{DATE}-{trip_id}"
+        informed.trip.route_id = "09261126-LW"
+    if stop and not routes:
+        a.informed_entity.add().stop_id = stop
+    a.effect = effect
+    if french:
+        t = a.header_text.translation.add()
+        t.text = french
+        t.language = "fr"
+    t = a.header_text.translation.add()
+    t.text = header
+    t.language = "en"
+    if description:
+        t = a.description_text.translation.add()
+        t.text = description
+        t.language = "en"
+
+
+def alerts_common(message):
+    # Kitchener line: another line's notice.
+    alert(message, "KI-2001", "Delays of up to 10 min near Bramalea", routes=["09261126-GT"], start="06:40:00")
+    # A station notice with no route: not a line notice.
+    alert(message, "OA-3001", "The elevator to platform 2 is out of service", stop="OA", start="05:00:00")
+    # The 7:21 AM train cancelled as an alert only, with NO_SERVICE: never a trip status (only TripUpdates are).
+    alert(message, "TRIP-4001", "The 7:21 AM Oakville to Union train is cancelled", trip_id="LW-1108", start="06:55:00",
+          effect=rt.Alert.NO_SERVICE)
+    # A Lakeshore West notice that ended at 6:30, and one that starts at 9:00: neither shows at 7:02.
+    alert(message, "LW-0900", "Earlier delays near Long Branch", routes=["09261126-LW"], start="05:30:00", end="06:30:00")
+    alert(message, "LW-0901", "Weekend track work near Exhibition", routes=["09261126-LW"], start="09:00:00")
+
+
+# 7:02 AM: a Lakeshore West notice at Port Credit, from 7:00, in English and French.
+m = feed("07:02:00")
+alert(m, "LW-1001", "Delays of up to 15 min near Port Credit",
+      "Trains are moving slowly near Port Credit GO because of a signal problem. Allow extra travel time.",
+      routes=["09261126-LW"], stop="PO", start="07:00:00", french="Retards jusqu'à 15 min près de Port Credit")
+alerts_common(m)
+write("alerts-0702.pb", m)
+
+# 7:05 AM: the notice is reissued with a new id, so a rider who dismissed the first one sees it.
+m = feed("07:05:00")
+alert(m, "LW-1002", "Delays of up to 25 min near Port Credit", routes=["09261126-LW"], start="07:04:00")
+alerts_common(m)
+write("alerts-0705.pb", m)

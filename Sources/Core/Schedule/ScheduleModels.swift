@@ -101,10 +101,15 @@ struct TripStop: Hashable, Sendable, Identifiable {
     var id: String { station.id }
 }
 
+/// A line-wide service notice (TT-132): shown as a link in the freshness row, never as a trip status.
 struct LineNotice: Hashable, Sendable, Identifiable {
+    /// The feed's notice id; dismissing hides this id until a notice with a new id arrives.
     let id: String
     let lineName: String
+    /// One sentence: "Delays of up to 15 min near Port Credit".
     let text: String
+    /// The full notice, when the feed gives more than the one sentence.
+    var details: String?
     let reportedAt: Date
 }
 
@@ -115,7 +120,7 @@ protocol ScheduleRepository: Sendable {
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip]
     /// Live status for the same route and day.
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot
-    /// Line-wide notices; they never change a trip's status.
+    /// The line-wide notices that apply to a line now; they never change a trip's status.
     func lineNotices(for line: Line) async throws -> [LineNotice]
     /// Every stop of one trip from the route's origin to its destination, in order, with the live feed's estimates and
     /// skipped stops where it reports them (Trip details, TT-118).

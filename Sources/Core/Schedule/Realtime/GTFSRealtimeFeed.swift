@@ -1,9 +1,10 @@
 import Foundation
 
-/// The parts of a GTFS-realtime TripUpdates feed the app reads (TT-131, D36): the feed's time and, for each trip, its
-/// cancellation, skipped stops, delays and times. Decoded by hand from the protobuf wire format, because the app takes
-/// no runtime dependencies (D6). Field numbers follow `gtfs-realtime.proto`. Feed types stay inside the GTFS repository,
-/// and screens read `LiveSnapshot`.
+/// The parts of a GTFS-realtime feed the app reads: the feed's time; from TripUpdates (TT-131, D36), each trip's
+/// cancellation, skipped stops, delays and times; from Alerts (TT-132, D37), each service alert's id, active periods,
+/// informed routes and text. Decoded by hand from the protobuf wire format, because the app takes no runtime
+/// dependencies (D6). Field numbers follow `gtfs-realtime.proto`. Feed types stay inside the GTFS repository, and
+/// screens read `LiveSnapshot` and `LineNotice`.
 struct GTFSRealtimeFeed: Sendable, Equatable {
     struct TripUpdate: Sendable, Equatable {
         var tripId = ""
@@ -37,9 +38,36 @@ struct GTFSRealtimeFeed: Sendable, Equatable {
         var time: Date?
     }
 
+    /// A service alert (TT-132).
+    struct Alert: Sendable, Equatable {
+        /// The feed entity's id. Dismissing a line notice hides this id only.
+        var id = ""
+        /// When it applies; none means always.
+        var activePeriods: [ActivePeriod] = []
+        var informedEntities: [InformedEntity] = []
+        /// The English header text, else the first translation.
+        var header: String?
+        var description: String?
+    }
+
+    struct ActivePeriod: Sendable, Equatable {
+        /// Nil: open-ended.
+        var start: Date?
+        var end: Date?
+    }
+
+    /// What an alert is about: a route, a stop, a trip, or several of them together.
+    struct InformedEntity: Sendable, Equatable {
+        var routeId: String?
+        var stopId: String?
+        /// The entity names a trip, so it is about that trip, not the whole line.
+        var hasTrip = false
+    }
+
     /// When the producer wrote the feed.
     var timestamp: Date?
     var tripUpdates: [TripUpdate] = []
+    var alerts: [Alert] = []
 }
 
 extension GTFSRealtimeFeed {
@@ -63,25 +91,105 @@ extension GTFSRealtimeFeed {
                     }
                 }
             case (2, 2): // entity
-                if let update = try Self.entity(message.message()) { tripUpdates.append(update) }
+                switch try Self.entity(message.message()) {
+                case .tripUpdate(let update): tripUpdates.append(update)
+                case .alert(let alert): alerts.append(alert)
+                case nil: break
+                }
             default:
                 try message.skip(field)
             }
         }
     }
 
-    private static func entity(_ reader: ProtobufReader) throws -> TripUpdate? {
+    private enum Entity {
+        case tripUpdate(TripUpdate)
+        case alert(Alert)
+    }
+
+    private static func entity(_ reader: ProtobufReader) throws -> Entity? {
         var reader = reader
-        var update: TripUpdate?
+        var id = ""
+        var entity: Entity?
         var isDeleted = false
         while let field = try reader.next() {
             switch (field.number, field.wireType) {
+            case (1, 2): id = try reader.string()
             case (2, 0): isDeleted = try reader.varint() != 0
-            case (3, 2): update = try tripUpdate(reader.message())
+            case (3, 2): entity = try .tripUpdate(tripUpdate(reader.message()))
+            case (5, 2): entity = try .alert(alert(reader.message()))
             default: try reader.skip(field)
             }
         }
-        return isDeleted ? nil : update
+        guard !isDeleted else { return nil }
+        if case .alert(var alert) = entity {
+            alert.id = id
+            return .alert(alert)
+        }
+        return entity
+    }
+
+    private static func alert(_ reader: ProtobufReader) throws -> Alert {
+        var reader = reader
+        var alert = Alert()
+        while let field = try reader.next() {
+            switch (field.number, field.wireType) {
+            case (1, 2): // active_period
+                var range = try reader.message()
+                var period = ActivePeriod()
+                while let field = try range.next() {
+                    switch (field.number, field.wireType) {
+                    case (1, 0): period.start = try date(range.varint())
+                    case (2, 0): period.end = try date(range.varint())
+                    default: try range.skip(field)
+                    }
+                }
+                alert.activePeriods.append(period)
+            case (5, 2): // informed_entity
+                var selector = try reader.message()
+                var entity = InformedEntity()
+                while let field = try selector.next() {
+                    switch (field.number, field.wireType) {
+                    case (2, 2): entity.routeId = try selector.string()
+                    case (4, 2):
+                        entity.hasTrip = true
+                        try selector.skip(field)
+                    case (5, 2): entity.stopId = try selector.string()
+                    default: try selector.skip(field)
+                    }
+                }
+                alert.informedEntities.append(entity)
+            case (10, 2): alert.header = try translated(reader.message())
+            case (11, 2): alert.description = try translated(reader.message())
+            default: try reader.skip(field)
+            }
+        }
+        return alert
+    }
+
+    /// A `TranslatedString`: the English text, else the one with no language, else the first.
+    private static func translated(_ reader: ProtobufReader) throws -> String? {
+        var reader = reader
+        var texts: [(text: String, language: String)] = []
+        while let field = try reader.next() {
+            guard field.number == 1, field.wireType == 2 else {
+                try reader.skip(field)
+                continue
+            }
+            var translation = try reader.message()
+            var text = ""
+            var language = ""
+            while let field = try translation.next() {
+                switch (field.number, field.wireType) {
+                case (1, 2): text = try translation.string()
+                case (2, 2): language = try translation.string()
+                default: try translation.skip(field)
+                }
+            }
+            texts.append((text, language.lowercased()))
+        }
+        let english = texts.first { $0.language == "en" || $0.language.hasPrefix("en-") } ?? texts.first { $0.language.isEmpty }
+        return (english ?? texts.first)?.text
     }
 
     private static func tripUpdate(_ reader: ProtobufReader) throws -> TripUpdate {

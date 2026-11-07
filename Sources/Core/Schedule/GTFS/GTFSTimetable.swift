@@ -29,6 +29,12 @@ struct GTFSTimetable: Sendable {
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    /// The route codes a service alert may name for a line (TT-132, D37): its routes' codes, and the line id itself.
+    func routeCodes(ofLine id: String) -> Set<String> {
+        let routes = feed.lines.first { $0.id == id }?.routeIds ?? []
+        return Set(routes.map(GTFSFeed.routeCode) + [id])
+    }
+
     /// The line with the most trains calling at both stations; nil when no train calls at both (TT-115's No direct
     /// connection).
     func line(between first: String, and second: String) -> Line? {

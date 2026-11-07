@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import TrainTimes
 
-/// The GTFS-realtime feed a replay test serves next: one of the TT-131 samples in `Tests/UnitTests/Core/Realtime`
-/// (written by `scripts/make-realtime-samples.py`), or no connection.
+/// The GTFS-realtime feed a replay test serves next: one of the TT-131 and TT-132 samples in
+/// `Tests/UnitTests/Core/Realtime` (written by `scripts/make-realtime-samples.py`), or no connection.
 actor FeedReplay {
     private var next: Result<Data, any Error>
     private(set) var downloads = 0
@@ -49,12 +49,17 @@ actor FeedReplay {
 }
 
 extension GTFSScheduleRepository {
-    /// The TT-130 feed sample with live status from a replay, both on the test's clock.
-    static func replaying(_ replay: FeedReplay, clock: any AppClock, directory: URL) throws -> GTFSScheduleRepository {
+    /// The TT-130 feed sample with live status, and line notices (TT-132), from replays, all on the test's clock. A nil
+    /// replay is a feed the app does not read, as without the Metrolinx key.
+    static func replaying(
+        _ replay: FeedReplay?, alerts: FeedReplay? = nil, clock: any AppClock, directory: URL
+    ) throws -> GTFSScheduleRepository {
         let zip = try GTFSTimetableTests.sampleZip()
         return GTFSScheduleRepository(
             store: GTFSFeedStore(directory: directory, clock: clock, download: { zip }),
-            live: GTFSRealtimeStore(clock: clock, download: { try await replay.download() })
+            live: replay.map { replay in GTFSRealtimeStore(clock: clock, download: { try await replay.download() }) },
+            alerts: alerts.map { alerts in GTFSRealtimeStore(clock: clock, download: { try await alerts.download() }) },
+            clock: clock
         )
     }
 }

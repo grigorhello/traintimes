@@ -19,7 +19,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TTFont.headline.weight(.regular))
+            .font(TTFont.headline)
             .foregroundStyle(TTColor.accent)
             .padding(.horizontal, TTSpace.s5)
             .frame(minHeight: TTSize.targetMin + TTSpace.s1)

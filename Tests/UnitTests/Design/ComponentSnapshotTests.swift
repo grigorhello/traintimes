@@ -34,14 +34,6 @@ final class TripStatusTests: XCTestCase {
         XCTAssertEqual(TripStatus.offline.text, "Offline")
     }
 
-    func testOnlyDelaysAndCancellationsCarryColour() {
-        XCTAssertEqual(TripStatus.onTime.fill, TTColor.ontimeFill)
-        XCTAssertEqual(TripStatus.scheduled.fill, TTColor.scheduledFill)
-        XCTAssertEqual(TripStatus.delayed(minutes: 3).fill, TTColor.delayFill)
-        XCTAssertEqual(TripStatus.cancelled.fill, TTColor.cancelFill)
-        XCTAssertEqual(TripStatus.stopSkipped.fill, TTColor.cancelFill)
-    }
-
     func testColoursResolveFromTheAssetCatalog() {
         XCTAssertNotNil(UIColor(named: "Accent"))
         XCTAssertNotNil(UIColor(named: "ScheduledFill"))

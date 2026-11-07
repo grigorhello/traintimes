@@ -37,4 +37,14 @@ final class ServiceDayTests: XCTestCase {
         XCTAssertEqual(ServiceDay(containing: utc("2027-01-01T06:00:00Z")).description, "2026-12-31")
         XCTAssertLessThan(ServiceDay(year: 2026, month: 12, day: 31), ServiceDay(year: 2027, month: 1, day: 1))
     }
+
+    func testDayStripLabels() {
+        let thursday = ServiceDay(year: 2026, month: 11, day: 5)
+        XCTAssertEqual(thursday.weekdayShort, "Thu")
+        XCTAssertEqual(thursday.adding(days: 3).weekdayShort, "Sun")
+        XCTAssertEqual(thursday.adding(days: 3).shortLabel, "Sun, Nov 8")
+        XCTAssertEqual(ServiceDay(year: 2026, month: 12, day: 31).adding(days: 1), ServiceDay(year: 2027, month: 1, day: 1))
+        // Fall back on Nov 1 does not skip or repeat a day.
+        XCTAssertEqual(ServiceDay(year: 2026, month: 10, day: 31).adding(days: 2), ServiceDay(year: 2026, month: 11, day: 2))
+    }
 }

@@ -5,6 +5,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# D17/D24: every time goes through the one formatter in Sources/Core/Formatting.
+if grep -rnE 'DateFormatter|\.formatted\(' Sources --include='*.swift' | grep -v '^Sources/Core/Formatting/'; then
+  echo "::error::DateFormatter or Date.formatted used outside Sources/Core/Formatting (D17)"
+  exit 1
+fi
+
 PREFERRED="${SIMULATOR_NAME:-iPhone 17 Pro}"
 UDID=$(xcrun simctl list devices available -j | python3 -c '
 import json, re, sys

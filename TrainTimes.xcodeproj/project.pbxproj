@@ -1,0 +1,645 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		65DF5D3167C6B35C62C512161A531D7A /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = ABE0D06A4A268476EFEB0DCF093082BE /* SnapshotTesting */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C1883FFA909A7FE90C9C8FF4F2F0281F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9EF7BEA179F5E1E546121BC40DF223AB;
+			remoteInfo = TrainTimes;
+		};
+		C4430D0FA242FAFCC248725EB65C72EF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9EF7BEA179F5E1E546121BC40DF223AB;
+			remoteInfo = TrainTimes;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		488E19F2139B2F63712A11EE1A8B6D3A /* TrainTimes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainTimes.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7BCF7FFD100A9503AF073B85049362E3 /* TrainTimesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainTimesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB0F31EF010D6DBE8549D388D598290F /* TrainTimesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainTimesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		0D283039C7613C857B40C20FE0D4DC60 /* Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = UnitTests;
+			sourceTree = "<group>";
+		};
+		EA67787D1FE8341A705F92883C73D137 /* Preview Content */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		F124E55860BAA04B1BC286AC8BEF68A6 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		31D91EEEBF3A43084AE85BD5E98F0845 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CBA18D3556492655EC3B7254B0E154B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				65DF5D3167C6B35C62C512161A531D7A /* SnapshotTesting in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DBFC9F49BB6D414D8252A9C5447F9163 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		24E73314574615BB5EB87A9604208008 = {
+			isa = PBXGroup;
+			children = (
+				F124E55860BAA04B1BC286AC8BEF68A6 /* Sources */,
+				0D283039C7613C857B40C20FE0D4DC60 /* Resources */,
+				EA67787D1FE8341A705F92883C73D137 /* Preview Content */,
+				3853CCBC896392AF5DC9EEB6271B9DEC /* Tests */,
+				F6E25758C193213727C3826A65FC0D90 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3853CCBC896392AF5DC9EEB6271B9DEC /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */,
+				7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */,
+			);
+			name = Tests;
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		F6E25758C193213727C3826A65FC0D90 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				488E19F2139B2F63712A11EE1A8B6D3A /* TrainTimes.app */,
+				DB0F31EF010D6DBE8549D388D598290F /* TrainTimesTests.xctest */,
+				7BCF7FFD100A9503AF073B85049362E3 /* TrainTimesUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6CB0184C0E73A26CD2884657F138677F /* TrainTimesTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64472B7CA632563D4CBD65A1990AFFB2 /* Build configuration list for PBXNativeTarget "TrainTimesTests" */;
+			buildPhases = (
+				BE1F4E60DA73AB427787A2BFB0F1937C /* Sources */,
+				CBA18D3556492655EC3B7254B0E154B5 /* Frameworks */,
+				9D2147691634C1CC6DEFACF68C43195A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1CBA8B1A330F8169B1BBC188FF9B7CCB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */,
+				EA67787D1FE8341A705F92883C73D137 /* Preview Content */,
+			);
+			name = TrainTimesTests;
+			packageProductDependencies = (
+				ABE0D06A4A268476EFEB0DCF093082BE /* SnapshotTesting */,
+			);
+			productName = TrainTimesTests;
+			productReference = DB0F31EF010D6DBE8549D388D598290F /* TrainTimesTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9216EF03F57C212ECA9135EC4F28A64B /* TrainTimesUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55F64983617E2B83DA518BF5E87E24AA /* Build configuration list for PBXNativeTarget "TrainTimesUITests" */;
+			buildPhases = (
+				0B37459AECA2E1FFCD1A7B5310555ECE /* Sources */,
+				31D91EEEBF3A43084AE85BD5E98F0845 /* Frameworks */,
+				40B1A017C9A1BC9220132784FF40339E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F94F4C11928FFDD0E439324899A32415 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */,
+			);
+			name = TrainTimesUITests;
+			productName = TrainTimesUITests;
+			productReference = 7BCF7FFD100A9503AF073B85049362E3 /* TrainTimesUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E21F4FCE429D0CCCAFDDBFBBF339722F /* Build configuration list for PBXNativeTarget "TrainTimes" */;
+			buildPhases = (
+				56AD2BD4C14911B4ECB2827386A0EE1C /* Sources */,
+				DBFC9F49BB6D414D8252A9C5447F9163 /* Frameworks */,
+				0DE7D833B48DEF08F75617BA041D2338 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F124E55860BAA04B1BC286AC8BEF68A6 /* Sources */,
+				0D283039C7613C857B40C20FE0D4DC60 /* Resources */,
+				EA67787D1FE8341A705F92883C73D137 /* Preview Content */,
+			);
+			name = TrainTimes;
+			productName = TrainTimes;
+			productReference = 488E19F2139B2F63712A11EE1A8B6D3A /* TrainTimes.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		58F6240D71E1CF90331F71CA6B26AB73 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					6CB0184C0E73A26CD2884657F138677F = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 9EF7BEA179F5E1E546121BC40DF223AB;
+					};
+					9216EF03F57C212ECA9135EC4F28A64B = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 9EF7BEA179F5E1E546121BC40DF223AB;
+					};
+					9EF7BEA179F5E1E546121BC40DF223AB = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 1CDADB147EC73F976BE60E30ADC6DD5B /* Build configuration list for PBXProject "TrainTimes" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = "en-CA";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"en-CA",
+				Base,
+			);
+			mainGroup = 24E73314574615BB5EB87A9604208008;
+			minimizedProjectReferenceProxies = 0;
+			packageReferences = (
+				80D34BB7C21E0FACA125B10C598AD4B1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F6E25758C193213727C3826A65FC0D90 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */,
+				6CB0184C0E73A26CD2884657F138677F /* TrainTimesTests */,
+				9216EF03F57C212ECA9135EC4F28A64B /* TrainTimesUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0DE7D833B48DEF08F75617BA041D2338 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		40B1A017C9A1BC9220132784FF40339E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9D2147691634C1CC6DEFACF68C43195A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0B37459AECA2E1FFCD1A7B5310555ECE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		56AD2BD4C14911B4ECB2827386A0EE1C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE1F4E60DA73AB427787A2BFB0F1937C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1CBA8B1A330F8169B1BBC188FF9B7CCB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TrainTimes;
+			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
+			targetProxy = C1883FFA909A7FE90C9C8FF4F2F0281F /* PBXContainerItemProxy */;
+		};
+		F94F4C11928FFDD0E439324899A32415 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TrainTimes;
+			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
+			targetProxy = C4430D0FA242FAFCC248725EB65C72EF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		09C242272F910231342A7920C996552A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		19F3F2B58556D7EF20BDC81AF6BCC820 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TEST_TARGET_NAME = TrainTimes;
+			};
+			name = Debug;
+		};
+		368A6EA952CBC87B1E380592F72F2D2D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = Fixtures.json;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		683B17F7921DEBA0B95EA068527696C7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes";
+			};
+			name = Debug;
+		};
+		88E2AB329CE4C88A8263D32777EE360F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TEST_TARGET_NAME = TrainTimes;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		896ED46CC8A46E6ABF01490B9D59B5C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		933617F0635E3508B2F1EEF5B8F22490 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		97BC42EB04E6ED952B649511F91D593E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1CDADB147EC73F976BE60E30ADC6DD5B /* Build configuration list for PBXProject "TrainTimes" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				933617F0635E3508B2F1EEF5B8F22490 /* Debug */,
+				09C242272F910231342A7920C996552A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		55F64983617E2B83DA518BF5E87E24AA /* Build configuration list for PBXNativeTarget "TrainTimesUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				88E2AB329CE4C88A8263D32777EE360F /* Release */,
+				19F3F2B58556D7EF20BDC81AF6BCC820 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64472B7CA632563D4CBD65A1990AFFB2 /* Build configuration list for PBXNativeTarget "TrainTimesTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97BC42EB04E6ED952B649511F91D593E /* Release */,
+				683B17F7921DEBA0B95EA068527696C7 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E21F4FCE429D0CCCAFDDBFBBF339722F /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				368A6EA952CBC87B1E380592F72F2D2D /* Release */,
+				896ED46CC8A46E6ABF01490B9D59B5C9 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		80D34BB7C21E0FACA125B10C598AD4B1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = exactVersion;
+				version = 1.19.7;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		ABE0D06A4A268476EFEB0DCF093082BE /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 80D34BB7C21E0FACA125B10C598AD4B1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
+}

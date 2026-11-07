@@ -26,4 +26,46 @@ Notion Status values, in order: Backlog, Needs design, Design review, To do, In 
 
 ## Code conventions
 
-This file was started in TT-100; TT-101 (project setup) fills in this section: feature folders, views without business logic, `@Observable` view models with injected protocols, repositories returning domain types, `Sources/Design` tokens only, one time formatter, Swift 6 with zero warnings, unit + snapshot + XCUITest expectations from each issue's Definition of done.
+Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA pass.
+
+### Project
+
+- `TrainTimes.xcodeproj`: one app target `TrainTimes`, `TrainTimesTests` (unit and snapshot, hosted in the app) and `TrainTimesUITests` (XCUITest). iOS 17 minimum, Swift 6 language mode, complete strict concurrency, warnings are errors (D1–D4).
+- The project uses **Xcode 16 synchronized folders**: adding, moving or deleting a file under `Sources/`, `Resources/`, `Preview Content/` or `Tests/` needs no project edit. Do not put non-code files such as READMEs in those folders; they would be bundled.
+- To change targets, build settings or packages, edit `scripts/generate-xcodeproj.rb` and re-run it (`gem install xcodeproj`, then `ruby scripts/generate-xcodeproj.rb`; works on Linux), and commit the regenerated project. Do not hand-edit `project.pbxproj`.
+- Bundle id `ca.traintimes.TrainTimes`; Display Name "Train Times" (D7).
+- Packages: swift-snapshot-testing (exact version, test target only). No third-party UI kits or runtime dependencies (D6).
+
+### Folders
+
+| Folder | Holds |
+|---|---|
+| `Sources/App` | `TrainTimesApp`, the root view, app-wide environment and dependency wiring. |
+| `Sources/Design` | Tokens and shared components (TT-102). Screens use these only: no raw colours, fonts, spacing or radii in feature code. |
+| `Sources/Core` | Domain models, repository protocols and implementations, the one time formatter (TT-106), service-day rules. No SwiftUI imports except where a type is environment glue. |
+| `Sources/Features/<Feature>` | One folder per feature (`Schedule`, `TripDetails`, `Route`, `Stations`, `Alerts`, `Settings`): its views and view models. |
+| `Resources/en-CA.lproj/Localizable.strings` | Every user-facing string (D19). Copy of `design/handoff/Localizable.strings`. |
+| `Preview Content/Fixtures.json` | Canvas fixtures, in Debug builds and the unit test bundle; excluded from Release (D20). Copy of `design/handoff/Fixtures.json`. |
+| `Tests/UnitTests`, `Tests/UITests` | Tests, mirroring the `Sources` folders. Snapshot references live in `__Snapshots__` beside each test file. |
+
+`scripts/check-handoff-sync.sh` fails CI when a copy drifts from `design/handoff/`; change both in the same PR.
+
+### Architecture
+
+- **MVVM.** Views hold layout only, no business logic. Each screen has an `@Observable @MainActor final class` view model that gets its dependencies as protocols through `init` (repositories, clock, formatter), so tests inject fakes.
+- **Repositories return domain types** from `Sources/Core`, never feed or JSON types. Fixture and live implementations sit behind the same protocol (D20).
+- **One time formatter** (TT-106) for every time on screen, in VoiceOver and in notifications (D17); tabular digits.
+- **Strings** come from `Localizable.strings` by key (`Text("tab.schedule")`, `String(localized:)`); no literal copy in code.
+- Swift 6 concurrency: no `@unchecked Sendable` or `nonisolated(unsafe)` without a comment saying why it is safe.
+
+### Tests (from each issue's Definition of done)
+
+- Unit tests for every view model and rule.
+- Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone13), traits:))`) for every screen state the ticket touches, in light and dark, plus large text where the frame shows it. Test methods that touch views are `@MainActor`.
+- An XCUITest flow added or updated when a user flow changes. Find elements by `accessibilityIdentifier`.
+
+### Building and CI
+
+- CI (`.github/workflows/ci.yml`) runs `scripts/ci-test.sh` on the latest GitHub macOS runner on every pull request and on main. Run the same script on a Mac to test locally.
+- **Snapshot references are recorded by CI**, since cloud sessions run on Linux without Xcode. Add a snapshot test without a reference and push: CI records the missing image, commits it to the PR branch as "Record reference snapshots…", re-runs the tests against it and goes green. Pull before pushing again, and look at the recorded PNGs in the PR diff during the design review. A changed snapshot is never re-recorded automatically: delete the old reference in the PR to have CI record the new one.
+- When the runner image moves to a new iOS version, snapshots may drift; re-record them in one PR by deleting the `__Snapshots__` folders.

@@ -1,0 +1,159 @@
+{
+  "note": "Illustrative fixtures from the design canvas, not GO schedules. Use for SwiftUI previews and UI tests before the GTFS layer exists.",
+  "route": {
+    "from": {
+      "id": "OA",
+      "name": "Oakville"
+    },
+    "to": {
+      "id": "UN",
+      "name": "Union"
+    },
+    "line": {
+      "id": "LW",
+      "name": "Lakeshore West",
+      "color": "#111827"
+    }
+  },
+  "serviceDate": "2026-11-05",
+  "now": "07:21",
+  "feedUpdatedAt": "07:21",
+  "trains": [
+    {
+      "tripId": "LW-0732-20261105",
+      "scheduledDeparture": "07:32",
+      "expectedDeparture": "07:32",
+      "scheduledArrival": "08:12",
+      "expectedArrival": null,
+      "status": "onTime",
+      "platform": "2",
+      "tags": [],
+      "isNextUsable": true
+    },
+    {
+      "tripId": "LW-0758-20261105",
+      "scheduledDeparture": "07:58",
+      "expectedDeparture": "07:58",
+      "scheduledArrival": "08:38",
+      "expectedArrival": null,
+      "status": "onTime",
+      "platform": null,
+      "tags": [
+        "express",
+        "bikeCoach"
+      ],
+      "isNextUsable": false
+    },
+    {
+      "tripId": "LW-0821-20261105",
+      "scheduledDeparture": "08:21",
+      "expectedDeparture": null,
+      "scheduledArrival": "09:01",
+      "expectedArrival": null,
+      "status": "scheduled",
+      "platform": null,
+      "tags": [
+        "express"
+      ],
+      "isNextUsable": false
+    },
+    {
+      "tripId": "LW-0850-20261105",
+      "scheduledDeparture": "08:50",
+      "expectedDeparture": null,
+      "scheduledArrival": "09:30",
+      "expectedArrival": null,
+      "status": "scheduled",
+      "platform": null,
+      "tags": [],
+      "isNextUsable": false
+    }
+  ],
+  "delayedScenario": {
+    "tripId": "LW-0732-20261105",
+    "expectedDeparture": "07:41",
+    "expectedArrival": "08:21",
+    "delayMinutes": 9,
+    "reportedAt": "07:14",
+    "lineNotice": {
+      "line": "Lakeshore West",
+      "text": "Delays of up to 15 min near Port Credit",
+      "reportedAt": "07:12"
+    }
+  },
+  "cancelledScenario": {
+    "tripId": "LW-0732-20261105",
+    "status": "cancelled",
+    "reportedAt": "07:05"
+  },
+  "eveningDark": {
+    "route": {
+      "from": "Union",
+      "to": "Oakville"
+    },
+    "now": "17:03",
+    "trains": [
+      {
+        "tripId": "LW-1710",
+        "scheduledDeparture": "17:10",
+        "scheduledArrival": "17:50",
+        "status": "onTime",
+        "platform": "9",
+        "isNextUsable": true
+      },
+      {
+        "tripId": "LW-1728",
+        "scheduledDeparture": "17:28",
+        "scheduledArrival": "18:08",
+        "status": "cancelled",
+        "reportedAt": "16:40"
+      },
+      {
+        "tripId": "LW-1752",
+        "scheduledDeparture": "17:52",
+        "scheduledArrival": "18:27",
+        "status": "scheduled",
+        "tags": [
+          "express"
+        ]
+      },
+      {
+        "tripId": "LW-1840",
+        "scheduledDeparture": "18:40",
+        "scheduledArrival": "19:20",
+        "status": "scheduled",
+        "foldBefore": true
+      }
+    ]
+  },
+  "alerts": [
+    {
+      "id": "a1",
+      "tripId": "LW-0732",
+      "label": "7:32 AM \u00b7 Oakville to Union",
+      "repeat": "Mon to Fri",
+      "state": "on"
+    },
+    {
+      "id": "a2",
+      "tripId": "LW-1710",
+      "label": "5:10 PM \u00b7 Union to Oakville",
+      "repeat": "Mon to Thu",
+      "state": "paused"
+    },
+    {
+      "id": "a3",
+      "tripId": "LW-0805-BU",
+      "label": "8:05 AM \u00b7 Burlington to Union",
+      "repeat": "Mon to Fri",
+      "state": "reviewNeeded"
+    },
+    {
+      "id": "a4",
+      "tripId": "LW-0821",
+      "label": "8:21 AM \u00b7 Oakville to Union",
+      "repeat": "Today only",
+      "state": "notificationsOff"
+    }
+  ]
+}

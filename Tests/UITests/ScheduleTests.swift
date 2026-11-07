@@ -10,6 +10,7 @@ final class ScheduleTests: XCTestCase {
     @MainActor
     func testAnotherDayThenTodayReturnsToNow() {
         let app = XCUIApplication()
+        app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
         XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
@@ -37,6 +38,7 @@ final class ScheduleTests: XCTestCase {
     @MainActor
     func testTapCardOpensTripDetails() {
         let app = XCUIApplication()
+        app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
         let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch

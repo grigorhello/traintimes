@@ -15,7 +15,7 @@ final class ScheduleSnapshotTests: XCTestCase {
 
     @MainActor
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
-        let view = RootView(schedule: schedule)
+        let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
         layOutOnce(view)
         assertSnapshot(
             of: view,

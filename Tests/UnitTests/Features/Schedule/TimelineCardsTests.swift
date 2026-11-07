@@ -79,4 +79,12 @@ final class TimelineCardsTests: XCTestCase {
         let quarterPast = try XCTUnwrap(model.layout.gridlines.first { $0.time == day.date(hour: 8, minute: 15) })
         XCTAssertTrue(model.showsLabel(quarterPast))
     }
+
+    /// The "Now" label never draws over a time pill; it is back once the pill is out of the way.
+    func testNowLabelHidesBesideAPill() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(minutesLater: 10) // 7:31 AM, 1 min before 7:32
+        XCTAssertFalse(model.showsNowLabel)
+        let earlier = try await ScheduleViewModel.loadedFixture() // 7:21 AM
+        XCTAssertTrue(earlier.showsNowLabel)
+    }
 }

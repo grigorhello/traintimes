@@ -61,6 +61,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - **MVVM.** Views hold layout only, no business logic. Each screen has an `@Observable @MainActor final class` view model that gets its dependencies as protocols through `init` (repositories, clock, formatter), so tests inject fakes.
 - **Repositories return domain types** from `Sources/Core`, never feed or JSON types. Fixture and live implementations sit behind the same protocol (D20).
 - **One time formatter** (TT-106) for every time on screen, in VoiceOver and in notifications (D17); tabular digits.
+- **Settings** (TT-105): `AppSettings` (`Sources/Core/Settings`) stores Appearance and Time format in `UserDefaults`. `RootView` applies Appearance with `preferredColorScheme` and puts `settings.timeFormatter` in the environment as `\.timeFormatter`. Screens format times with that value, never a `TimeFormatter` of their own, so a Time format change updates every time at once. A view model must not keep a formatter from `init` (a view model held in `@State` would keep the old one): the view passes `\.timeFormatter` on each formatting call, or the view model reads `settings.timeFormatter` each time. Tests pass `AppSettings(defaults: .ephemeral())` (`Tests/UnitTests/Support`), never `.standard`.
 - **Strings** come from `Localizable.strings` by key (`Text("tab.schedule")`, `String(localized:)`); no literal copy in code. Keys that take values (`%@`, `%d`) are formatted, not interpolated: `String(format: String(localized: "status.delayed"), minutes)`; `Text("status.delayed \(minutes)")` looks up a key that does not exist. Times are formatted by the one formatter first and passed as `%@`.
 - Swift 6 concurrency: no `@unchecked Sendable` or `nonisolated(unsafe)` without a comment saying why it is safe.
 
@@ -70,6 +71,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone17Pro), traits:))`, config in `Tests/UnitTests/Support`) for every screen state the ticket touches, in light and dark. iPhone 17 Pro only; no large-text or iPad snapshots (D23). Test methods that touch views are `@MainActor`.
 - Snapshots of anything inside the `TabView` or a `NavigationStack` pass `drawHierarchyInKeyWindow: true` (see `Tests/UnitTests/App/AppShellTests.swift`); the default layer render draws the bars and safe areas wrong (TT-104).
 - An XCUITest flow added or updated when a user flow changes. Find elements by `accessibilityIdentifier`.
+- A UI test that needs the Schedule timeline launches with `LaunchArguments.fixtureRoute` (`Tests/UITests/LaunchArguments.swift`); with no saved route the app opens on the route form (TT-120). `LaunchArguments.freshInstall` starts with no route.
 
 ### Building and CI
 

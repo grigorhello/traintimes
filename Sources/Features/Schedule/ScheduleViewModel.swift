@@ -33,14 +33,20 @@ final class ScheduleViewModel {
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
+    /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
+    private let routeStore: (any RouteStoring)?
     private var hasLoaded = false
     /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
     @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
 
-    init(route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false) {
+    init(
+        route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false,
+        routeStore: (any RouteStoring)? = nil
+    ) {
         self.route = route
         self.repository = repository
         self.clock = clock
+        self.routeStore = routeStore
         self.isFavourite = isFavourite
         let now = clock.now
         self.now = now
@@ -85,9 +91,16 @@ final class ScheduleViewModel {
         return abs(gridline.y - nowY) > TTTimeline.pillLabelHideDistance
     }
 
-    /// The view reports each card's measured size; the layout is recomputed only when one changes.
+    /// The "Now" label hides while a time pill sits beside it, as gridline labels do; the line and dot stay.
+    var showsNowLabel: Bool {
+        guard let nowY = layout.nowY else { return false }
+        return !layout.cards.contains { abs($0.markerY - nowY) <= TTTimeline.pillLabelHideDistance }
+    }
+
+    /// The view reports each card's measured size; the layout is recomputed only when one moves by a point or more,
+    /// so sub-point rounding can never start a measure and relayout loop.
     func setCardSize(_ size: TimelineCardSize, for id: TripKey) {
-        guard cardSizes[id] != size else { return }
+        if let old = cardSizes[id], abs(old.height - size.height) < 1, abs(old.anchor - size.anchor) < 1 { return }
         cardSizes[id] = size
         relayout()
     }
@@ -153,10 +166,22 @@ final class ScheduleViewModel {
         scrollRequest += 1
     }
 
-    /// Swap is explicit, never automatic.
+    /// Swap is explicit, never automatic. The new direction is remembered.
     func swap() async {
         guard let route else { return }
-        self.route = Route(from: route.to, to: route.from, line: route.line)
+        let swapped = Route(from: route.to, to: route.from, line: route.line)
+        self.route = swapped
+        routeStore?.save(swapped)
+        await load()
+        scrollRequest += 1
+    }
+
+    /// The route from the route form (TT-120), saved on device so the next launch opens it.
+    func show(_ route: Route) async {
+        self.route = route
+        routeStore?.save(route)
+        // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
+        guard hasLoaded else { return }
         await load()
         scrollRequest += 1
     }

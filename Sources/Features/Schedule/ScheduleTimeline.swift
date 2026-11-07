@@ -169,8 +169,10 @@ struct ScheduleTimeline: View {
             .fill(TTColor.accent)
             .frame(width: Self.nowDot, height: Self.nowDot)
             .centred(x: Self.railX, y: y)
-        label(Text("button.now"), at: y, weight: .semibold)
-            .foregroundStyle(TTColor.accent)
+        if viewModel.showsNowLabel {
+            label(Text("button.now"), at: y, weight: .semibold)
+                .foregroundStyle(TTColor.accent)
+        }
     }
 
     /// Footnote text, right-aligned in the label column and centred on `y`.
@@ -200,6 +202,7 @@ struct DepartureCardView: View {
     private static let bellBleed: CGFloat = 10
     /// Between the badge row and the wrapped tags.
     private static let tagRowGap: CGFloat = 6
+    private static let timeMinimumScale: CGFloat = 0.85
 
     var body: some View {
         Card {
@@ -210,11 +213,13 @@ struct DepartureCardView: View {
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
                         .lineLimit(1)
+                        // "12:47 PM" beside a long arrival label shrinks a little rather than truncating.
+                        .minimumScaleFactor(Self.timeMinimumScale)
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
                             anchor = $0
                             report()
                         }
-                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     arrival
                 }
                 badgeRow

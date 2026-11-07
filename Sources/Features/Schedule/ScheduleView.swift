@@ -10,8 +10,8 @@ struct ScheduleView: View {
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
 
-    /// The one formatter (D17).
-    private let formatter: any TimeFormatting = TimeFormatter(format: .device)
+    /// The one formatter (D17), following the Time format setting (TT-105).
+    @Environment(\.timeFormatter) private var formatter
 
     var body: some View {
         VStack(spacing: 0) {

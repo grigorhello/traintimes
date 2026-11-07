@@ -1,0 +1,20 @@
+{
+  "name": "traintimes-alerts",
+  "private": true,
+  "type": "module",
+  "description": "Train Times alert server (TT-140): device tokens, alert rules and APNs, on a Cloudflare Worker.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test --disable-warning=ExperimentalWarning test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261107.1",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "wrangler": "4.158.0"
+  }
+}

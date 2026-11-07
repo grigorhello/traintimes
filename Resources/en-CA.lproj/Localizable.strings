@@ -111,6 +111,7 @@
 
 /* Notifications (title / body). Every change carries the time it was reported. */
 "notif.delay.title" = "%@ train delayed %d min";
+"notif.delay.update.title" = "%@ train now delayed %d min";
 "notif.delay.body" = "%@. Now expected %@, as reported at %@.";
 "notif.recovery.title" = "%@ train back on time";
 "notif.recovery.body" = "%@. Expected %@, as reported at %@.";

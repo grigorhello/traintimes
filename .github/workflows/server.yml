@@ -1,0 +1,42 @@
+name: Alert server
+
+# Type-check and test the alert server (TT-140, server/) when it, or a file its tests read, changes.
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'design/handoff/Localizable.strings'
+      - 'Tests/UnitTests/Core/Realtime/*.pb'
+      - 'Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip'
+      - '.github/workflows/server.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'design/handoff/Localizable.strings'
+      - 'Tests/UnitTests/Core/Realtime/*.pb'
+      - 'Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip'
+      - '.github/workflows/server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

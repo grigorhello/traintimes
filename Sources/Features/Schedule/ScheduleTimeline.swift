@@ -320,28 +320,37 @@ struct DepartureCardView: View {
     }
 
     /// Badge, platform or "in N min", tags and the bell on one line; tags wrap under them when they do not fit.
-    /// The bell's slot stays outside `ViewThatFits`, so there is one slot whichever row layout fits.
-    private var badgeRow: some View {
-        HStack(alignment: .top, spacing: TTSpace.s2) {
-            ViewThatFits(in: .horizontal) {
+    /// The bell's slot stays outside `ViewThatFits`, so there is one slot whichever row layout fits. A cancelled card has
+    /// no bell, so its rows stay as they were before the bell (TT-114).
+    @ViewBuilder private var badgeRow: some View {
+        if card.isCancelled {
+            badgeRows
+        } else {
+            HStack(alignment: .top, spacing: TTSpace.s2) {
+                badgeRows
+                bellSlot
+            }
+        }
+    }
+
+    private var badgeRows: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: TTSpace.s2) {
+                StatusBadge(status: card.status)
+                detail
+                tags
+                Spacer(minLength: 0)
+            }
+            .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
+            VStack(alignment: .leading, spacing: Self.tagRowGap) {
                 HStack(spacing: TTSpace.s2) {
                     StatusBadge(status: card.status)
                     detail
-                    tags
                     Spacer(minLength: 0)
                 }
-                .frame(minHeight: card.isCancelled ? 0 : Self.bellRowHeight)
-                VStack(alignment: .leading, spacing: Self.tagRowGap) {
-                    HStack(spacing: TTSpace.s2) {
-                        StatusBadge(status: card.status)
-                        detail
-                        Spacer(minLength: 0)
-                    }
-                    .frame(minHeight: card.isCancelled ? 0 : Self.bellRowHeight)
-                    tags
-                }
+                .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
+                tags
             }
-            bellSlot
         }
     }
 
@@ -389,17 +398,15 @@ struct DepartureCardView: View {
         }
     }
 
-    /// The bell's place at the end of the badge row. A cancelled train has none.
-    @ViewBuilder private var bellSlot: some View {
-        if !card.isCancelled {
-            Color.clear
-                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                .alignmentGuide(HorizontalAlignment.bellSlot) { $0[HorizontalAlignment.center] }
-                .alignmentGuide(VerticalAlignment.bellSlot) { $0[VerticalAlignment.center] }
-                .padding(.vertical, -Self.bellBleed)
-                .padding(.trailing, -Self.bellBleed)
-                .accessibilityHidden(true)
-        }
+    /// The bell's place at the end of the badge row; its centre sets the guides the bell aligns on.
+    private var bellSlot: some View {
+        Color.clear
+            .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+            .alignmentGuide(HorizontalAlignment.bellSlot) { $0[HorizontalAlignment.center] }
+            .alignmentGuide(VerticalAlignment.bellSlot) { $0[VerticalAlignment.center] }
+            .padding(.vertical, -Self.bellBleed)
+            .padding(.trailing, -Self.bellBleed)
+            .accessibilityHidden(true)
     }
 
     /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141). Dimmed while Setting up.
@@ -417,6 +424,20 @@ struct DepartureCardView: View {
     private func report() {
         guard height > 0, anchor > 0 else { return }
         onSize(TimelineCardSize(height: height, anchor: anchor))
+    }
+}
+
+/// A badge row with a bell is at least the bell's height once it bleeds, so the bell centres on it. A cancelled card has no
+/// bell and keeps its row unframed, so its struck time keeps full size.
+private struct BellRowHeight: ViewModifier {
+    let minHeight: CGFloat?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let minHeight {
+            content.frame(minHeight: minHeight)
+        } else {
+            content
+        }
     }
 }
 

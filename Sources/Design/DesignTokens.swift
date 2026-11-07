@@ -38,6 +38,9 @@ enum TTRadius {
 enum TTSize {
     static let targetMin: CGFloat = 44      // every tappable thing
     static let iconMD: CGFloat = 22, iconSM: CGFloat = 15
+    /// SF Symbol size in `IconButton` (gear, swap, star, bell, close). The canvas draws its glyphs inside the 22 pt
+    /// icon-md box; an SF Symbol at 18 pt matches their drawn size in the frames (TT-116).
+    static let iconButtonGlyph: CGFloat = 18
     static let rowMin: CGFloat = 76
     static let dayCell: CGFloat = 44        // 7-day strip
     static let appMark: CGFloat = 36        // app icon in Settings › About

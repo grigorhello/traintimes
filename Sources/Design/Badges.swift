@@ -106,7 +106,8 @@ struct TimePill: View {
 
     var body: some View {
         Text(time)
-            .font(TTFont.badge)
+            // The slipped scheduled time is regular weight on the canvas (`.tl-pill.ghost`); the others are semibold.
+            .font(style == .slipped ? TTFont.badge.weight(.regular) : TTFont.badge)
             .monospacedDigit()
             .strikethrough(style == .slipped || style == .cancelled)
             .foregroundStyle(ink)

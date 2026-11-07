@@ -106,7 +106,7 @@ struct EmptyStateCard: View {
             VStack(spacing: TTSpace.s2) {
                 Image(systemName: systemImage)
                     .font(.system(size: TTSize.iconMD + TTSpace.s2))
-                    .foregroundStyle(TTColor.ink)
+                    .foregroundStyle(TTColor.inkSecondary)
                     .padding(.bottom, TTSpace.s2)
                 title.font(TTFont.headline).foregroundStyle(TTColor.ink)
                 message.font(TTFont.subhead).foregroundStyle(TTColor.inkSecondary)

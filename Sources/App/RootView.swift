@@ -35,7 +35,9 @@ struct RootView: View {
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil
     ) {
-        let bells = bells ?? AlertBellModel(rules: alertDependencies.rules(settings: settings))
+        let bells = bells ?? AlertBellModel(
+            rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.toastDuration
+        )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
             favourites: favourites, dismissedNotices: dismissedNotices, watchedTrips: bells.rules

@@ -3,6 +3,14 @@ import Foundation
 struct Station: Hashable, Sendable, Identifiable {
     let id: String
     let name: String
+    /// The lines that serve the station, for its line context in station search (TT-121). Empty where unknown, as for
+    /// the saved route.
+    var lines: [String] = []
+
+    /// One station is one id, whatever name or lines it was loaded with, so a station from the saved route equals the
+    /// same station picked in search.
+    static func == (lhs: Station, rhs: Station) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 struct Line: Hashable, Sendable, Identifiable {

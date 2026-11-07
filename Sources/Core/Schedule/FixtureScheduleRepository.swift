@@ -21,6 +21,7 @@ struct FixtureScheduleRepository: ScheduleRepository {
     private let allTrips: [Trip]
     private let live: LiveSnapshot
     private let notices: [LineNotice]
+    private let stationList: [Station]
 
     init(scenario: Scenario = .normal, bundle: Bundle = .main) throws {
         guard let url = bundle.url(forResource: "Fixtures", withExtension: "json") else { throw FixtureError.missingFile }
@@ -104,6 +105,9 @@ struct FixtureScheduleRepository: ScheduleRepository {
         }
         self.live = LiveSnapshot(updatedAt: updatedAt, updates: updates)
         self.notices = notices
+        self.stationList = file.stations
+            .map { Station(id: $0.id, name: $0.name, lines: $0.lines) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
@@ -123,10 +127,11 @@ struct FixtureScheduleRepository: ScheduleRepository {
     }
 }
 
-/// M1 stations are the fixture route's two (TT-120); TT-121 and TT-130 bring the full list.
+/// M1 stations are the illustrative list in `Fixtures.json` (TT-121, D29); GTFS stops replace it in TT-130.
+/// Only the fixture route's pair has a line and trips.
 extension FixtureScheduleRepository: StationRepository {
     func stations() async throws -> [Station] {
-        [self.route.from, self.route.to].sorted { $0.name < $1.name }
+        stationList
     }
 
     func route(from: Station, to: Station) async throws -> Route {
@@ -138,6 +143,7 @@ extension FixtureScheduleRepository: StationRepository {
 /// The shape of `design/handoff/Fixtures.json`. Feed and JSON types stay private to the repository.
 private struct FixtureFile: Decodable {
     struct StationDTO: Decodable { let id: String; let name: String }
+    struct StationListingDTO: Decodable { let id: String; let name: String; let lines: [String] }
     struct LineDTO: Decodable { let id: String; let name: String; let color: String? }
     struct RouteDTO: Decodable { let from: StationDTO; let to: StationDTO; let line: LineDTO }
     struct TrainDTO: Decodable {
@@ -176,4 +182,5 @@ private struct FixtureFile: Decodable {
     let delayedScenario: DelayedDTO
     let cancelledScenario: CancelledDTO
     let eveningDark: EveningDTO
+    let stations: [StationListingDTO]
 }

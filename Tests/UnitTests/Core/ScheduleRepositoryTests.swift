@@ -146,4 +146,19 @@ final class ScheduleRepositoryTests: XCTestCase {
         XCTAssertEqual(formatter.time(after.trip.scheduledDeparture), "7:32 AM", "Still the 7:32 AM train")
         XCTAssertEqual(formatter.time(after.departureTime), "7:41 AM")
     }
+
+    // MARK: Stations (TT-121)
+
+    /// The station list is alphabetical, with full names and line context, and holds the fixture route's stations.
+    func testStationsAreAlphabeticalWithFullNames() async throws {
+        let repo = try repository(.normal)
+        let stations = try await repo.stations()
+        XCTAssertGreaterThan(stations.count, 60)
+        XCTAssertEqual(stations.map(\.name), stations.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending })
+        let oakville = try XCTUnwrap(stations.first { $0.id == repo.route.from.id })
+        XCTAssertEqual(oakville.name, "Oakville GO")
+        XCTAssertEqual(oakville.lines, ["Lakeshore West"])
+        XCTAssertEqual(stations.first { $0.id == repo.route.to.id }?.name, "Union Station GO")
+        XCTAssertTrue(stations.allSatisfy { !$0.lines.isEmpty })
+    }
 }

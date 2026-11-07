@@ -37,11 +37,11 @@ final class RouteFormSnapshotTests: XCTestCase {
     @MainActor
     private func form(sameStation: Bool = false) throws -> RouteFormView {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
-        let model = RouteFormViewModel(route: repository.route, repository: repository)
-        if sameStation {
-            model.open(.to)
-            model.pick(repository.route.from)
-        }
+        let route = repository.route
+        // Station search cannot pick the other field's station (TT-121), so identical stations come from the route.
+        let model = RouteFormViewModel(
+            route: sameStation ? Route(from: route.from, to: route.from, line: nil) : route, repository: repository
+        )
         return RouteFormView(viewModel: model, onShowTrains: { _ in })
     }
 

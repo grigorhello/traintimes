@@ -155,5 +155,496 @@
       "repeat": "Today only",
       "state": "notificationsOff"
     }
+  ],
+  "stations": [
+    {
+      "id": "AC",
+      "name": "Acton GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "AG",
+      "name": "Agincourt GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "AJ",
+      "name": "Ajax GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "AL",
+      "name": "Aldershot GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "AD",
+      "name": "Allandale Waterfront GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "AP",
+      "name": "Appleby GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "AU",
+      "name": "Aurora GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "BM",
+      "name": "Bloomington GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "BL",
+      "name": "Bloor GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "BD",
+      "name": "Bradford GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "BE",
+      "name": "Bramalea GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "BR",
+      "name": "Brampton Innovation District GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "BO",
+      "name": "Bronte GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "BU",
+      "name": "Burlington GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "CA",
+      "name": "Caledonia GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "CE",
+      "name": "Centennial GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "CL",
+      "name": "Clarkson GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "CO",
+      "name": "Cooksville GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "DA",
+      "name": "Danforth GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "DI",
+      "name": "Dixie GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "DW",
+      "name": "Downsview Park GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "EG",
+      "name": "East Gwillimbury GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "EL",
+      "name": "Eglinton GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "ER",
+      "name": "Erindale GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "EN",
+      "name": "Etobicoke North GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "EX",
+      "name": "Exhibition GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "GE",
+      "name": "Georgetown GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "GO",
+      "name": "Gormley GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "GL",
+      "name": "Guelph Central GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "GU",
+      "name": "Guildwood GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "HA",
+      "name": "Hamilton GO Centre",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "KE",
+      "name": "Kennedy GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "KC",
+      "name": "King City GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "KP",
+      "name": "Kipling GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "KI",
+      "name": "Kitchener GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "LA",
+      "name": "Langstaff GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "LI",
+      "name": "Lincolnville GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "LS",
+      "name": "Lisgar GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "LO",
+      "name": "Long Branch GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "MA",
+      "name": "Malton GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "MP",
+      "name": "Maple GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "MK",
+      "name": "Markham GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "ME",
+      "name": "Meadowvale GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "MI",
+      "name": "Milliken GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "ML",
+      "name": "Milton GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "MO",
+      "name": "Mimico GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "MJ",
+      "name": "Mount Joy GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "MT",
+      "name": "Mount Pleasant GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "NE",
+      "name": "Newmarket GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "NI",
+      "name": "Niagara Falls GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "OA",
+      "name": "Oakville GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "OC",
+      "name": "Old Cummer GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "OL",
+      "name": "Old Elm GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "OR",
+      "name": "Oriole GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "OS",
+      "name": "Oshawa GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "PI",
+      "name": "Pickering GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "PO",
+      "name": "Port Credit GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "RI",
+      "name": "Richmond Hill GO",
+      "lines": [
+        "Richmond Hill"
+      ]
+    },
+    {
+      "id": "RO",
+      "name": "Rouge Hill GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "RU",
+      "name": "Rutherford GO",
+      "lines": [
+        "Barrie"
+      ]
+    },
+    {
+      "id": "SC",
+      "name": "Scarborough GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "SCTH",
+      "name": "St. Catharines GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "SF",
+      "name": "Stouffville GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "SR",
+      "name": "Streetsville GO",
+      "lines": [
+        "Milton"
+      ]
+    },
+    {
+      "id": "UN",
+      "name": "Union Station GO",
+      "lines": [
+        "Lakeshore West",
+        "Milton",
+        "Kitchener",
+        "Barrie",
+        "Richmond Hill",
+        "Stouffville",
+        "Lakeshore East"
+      ]
+    },
+    {
+      "id": "UI",
+      "name": "Unionville GO",
+      "lines": [
+        "Stouffville"
+      ]
+    },
+    {
+      "id": "WR",
+      "name": "West Harbour GO",
+      "lines": [
+        "Lakeshore West"
+      ]
+    },
+    {
+      "id": "WE",
+      "name": "Weston GO",
+      "lines": [
+        "Kitchener"
+      ]
+    },
+    {
+      "id": "WH",
+      "name": "Whitby GO",
+      "lines": [
+        "Lakeshore East"
+      ]
+    }
   ]
 }

@@ -14,6 +14,7 @@
 "button.add_alert" = "Add alert";
 "button.repeat" = "Repeat";
 "button.open_settings" = "Open Settings";
+"button.cancel" = "Cancel";
 
 /* Schedule screen */
 "schedule.route_title" = "%@ to %@";
@@ -55,6 +56,7 @@
 "route.from" = "From";
 "route.to" = "To";
 "route.choose_station" = "Choose a station";
+"route.same_station" = "From and To must be different stations.";
 "route.footnote" = "No account or permission is needed. The route is saved on this device and opens next time.";
 "stations.yours" = "Your stations";
 

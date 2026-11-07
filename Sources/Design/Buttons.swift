@@ -46,8 +46,9 @@ extension ButtonStyle where Self == PrimaryButtonStyle { static var ttPrimary: S
 extension ButtonStyle where Self == SecondaryButtonStyle { static var ttSecondary: Self { .init() } }
 extension ButtonStyle where Self == TextButtonStyle { static var ttText: Self { .init() } }
 
-/// 44 pt target, 22 pt glyph. Filled glyphs (bell.fill, star.fill) and `isSelected` use the accent.
+/// 44 pt target, 22 pt glyph. Filled glyphs (bell.fill, star.fill) and `isSelected` use the accent; disabled is ink-tertiary.
 struct IconButton: View {
+    @Environment(\.isEnabled) private var isEnabled
     let systemName: String
     let label: LocalizedStringKey
     var isSelected = false
@@ -57,7 +58,7 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: TTSize.iconMD))
-                .foregroundStyle(systemName.hasSuffix(".fill") || isSelected ? TTColor.accent : TTColor.ink)
+                .foregroundStyle(!isEnabled ? TTColor.inkTertiary : systemName.hasSuffix(".fill") || isSelected ? TTColor.accent : TTColor.ink)
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .background(isSelected ? TTColor.surfaceRaised : .clear, in: Circle())
                 .contentShape(Circle())

@@ -31,12 +31,18 @@ final class ScheduleViewModel {
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
+    /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
+    private let routeStore: (any RouteStoring)?
     private var hasLoaded = false
 
-    init(route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false) {
+    init(
+        route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false,
+        routeStore: (any RouteStoring)? = nil
+    ) {
         self.route = route
         self.repository = repository
         self.clock = clock
+        self.routeStore = routeStore
         self.isFavourite = isFavourite
         selectedDay = ServiceDay(containing: clock.now)
     }
@@ -103,10 +109,22 @@ final class ScheduleViewModel {
         scrollRequest += 1
     }
 
-    /// Swap is explicit, never automatic.
+    /// Swap is explicit, never automatic. The new direction is remembered.
     func swap() async {
         guard let route else { return }
-        self.route = Route(from: route.to, to: route.from, line: route.line)
+        let swapped = Route(from: route.to, to: route.from, line: route.line)
+        self.route = swapped
+        routeStore?.save(swapped)
+        await load()
+        scrollRequest += 1
+    }
+
+    /// The route from the route form (TT-120), saved on device so the next launch opens it.
+    func show(_ route: Route) async {
+        self.route = route
+        routeStore?.save(route)
+        // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
+        guard hasLoaded else { return }
         await load()
         scrollRequest += 1
     }

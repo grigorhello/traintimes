@@ -13,3 +13,13 @@ enum LaunchArguments {
     /// No saved route and no favourites, as on a fresh install: the app lands on the route form.
     static let freshInstall = ["-route.last", ""] + noFavourites
 }
+
+extension XCUIApplication {
+    /// The app on the fixture schedule and clock (D20), so UI tests never download the GTFS feed (TT-130). The launch
+    /// environment, unlike the arguments, survives a relaunch with no arguments.
+    static func onFixtures() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["TT_FIXTURES"] = "1"
+        return app
+    }
+}

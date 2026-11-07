@@ -9,7 +9,7 @@ final class ScheduleTests: XCTestCase {
     /// clock, Thu Nov 5, so cell 3 is Sun 8.
     @MainActor
     func testAnotherDayThenTodayReturnsToNow() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
@@ -37,7 +37,7 @@ final class ScheduleTests: XCTestCase {
     /// Tapping a card opens Trip details for that train (TT-113, TT-118); Close returns to the timetable.
     @MainActor
     func testTapCardOpensTripDetails() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 

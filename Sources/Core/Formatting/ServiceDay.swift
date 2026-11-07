@@ -70,8 +70,8 @@ extension ServiceDay {
         "\(weekdayShort), \(Self.symbols.shortMonthSymbols[month - 1]) \(day)"
     }
 
-    /// Noon in Toronto, safely inside the service day whatever the DST change.
-    private var noon: Date {
+    /// Noon in Toronto, safely inside the service day whatever the DST change. GTFS times count from noon minus 12 h.
+    var noon: Date {
         Self.calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
     }
 

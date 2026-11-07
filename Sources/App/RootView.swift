@@ -21,7 +21,7 @@ struct RootView: View {
         router: AppRouter = AppRouter(),
         schedule: ScheduleViewModel? = nil,
         settings: AppSettings = AppSettings(),
-        dependencies: ScheduleDependencies = .fixtures(),
+        dependencies: ScheduleDependencies = .app(),
         routeStore: any RouteStoring = UserDefaultsRouteStore(),
         favourites: Favourites = Favourites()
     ) {

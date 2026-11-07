@@ -9,7 +9,7 @@ final class FavouritesTests: XCTestCase {
     /// relaunch restores the last route, its direction and the favourites.
     @MainActor
     func testStarListsTheFavouriteAndRelaunchRestoresTheDirection() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noFavourites
         app.launch()
 

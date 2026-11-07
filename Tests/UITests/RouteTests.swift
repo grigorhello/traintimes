@@ -9,7 +9,7 @@ final class RouteTests: XCTestCase {
     /// timeline, with no prompt; a relaunch opens the remembered route.
     @MainActor
     func testFirstUseShowsTrainsAndRelaunchOpensTheRoute() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.freshInstall
         app.launch()
 

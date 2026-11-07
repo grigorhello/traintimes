@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Two tabs, Schedule and Alerts, and nothing else at the top level. Launch lands on Schedule with no prompt: the
 /// remembered route, or the route form on first use (TT-120). Favourites are shared by the Schedule star and the route form
-/// (TT-122). Applies the Appearance setting and puts the one time formatter in the environment (TT-105).
+/// (TT-122). Applies the Appearance setting and puts the one time formatter in the environment (TT-105). Opens the trip or
+/// the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
@@ -34,9 +35,10 @@ struct RootView: View {
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil
     ) {
+        let bells = bells ?? AlertBellModel(rules: alertDependencies.rules(settings: settings))
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            favourites: favourites, dismissedNotices: dismissedNotices
+            favourites: favourites, dismissedNotices: dismissedNotices, watchedTrips: bells.rules
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
@@ -45,7 +47,6 @@ struct RootView: View {
         _routeForm = State(
             initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
         )
-        let bells = bells ?? AlertBellModel(rules: alertDependencies.rules(settings: settings))
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
         stations = dependencies.stations
@@ -104,13 +105,21 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
             case .tripDetails:
                 if let tripDetails {
+                    // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
                     TripDetailsView(viewModel: tripDetails, onAlert: { router.present(.alertSetup) })
+                        .id(ObjectIdentifier(tripDetails))
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
             default:
                 SheetPlaceholder(sheet: sheet)
             }
+        }
+        // A tapped notification, also one that launched the app before this view appeared (TT-144).
+        .onChange(of: router.pendingLink, initial: true) { _, link in
+            guard let link else { return }
+            router.pendingLink = nil
+            Task { await open(link) }
         }
         // The first route saved on device, with a light haptic (TT-120).
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
@@ -137,10 +146,26 @@ struct RootView: View {
         router.present(.routeEdit)
     }
 
-    private func openTrip(_ key: TripKey) {
-        guard let route = schedule.route else { return }
+    private func openTrip(_ key: TripKey, on route: Route? = nil) {
+        guard let route = route ?? schedule.route else { return }
         tripDetails = TripDetailsViewModel(route: route, key: key, repository: repository, clock: clock)
         router.present(.tripDetails)
+    }
+
+    /// A notification tap: Trip details for its trip and service date, over the timeline of the alert's route and day, so
+    /// closing the sheet shows the next trains; the Alerts tab for a past service date or a rule to review (rule 10).
+    private func open(_ link: NotificationLink) async {
+        switch link.target(today: ServiceDay(containing: clock.now)) {
+        case .alerts:
+            router.showAlerts()
+        case .trip(let key):
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            router.showSchedule()
+            // The sheet first; the timeline behind it follows without holding it up.
+            openTrip(key, on: route)
+            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            if schedule.selectedDay != key.serviceDay { await schedule.select(key.serviceDay) }
+        }
     }
 
     private func show(_ route: Route) {

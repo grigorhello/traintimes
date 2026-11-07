@@ -119,6 +119,29 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertNil(rules.matching(AlertRule(kind: .repeating, trip: AlertFixtures.trip("LW-0758-20261105", departure: "12:58"), route: route, weekdays: [1])))
     }
 
+    func testATripIsWatchedWhileItsThisTripRuleIsOn() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let trip = AlertFixtures.trip()
+        XCTAssertFalse(rules.isWatched(trip.key))
+
+        await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
+        XCTAssertFalse(rules.isWatched(trip.key))
+
+        let rule = AlertRule(kind: .thisTrip, trip: trip, route: route)
+        await server.setFailing(true)
+        await rules.save(rule)
+        XCTAssertFalse(rules.isWatched(trip.key))
+
+        await server.setFailing(false)
+        await rules.save(rule)
+        XCTAssertTrue(rules.isWatched(trip.key))
+        XCTAssertFalse(rules.isWatched(AlertFixtures.trip("LW-0758-20261105").key))
+
+        await rules.delete(rule.id)
+        XCTAssertFalse(rules.isWatched(trip.key))
+    }
+
     func testRulesAndTheInstallationStayOnDevice() async {
         let defaults = UserDefaults.ephemeral()
         let server = FakeAlertServer()

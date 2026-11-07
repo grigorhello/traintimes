@@ -18,7 +18,7 @@ export interface Push {
   body: string;
   /** Epoch milliseconds after which APNs drops the notification instead of delivering it late. */
   expiration: number;
-  /** Custom keys beside `aps`: trip id and service date for the deep link (rule 10). */
+  /** Custom keys beside `aps`: trip id, service date and the rule's origin and destination ids for the deep link (rule 10). */
   data: Record<string, string>;
 }
 

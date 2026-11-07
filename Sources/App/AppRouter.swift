@@ -23,6 +23,8 @@ final class AppRouter {
     var presentedSheet: AppSheet?
     /// Accent dot on the Alerts tab icon (TT-143 sets it); never a number.
     var showsAlertsDot = false
+    /// A tapped notification RootView has not opened yet (TT-144). A tap that launches the app arrives before the view.
+    var pendingLink: NotificationLink?
 
     func openSettings() {
         selectedTab = .schedule
@@ -35,5 +37,22 @@ final class AppRouter {
 
     func dismissSheet() {
         presentedSheet = nil
+    }
+
+    /// A notification tap; RootView opens it once it is on screen.
+    func open(_ link: NotificationLink) {
+        pendingLink = link
+    }
+
+    /// The Alerts tab with nothing over it: a past trip's notification, or a rule that needs review (TT-144).
+    func showAlerts() {
+        presentedSheet = nil
+        selectedTab = .alerts
+    }
+
+    /// The Schedule timeline with nothing pushed over it, for a trip opened from a notification.
+    func showSchedule() {
+        schedulePath = []
+        selectedTab = .schedule
     }
 }

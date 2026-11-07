@@ -133,7 +133,7 @@ describe('feed replay', () => {
     await setUp({ 'LW-1308': '7:51' });
     await cycle('7:04', delayFeed('7:04', 'LW-1308', 4));
     assert.equal(apns.pushes[0].expiration, at('9:51'));
-    assert.deepEqual(apns.pushes[0].data, { tripId: '20261109-LW-1308', serviceDate: '20261109' });
+    assert.deepEqual(apns.pushes[0].data, { tripId: '20261109-LW-1308', serviceDate: '20261109', originId: 'OA', destinationId: 'UN' });
     // Still not departed, so still watched long past the scheduled time...
     assert.equal((await cycle('9:40', delayFeed('9:40', 'LW-1308', 115))).length, 1);
     // ...but not after the window closes.

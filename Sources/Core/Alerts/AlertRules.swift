@@ -9,7 +9,7 @@ import Observation
 /// allowed: with permission off it shows Notifications off, but is still saved, so allowing notifications later needs no
 /// resync. A rule the server could not take stays on device as Could not save; saving it again retries with the same id.
 @Observable @MainActor
-final class AlertRules {
+final class AlertRules: WatchedTripsProviding {
     /// JSON, read once at launch, so UI tests can clear it with `-alerts.rules ""`.
     static let rulesKey = "alerts.rules"
     static let installationKey = "alerts.installation"
@@ -74,6 +74,12 @@ final class AlertRules {
     /// The This-trip rule for a train between the route's stations.
     func thisTripRule(for trip: TripKey, on route: Route) -> AlertRule? {
         rules.first { $0.kind == .thisTrip && $0.trip == trip && $0.origin.id == route.from.id && $0.destination.id == route.to.id }
+    }
+
+    /// The watched-trip strip's question (TT-144, D39): a trip is watched while a This-trip rule for it is On, as the
+    /// filled bell shows. A Repeat rule's usual train cannot be named by a trip id alone; TT-142 adds it with Repeat.
+    func isWatched(_ trip: TripKey) -> Bool {
+        rules.contains { $0.kind == .thisTrip && $0.trip == trip && state(of: $0) == .on }
     }
 
     /// The stored rule the candidate would duplicate: the same train for This trip, the same usual train for Repeat

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Schedule tab (TT-112): inline "Train Times" header with the Settings gear, route header, 7-day strip and freshness
-/// row with the Now button, then the to-scale timeline with its rail and cards (TT-113).
+/// row with the Now button, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline
+/// with its rail and cards (TT-113).
 struct ScheduleView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
@@ -34,6 +35,15 @@ struct ScheduleView: View {
                     .padding(.bottom, TTSpace.s2)
                 freshnessRow
                     .padding(.horizontal, TTSpace.s5)
+                if let strip = viewModel.watchedStrip(formatter) {
+                    WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
+                        withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }
+                    }
+                    .id(strip.id)
+                    .transition(.opacity)
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, TTSpace.s3 - TTSpace.s1 / 2)
+                }
             }
             .padding(.top, TTSpace.s1)
             timeline

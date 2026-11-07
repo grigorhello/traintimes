@@ -228,8 +228,8 @@ extension TimelineLayout {
     }
 }
 
-private extension Departure {
-    /// Cancelled trains and skipped stops are never usable and are left out of fold labels.
+extension Departure {
+    /// Cancelled trains and skipped stops are never usable: never the next train, and left out of fold labels.
     var isUsable: Bool {
         switch status {
         case .cancelled, .stopSkipped: false
@@ -238,7 +238,7 @@ private extension Departure {
     }
 
     /// A delayed train keeps a hollow marker and a struck pill at its scheduled time; its card moves to the expected time.
-    var scheduledMarker: Date? {
+    fileprivate var scheduledMarker: Date? {
         guard case .delayed = status, let expected = expectedDeparture, expected > trip.scheduledDeparture else { return nil }
         return trip.scheduledDeparture
     }

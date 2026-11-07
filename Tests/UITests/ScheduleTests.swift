@@ -33,4 +33,18 @@ final class ScheduleTests: XCTestCase {
         XCTAssertFalse(sunday.isSelected)
         XCTAssertEqual(now.label, "Back to now, today")
     }
+
+    /// Tapping a card opens Trip details (TT-113); the sheet's content lands in TT-118.
+    @MainActor
+    func testTapCardOpensTripDetails() {
+        let app = XCUIApplication()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.launch()
+
+        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
+        let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+    }
 }

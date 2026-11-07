@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// The Schedule screen (TT-112): route header, day strip, freshness row and the Now button, plus the departures and
-/// layout the timeline draws (TT-113).
+/// The Schedule screen (TT-112): route header, day strip, freshness row and the Now button, plus the departures, cards
+/// and layout the timeline draws (TT-113).
 @Observable @MainActor
 final class ScheduleViewModel {
     /// Today plus 13 days. Q6: the real horizon comes from the GTFS validity window in TT-130.
@@ -17,6 +17,8 @@ final class ScheduleViewModel {
     private(set) var selectedDay: ServiceDay
     private(set) var departures: [Departure] = []
     private(set) var layout = TimelineLayout()
+    /// The clock at the last load or minute tick. The Now line, the next train and "in N min" read it.
+    private(set) var now: Date
     /// Nil until the first load.
     private(set) var freshness: Freshness?
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
@@ -34,6 +36,8 @@ final class ScheduleViewModel {
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
     private var hasLoaded = false
+    /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
+    @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, isFavourite: Bool = false,
@@ -44,7 +48,9 @@ final class ScheduleViewModel {
         self.clock = clock
         self.routeStore = routeStore
         self.isFavourite = isFavourite
-        selectedDay = ServiceDay(containing: clock.now)
+        let now = clock.now
+        self.now = now
+        selectedDay = ServiceDay(containing: now)
     }
 
     var today: ServiceDay { ServiceDay(containing: clock.now) }
@@ -64,6 +70,61 @@ final class ScheduleViewModel {
 
     var nowButtonAccessibilityLabel: String {
         isToday ? String(localized: "button.now.label") : String(localized: "button.today.label")
+    }
+
+    /// The next usable train on today's timeline: the first that is not cancelled, skipped or gone. None on another day.
+    var nextDepartureId: TripKey? {
+        guard isToday else { return nil }
+        return departures.first { $0.isUsable && $0.departureTime >= now }?.id
+    }
+
+    /// The timeline cards in departure order, times from the one formatter the view passes in.
+    func cards(_ formatter: some TimeFormatting) -> [DepartureCard] {
+        let next = nextDepartureId
+        return departures.map { DepartureCard($0, isNext: $0.id == next, now: now, formatter: formatter) }
+    }
+
+    /// A gridline label hides near a pill (TT-111) and near the "Now" label.
+    func showsLabel(_ gridline: TimelineLayout.Gridline) -> Bool {
+        guard gridline.showsLabel else { return false }
+        guard let nowY = layout.nowY else { return true }
+        return abs(gridline.y - nowY) > TTTimeline.pillLabelHideDistance
+    }
+
+    /// The "Now" label hides while a time pill sits beside it, as gridline labels do; the line and dot stay.
+    var showsNowLabel: Bool {
+        guard let nowY = layout.nowY else { return false }
+        // A delayed train's struck pill at its scheduled time counts too (TT-114 draws it).
+        let pills: [CGFloat] = layout.cards.flatMap { card in [card.markerY, card.scheduledMarkerY].compactMap { $0 } }
+        return !pills.contains { abs($0 - nowY) <= TTTimeline.pillLabelHideDistance }
+    }
+
+    /// The view reports each card's measured size; the layout is recomputed only when one moves by a point or more,
+    /// so sub-point rounding can never start a measure and relayout loop.
+    func setCardSize(_ size: TimelineCardSize, for id: TripKey) {
+        if let old = cardSizes[id], abs(old.height - size.height) < 1, abs(old.anchor - size.anchor) < 1 { return }
+        cardSizes[id] = size
+        relayout()
+    }
+
+    /// Once a minute: the Now line moves, without animation, and "in N min" counts down.
+    func tick() {
+        let current = clock.now
+        guard current != now else { return }
+        now = current
+        relayout()
+    }
+
+    /// Ticks on every minute boundary while the screen is shown, and once on start, so coming back to the screen
+    /// (from Settings, say) never shows the minute it was left.
+    func runClock() async {
+        tick()
+        while !Task.isCancelled {
+            let seconds = 60 - clock.now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 60)
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            tick()
+        }
     }
 
 
@@ -142,11 +203,15 @@ final class ScheduleViewModel {
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
         // A newer day or route was picked while this one loaded.
         guard day == selectedDay, route == self.route else { return }
-        let now = clock.now
+        now = clock.now
         let freshness = isToday ? Freshness(live, now: now) : .scheduledOnly
         departures = Departure.resolve(trips, live: live, freshness: freshness, isToday: isToday)
-        layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil))
         self.freshness = freshness
+        relayout()
+    }
+
+    private func relayout() {
+        layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
         updateIsAtNow()
     }
 

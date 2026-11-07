@@ -37,6 +37,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - The project uses **Xcode 16 synchronized folders**: adding, moving or deleting a file under `Sources/`, `Resources/`, `Preview Content/` or `Tests/` needs no project edit. Do not put non-code files such as READMEs in those folders; they would be bundled (`.gitkeep`, which holds empty folders, is excluded by `EXCLUDED_SOURCE_FILE_NAMES`; delete it once a folder has files).
 - To change targets, build settings or packages, edit `scripts/generate-xcodeproj.rb` and re-run it (`gem install xcodeproj`, then `ruby scripts/generate-xcodeproj.rb`; works on Linux), and commit the regenerated project. Do not hand-edit `project.pbxproj`.
 - Bundle id `ca.traintimes.TrainTimes`; Display Name "Train Times" (D7).
+- There is no asset catalog yet; put catalogs in `Resources/` (for example `Resources/Assets.xcassets`). The generator deletes `ASSETCATALOG_COMPILER_APPICON_NAME`: TT-103 must set it to `AppIcon` in `scripts/generate-xcodeproj.rb` and regenerate, or the build stays green with no app icon. TT-102 sets `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME` the same way if it uses an accent colour.
 - Packages: swift-snapshot-testing (exact version, test target only). No third-party UI kits or runtime dependencies (D6).
 
 ### Folders
@@ -58,7 +59,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - **MVVM.** Views hold layout only, no business logic. Each screen has an `@Observable @MainActor final class` view model that gets its dependencies as protocols through `init` (repositories, clock, formatter), so tests inject fakes.
 - **Repositories return domain types** from `Sources/Core`, never feed or JSON types. Fixture and live implementations sit behind the same protocol (D20).
 - **One time formatter** (TT-106) for every time on screen, in VoiceOver and in notifications (D17); tabular digits.
-- **Strings** come from `Localizable.strings` by key (`Text("tab.schedule")`, `String(localized:)`); no literal copy in code.
+- **Strings** come from `Localizable.strings` by key (`Text("tab.schedule")`, `String(localized:)`); no literal copy in code. Keys that take values (`%@`, `%d`) are formatted, not interpolated: `String(format: String(localized: "status.delayed"), minutes)`; `Text("status.delayed \(minutes)")` looks up a key that does not exist. Times are formatted by the one formatter first and passed as `%@`.
 - Swift 6 concurrency: no `@unchecked Sendable` or `nonisolated(unsafe)` without a comment saying why it is safe.
 
 ### Tests (from each issue's Definition of done)
@@ -70,5 +71,6 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 ### Building and CI
 
 - CI (`.github/workflows/ci.yml`) runs `scripts/ci-test.sh` on the iPhone 17 Pro simulator on the latest GitHub macOS runner on every pull request and on main. Run the same script on a Mac to test locally.
-- **Snapshot references are recorded by CI**, since cloud sessions run on Linux without Xcode. Add a snapshot test without a reference and push: CI records the missing image, commits it to the PR branch as "Record reference snapshots…", re-runs the tests against it and goes green. Pull before pushing again, and look at the recorded PNGs in the PR diff during the design review. A changed snapshot is never re-recorded automatically: delete the old reference in the PR to have CI record the new one.
+- **Snapshot references are recorded by CI**, since cloud sessions run on Linux without Xcode. Add a snapshot test without a reference and push: CI records the missing image, commits it to the PR branch as "Record reference snapshots… [skip ci]", re-runs the tests against it in the same job and posts the result as the "CI / Build and test" status on that commit, so the PR head shows green or red without a new run. Pull before pushing again, and look at the recorded PNGs in the PR diff during the design review. A changed snapshot is never re-recorded automatically: delete the old reference in the PR to have CI record the new one. References are excluded from the test bundle (`*.png` in `EXCLUDED_SOURCE_FILE_NAMES`).
+- **Squash-merge with your own commit message** (the PR title and `Closes #N`): the default squash message lists the bot's `[skip ci]` commit, and GitHub would then skip CI on main.
 - When the runner image moves to a new iOS version, snapshots may drift; re-record them in one PR by deleting the `__Snapshots__` folders.

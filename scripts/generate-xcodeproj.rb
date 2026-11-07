@@ -95,7 +95,8 @@ app.file_system_synchronized_groups << sources << resources << preview
 app.build_configurations.each do |config|
   s = config.build_settings
   s.delete('INFOPLIST_FILE')
-  # No asset catalog yet: colours arrive in TT-102, the icon in TT-103 (they set these back).
+  # No asset catalog yet. TT-103 must set ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon here (without it the
+  # build stays green but the app has no icon); TT-102 may set the global accent colour name. See CLAUDE.md.
   s.delete('ASSETCATALOG_COMPILER_APPICON_NAME')
   s.delete('ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME')
   s.merge!(
@@ -136,7 +137,10 @@ unit.build_configurations.each do |config|
     'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes',
     'CODE_SIGN_STYLE' => 'Automatic',
     'CURRENT_PROJECT_VERSION' => '1',
-    'MARKETING_VERSION' => '0.1.0'
+    'MARKETING_VERSION' => '0.1.0',
+    # Snapshot references are read from the source tree (#filePath). Bundling them would copy every
+    # __Snapshots__/<Class>/<test>.1.png flat into the bundle, and two classes with the same test name collide.
+    'EXCLUDED_SOURCE_FILE_NAMES' => '.gitkeep *.png'
   )
 end
 
@@ -189,7 +193,9 @@ project.frameworks_group.remove_from_project
 project.main_group.children.delete(project.products_group)
 project.main_group.children << project.products_group
 
-# Stable object ids, so regenerating the project produces a readable diff.
+# Stable object ids, so regenerating the project produces a readable diff. The second pass is needed because the
+# first one hashes target dependencies while the targets still carry random ids.
+project.predictabilize_uuids
 project.predictabilize_uuids
 project.save
 

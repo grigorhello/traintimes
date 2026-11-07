@@ -11,14 +11,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		54B5D1E8409367D616D02B977CDED142 /* PBXContainerItemProxy */ = {
+		17629CD54FC847ADFEC483C234CC8DF0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9EF7BEA179F5E1E546121BC40DF223AB;
 			remoteInfo = TrainTimes;
 		};
-		686B3A0767A7C0DCCF81BDAA1246264E /* PBXContainerItemProxy */ = {
+		3F6E0F96EBE8DC7FF3FC3370072A45F9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
@@ -142,7 +142,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				6885239BA74D3BA3FFB48B48D34D76AF /* PBXTargetDependency */,
+				B56A130AA38420371B268B94B45026CB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */,
@@ -167,7 +167,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				7B584B63D1CE66B9F2517183C565AE46 /* PBXTargetDependency */,
+				E400D5A41CD5FA4C0FA8AD6F658817F0 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */,
@@ -296,17 +296,17 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		6885239BA74D3BA3FFB48B48D34D76AF /* PBXTargetDependency */ = {
+		B56A130AA38420371B268B94B45026CB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimes;
 			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
-			targetProxy = 686B3A0767A7C0DCCF81BDAA1246264E /* PBXContainerItemProxy */;
+			targetProxy = 17629CD54FC847ADFEC483C234CC8DF0 /* PBXContainerItemProxy */;
 		};
-		7B584B63D1CE66B9F2517183C565AE46 /* PBXTargetDependency */ = {
+		E400D5A41CD5FA4C0FA8AD6F658817F0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimes;
 			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
-			targetProxy = 54B5D1E8409367D616D02B977CDED142 /* PBXContainerItemProxy */;
+			targetProxy = 3F6E0F96EBE8DC7FF3FC3370072A45F9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -395,13 +395,17 @@
 			};
 			name = Debug;
 		};
-		683B17F7921DEBA0B95EA068527696C7 /* Debug */ = {
+		6D095CE9938E9CD83475D48A0D64F74E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					.gitkeep,
+					"*.png",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
@@ -533,13 +537,17 @@
 			};
 			name = Debug;
 		};
-		97BC42EB04E6ED952B649511F91D593E /* Release */ = {
+		E37E1CA8163847D280DA889D87EC64CA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					.gitkeep,
+					"*.png",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
@@ -609,8 +617,8 @@
 		64472B7CA632563D4CBD65A1990AFFB2 /* Build configuration list for PBXNativeTarget "TrainTimesTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				97BC42EB04E6ED952B649511F91D593E /* Release */,
-				683B17F7921DEBA0B95EA068527696C7 /* Debug */,
+				E37E1CA8163847D280DA889D87EC64CA /* Release */,
+				6D095CE9938E9CD83475D48A0D64F74E /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

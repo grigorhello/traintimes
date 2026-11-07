@@ -94,7 +94,9 @@ final class ScheduleViewModel {
     /// The "Now" label hides while a time pill sits beside it, as gridline labels do; the line and dot stay.
     var showsNowLabel: Bool {
         guard let nowY = layout.nowY else { return false }
-        return !layout.cards.contains { abs($0.markerY - nowY) <= TTTimeline.pillLabelHideDistance }
+        // A delayed train's struck pill at its scheduled time counts too (TT-114 draws it).
+        let pills: [CGFloat] = layout.cards.flatMap { card in [card.markerY, card.scheduledMarkerY].compactMap { $0 } }
+        return !pills.contains { abs($0 - nowY) <= TTTimeline.pillLabelHideDistance }
     }
 
     /// The view reports each card's measured size; the layout is recomputed only when one moves by a point or more,

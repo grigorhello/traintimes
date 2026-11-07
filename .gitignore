@@ -7,3 +7,6 @@ xcuserdata/
 .swiftpm/
 .build/
 .DS_Store
+
+# Metrolinx API key (TT-131, D36)
+Config/Secrets.xcconfig

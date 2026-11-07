@@ -10,6 +10,8 @@ final class ScheduleViewModel {
     static let dayCount = 14
     /// The Now button dims while the timeline sits within a minute of the present.
     static let atNowTolerance = TTTimeline.pointsPerMinute
+    /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
+    static let livePollInterval: Duration = .seconds(30)
 
     private(set) var route: Route?
     private(set) var selectedDay: ServiceDay
@@ -40,6 +42,7 @@ final class ScheduleViewModel {
     /// The star (TT-122), shared with the route form's favourites list.
     let favourites: Favourites
     private var hasLoaded = false
+    private var isLoading = false
     /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
     @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
 
@@ -193,6 +196,16 @@ final class ScheduleViewModel {
         await load()
     }
 
+    /// While Schedule is on screen with the app in the foreground: live status again at once (on coming back to the
+    /// app; the first load does it at launch), then every 30 s (TT-131). Only today has live status. Each refresh keeps
+    /// the cards' identity and the scroll position, as pull to refresh does.
+    func pollLiveStatus(every interval: Duration = ScheduleViewModel.livePollInterval) async {
+        while !Task.isCancelled {
+            if hasLoaded, !isLoading, isToday { await load() }
+            try? await Task.sleep(for: interval)
+        }
+    }
+
     /// Another day shows scheduled times only, with no Now line, starting at that day's first train.
     func select(_ day: ServiceDay) async {
         guard day != selectedDay else { return }
@@ -256,6 +269,8 @@ final class ScheduleViewModel {
 
     private func load() async {
         hasLoaded = true
+        isLoading = true
+        defer { isLoading = false }
         guard let route else { return }
         let day = selectedDay
         let isToday = day == today

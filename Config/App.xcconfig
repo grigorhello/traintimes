@@ -1,0 +1,8 @@
+// App target build settings that must stay out of git (TT-131, D36).
+//
+// The Metrolinx Open Data API key for live status. Put it in Config/Secrets.xcconfig, which git ignores:
+//   METROLINX_API_KEY = your-key
+// Info.plist passes it to the app as MetrolinxAPIKey. With no key the app shows the schedule only.
+METROLINX_API_KEY =
+
+#include? "Secrets.xcconfig"

@@ -1,20 +1,42 @@
 import Foundation
 
-/// The schedule from GO Transit's published GTFS feed (TT-130, D35). Live status, platforms and line notices come with
-/// GTFS-realtime (TT-131, TT-132), so until then every trip is Scheduled with "Platform pending".
+/// The schedule from GO Transit's published GTFS feed (TT-130, D35), with live status from its GTFS-realtime
+/// TripUpdates feed (TT-131, D36). With no live feed (an app built without the Metrolinx key) every trip is Scheduled.
+/// Neither feed carries platforms, so every card reads "Platform pending". Line notices come with TT-132.
 struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
     let store: GTFSFeedStore
+    var live: GTFSRealtimeStore?
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
         try await store.timetable().trips(from: route.from.id, to: route.to.id, on: day)
     }
 
-    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+    /// The feed's word on the route's trains that day. Its age is the producer's timestamp, never the time it was
+    /// fetched, so a feed that stopped updating turns stale (D13). A failed fetch keeps the last good feed, as offline.
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
+        guard let live else { return .empty }
+        let result = await live.latest()
+        guard let feed = result.feed, let fetchedAt = result.fetchedAt else {
+            return LiveSnapshot(updatedAt: nil, isOffline: result.isOffline)
+        }
+        let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
+        let updates = feed.tripUpdates(on: day)
+        var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline)
+        for call in try await store.timetable().directCalls(from: route.from.id, to: route.to.id, on: day) {
+            snapshot.updates[call.tripId] = updates[call.tripId]?.live(on: call, feedTime: updatedAt)
+        }
+        return snapshot
+    }
 
     func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
 
+    /// The trip's stops with the live feed's estimate and skipped flag at each, where it gives them (D32).
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {
-        try await store.timetable().stops(of: trip.tripId, from: route.from.id, to: route.to.id, on: trip.serviceDay)
+        let stops = try await store.timetable().stops(of: trip.tripId, from: route.from.id, to: route.to.id, on: trip.serviceDay)
+        guard let feed = await live?.latest().feed, let update = feed.tripUpdates(on: trip.serviceDay)[trip.tripId] else {
+            return stops
+        }
+        return update.applied(to: stops)
     }
 
     func lastServiceDay() async throws -> ServiceDay? {

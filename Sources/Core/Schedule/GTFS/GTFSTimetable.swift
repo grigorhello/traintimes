@@ -63,7 +63,7 @@ struct GTFSTimetable: Sendable {
                     key: TripKey(serviceDay: day, tripId: trip.id),
                     scheduledDeparture: day.gtfsTime(trip.departures[match.from]),
                     scheduledArrival: day.gtfsTime(trip.arrivals[match.to]),
-                    // The static feed has no platforms; they come with live data (TT-131).
+                    // Neither the static feed nor its TripUpdates carry platforms (D36).
                     platform: .pending,
                     tags: usual[trip.line, default: []].isSubset(of: between) ? [] : [.express]
                 )
@@ -81,6 +81,33 @@ struct GTFSTimetable: Sendable {
             let stop = feed.stops[trip.stops[position]]
             let time = position == match.from ? trip.departures[position] : trip.arrivals[position]
             return TripStop(station: Station(id: stop.id, name: stop.name), scheduled: day.gtfsTime(time))
+        }
+    }
+
+    /// A direct trip's whole calling pattern with its scheduled times, which live estimates are matched against (TT-131).
+    struct Call: Sendable {
+        let tripId: String
+        /// Stop ids in calling order.
+        let stops: [String]
+        let arrivals: [Date]
+        let departures: [Date]
+        /// Where the route's origin and destination are in `stops`.
+        let from: Int
+        let to: Int
+    }
+
+    /// The direct trains from one station to another on a service day, with every stop they call at.
+    func directCalls(from origin: String, to destination: String, on day: ServiceDay) -> [Call] {
+        calls(from: origin, to: destination, on: day).map { match in
+            let trip = feed.trips[match.trip]
+            return Call(
+                tripId: trip.id,
+                stops: trip.stops.map { feed.stops[$0].id },
+                arrivals: trip.arrivals.map(day.gtfsTime),
+                departures: trip.departures.map(day.gtfsTime),
+                from: match.from,
+                to: match.to
+            )
         }
     }
 

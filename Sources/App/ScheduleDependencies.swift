@@ -1,7 +1,8 @@
 import Foundation
 
-/// What the Schedule tab and the route form read: GO Transit's GTFS feed and the device clock in the app (TT-130, D35);
-/// the fixture repository and clock from `Fixtures.json` in previews and tests (D20).
+/// What the Schedule tab and the route form read: GO Transit's GTFS feed, its GTFS-realtime feed when the app is built
+/// with the Metrolinx key, and the device clock in the app (TT-130, TT-131, D35, D36); the fixture repository and clock
+/// from `Fixtures.json` in previews and tests (D20).
 struct ScheduleDependencies {
     let repository: any ScheduleRepository
     let stations: any StationRepository
@@ -15,7 +16,8 @@ struct ScheduleDependencies {
             return .fixtures()
         }
         #endif
-        let repository = GTFSScheduleRepository(store: .shared)
+        let live = GTFSRealtimeStore.apiKey().map(GTFSRealtimeStore.metrolinx(apiKey:))
+        let repository = GTFSScheduleRepository(store: .shared, live: live)
         return ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
     }
 

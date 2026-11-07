@@ -39,7 +39,7 @@ final class GTFSFeedStoreTests: XCTestCase {
         let stops = try await repository.stops(for: TripKey(serviceDay: monday, tripId: "20261109-LW-1858"), on: route)
         XCTAssertEqual(stops.map(\.station.id), ["OA", "CL", "UN"])
         let live = try await repository.liveStatus(for: route, on: monday)
-        XCTAssertEqual(live, .empty, "Scheduled only until GTFS-realtime (TT-131)")
+        XCTAssertEqual(live, .empty, "No live feed (an app built without the Metrolinx key): scheduled only")
     }
 
     func testFirstUseWithNoNetworkHasNoTimetable() async {

@@ -11,18 +11,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		17629CD54FC847ADFEC483C234CC8DF0 /* PBXContainerItemProxy */ = {
+		3B6C5B2FEE61E3E62D37B6350B09C070 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9EF7BEA179F5E1E546121BC40DF223AB;
+			remoteGlobalIDString = DFF4F8F9A2B55D16762BA35F60D1D3FF;
 			remoteInfo = TrainTimes;
 		};
-		3F6E0F96EBE8DC7FF3FC3370072A45F9 /* PBXContainerItemProxy */ = {
+		DBDEBA22965623F9B247FA2839FA4A21 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 9EF7BEA179F5E1E546121BC40DF223AB;
+			remoteGlobalIDString = DFF4F8F9A2B55D16762BA35F60D1D3FF;
 			remoteInfo = TrainTimes;
 		};
 /* End PBXContainerItemProxy section */
@@ -31,6 +31,7 @@
 		488E19F2139B2F63712A11EE1A8B6D3A /* TrainTimes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainTimes.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BCF7FFD100A9503AF073B85049362E3 /* TrainTimesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainTimesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB0F31EF010D6DBE8549D388D598290F /* TrainTimesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrainTimesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -87,7 +88,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DBFC9F49BB6D414D8252A9C5447F9163 /* Frameworks */ = {
+		E62015D826FC77F0A5C325BB5BD4350B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -104,6 +105,7 @@
 				0D283039C7613C857B40C20FE0D4DC60 /* Resources */,
 				EA67787D1FE8341A705F92883C73D137 /* Preview Content */,
 				3853CCBC896392AF5DC9EEB6271B9DEC /* Tests */,
+				FD33B2DA8D9C1F160BCC10E484864234 /* Config */,
 				F6E25758C193213727C3826A65FC0D90 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -128,6 +130,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		FD33B2DA8D9C1F160BCC10E484864234 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */,
+			);
+			name = Config;
+			path = Config;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -142,7 +153,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				B56A130AA38420371B268B94B45026CB /* PBXTargetDependency */,
+				C4E1B3C098F1DE4FB3306BAA6A9D4CD8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */,
@@ -167,7 +178,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				E400D5A41CD5FA4C0FA8AD6F658817F0 /* PBXTargetDependency */,
+				4CD47E3AE419CC7E242A337429BD01D7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */,
@@ -177,13 +188,13 @@
 			productReference = 7BCF7FFD100A9503AF073B85049362E3 /* TrainTimesUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */ = {
+		DFF4F8F9A2B55D16762BA35F60D1D3FF /* TrainTimes */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E21F4FCE429D0CCCAFDDBFBBF339722F /* Build configuration list for PBXNativeTarget "TrainTimes" */;
+			buildConfigurationList = 7EB63B44AD525181B15DC311BAC986E2 /* Build configuration list for PBXNativeTarget "TrainTimes" */;
 			buildPhases = (
-				56AD2BD4C14911B4ECB2827386A0EE1C /* Sources */,
-				DBFC9F49BB6D414D8252A9C5447F9163 /* Frameworks */,
-				0DE7D833B48DEF08F75617BA041D2338 /* Resources */,
+				CF5FA8EBA38897B82AECD49AA6DA147C /* Sources */,
+				E62015D826FC77F0A5C325BB5BD4350B /* Frameworks */,
+				2A817B8319D719BEEFAC59019A4A8DA1 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -211,13 +222,13 @@
 				TargetAttributes = {
 					6CB0184C0E73A26CD2884657F138677F = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = 9EF7BEA179F5E1E546121BC40DF223AB;
+						TestTargetID = DFF4F8F9A2B55D16762BA35F60D1D3FF;
 					};
 					9216EF03F57C212ECA9135EC4F28A64B = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = 9EF7BEA179F5E1E546121BC40DF223AB;
+						TestTargetID = DFF4F8F9A2B55D16762BA35F60D1D3FF;
 					};
-					9EF7BEA179F5E1E546121BC40DF223AB = {
+					DFF4F8F9A2B55D16762BA35F60D1D3FF = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -240,7 +251,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */,
+				DFF4F8F9A2B55D16762BA35F60D1D3FF /* TrainTimes */,
 				6CB0184C0E73A26CD2884657F138677F /* TrainTimesTests */,
 				9216EF03F57C212ECA9135EC4F28A64B /* TrainTimesUITests */,
 			);
@@ -248,7 +259,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		0DE7D833B48DEF08F75617BA041D2338 /* Resources */ = {
+		2A817B8319D719BEEFAC59019A4A8DA1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -279,14 +290,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		56AD2BD4C14911B4ECB2827386A0EE1C /* Sources */ = {
+		BE1F4E60DA73AB427787A2BFB0F1937C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BE1F4E60DA73AB427787A2BFB0F1937C /* Sources */ = {
+		CF5FA8EBA38897B82AECD49AA6DA147C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -296,17 +307,17 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		B56A130AA38420371B268B94B45026CB /* PBXTargetDependency */ = {
+		4CD47E3AE419CC7E242A337429BD01D7 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimes;
-			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
-			targetProxy = 17629CD54FC847ADFEC483C234CC8DF0 /* PBXContainerItemProxy */;
+			target = DFF4F8F9A2B55D16762BA35F60D1D3FF /* TrainTimes */;
+			targetProxy = DBDEBA22965623F9B247FA2839FA4A21 /* PBXContainerItemProxy */;
 		};
-		E400D5A41CD5FA4C0FA8AD6F658817F0 /* PBXTargetDependency */ = {
+		C4E1B3C098F1DE4FB3306BAA6A9D4CD8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimes;
-			target = 9EF7BEA179F5E1E546121BC40DF223AB /* TrainTimes */;
-			targetProxy = 3F6E0F96EBE8DC7FF3FC3370072A45F9 /* PBXContainerItemProxy */;
+			target = DFF4F8F9A2B55D16762BA35F60D1D3FF /* TrainTimes */;
+			targetProxy = 3B6C5B2FEE61E3E62D37B6350B09C070 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -392,39 +403,6 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				TEST_TARGET_NAME = TrainTimes;
-			};
-			name = Debug;
-		};
-		6AD2778C04A4A0CC378DE0F9498FB7E9 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
-				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -540,8 +518,9 @@
 			};
 			name = Debug;
 		};
-		9FDE70EE2761C2279E5D4DAEFD086937 /* Release */ = {
+		CE84771AE2787E4653872A7D079BFF11 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
@@ -599,6 +578,40 @@
 			};
 			name = Release;
 		};
+		E7D5F6B94D5DC85E9A0982059DBDC885 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -629,11 +642,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E21F4FCE429D0CCCAFDDBFBBF339722F /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
+		7EB63B44AD525181B15DC311BAC986E2 /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				9FDE70EE2761C2279E5D4DAEFD086937 /* Release */,
-				6AD2778C04A4A0CC378DE0F9498FB7E9 /* Debug */,
+				CE84771AE2787E4653872A7D079BFF11 /* Release */,
+				E7D5F6B94D5DC85E9A0982059DBDC885 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

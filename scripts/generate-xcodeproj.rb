@@ -92,7 +92,10 @@ ui_tests_dir = synced_group(project, 'UITests', tests)
 # App target.
 app = project.new_target(:application, 'TrainTimes', :ios, DEPLOYMENT_TARGET, nil, :swift)
 app.file_system_synchronized_groups << sources << resources << preview
+# TT-131 (D36): Config/App.xcconfig reads the Metrolinx key from Config/Secrets.xcconfig, which git ignores.
+app_xcconfig = project.main_group.new_group('Config', 'Config').new_file('App.xcconfig')
 app.build_configurations.each do |config|
+  config.base_configuration_reference = app_xcconfig
   s = config.build_settings
   s.delete('INFOPLIST_FILE')
   s.merge!(
@@ -112,6 +115,7 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D25: UIDesignRequiresCompatibility keeps the classic bars from the frames (TT-104).
+    # D36: MetrolinxAPIKey comes from the METROLINX_API_KEY setting in Config/App.xcconfig (TT-131).
     'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',

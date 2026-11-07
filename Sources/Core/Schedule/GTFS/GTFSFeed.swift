@@ -14,6 +14,9 @@ struct GTFSFeed: Codable, Sendable, Equatable {
         let name: String
         /// "#98002e"; nil when the feed has none.
         let color: String?
+        /// The feed's route ids for the line ("09261126-LW"), to scope service alerts to it (TT-132). Nil in a copy
+        /// imported before TT-132, until its weekly refresh.
+        var routeIds: [String]?
     }
 
     struct Trip: Codable, Sendable, Equatable {
@@ -38,6 +41,12 @@ struct GTFSFeed: Codable, Sendable, Equatable {
 }
 
 extension GTFSFeed {
+    /// The part of a route id that stays the same from one feed to the next: GO's route ids carry the schedule period
+    /// ("09261126-LW"), which changes between feeds, so a live alert and an older copy on device may differ in it (D37).
+    static func routeCode(_ routeId: String) -> String {
+        routeId.split(separator: "-").last.map(String.init) ?? routeId
+    }
+
     enum ImportError: Error, Equatable {
         case missingFile(String)
         case noRail
@@ -66,9 +75,11 @@ extension GTFSFeed {
             if !lines.contains(where: { $0.id == id }) {
                 let name = route["route_long_name"]
                 let color = route["route_color"]
-                lines.append(Line(id: id, name: name.isEmpty ? id : name, color: color.isEmpty ? nil : "#\(color)"))
+                lines.append(Line(id: id, name: name.isEmpty ? id : name, color: color.isEmpty ? nil : "#\(color)", routeIds: []))
             }
-            lineByRoute[route["route_id"]] = lines.firstIndex { $0.id == id }
+            guard let index = lines.firstIndex(where: { $0.id == id }) else { return }
+            lines[index].routeIds?.append(route["route_id"])
+            lineByRoute[route["route_id"]] = index
         }
         guard !lines.isEmpty else { throw ImportError.noRail }
 

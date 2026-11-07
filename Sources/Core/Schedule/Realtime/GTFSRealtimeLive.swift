@@ -87,6 +87,29 @@ extension GTFSRealtimeFeed.TripUpdate {
     }
 }
 
+extension GTFSRealtimeFeed.Alert {
+    /// The alert as a notice for a line (TT-132, D37), or nil when it is not one. A line notice names one of the line's
+    /// routes without a trip (a stop may narrow it); an alert about a trip or a stop alone is not a line notice. It shows
+    /// while one of its active periods holds `now`, or always with none. Its reported time is the start of that period,
+    /// else the feed's time. A notice never changes a trip's status: only TripUpdates do (D36).
+    func lineNotice(for line: Line, routeCodes: Set<String>, now: Date, feedTime: Date) -> LineNotice? {
+        let scoped = informedEntities.contains { entity in
+            !entity.hasTrip && entity.routeId.map { routeCodes.contains(GTFSFeed.routeCode($0)) } == true
+        }
+        let period: GTFSRealtimeFeed.ActivePeriod? = activePeriods.isEmpty
+            ? GTFSRealtimeFeed.ActivePeriod()
+            : activePeriods.first(where: { ($0.start ?? .distantPast) <= now && now <= ($0.end ?? .distantFuture) })
+        guard scoped, let period, let text = header ?? description, !text.isEmpty else { return nil }
+        return LineNotice(
+            id: id,
+            lineName: line.name,
+            text: text,
+            details: header == nil || description?.isEmpty == true ? nil : description,
+            reportedAt: period.start ?? feedTime
+        )
+    }
+}
+
 private extension GTFSRealtimeFeed.StopTimeUpdate {
     /// Seconds late at this stop: the departure's time or delay, else the arrival's. Nil for NO_DATA, or with no times.
     func lateness(scheduledArrival: Date, scheduledDeparture: Date) -> TimeInterval? {

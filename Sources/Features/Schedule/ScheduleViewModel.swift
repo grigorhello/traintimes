@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// The Schedule screen (TT-112): route header, day strip, freshness row and the Now button, plus the departures, cards
-/// and layout the timeline draws (TT-113).
+/// The Schedule screen (TT-112): route header, day strip, freshness row with the line notice link (TT-132) and the Now
+/// button, plus the departures, cards and layout the timeline draws (TT-113).
 @Observable @MainActor
 final class ScheduleViewModel {
     /// Today plus 13 days at most; the strip stops sooner at the schedule's last service day (Q6, D35).
@@ -25,6 +25,9 @@ final class ScheduleViewModel {
     private(set) var nextDayWithTrains: ServiceDay?
     /// The last day the schedule covers (the GTFS feed's validity window); nil when it has no end.
     private(set) var lastServiceDay: ServiceDay?
+    /// Today's line-wide notices for the route's line that the rider has not dismissed (TT-132). They show as the
+    /// "Line notice" link and never change a trip's status. Another day has none.
+    private(set) var lineNotices: [LineNotice] = []
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
@@ -41,6 +44,7 @@ final class ScheduleViewModel {
     private let routeStore: (any RouteStoring)?
     /// The star (TT-122), shared with the route form's favourites list.
     let favourites: Favourites
+    private let dismissedNotices: DismissedNotices
     private var hasLoaded = false
     private var isLoading = false
     /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
@@ -51,13 +55,14 @@ final class ScheduleViewModel {
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
-        favourites: Favourites = Favourites(defaults: nil)
+        favourites: Favourites = Favourites(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil)
     ) {
         self.route = route
         self.repository = repository
         self.clock = clock
         self.routeStore = routeStore
         self.favourites = favourites
+        self.dismissedNotices = dismissedNotices
         let now = clock.now
         self.now = now
         selectedDay = ServiceDay(containing: now)
@@ -187,6 +192,25 @@ final class ScheduleViewModel {
         }
     }
 
+    /// The line notice sheet's rows, times from the one formatter the view passes in.
+    func noticeRows(_ formatter: some TimeFormatting) -> [LineNoticeRow] {
+        lineNotices.map { notice in
+            LineNoticeRow(
+                id: notice.id,
+                title: String(format: String(localized: "notice.title"), notice.lineName),
+                text: notice.text,
+                details: notice.details,
+                reported: String(format: String(localized: "notice.reported"), formatter.time(notice.reportedAt))
+            )
+        }
+    }
+
+    /// Hides the notice until a notice with a new id arrives, after a relaunch too.
+    func dismissNotice(_ id: String) {
+        dismissedNotices.dismiss(id)
+        lineNotices.removeAll { $0.id == id }
+    }
+
     /// The first load, then a scroll to the present.
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
@@ -289,15 +313,23 @@ final class ScheduleViewModel {
             loaded = nil
             departures = []
             freshness = nil
+            lineNotices = []
             relayout()
             return
         }
         lastServiceDay = try? await repository.lastServiceDay()
+        // Notices load alongside live status, so a dead connection still shows Offline after one 10 s timeout (D36).
+        let source = repository
+        async let fetchedNotices = Self.notices(on: route, from: source, isToday: isToday)
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
+        let notices = await fetchedNotices
         let nextDay = trips.isEmpty ? await firstDayWithTrains(after: day, on: route) : nil
         // A newer day or route was picked while this one loaded.
         guard day == selectedDay, route == self.route else { return }
         nextDayWithTrains = nextDay
+        // Filtered only now, so a notice dismissed while this load ran stays hidden.
+        let visible = notices.filter { !dismissedNotices.contains($0.id) }
+        if visible != lineNotices { lineNotices = visible }
         now = clock.now
         loaded = (day, trips, live)
         resolve()
@@ -315,6 +347,12 @@ final class ScheduleViewModel {
         if departures != self.departures { self.departures = departures }
         if freshness != self.freshness { self.freshness = freshness }
         relayout()
+    }
+
+    /// Today's notices for the route's line. They are read apart from the trips, so they never change a status.
+    private nonisolated static func notices(on route: Route, from repository: any ScheduleRepository, isToday: Bool) async -> [LineNotice] {
+        guard isToday, let line = route.line else { return [] }
+        return (try? await repository.lineNotices(for: line)) ?? []
     }
 
     private func firstDayWithTrains(after day: ServiceDay, on route: Route) async -> ServiceDay? {

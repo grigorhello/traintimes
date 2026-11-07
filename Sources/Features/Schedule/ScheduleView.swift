@@ -12,6 +12,8 @@ struct ScheduleView: View {
     var onManageFavourites: () -> Void = {}
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
+    /// "Line notice" in the freshness row: the notice sheet (TT-132).
+    var onOpenLineNotice: () -> Void = {}
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
@@ -166,6 +168,9 @@ struct ScheduleView: View {
             if let mode = viewModel.freshnessMode(formatter) {
                 FreshnessLine(mode: mode)
             }
+            if !viewModel.lineNotices.isEmpty {
+                lineNoticeLink
+            }
             Spacer(minLength: 0)
             Button {
                 Task { await viewModel.backToNow() }
@@ -187,6 +192,32 @@ struct ScheduleView: View {
             .accessibilityLabel(Text(viewModel.nowButtonAccessibilityLabel))
             .accessibilityIdentifier("schedule.now")
         }
+    }
+
+    /// "· Line notice" in amber after the freshness text, as in `schedule-delayed.png` (canvas `.notice-link`).
+    @ViewBuilder
+    private var lineNoticeLink: some View {
+        // A separator glyph, not copy.
+        Text(verbatim: "·")
+            .font(TTFont.footnote)
+            .foregroundStyle(TTColor.inkSecondary)
+            .accessibilityHidden(true)
+        Button(action: onOpenLineNotice) {
+            HStack(spacing: TTSpace.s1) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: TTSize.iconSM, weight: .semibold))
+                Text("schedule.line_notice")
+                    .font(TTFont.footnote.weight(.semibold))
+            }
+            .foregroundStyle(TTColor.delayInk)
+            .frame(minHeight: TTSize.targetMin)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle())
+        // A 44 pt target that takes only the text's height in the row, as the Now button does.
+        .padding(.vertical, -TTSpace.s3)
+        .fixedSize()
+        .accessibilityIdentifier("schedule.lineNotice")
     }
 
     // MARK: Timeline

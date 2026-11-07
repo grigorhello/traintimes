@@ -12,6 +12,8 @@ enum LaunchArguments {
     static let noFavourites = ["-route.favourites", ""]
     /// No saved route and no favourites, as on a fresh install: the app lands on the route form.
     static let freshInstall = ["-route.last", ""] + noFavourites
+    /// No dismissed line notices (TT-132), so the fixture's notice shows.
+    static let noDismissedNotices = ["-notices.dismissed", ""]
 }
 
 extension XCUIApplication {
@@ -20,6 +22,13 @@ extension XCUIApplication {
     static func onFixtures() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["TT_FIXTURES"] = "1"
+        return app
+    }
+
+    /// The same on the fixtures' delayed scenario, which has a line notice (TT-132).
+    static func onDelayedFixture() -> XCUIApplication {
+        let app = onFixtures()
+        app.launchEnvironment["TT_FIXTURES"] = "delayed"
         return app
     }
 }

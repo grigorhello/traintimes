@@ -17,6 +17,9 @@
 "schedule.updated_just_now" = "Updated just now";
 "schedule.updated_ago" = "Updated %@ ago";
 "schedule.offline" = "Offline · showing saved schedule";
+"freshness.scheduled_only" = "Scheduled times only";
+"freshness.stale" = "Last reported %@ · showing scheduled times";
+"freshness.offline" = "Offline · last updated %@";
 "schedule.line_notice" = "Line notice";
 "schedule.scheduled_arrival" = "Scheduled arrival";
 "schedule.est_arrival" = "Est. arrival";
@@ -35,6 +38,9 @@
 "status.delayed" = "Delayed %d min";
 "status.cancelled" = "Cancelled";
 "status.scheduled" = "Scheduled";
+"status.stop_skipped" = "Stop skipped";
+"status.last_reported" = "Last reported %@";
+"status.offline" = "Offline";
 "tag.express" = "Express";
 
 /* Route and stations */

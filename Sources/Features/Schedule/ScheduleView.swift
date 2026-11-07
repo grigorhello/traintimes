@@ -14,6 +14,7 @@ struct ScheduleView: View {
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(spacing: 0) {
@@ -131,9 +132,16 @@ struct ScheduleView: View {
                     .padding(.vertical, Self.shadowRoom)
                 }
                 .padding(.horizontal, TTSpace.s5)
-                // Now/Today resets the strip to Today too, even when it was scrolled to a later date.
+                // Now/Today resets the strip to Today too, even when it was scrolled to a later date; "Show Monday"
+                // brings its day into view.
                 .onChange(of: viewModel.selectedDay) {
-                    if viewModel.isToday { withAnimation(.easeOut(duration: 0.3)) { strip.scrollTo(0, anchor: .leading) } }
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        if viewModel.isToday {
+                            strip.scrollTo(0, anchor: .leading)
+                        } else if let index = viewModel.days.firstIndex(of: viewModel.selectedDay) {
+                            strip.scrollTo(index)
+                        }
+                    }
                 }
             }
         }
@@ -181,19 +189,31 @@ struct ScheduleView: View {
         case top, now
     }
 
-    /// The to-scale timeline (TT-111 layout, TT-113 drawing).
+    /// The to-scale timeline (TT-111 layout, TT-113 drawing), its loading skeleton, or an empty state card (TT-115).
+    /// One scroll view holds them all, so a scroll request still lands when the content changes with it.
     private var timeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                ZStack(alignment: .top) {
-                    ScheduleTimeline(viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip)
-                    Color.clear
-                        .frame(height: 1)
-                        .id(TimelineAnchor.top)
-                    Color.clear
-                        .frame(height: 1)
-                        .id(TimelineAnchor.now)
-                        .padding(.top, viewModel.layout.initialScrollOffset)
+                Group {
+                    switch viewModel.content {
+                    case .loading:
+                        ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
+                    case .timeline:
+                        ZStack(alignment: .top) {
+                            ScheduleTimeline(viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip)
+                            Color.clear
+                                .frame(height: 1)
+                                .id(TimelineAnchor.top)
+                            Color.clear
+                                .frame(height: 1)
+                                .id(TimelineAnchor.now)
+                                .padding(.top, viewModel.layout.initialScrollOffset)
+                        }
+                    case .noTrains(let title, let message, let showDay):
+                        noTrains(title: title, message: message, showDay: showDay)
+                    case .noConnection:
+                        noConnection
+                    }
                 }
                 .onGeometryChange(for: CGFloat.self) { geometry in
                     -geometry.frame(in: .scrollView).minY
@@ -217,6 +237,43 @@ struct ScheduleView: View {
             }
             .accessibilityIdentifier("schedule.timeline")
         }
+    }
+
+    // MARK: Empty states
+
+    /// "No direct trains on Sunday" with "Show Monday", and the trip planner footnote (`schedule-no-trains.png`).
+    private func noTrains(title: String, message: String, showDay: String?) -> some View {
+        VStack(spacing: TTSpace.s3) {
+            EmptyStateCard(
+                systemImage: "calendar",
+                title: Text(verbatim: title),
+                message: Text(verbatim: message),
+                actionTitle: showDay.map { Text(verbatim: $0) }
+            ) {
+                Task { await viewModel.showNextDayWithTrains() }
+            }
+            Text("schedule.no_trains.footnote")
+                .font(TTFont.footnote)
+                .foregroundStyle(TTColor.inkSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, TTSpace.s3)
+        }
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.top, TTSpace.s3)
+    }
+
+    /// "No direct connection" with "Open GO trip planner" (`components.png`).
+    private var noConnection: some View {
+        EmptyStateCard(
+            systemImage: "exclamationmark.triangle",
+            title: "schedule.no_connection.title",
+            message: "schedule.no_connection.body",
+            actionTitle: "schedule.no_connection.action"
+        ) {
+            openURL(ScheduleViewModel.tripPlannerURL)
+        }
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.top, TTSpace.s3)
     }
 }
 

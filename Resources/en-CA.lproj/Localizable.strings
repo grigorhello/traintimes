@@ -42,6 +42,14 @@
 "schedule.next_usable_below" = "Next usable below";
 "schedule.empty.title" = "No direct trains";
 "schedule.empty.body" = "There are no direct trains between these stations on this day.";
+"freshness.loading" = "Loading timetable";
+"schedule.no_trains.title" = "No direct trains on %@";
+"schedule.no_trains.body" = "There are no direct trains between %@ and %@ on %@.";
+"schedule.no_trains.show_day" = "Show %@";
+"schedule.no_trains.footnote" = "For connections with a transfer, use the official GO trip planner.";
+"schedule.no_connection.title" = "No direct connection";
+"schedule.no_connection.body" = "These stations are on different lines. Plan a trip with a transfer on the official GO trip planner.";
+"schedule.no_connection.action" = "Open GO trip planner";
 
 /* Trip details */
 "trip.title" = "%@ train";

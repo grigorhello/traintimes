@@ -56,10 +56,14 @@ extension ServiceDay {
         ServiceDay(containing: Self.calendar.date(byAdding: .day, value: days, to: noon)!)
     }
 
+    /// 1 for Sunday through 7 for Saturday.
+    var weekday: Int { Self.calendar.component(.weekday, from: noon) }
+
     /// "Sun".
-    var weekdayShort: String {
-        Self.symbols.shortWeekdaySymbols[Self.calendar.component(.weekday, from: noon) - 1]
-    }
+    var weekdayShort: String { Self.symbols.shortWeekdaySymbols[weekday - 1] }
+
+    /// "Sunday", as in "No direct trains on Sunday" (TT-115).
+    var weekdayName: String { Self.symbols.weekdaySymbols[weekday - 1] }
 
     /// "Sun, Nov 8".
     var shortLabel: String {

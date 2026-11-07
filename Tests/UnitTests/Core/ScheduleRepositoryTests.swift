@@ -71,13 +71,37 @@ final class ScheduleRepositoryTests: XCTestCase {
         XCTAssertEqual(result[0].trip.platform, .published("9"))
     }
 
-    func testOtherRouteOrDayHasNoTrains() async throws {
+    func testOtherRouteHasNoTrains() async throws {
         let repo = try repository(.normal)
         let swapped = Route(from: repo.route.to, to: repo.route.from, line: repo.route.line)
         let trips = try await repo.trips(for: swapped, on: repo.serviceDay)
         XCTAssertTrue(trips.isEmpty)
-        let otherDay = try await repo.trips(for: repo.route, on: ServiceDay(year: 2026, month: 11, day: 6))
-        XCTAssertTrue(otherDay.isEmpty)
+    }
+
+    /// TT-115: later days run the same timetable with no live data, keyed by their own service date; Sundays have none.
+    func testLaterDaysRunTheTimetableExceptSunday() async throws {
+        let repo = try repository(.normal)
+        let friday = ServiceDay(year: 2026, month: 11, day: 6)
+        let trips = try await repo.trips(for: repo.route, on: friday)
+        XCTAssertEqual(trips.map(\.key.serviceDay), Array(repeating: friday, count: 4))
+        XCTAssertEqual(trips.first?.scheduledDeparture, friday.date(hour: 7, minute: 32))
+        let live = try await repo.liveStatus(for: repo.route, on: friday)
+        XCTAssertEqual(live, .empty)
+        let sunday = try await repo.trips(for: repo.route, on: ServiceDay(year: 2026, month: 11, day: 8))
+        XCTAssertTrue(sunday.isEmpty)
+        let earlier = try await repo.trips(for: repo.route, on: ServiceDay(year: 2026, month: 11, day: 4))
+        XCTAssertTrue(earlier.isEmpty)
+    }
+
+    /// TT-115: offline keeps the cached schedule, every badge Scheduled at its scheduled time, platforms pending.
+    func testOfflineScenario() async throws {
+        let repo = try repository(.offline)
+        let live = try await repo.liveStatus(for: repo.route, on: repo.serviceDay)
+        XCTAssertEqual(Freshness(live, now: repo.now), .offline(lastUpdated: at(6, 52)))
+        let result = try await departures(repo)
+        XCTAssertEqual(result.map(\.status), Array(repeating: .scheduled, count: 4))
+        XCTAssertTrue(result.allSatisfy { $0.expectedDeparture == nil })
+        XCTAssertTrue(result.allSatisfy { $0.trip.platform == .pending }, "A cached platform may have changed")
     }
 
     // MARK: Missing or stale data is Scheduled, never On time (D13)

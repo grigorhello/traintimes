@@ -1,0 +1,103 @@
+import XCTest
+@testable import TrainTimes
+
+/// TT-115: loading, stale, offline, future day, no direct trains and no direct connection. No state shows On time
+/// without fresh live data (D13).
+@MainActor
+final class ScheduleStatesTests: XCTestCase {
+    private let formatter = TimeFormatter(format: .twelveHour)
+
+    private func repository() throws -> FixtureScheduleRepository {
+        try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+    }
+
+    func testLoadingUntilTheFirstTimetableArrives() async throws {
+        let repository = try repository()
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: FixedClock(now: repository.now))
+        XCTAssertEqual(model.content, .loading)
+        XCTAssertEqual(model.freshnessMode(formatter), .loading)
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.content, .timeline)
+    }
+
+    func testStaleFallsBackToScheduledTimes() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(minutesLater: 5)
+        XCTAssertEqual(model.content, .timeline)
+        XCTAssertEqual(model.freshnessMode(formatter), .stale(lastReported: "7:21 AM"))
+        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .scheduled, count: 4))
+        XCTAssertTrue(model.departures.allSatisfy { $0.expectedDeparture == nil }, "Cards move back to scheduled positions")
+    }
+
+    func testOfflineKeepsTheCachedScheduleUsable() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(.offline)
+        XCTAssertEqual(model.content, .timeline)
+        XCTAssertEqual(model.freshnessMode(formatter), .offline(lastUpdated: "6:52 AM"))
+        let cards = model.cards(formatter)
+        XCTAssertEqual(cards.map(\.status), Array(repeating: .scheduled, count: 4))
+        XCTAssertEqual(Set(cards.map(\.platform)), ["Platform pending"])
+        XCTAssertNotNil(model.layout.nowY, "The Now line still follows the device clock")
+        XCTAssertEqual(cards.first?.relativeTime, "in 11 min")
+    }
+
+    func testFutureDayShowsScheduledTimesOnly() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(dayIndex: 1)
+        XCTAssertEqual(model.content, .timeline)
+        XCTAssertEqual(model.freshnessMode(formatter), .scheduledOnly(day: "Fri, Nov 6"))
+        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .scheduled, count: 4))
+        XCTAssertNil(model.layout.nowY)
+        XCTAssertNil(model.nextDepartureId)
+        XCTAssertEqual(model.layout.initialScrollOffset, 0, "The timeline starts at the day's first train")
+    }
+
+    func testNoTrainsOffersTheNextDayWithTrains() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(dayIndex: 3)
+        XCTAssertEqual(
+            model.content,
+            .noTrains(
+                title: "No direct trains on Sunday",
+                message: "There are no direct trains between Oakville and Union on Sun, Nov 8.",
+                showDay: "Show Monday"
+            )
+        )
+        await model.showNextDayWithTrains()
+        XCTAssertEqual(model.selectedDay, ServiceDay(year: 2026, month: 11, day: 9))
+        XCTAssertEqual(model.content, .timeline)
+        XCTAssertEqual(model.scrollRequest, 3, "Monday starts at its first train")
+    }
+
+    func testNoTrainsWithoutALaterDayHasNoAction() async throws {
+        let repository = try repository()
+        let reverse = Route(from: repository.route.to, to: repository.route.from, line: repository.route.line)
+        let model = ScheduleViewModel(route: reverse, repository: repository, clock: FixedClock(now: repository.now))
+        await model.loadIfNeeded()
+        XCTAssertEqual(
+            model.content,
+            .noTrains(
+                title: "No direct trains on Thursday",
+                message: "There are no direct trains between Union and Oakville on Thu, Nov 5.",
+                showDay: nil
+            )
+        )
+    }
+
+    func testStationsWithoutACommonLineHaveNoDirectConnection() async throws {
+        let repository = try repository()
+        let route = Route(from: repository.route.from, to: Station(id: "BA", name: "Barrie"), line: nil)
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: repository.now))
+        XCTAssertEqual(model.content, .noConnection)
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.content, .noConnection)
+    }
+
+    /// Acceptance: no state ever shows an On time badge without fresh live data.
+    func testOnlyFreshLiveDataShowsOnTime() async throws {
+        let stale = try await ScheduleViewModel.loadedFixture(minutesLater: 5)
+        let offline = try await ScheduleViewModel.loadedFixture(.offline)
+        let futureDay = try await ScheduleViewModel.loadedFixture(dayIndex: 1)
+        for model in [stale, offline, futureDay] {
+            XCTAssertFalse(model.cards(formatter).contains { $0.status == .onTime })
+        }
+        let live = try await ScheduleViewModel.loadedFixture()
+        XCTAssertTrue(live.cards(formatter).contains { $0.status == .onTime })
+    }
+}

@@ -34,7 +34,7 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.nowButtonAccessibilityLabel, "Back to today")
         XCTAssertFalse(model.isAtNow)
         XCTAssertNil(model.layout.nowY)
-        XCTAssertTrue(model.departures.isEmpty, "The fixtures only cover Thu Nov 5")
+        XCTAssertTrue(model.departures.isEmpty, "The fixtures run no trains on Sundays")
         XCTAssertEqual(model.scrollRequest, 2, "A new day starts at its first train")
     }
 

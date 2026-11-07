@@ -19,6 +19,8 @@ final class ScheduleViewModel {
     private(set) var now: Date
     /// Nil until the first load.
     private(set) var freshness: Freshness?
+    /// On a day with no direct trains: the next day in the strip that has some, for "Show Monday". Nil when none does.
+    private(set) var nextDayWithTrains: ServiceDay?
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
@@ -64,6 +66,34 @@ final class ScheduleViewModel {
     var routeTitle: String? {
         route.map { String(format: String(localized: "schedule.route_title"), $0.from.name, $0.to.name) }
     }
+
+    /// What fills the space under the freshness row (TT-115).
+    enum Content: Equatable {
+        /// The first timetable for this route is loading: skeleton cards on the rail.
+        case loading
+        case timeline
+        /// "No direct trains on Sunday", one sentence, and "Show Monday" when a later day in the strip has trains.
+        case noTrains(title: String, message: String, showDay: String?)
+        /// The stations share no line, so no direct train can run between them.
+        case noConnection
+    }
+
+    var content: Content {
+        guard let route else { return .loading }
+        guard route.line != nil else { return .noConnection }
+        guard freshness != nil else { return .loading }
+        guard departures.isEmpty else { return .timeline }
+        return .noTrains(
+            title: String(format: String(localized: "schedule.no_trains.title"), selectedDay.weekdayName),
+            message: String(
+                format: String(localized: "schedule.no_trains.body"), route.from.name, route.to.name, selectedDay.shortLabel
+            ),
+            showDay: nextDayWithTrains.map { String(format: String(localized: "schedule.no_trains.show_day"), $0.weekdayName) }
+        )
+    }
+
+    /// "Open GO trip planner" on the No direct connection card.
+    static let tripPlannerURL = URL(string: "https://www.gotransit.com/en/plan-your-trip")!
 
     /// "Now", or "Today" while another day is selected.
     var nowButtonTitle: String {
@@ -134,10 +164,10 @@ final class ScheduleViewModel {
     }
 
 
-    /// The freshness line (D14), with times from the one formatter. Nil until the first load.
+    /// The freshness line (D14), with times from the one formatter. "Loading timetable" until the first load.
     func freshnessMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
         switch freshness {
-        case nil: nil
+        case nil: route == nil ? nil : .loading
         case .live(let updatedAt): .live(updated: formatter.updated(at: updatedAt, now: clock.now))
         case .scheduledOnly: .scheduledOnly(day: isToday ? nil : selectedDay.shortLabel)
         case .stale(let lastReported): .stale(lastReported: formatter.time(lastReported))
@@ -174,6 +204,12 @@ final class ScheduleViewModel {
             await load()
         }
         scrollRequest += 1
+    }
+
+    /// "Show Monday" on a day with no direct trains.
+    func showNextDayWithTrains() async {
+        guard let nextDayWithTrains else { return }
+        await select(nextDayWithTrains)
     }
 
     /// Swap is explicit, never automatic. The new direction is remembered.
@@ -219,13 +255,22 @@ final class ScheduleViewModel {
         let isToday = day == today
         let trips = (try? await repository.trips(for: route, on: day)) ?? []
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
+        let nextDay = trips.isEmpty ? await firstDayWithTrains(after: day, on: route) : nil
         // A newer day or route was picked while this one loaded.
         guard day == selectedDay, route == self.route else { return }
+        nextDayWithTrains = nextDay
         now = clock.now
         let freshness = isToday ? Freshness(live, now: now) : .scheduledOnly
         departures = Departure.resolve(trips, live: live, freshness: freshness, isToday: isToday)
         self.freshness = freshness
         relayout()
+    }
+
+    private func firstDayWithTrains(after day: ServiceDay, on route: Route) async -> ServiceDay? {
+        for candidate in days where candidate > day {
+            if let trips = try? await repository.trips(for: route, on: candidate), !trips.isEmpty { return candidate }
+        }
+        return nil
     }
 
     private func relayout() {

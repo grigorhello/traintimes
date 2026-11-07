@@ -318,13 +318,18 @@ final class ScheduleViewModel {
             return
         }
         lastServiceDay = try? await repository.lastServiceDay()
+        // Notices load alongside live status, so a dead connection still shows Offline after one 10 s timeout (D36).
+        let source = repository
+        async let fetchedNotices = Self.notices(on: route, from: source, isToday: isToday)
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
-        let notices = isToday ? await currentNotices(on: route) : []
+        let notices = await fetchedNotices
         let nextDay = trips.isEmpty ? await firstDayWithTrains(after: day, on: route) : nil
         // A newer day or route was picked while this one loaded.
         guard day == selectedDay, route == self.route else { return }
         nextDayWithTrains = nextDay
-        if notices != lineNotices { lineNotices = notices }
+        // Filtered only now, so a notice dismissed while this load ran stays hidden.
+        let visible = notices.filter { !dismissedNotices.contains($0.id) }
+        if visible != lineNotices { lineNotices = visible }
         now = clock.now
         loaded = (day, trips, live)
         resolve()
@@ -344,10 +349,10 @@ final class ScheduleViewModel {
         relayout()
     }
 
-    /// The line's notices the rider has not dismissed. They are read apart from the trips, so they never change a status.
-    private func currentNotices(on route: Route) async -> [LineNotice] {
-        guard let line = route.line, let notices = try? await repository.lineNotices(for: line) else { return [] }
-        return notices.filter { !dismissedNotices.contains($0.id) }
+    /// Today's notices for the route's line. They are read apart from the trips, so they never change a status.
+    private nonisolated static func notices(on route: Route, from repository: any ScheduleRepository, isToday: Bool) async -> [LineNotice] {
+        guard isToday, let line = route.line else { return [] }
+        return (try? await repository.lineNotices(for: line)) ?? []
     }
 
     private func firstDayWithTrains(after day: ServiceDay, on route: Route) async -> ServiceDay? {

@@ -33,6 +33,22 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertFalse(cards[0].isNext, "7:32 AM has left")
     }
 
+    /// Once a minute the Now line moves 7 pt closer to the next train and "in N min" counts down.
+    func testMinuteTickMovesNowAndCountsDown() async throws {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: TimelineCardsTests.self))
+        let clock = TestClock(now: repository.now)
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
+        await model.loadIfNeeded()
+        let before = try XCTUnwrap(model.layout.cards.first).markerY - XCTUnwrap(model.layout.nowY)
+        XCTAssertEqual(model.cards(formatter)[0].relativeTime, "in 11 min")
+
+        clock.advance(minutes: 1)
+        model.tick()
+        let after = try XCTUnwrap(model.layout.cards.first).markerY - XCTUnwrap(model.layout.nowY)
+        XCTAssertEqual(before - after, TTTimeline.pointsPerMinute, accuracy: 0.001)
+        XCTAssertEqual(model.cards(formatter)[0].relativeTime, "in 10 min")
+    }
+
     func testCancelledTrainIsNeverTheNext() async throws {
         let cards = try await ScheduleViewModel.loadedFixture(.cancelled).cards(formatter)
         XCTAssertEqual(cards[0].status, .cancelled)

@@ -113,8 +113,10 @@ final class ScheduleViewModel {
         relayout()
     }
 
-    /// Ticks on every minute boundary while the screen is shown.
+    /// Ticks on every minute boundary while the screen is shown, and once on start, so coming back to the screen
+    /// (from Settings, say) never shows the minute it was left.
     func runClock() async {
+        tick()
         while !Task.isCancelled {
             let seconds = 60 - clock.now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 60)
             try? await Task.sleep(for: .seconds(seconds))

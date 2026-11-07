@@ -16,11 +16,15 @@ struct StationSearchView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TTSpace.s2) {
                     section("stations.yours", rows: viewModel.yourStations, top: TTSpace.s1)
-                    section("stations.all", rows: viewModel.allStations, top: TTSpace.s3)
+                    section(
+                        "stations.all", rows: viewModel.allStations, top: viewModel.yourStations.isEmpty ? TTSpace.s1 : TTSpace.s3
+                    )
                 }
                 .padding(.horizontal, TTSpace.s5)
                 .padding(.bottom, TTSpace.s6)
             }
+            // A new list per field, so the To list opens at the top with Union Station GO in view.
+            .id(viewModel.pickingField)
             .scrollDismissesKeyboard(.immediately)
             .background(TTColor.surface)
             .navigationBarTitleDisplayMode(.inline)
@@ -47,7 +51,7 @@ struct StationSearchView: View {
             )
         }
         .task { await viewModel.loadStations() }
-        // Picking From moves on to To with an empty search, so the To list starts from the top.
+        // Picking From moves on to To with the search closed and empty.
         .onChange(of: viewModel.pickingField) { isSearching = false }
         .presentationDragIndicator(.visible)
         .presentationBackground(TTColor.surface)

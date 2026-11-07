@@ -41,6 +41,7 @@ final class RouteFormViewModelTests: XCTestCase {
     func testIdenticalStationsAreRejectedInline() async throws {
         let model = try await model(Route(from: oakville, to: Station(id: "OA", name: "Oakville"), line: nil))
         XCTAssertTrue(model.isSameStation, "Stations compare by id")
+        XCTAssertEqual(model.from, model.to, "Station equality is the id, whatever the name or lines")
         XCTAssertFalse(model.canShowTrains)
         let route = await model.route()
         XCTAssertNil(route)

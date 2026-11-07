@@ -81,6 +81,24 @@ final class GTFSFeedStoreTests: XCTestCase {
         XCTAssertEqual(timetable.feed.importedAt, later.now, "Waited for the new import")
     }
 
+    /// After a failed download a run-out copy is tried again a minute later (a pull to refresh), not an hour later.
+    func testARunOutCopyRetriesSoonAfterAFailedDownload() async throws {
+        let zip = try GTFSTimetableTests.sampleZip()
+        _ = try await store { zip }.timetable()
+        let later = TestClock(now: clock.now.addingTimeInterval(21 * 86_400))
+        let attempts = Attempts()
+        let flaky = GTFSFeedStore(directory: directory, clock: later) {
+            guard await attempts.next() > 1 else { throw URLError(.notConnectedToInternet) }
+            return zip
+        }
+
+        let first = try await flaky.timetable()
+        XCTAssertEqual(first.feed.importedAt, clock.now, "The first download failed")
+        later.advance(minutes: 1)
+        let second = try await flaky.timetable()
+        XCTAssertEqual(second.feed.importedAt, later.now, "Tried again a minute later")
+    }
+
     func testRefreshIsDueWeeklyOrWhenTheFeedRunsOut() throws {
         let imported = clock.now
         let timetable = GTFSTimetable(feed: try GTFSFeed(zip: GTFSTimetableTests.sampleZip(), importedAt: imported))
@@ -90,5 +108,15 @@ final class GTFSFeedStoreTests: XCTestCase {
         let late = GTFSTimetable(feed: try GTFSFeed(zip: GTFSTimetableTests.sampleZip(), importedAt: imported.addingTimeInterval(17 * 86_400)))
         XCTAssertFalse(GTFSFeedStore.isDue(late, now: imported.addingTimeInterval(18 * 86_400)), "Fri Nov 27")
         XCTAssertTrue(GTFSFeedStore.isDue(late, now: imported.addingTimeInterval(19 * 86_400)), "Sat Nov 28")
+    }
+}
+
+/// Counts downloads across concurrency domains.
+private actor Attempts {
+    private var count = 0
+
+    func next() -> Int {
+        count += 1
+        return count
     }
 }

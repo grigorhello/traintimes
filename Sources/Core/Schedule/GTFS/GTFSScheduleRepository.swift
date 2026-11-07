@@ -40,6 +40,8 @@ actor GTFSFeedStore {
     static let refreshInterval: TimeInterval = 7 * 24 * 60 * 60
     /// A refresh that failed is not tried again for this long.
     static let retryInterval: TimeInterval = 60 * 60
+    /// The same when the copy has run out, so a pull to refresh soon tries again.
+    static let runOutRetryInterval: TimeInterval = 60
     static let shared = GTFSFeedStore(directory: .applicationSupportDirectory.appending(path: "GTFS", directoryHint: .isDirectory))
 
     typealias Download = @Sendable () async throws -> Data
@@ -50,7 +52,7 @@ actor GTFSFeedStore {
     private var current: GTFSTimetable?
     private var hasReadCopy = false
     private var refreshing: Task<GTFSTimetable, Error>?
-    private var lastBackgroundAttempt: Date?
+    private var lastAttempt: Date?
 
     init(directory: URL, clock: any AppClock = SystemClock(), download: @escaping Download = { try await GTFSFeedStore.downloadFeed() }) {
         fileURL = directory.appending(path: "feed.json")
@@ -71,8 +73,9 @@ actor GTFSFeedStore {
         // fails, as offline); a copy that is only a week old answers at once and is refreshed in the background.
         let expired = current.lastServiceDay.map { $0 < ServiceDay(containing: now) } ?? true
         if refreshing == nil {
-            guard lastBackgroundAttempt.map({ now.timeIntervalSince($0) >= Self.retryInterval }) ?? true else { return current }
-            lastBackgroundAttempt = now
+            let retry = expired ? Self.runOutRetryInterval : Self.retryInterval
+            guard lastAttempt.map({ now.timeIntervalSince($0) >= retry }) ?? true else { return current }
+            lastAttempt = now
             guard expired else {
                 Task { _ = try? await self.refresh() }
                 return current

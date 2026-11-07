@@ -31,7 +31,7 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
         layOutOnce(view)
-        assertSnapshot(
+        let failure = verifySnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
@@ -42,5 +42,14 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
             testName: testName,
             line: line
         )
+        if let failure {
+            XCTFail(failure, line: line)
+            guard failure.contains("does not match") else { return }
+            let cards = schedule.layout.cards.prefix(4).map { card in
+                "\(card.id.tripId) marker \(card.markerY) anchor \(card.markerY - card.top) height \(card.bottom - card.top)"
+            }
+            XCTFail("TTLAYOUT " + cards.joined(separator: "; "), line: line)
+            SnapshotDiffReport.report(failure, line: line)
+        }
     }
 }

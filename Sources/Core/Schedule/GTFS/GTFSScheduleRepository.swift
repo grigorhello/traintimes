@@ -32,12 +32,13 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
 
 /// Downloads the GO GTFS feed, imports its rail part and keeps the last good import on device, so the timetable works
 /// offline (TT-130, D35). The first use waits for the download; after that the copy on device answers at once and is
-/// refreshed in the background once it is a week old or no longer covers today. A failed refresh keeps the copy.
+/// refreshed in the background once it is a week old. A copy that no longer covers today waits for its refresh. A failed
+/// refresh keeps the copy.
 actor GTFSFeedStore {
     /// Metrolinx open data; public, no API key (Metrolinx Access and Use Agreement).
     static let feedURL = URL(string: "https://assets.metrolinx.com/raw/upload/Documents/Metrolinx/Open%20Data/GO-GTFS.zip")!
     static let refreshInterval: TimeInterval = 7 * 24 * 60 * 60
-    /// A background refresh that failed is not tried again for this long.
+    /// A refresh that failed is not tried again for this long.
     static let retryInterval: TimeInterval = 60 * 60
     static let shared = GTFSFeedStore(directory: .applicationSupportDirectory.appending(path: "GTFS", directoryHint: .isDirectory))
 
@@ -57,7 +58,7 @@ actor GTFSFeedStore {
         self.download = download
     }
 
-    /// The timetable on device, refreshed in the background when due; the first use downloads it.
+    /// The timetable on device, refreshed when due; the first use downloads it.
     func timetable() async throws -> GTFSTimetable {
         if !hasReadCopy {
             hasReadCopy = true
@@ -65,11 +66,20 @@ actor GTFSFeedStore {
         }
         guard let current else { return try await refresh() }
         let now = clock.now
-        if Self.isDue(current, now: now), lastBackgroundAttempt.map({ now.timeIntervalSince($0) >= Self.retryInterval }) ?? true {
+        guard Self.isDue(current, now: now) else { return current }
+        // A copy that no longer covers today would show no trains, so its refresh is waited for (the copy if that
+        // fails, as offline); a copy that is only a week old answers at once and is refreshed in the background.
+        let expired = current.lastServiceDay.map { $0 < ServiceDay(containing: now) } ?? true
+        if refreshing == nil {
+            guard lastBackgroundAttempt.map({ now.timeIntervalSince($0) >= Self.retryInterval }) ?? true else { return current }
             lastBackgroundAttempt = now
-            Task { _ = try? await self.refresh() }
+            guard expired else {
+                Task { _ = try? await self.refresh() }
+                return current
+            }
         }
-        return current
+        guard expired else { return current }
+        return (try? await refresh()) ?? current
     }
 
     /// Downloads and imports the feed, once however many callers ask at the same time, and keeps it on device.

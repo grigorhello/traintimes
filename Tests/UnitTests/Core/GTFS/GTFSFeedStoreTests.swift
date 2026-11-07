@@ -65,6 +65,22 @@ final class GTFSFeedStoreTests: XCTestCase {
         XCTAssertEqual(timetable.trips(from: "OA", to: "UN", on: monday).count, 46)
     }
 
+    /// A copy that has run out would show no trains, so the first call after it waits for the new feed; offline it
+    /// still answers with the copy.
+    func testARunOutCopyWaitsForTheNewFeed() async throws {
+        let zip = try GTFSTimetableTests.sampleZip()
+        _ = try await store { zip }.timetable()
+        // Mon Nov 30, after the feed's last service day (Fri Nov 27).
+        let later = FixedClock(now: clock.now.addingTimeInterval(21 * 86_400))
+
+        let offlineTimetable = try await GTFSFeedStore(directory: directory, clock: later, download: offline).timetable()
+        XCTAssertEqual(offlineTimetable.feed.importedAt, clock.now, "Offline keeps the copy")
+
+        let online = GTFSFeedStore(directory: directory, clock: later, download: { zip })
+        let timetable = try await online.timetable()
+        XCTAssertEqual(timetable.feed.importedAt, later.now, "Waited for the new import")
+    }
+
     func testRefreshIsDueWeeklyOrWhenTheFeedRunsOut() throws {
         let imported = clock.now
         let timetable = GTFSTimetable(feed: try GTFSFeed(zip: GTFSTimetableTests.sampleZip(), importedAt: imported))

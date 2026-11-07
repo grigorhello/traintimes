@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the app and runs the unit, snapshot and UI tests on an iOS simulator (TT-101).
 # Used by CI and runnable on any Mac with Xcode 16 or later: scripts/ci-test.sh
-# Set SIMULATOR_NAME to pick a device (default: the newest "iPhone 16", else the newest iPhone).
+# Set SIMULATOR_NAME to pick a device (default: "iPhone 16" if installed, else the iPhone on the newest iOS runtime).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

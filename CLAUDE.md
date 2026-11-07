@@ -31,7 +31,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 ### Project
 
 - `TrainTimes.xcodeproj`: one app target `TrainTimes`, `TrainTimesTests` (unit and snapshot, hosted in the app) and `TrainTimesUITests` (XCUITest). iOS 17 minimum, Swift 6 language mode, complete strict concurrency, warnings are errors (D1–D4).
-- The project uses **Xcode 16 synchronized folders**: adding, moving or deleting a file under `Sources/`, `Resources/`, `Preview Content/` or `Tests/` needs no project edit. Do not put non-code files such as READMEs in those folders; they would be bundled.
+- The project uses **Xcode 16 synchronized folders**: adding, moving or deleting a file under `Sources/`, `Resources/`, `Preview Content/` or `Tests/` needs no project edit. Do not put non-code files such as READMEs in those folders; they would be bundled (`.gitkeep`, which holds empty folders, is excluded by `EXCLUDED_SOURCE_FILE_NAMES`; delete it once a folder has files).
 - To change targets, build settings or packages, edit `scripts/generate-xcodeproj.rb` and re-run it (`gem install xcodeproj`, then `ruby scripts/generate-xcodeproj.rb`; works on Linux), and commit the regenerated project. Do not hand-edit `project.pbxproj`.
 - Bundle id `ca.traintimes.TrainTimes`; Display Name "Train Times" (D7).
 - Packages: swift-snapshot-testing (exact version, test target only). No third-party UI kits or runtime dependencies (D6).

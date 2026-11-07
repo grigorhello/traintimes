@@ -117,8 +117,9 @@ app.build_configurations.each do |config|
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks'],
     'SWIFT_EMIT_LOC_STRINGS' => 'YES'
   )
+  # .gitkeep holds empty Sources folders in git; it must not be bundled.
   # D20: fixtures never ship in a release build.
-  s['EXCLUDED_SOURCE_FILE_NAMES'] = 'Fixtures.json' if config.name == 'Release'
+  s['EXCLUDED_SOURCE_FILE_NAMES'] = config.name == 'Release' ? '.gitkeep Fixtures.json' : '.gitkeep'
 end
 
 # Unit tests (hosted in the app, so Bundle.main is the app bundle).

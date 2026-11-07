@@ -38,6 +38,14 @@ final class ServiceDayTests: XCTestCase {
         XCTAssertLessThan(ServiceDay(year: 2026, month: 12, day: 31), ServiceDay(year: 2027, month: 1, day: 1))
     }
 
+    /// TT-110 follow-up: a fixture time before 3:00 AM is the next calendar morning, still on this service day.
+    func testDateAfterMidnightFallsOnTheNextMorning() {
+        let day = ServiceDay(year: 2026, month: 11, day: 30)
+        XCTAssertEqual(day.date(hour: 1, minute: 5), utc("2026-12-01T06:05:00Z")) // 1:05 AM Dec 1, across the month end
+        XCTAssertEqual(ServiceDay(containing: day.date(hour: 1, minute: 5)), day)
+        XCTAssertEqual(day.date(hour: 23, minute: 59), utc("2026-12-01T04:59:00Z"))
+    }
+
     func testDayStripLabels() {
         let thursday = ServiceDay(year: 2026, month: 11, day: 5)
         XCTAssertEqual(thursday.weekdayShort, "Thu")

@@ -9,7 +9,7 @@ final class NoTrainsTests: XCTestCase {
     /// so on the fixture clock (Thu Nov 5) cell 3, Sun 8, shows the empty card and "Show Monday" selects cell 4.
     @MainActor
     func testNoTrainsDayShowsTheNextDayWithTrains() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 

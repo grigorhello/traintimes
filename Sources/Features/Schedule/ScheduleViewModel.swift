@@ -6,7 +6,7 @@ import Observation
 /// and layout the timeline draws (TT-113).
 @Observable @MainActor
 final class ScheduleViewModel {
-    /// Today plus 13 days. Q6: the real horizon comes from the GTFS validity window in TT-130.
+    /// Today plus 13 days at most; the strip stops sooner at the schedule's last service day (Q6, D35).
     static let dayCount = 14
     /// The Now button dims while the timeline sits within a minute of the present.
     static let atNowTolerance = TTTimeline.pointsPerMinute
@@ -21,6 +21,8 @@ final class ScheduleViewModel {
     private(set) var freshness: Freshness?
     /// On a day with no direct trains: the next day in the strip that has some, for "Show Monday". Nil when none does.
     private(set) var nextDayWithTrains: ServiceDay?
+    /// The last day the schedule covers (the GTFS feed's validity window); nil when it has no end.
+    private(set) var lastServiceDay: ServiceDay?
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
@@ -59,8 +61,12 @@ final class ScheduleViewModel {
     /// The star: on when this route, in this direction, is a favourite.
     var isFavourite: Bool { route.map { favourites.contains($0) } ?? false }
     var isToday: Bool { selectedDay == today }
-    /// The day strip, Today first.
-    var days: [ServiceDay] { (0..<Self.dayCount).map { today.adding(days: $0) } }
+    /// The day strip, Today first, ending at the schedule's last service day. Today always shows.
+    var days: [ServiceDay] {
+        let first = today
+        let later = (1..<Self.dayCount).map { first.adding(days: $0) }
+        return [first] + later.filter { day in lastServiceDay.map { day <= $0 } ?? true }
+    }
 
     /// "Oakville to Union".
     var routeTitle: String? {
@@ -253,7 +259,16 @@ final class ScheduleViewModel {
         guard let route else { return }
         let day = selectedDay
         let isToday = day == today
-        let trips = (try? await repository.trips(for: route, on: day)) ?? []
+        guard let trips = try? await repository.trips(for: route, on: day) else {
+            // No timetable on device yet and none could be downloaded (TT-130): "Loading timetable" stays until a refresh
+            // gets one, rather than claiming there are no trains.
+            guard day == selectedDay, route == self.route else { return }
+            departures = []
+            freshness = nil
+            relayout()
+            return
+        }
+        lastServiceDay = try? await repository.lastServiceDay()
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
         let nextDay = trips.isEmpty ? await firstDayWithTrains(after: day, on: route) : nil
         // A newer day or route was picked while this one loaded.

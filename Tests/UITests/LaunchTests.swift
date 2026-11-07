@@ -8,7 +8,7 @@ final class LaunchTests: XCTestCase {
     /// Launch lands on Schedule with no prompt; the gear pushes Settings and back returns (TT-104).
     @MainActor
     func testLaunchLandsOnScheduleAndGearPushesSettings() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         app.launch()
 
         let title = app.staticTexts["schedule.title"]

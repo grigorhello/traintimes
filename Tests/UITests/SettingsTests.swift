@@ -8,7 +8,7 @@ final class SettingsTests: XCTestCase {
     /// Settings shows the permission in words and changes Appearance and Time format (TT-105).
     @MainActor
     func testChangeAppearanceAndTimeFormat() {
-        let app = XCUIApplication()
+        let app = XCUIApplication.onFixtures()
         // Start from the defaults whatever an earlier run stored.
         app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"]
         app.launch()

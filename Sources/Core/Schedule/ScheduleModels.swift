@@ -107,7 +107,8 @@ struct LineNotice: Hashable, Sendable, Identifiable {
     let reportedAt: Date
 }
 
-/// The schedule as the timeline reads it: fixtures in M1, GTFS (TT-130) and GTFS-realtime (TT-131) later.
+/// The schedule as the timeline reads it: fixtures in previews and tests, the GO GTFS feed in the app (TT-130), and
+/// GTFS-realtime (TT-131) later.
 protocol ScheduleRepository: Sendable {
     /// Direct trains that stop at both stations in order, for one service day.
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip]
@@ -118,9 +119,14 @@ protocol ScheduleRepository: Sendable {
     /// Every stop of one trip from the route's origin to its destination, in order, with the live feed's estimates and
     /// skipped stops where it reports them (Trip details, TT-118).
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop]
+    /// The last service day the schedule covers; nil when it has no end. The day strip stops there (Q6, TT-130).
+    func lastServiceDay() async throws -> ServiceDay?
 }
 
 extension ScheduleRepository {
     /// A source with no stop data lists no stops.
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] { [] }
+
+    /// A source with no validity window (the fixtures) never ends the day strip early.
+    func lastServiceDay() async throws -> ServiceDay? { nil }
 }

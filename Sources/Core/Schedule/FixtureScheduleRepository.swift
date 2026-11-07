@@ -184,7 +184,8 @@ struct FixtureScheduleRepository: ScheduleRepository {
     }
 }
 
-/// M1 stations are the illustrative list in `Fixtures.json` (TT-121, D29); GTFS stops replace it in TT-130.
+/// Previews and tests list the illustrative stations in `Fixtures.json` (TT-121, D29); the app lists the GTFS feed's
+/// stations (TT-130).
 /// Only the fixture route's pair has a line and trips.
 extension FixtureScheduleRepository: StationRepository {
     func stations() async throws -> [Station] {

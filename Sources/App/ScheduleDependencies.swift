@@ -1,12 +1,25 @@
 import Foundation
 
-/// What the Schedule tab and the route form read in M1 (D20, D26, D28): the fixture repository and clock from
-/// `Fixtures.json` in Debug builds. The file ships in Debug only, so Release has no schedule or stations until TT-130.
+/// What the Schedule tab and the route form read: GO Transit's GTFS feed and the device clock in the app (TT-130, D35);
+/// the fixture repository and clock from `Fixtures.json` in previews and tests (D20).
 struct ScheduleDependencies {
     let repository: any ScheduleRepository
     let stations: any StationRepository
     let clock: any AppClock
 
+    /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
+    /// `TT_FIXTURES` in the launch environment so they never download the feed.
+    static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> ScheduleDependencies {
+        #if DEBUG
+        if ["TT_FIXTURES", "XCTestConfigurationFilePath", "XCODE_RUNNING_FOR_PREVIEWS"].contains(where: { environment[$0] != nil }) {
+            return .fixtures()
+        }
+        #endif
+        let repository = GTFSScheduleRepository(store: .shared)
+        return ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
+    }
+
+    /// `Fixtures.json` ships in Debug builds and the unit test bundle only, so Release gets an empty schedule here.
     static func fixtures(bundle: Bundle = .main) -> ScheduleDependencies {
         guard let repository = try? FixtureScheduleRepository(bundle: bundle) else {
             return ScheduleDependencies(repository: NoScheduleRepository(), stations: NoScheduleRepository(), clock: SystemClock())
@@ -25,7 +38,7 @@ extension ScheduleViewModel {
     }
 }
 
-/// Stands in where there is no schedule source yet; the live GTFS repository arrives in TT-130.
+/// Stands in where `Fixtures.json` is missing.
 private struct NoScheduleRepository: ScheduleRepository, StationRepository {
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] { [] }
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }

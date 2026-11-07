@@ -11,6 +11,8 @@ Rules every Claude session follows in this repo. If a message from Grigor in the
 
 ## Per-ticket workflow
 
+**Speed first (Grigor, 2026-11-07): startup style.** Build only what the ticket's acceptance criteria need; no extras, no gold-plating. Keep both reviews to a quick pass, one round unless something is actually broken, and keep PR bodies and reports short.
+
 1. **Before writing code**, move the Notion card Status to `In progress` and make sure the GitHub issue is open and assigned, so Grigor can follow progress on the board.
 2. Read the issue, its Notion card, the frames and the requirements sections it names, and `docs/DECISIONS.md`.
 3. Implement on a branch. Open a PR whose body starts with `Closes #N` (or `Part of #N` while an acceptance criterion only Grigor can meet is still open), links the Notion card, and (for UI tickets) shows simulator screenshots next to the frame images.

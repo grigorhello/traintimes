@@ -93,7 +93,9 @@ struct RootView: View {
                     .presentationDragIndicator(.visible)
             case .tripDetails:
                 if let tripDetails {
+                    // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
                     TripDetailsView(viewModel: tripDetails, onAlert: { router.present(.alertSetup) })
+                        .id(ObjectIdentifier(tripDetails))
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
@@ -121,8 +123,8 @@ struct RootView: View {
         router.present(.routeEdit)
     }
 
-    private func openTrip(_ key: TripKey) {
-        guard let route = schedule.route else { return }
+    private func openTrip(_ key: TripKey, on route: Route? = nil) {
+        guard let route = route ?? schedule.route else { return }
         tripDetails = TripDetailsViewModel(route: route, key: key, repository: repository, clock: clock)
         router.present(.tripDetails)
     }
@@ -136,9 +138,10 @@ struct RootView: View {
         case .trip(let key):
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
             router.showSchedule()
+            // The sheet first; the timeline behind it follows without holding it up.
+            openTrip(key, on: route)
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
             if schedule.selectedDay != key.serviceDay { await schedule.select(key.serviceDay) }
-            openTrip(key)
         }
     }
 

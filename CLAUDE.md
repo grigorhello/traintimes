@@ -37,8 +37,9 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - The project uses **Xcode 16 synchronized folders**: adding, moving or deleting a file under `Sources/`, `Resources/`, `Preview Content/` or `Tests/` needs no project edit. Do not put non-code files such as READMEs in those folders; they would be bundled (`.gitkeep`, which holds empty folders, is excluded by `EXCLUDED_SOURCE_FILE_NAMES`; delete it once a folder has files).
 - To change targets, build settings or packages, edit `scripts/generate-xcodeproj.rb` and re-run it (`gem install xcodeproj`, then `ruby scripts/generate-xcodeproj.rb`; works on Linux), and commit the regenerated project. Do not hand-edit `project.pbxproj`.
 - Bundle id `ca.traintimes.TrainTimes`; Display Name "Train Times" (D7).
+- Info.plist keys come from `INFOPLIST_KEY_*` settings in the generator; a key with no such setting goes in `Config/Info.plist`, which Xcode merges with them (today only `UIDesignRequiresCompatibility`, D25).
 - Asset catalogs live in `Resources/`: `AppIcon.xcassets` (TT-103) and `Colors.xcassets` (TT-102, the 21 token colours; `Accent` is the global accent colour). Both build settings are set in `scripts/generate-xcodeproj.rb`.
-- Shared components (TT-102) are in `Sources/Design`: `StatusBadge`/`TripStatus`, `ExpressTag`, `TimePill`, `.ttPrimary`/`.ttSecondary`/`.ttText` button styles, `IconButton`, `DayCell`, `DayChip`, `SegmentedControl`, `Card`, `FreshnessLine`, `Toast`, `EmptyStateCard`, `SkeletonCard`. Components take times already formatted by the one formatter. Token fonts are fixed sizes (no Dynamic Type scaling, D23).
+- Shared components (TT-102) are in `Sources/Design`: `StatusBadge`/`TripStatus`, `ExpressTag`, `TimePill`, `.ttPrimary`/`.ttSecondary`/`.ttText` button styles, `IconButton`, `DayCell`, `DayChip`, `SegmentedControl`, `Card`, `FreshnessLine`, `Toast`, `EmptyStateCard`, `SkeletonCard`, and `TabBarStyle` (TT-104: tab bar look and tab icons). Components take times already formatted by the one formatter. Token fonts are fixed sizes (no Dynamic Type scaling, D23).
 - Packages: swift-snapshot-testing (exact version, test target only). No third-party UI kits or runtime dependencies (D6).
 
 ### Folders
@@ -67,6 +68,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 
 - Unit tests for every view model and rule.
 - Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone17Pro), traits:))`, config in `Tests/UnitTests/Support`) for every screen state the ticket touches, in light and dark. iPhone 17 Pro only; no large-text or iPad snapshots (D23). Test methods that touch views are `@MainActor`.
+- Snapshots of anything inside the `TabView` or a `NavigationStack` pass `drawHierarchyInKeyWindow: true` (see `Tests/UnitTests/App/AppShellTests.swift`); the default layer render draws the bars and safe areas wrong (TT-104).
 - An XCUITest flow added or updated when a user flow changes. Find elements by `accessibilityIdentifier`.
 
 ### Building and CI

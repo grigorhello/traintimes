@@ -50,7 +50,7 @@ struct RouteFormView: View {
         .navigationTitle(Text("app.name"))
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: isPickingStation) {
-            StationListView(viewModel: viewModel)
+            StationSearchView(viewModel: viewModel)
         }
     }
 

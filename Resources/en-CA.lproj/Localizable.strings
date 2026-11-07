@@ -59,6 +59,11 @@
 "route.same_station" = "From and To must be different stations.";
 "route.footnote" = "No account or permission is needed. The route is saved on this device and opens next time.";
 "stations.yours" = "Your stations";
+"stations.all" = "All stations";
+"stations.search" = "Search stations";
+"stations.all_lines" = "All lines";
+"stations.same_as_to" = "%@ · Same as To";
+"stations.same_as_from" = "%@ · Same as From";
 
 /* Alerts */
 "alert.toast_on" = "Alert on for the %@ train";

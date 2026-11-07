@@ -1,0 +1,24 @@
+# Train Times alert server (TT-140, D38). Setup and deploy steps: README.md.
+name = "traintimes-alerts"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+# The app's API at https://alerts.traintimes.ca (traintimes.ca is a zone on the same Cloudflare account).
+routes = [{ pattern = "alerts.traintimes.ca", custom_domain = true }]
+
+[triggers]
+# Every minute: the monitoring cycle. Hourly: timetable refresh and retention (HOURLY in src/index.ts).
+crons = ["* * * * *", "17 * * * *"]
+
+# CPU: the hourly timetable import takes about 2 s on a full-size feed and the minute cycle tens of ms, past the Free
+# plan's 10 ms, so the Worker needs the Workers Paid plan (30 s per minute cycle, 15 min per hourly run).
+
+[vars]
+APNS_TOPIC = "ca.traintimes.TrainTimes"
+TRIP_UPDATES_URL = "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/TripUpdates"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "traintimes-alerts"
+# Filled in by `npx wrangler d1 create traintimes-alerts` (README.md).
+database_id = "00000000-0000-0000-0000-000000000000"

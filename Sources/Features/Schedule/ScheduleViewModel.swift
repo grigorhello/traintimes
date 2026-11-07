@@ -83,7 +83,11 @@ final class ScheduleViewModel {
     /// The timeline cards in departure order, times from the one formatter the view passes in.
     func cards(_ formatter: some TimeFormatting) -> [DepartureCard] {
         let next = nextDepartureId
-        return departures.map { DepartureCard($0, isNext: $0.id == next, now: now, formatter: formatter) }
+        return departures.indices.map { index in
+            let departure = departures[index]
+            let usableBelow = departures[(index + 1)...].contains { $0.isUsable }
+            return DepartureCard(departure, isNext: departure.id == next, nextUsableBelow: usableBelow, now: now, formatter: formatter)
+        }
     }
 
     /// A gridline label hides near a pill (TT-111) and near the "Now" label.

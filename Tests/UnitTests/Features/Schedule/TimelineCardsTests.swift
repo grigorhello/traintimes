@@ -56,6 +56,74 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertTrue(cards[1].isNext, "The next valid train becomes the lead")
     }
 
+    // MARK: TT-114 delayed and cancelled
+
+    /// delayedScenario: the 7:32 AM card sits at 7:41 AM, the bar is 9 min long, and the train keeps its name.
+    func testDelayedTrainSitsAtItsExpectedTimeAndKeepsItsName() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(.delayed)
+        let card = try XCTUnwrap(model.cards(formatter).first)
+        XCTAssertEqual(card.id.tripId, "LW-0732-20261105")
+        XCTAssertTrue(card.isNext)
+        XCTAssertEqual(card.time, "7:41 AM")
+        XCTAssertEqual(card.pillTime, "7:41")
+        XCTAssertEqual(card.pillStyle, .next)
+        XCTAssertEqual(card.scheduledTime, "Scheduled 7:32 AM")
+        XCTAssertEqual(card.scheduledPillTime, "7:32")
+        XCTAssertEqual(card.status, .delayed(minutes: 9))
+        XCTAssertEqual(card.arrivalLabel, "Est. arrival")
+        XCTAssertEqual(card.arrivalTime, "8:21 AM")
+        XCTAssertEqual(card.relativeTime, "in 20 min")
+        XCTAssertFalse(card.isCancelled)
+
+        let place = try XCTUnwrap(model.layout.cards.first { $0.id == card.id })
+        let bar = try XCTUnwrap(place.delayBar)
+        let nowY = try XCTUnwrap(model.layout.nowY)
+        XCTAssertEqual(bar.upperBound - bar.lowerBound, 9 * TTTimeline.pointsPerMinute, accuracy: 0.001)
+        XCTAssertEqual(place.markerY - nowY, 20 * TTTimeline.pointsPerMinute, accuracy: 0.001)
+        XCTAssertNil(model.cards(formatter)[1].scheduledTime, "On-time trains have no slip")
+    }
+
+    /// The clock passing the scheduled time is not evidence of departure: the delayed train stays the lead.
+    func testDelayedTrainStaysTheLeadPastItsScheduledTime() async throws {
+        let repository = try FixtureScheduleRepository(scenario: .delayed, bundle: Bundle(for: TimelineCardsTests.self))
+        let clock = TestClock(now: repository.now)
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
+        await model.loadIfNeeded()
+        clock.advance(minutes: 14) // 7:35 AM
+        model.tick()
+        XCTAssertEqual(model.nextDepartureId?.tripId, "LW-0732-20261105")
+        let card = try XCTUnwrap(model.cards(formatter).first)
+        XCTAssertEqual(card.relativeTime, "in 6 min")
+        XCTAssertNotNil(model.layout.cards.first?.delayBar)
+    }
+
+    /// cancelledScenario: struck red pill, no bell, "Next usable below", and the next valid train leads.
+    func testCancelledCardKeepsItsSlotAndPointsBelow() async throws {
+        let model = try await ScheduleViewModel.loadedFixture(.cancelled)
+        let cards = model.cards(formatter)
+        let cancelled = cards[0]
+        XCTAssertTrue(cancelled.isCancelled)
+        XCTAssertEqual(cancelled.time, "7:32 AM", "Keeps its scheduled slot")
+        XCTAssertEqual(cancelled.pillStyle, .cancelled)
+        XCTAssertEqual(cancelled.note, "Next usable below")
+        XCTAssertNil(cancelled.scheduledTime)
+        XCTAssertNil(cancelled.relativeTime)
+        XCTAssertEqual(cards[1].pillStyle, .next)
+        XCTAssertNil(cards[1].note)
+        let place = try XCTUnwrap(model.layout.cards.first)
+        let nowY = try XCTUnwrap(model.layout.nowY)
+        XCTAssertNil(place.delayBar)
+        XCTAssertEqual(place.markerY - nowY, 11 * TTTimeline.pointsPerMinute, accuracy: 0.001)
+    }
+
+    /// The evening fixture: a cancelled train between two usable ones (schedule-dark.png).
+    func testCancelledTrainBetweenUsableTrains() async throws {
+        let cards = try await ScheduleViewModel.loadedFixture(.eveningDark).cards(formatter)
+        XCTAssertEqual(cards.map(\.time), ["5:10 PM", "5:28 PM", "5:52 PM", "6:40 PM"])
+        XCTAssertEqual(cards.map(\.pillStyle), [.next, .cancelled, .later, .later])
+        XCTAssertEqual(cards[1].note, "Next usable below")
+    }
+
     func testAnotherDayHasNoNextTrainAndScheduledBadgesOnly() async throws {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: TimelineCardsTests.self))
         let wednesday = repository.now.addingTimeInterval(-24 * 60 * 60)

@@ -12,6 +12,8 @@ final class ScheduleViewModel {
     static let atNowTolerance = TTTimeline.pointsPerMinute
     /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
     static let livePollInterval: Duration = .seconds(30)
+    /// The watched-trip strip stays this long after the train's arrival (TT-144).
+    static let watchedStripAfterArrival: TimeInterval = 10 * 60
 
     private(set) var route: Route?
     private(set) var selectedDay: ServiceDay
@@ -28,6 +30,8 @@ final class ScheduleViewModel {
     /// Today's line-wide notices for the route's line that the rider has not dismissed (TT-132). They show as the
     /// "Line notice" link and never change a trip's status. Another day has none.
     private(set) var lineNotices: [LineNotice] = []
+    /// Watched-trip strips the rider swiped away while the app runs (TT-144).
+    private(set) var dismissedWatchedTrips: Set<TripKey> = []
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
@@ -45,6 +49,8 @@ final class ScheduleViewModel {
     /// The star (TT-122), shared with the route form's favourites list.
     let favourites: Favourites
     private let dismissedNotices: DismissedNotices
+    /// The trips with an alert, for the watched-trip strip (TT-144).
+    private let watchedTrips: any WatchedTripsProviding
     private var hasLoaded = false
     private var isLoading = false
     /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
@@ -55,7 +61,8 @@ final class ScheduleViewModel {
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
-        favourites: Favourites = Favourites(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil)
+        favourites: Favourites = Favourites(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
+        watchedTrips: any WatchedTripsProviding = NoWatchedTrips()
     ) {
         self.route = route
         self.repository = repository
@@ -63,6 +70,7 @@ final class ScheduleViewModel {
         self.routeStore = routeStore
         self.favourites = favourites
         self.dismissedNotices = dismissedNotices
+        self.watchedTrips = watchedTrips
         let now = clock.now
         self.now = now
         selectedDay = ServiceDay(containing: now)
@@ -190,6 +198,37 @@ final class ScheduleViewModel {
         case .stale(let lastReported): .stale(lastReported: formatter.time(lastReported))
         case .offline(let lastUpdated): .offline(lastUpdated: lastUpdated.map { formatter.time($0) })
         }
+    }
+
+    /// The watched train that has left, for the strip above the timeline (TT-144): today only, from the moment its live
+    /// departure time has passed, as Trip details says "Departed" (D32), until 10 min after its arrival (estimated, else
+    /// scheduled) or until swiped away. The latest such train when there are several.
+    var watchedDeparture: Departure? {
+        guard isToday else { return nil }
+        return departures.last { departure in
+            guard let departed = departure.expectedDeparture, departed <= now,
+                  !dismissedWatchedTrips.contains(departure.id), watchedTrips.isWatched(departure.id) else { return false }
+            let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
+            return now < arrival.addingTimeInterval(Self.watchedStripAfterArrival)
+        }
+    }
+
+    /// The strip's text, times from the one formatter the view passes in.
+    func watchedStrip(_ formatter: some TimeFormatting) -> WatchedTripStrip? {
+        guard let departure = watchedDeparture, let route else { return nil }
+        let arrival = departure.expectedArrival.map {
+            String(format: String(localized: "schedule.watched.est_arrival"), formatter.time($0))
+        } ?? String(format: String(localized: "schedule.watched.scheduled_arrival"), formatter.time(departure.trip.scheduledArrival))
+        return WatchedTripStrip(
+            id: departure.id,
+            title: String(format: String(localized: "schedule.watched.title"), formatter.time(departure.trip.scheduledDeparture), route.to.name),
+            detail: arrival
+        )
+    }
+
+    /// Swiped away: that train's strip stays hidden while the app runs.
+    func dismissWatchedStrip(_ id: TripKey) {
+        dismissedWatchedTrips.insert(id)
     }
 
     /// The line notice sheet's rows, times from the one formatter the view passes in.

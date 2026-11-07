@@ -238,6 +238,7 @@ struct DepartureCardView: View {
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
+    @Environment(\.displayScale) private var displayScale
 
     /// The canvas card pads 14 pt, and 10 pt on the bell side; `Card` pads 16 pt.
     private static let inset = EdgeInsets(top: -2, leading: -2, bottom: -2, trailing: -6)
@@ -423,7 +424,16 @@ struct DepartureCardView: View {
 
     private func report() {
         guard height > 0, anchor > 0 else { return }
-        onSize(TimelineCardSize(height: height, anchor: anchor))
+        onSize(TimelineCardSize(height: wholePixels(height), anchor: wholePixels(anchor)))
+    }
+
+    /// A 32 pt time's centre falls on a half pixel, so a card can land on that half pixel too, and floating-point noise in
+    /// the measurement then picks the pixel it draws on: one snapshot run drew a card 1 px off another. Snapped to whole
+    /// pixels (a half pixel rounds down), every measurement of the same card is the same number.
+    private func wholePixels(_ value: CGFloat) -> CGFloat {
+        let scale = max(displayScale, 1)
+        let halfPixels = (value * scale * 2).rounded()
+        return (halfPixels / 2).rounded(.down) / scale
     }
 }
 

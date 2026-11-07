@@ -291,12 +291,11 @@ struct DepartureCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
-        // The bell sits over its slot in the badge row, outside the card's one element, so it is a separate button.
-        .overlayPreferenceValue(BellSlot.self) { slot in
-            if let slot {
-                GeometryReader { proxy in
-                    bellButton.position(x: proxy[slot].midX, y: proxy[slot].midY)
-                }
+        // The bell sits over its slot in the badge row, outside the card's one element, so it is a separate button. The
+        // slot's alignment guides place it in the same layout pass as the card, so every frame draws it in place.
+        .overlay(alignment: .bellSlot) {
+            if !card.isCancelled {
+                bellButton
             }
         }
     }
@@ -321,7 +320,7 @@ struct DepartureCardView: View {
     }
 
     /// Badge, platform or "in N min", tags and the bell on one line; tags wrap under them when they do not fit.
-    /// The bell's slot stays outside `ViewThatFits`, so only one slot reports where the bell goes.
+    /// The bell's slot stays outside `ViewThatFits`, so there is one slot whichever row layout fits.
     private var badgeRow: some View {
         HStack(alignment: .top, spacing: TTSpace.s2) {
             ViewThatFits(in: .horizontal) {
@@ -395,7 +394,8 @@ struct DepartureCardView: View {
         if !card.isCancelled {
             Color.clear
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                .anchorPreference(key: BellSlot.self, value: .bounds) { $0 }
+                .alignmentGuide(HorizontalAlignment.bellSlot) { $0[HorizontalAlignment.center] }
+                .alignmentGuide(VerticalAlignment.bellSlot) { $0[VerticalAlignment.center] }
                 .padding(.vertical, -Self.bellBleed)
                 .padding(.trailing, -Self.bellBleed)
                 .accessibilityHidden(true)
@@ -420,13 +420,26 @@ struct DepartureCardView: View {
     }
 }
 
-/// Where the bell goes in the card (TT-141).
-private struct BellSlot: PreferenceKey {
-    static var defaultValue: Anchor<CGRect>? { nil }
+/// Where the bell goes in the card (TT-141): the centre of its slot in the badge row, which sets both guides. A view that
+/// sets neither aligns on its centre.
+private enum BellSlotX: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat { dimensions[HorizontalAlignment.center] }
+}
 
-    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
-        value = value ?? nextValue()
-    }
+private enum BellSlotY: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat { dimensions[VerticalAlignment.center] }
+}
+
+private extension HorizontalAlignment {
+    static var bellSlot: HorizontalAlignment { HorizontalAlignment(BellSlotX.self) }
+}
+
+private extension VerticalAlignment {
+    static var bellSlot: VerticalAlignment { VerticalAlignment(BellSlotY.self) }
+}
+
+private extension Alignment {
+    static var bellSlot: Alignment { Alignment(horizontal: .bellSlot, vertical: .bellSlot) }
 }
 
 /// The card's own coordinate space, where its time line's centre is the layout anchor.

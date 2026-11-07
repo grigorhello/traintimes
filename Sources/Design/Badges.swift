@@ -96,8 +96,13 @@ struct ExpressTag: View {
 struct TimePill: View {
     enum Style: Sendable { case next, later, slipped, cancelled }
 
+    /// The fixed slot every pill takes on the rail, so times line up in the label column.
+    static let railSize = CGSize(width: 40, height: 22)
+
     let time: String
     var style: Style = .later
+    /// On the timeline the pill fills `railSize`; elsewhere it hugs its text.
+    var isOnRail = false
 
     var body: some View {
         Text(time)
@@ -105,8 +110,11 @@ struct TimePill: View {
             .monospacedDigit()
             .strikethrough(style == .slipped || style == .cancelled)
             .foregroundStyle(ink)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, isOnRail ? 0 : 6)
+            .padding(.vertical, isOnRail ? 0 : 2)
+            .frame(width: isOnRail ? Self.railSize.width : nil, height: isOnRail ? Self.railSize.height : nil)
             .background(fill, in: Capsule())
     }
 

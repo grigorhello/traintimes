@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Schedule tab (TT-112): inline "Train Times" header with the Settings gear, route header, 7-day strip and freshness
-/// row with the Now button, then the to-scale timeline space that TT-113 draws the rail and cards into.
+/// row with the Now button, then the to-scale timeline with its rail and cards (TT-113).
 struct ScheduleView: View {
     @Environment(\.colorScheme) private var colorScheme
     let viewModel: ScheduleViewModel
     let onSettings: () -> Void
     let onEditRoute: () -> Void
+    /// Tap a card: Trip details (TT-118).
+    var onOpenTrip: (TripKey) -> Void = { _ in }
 
     /// The one formatter (D17).
     private let formatter: any TimeFormatting = TimeFormatter(format: .device)
@@ -33,6 +35,7 @@ struct ScheduleView: View {
         .navigationTitle(Text("app.name"))
         .toolbar(.hidden, for: .navigationBar)
         .task { await viewModel.loadIfNeeded() }
+        .task { await viewModel.runClock() }
     }
 
     private var navigationHeader: some View {
@@ -176,14 +179,12 @@ struct ScheduleView: View {
         case top, now
     }
 
-    /// The to-scale timeline space (TT-111 layout). TT-113 draws the rail, markers and cards in it.
+    /// The to-scale timeline (TT-111 layout, TT-113 drawing).
     private var timeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 ZStack(alignment: .top) {
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .frame(height: viewModel.layout.height)
+                    ScheduleTimeline(viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip)
                     Color.clear
                         .frame(height: 1)
                         .id(TimelineAnchor.top)

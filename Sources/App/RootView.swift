@@ -18,7 +18,8 @@ struct RootView: View {
                 ScheduleView(
                     viewModel: schedule,
                     onSettings: { router.openSettings() },
-                    onEditRoute: { router.present(.routeEdit) }
+                    onEditRoute: { router.present(.routeEdit) },
+                    onOpenTrip: { _ in router.present(.tripDetails) }
                 )
                     .navigationDestination(for: ScheduleRoute.self) { route in
                         switch route {
@@ -58,6 +59,7 @@ private struct SheetPlaceholder: View {
     var body: some View {
         TTColor.canvas
             .ignoresSafeArea()
+            .accessibilityElement()
             .accessibilityIdentifier("sheet.\(sheet.rawValue)")
             .presentationDragIndicator(.visible)
     }

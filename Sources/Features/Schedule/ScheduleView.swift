@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Schedule tab: inline "Train Times" header and the Settings gear. The timeline arrives in TT-112.
 struct ScheduleView: View {
-    let onSettings: @MainActor () -> Void
+    let onSettings: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {

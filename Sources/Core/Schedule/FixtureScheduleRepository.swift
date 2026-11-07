@@ -22,6 +22,13 @@ struct FixtureScheduleRepository: ScheduleRepository {
     private let live: LiveSnapshot
     private let notices: [LineNotice]
     private let stationList: [Station]
+    /// The line's stops from the fixture route's origin to its destination, minutes after the origin.
+    private let lineStops: [LineStop]
+
+    private struct LineStop: Sendable {
+        let station: Station
+        let minutes: Int
+    }
 
     init(scenario: Scenario = .normal, bundle: Bundle = .main) throws {
         guard let url = bundle.url(forResource: "Fixtures", withExtension: "json") else { throw FixtureError.missingFile }
@@ -105,9 +112,14 @@ struct FixtureScheduleRepository: ScheduleRepository {
         }
         self.live = LiveSnapshot(updatedAt: updatedAt, updates: updates)
         self.notices = notices
-        self.stationList = file.stations
+        let stationList = file.stations
             .map { Station(id: $0.id, name: $0.name, lines: $0.lines) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        self.stationList = stationList
+        self.lineStops = try file.stops.map { stop in
+            guard let station = stationList.first(where: { $0.id == stop.id }) else { throw FixtureError.invalid(stop.id) }
+            return LineStop(station: station, minutes: stop.minutes)
+        }
     }
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
@@ -120,6 +132,27 @@ struct FixtureScheduleRepository: ScheduleRepository {
 
     func lineNotices(for line: Line) async throws -> [LineNotice] {
         line.id == route.line?.id ? notices : []
+    }
+
+    /// The fixture stop list in the route's direction, spread over the trip's scheduled run. A trip with a live arrival
+    /// estimate carries its departure delay to every stop and ends at that estimate; otherwise stops have no estimate.
+    func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {
+        guard matches(route, trip.serviceDay), let found = allTrips.first(where: { $0.key == trip }),
+              let total = lineStops.last?.minutes, total > 0
+        else { return [] }
+        let ordered = route.from.id == lineStops.first?.station.id
+            ? lineStops
+            : lineStops.reversed().map { LineStop(station: $0.station, minutes: total - $0.minutes) }
+        let run = found.scheduledArrival.timeIntervalSince(found.scheduledDeparture)
+        let update = live.updates[trip.tripId]
+        let delay = update?.expectedArrival == nil ? nil : update?.expectedDeparture?.timeIntervalSince(found.scheduledDeparture)
+        return ordered.enumerated().map { index, stop in
+            let minutes = (run / 60 * Double(stop.minutes) / Double(total)).rounded()
+            let scheduled = found.scheduledDeparture.addingTimeInterval(minutes * 60)
+            let isLast = index == ordered.count - 1
+            let expected = delay.flatMap { isLast ? update?.expectedArrival : scheduled.addingTimeInterval($0) }
+            return TripStop(station: stop.station, scheduled: scheduled, expected: expected)
+        }
     }
 
     private func matches(_ route: Route, _ day: ServiceDay) -> Bool {
@@ -157,6 +190,7 @@ private struct FixtureFile: Decodable {
         let tags: [String]?
         let reportedAt: String?
     }
+    struct StopDTO: Decodable { let id: String; let minutes: Int }
     struct NoticeDTO: Decodable { let line: String; let text: String; let reportedAt: String }
     struct DelayedDTO: Decodable {
         let tripId: String
@@ -178,6 +212,7 @@ private struct FixtureFile: Decodable {
     let serviceDate: String
     let now: String
     let feedUpdatedAt: String
+    let stops: [StopDTO]
     let trains: [TrainDTO]
     let delayedScenario: DelayedDTO
     let cancelledScenario: CancelledDTO

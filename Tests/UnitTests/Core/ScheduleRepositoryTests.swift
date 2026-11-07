@@ -161,4 +161,27 @@ final class ScheduleRepositoryTests: XCTestCase {
         XCTAssertEqual(stations.first { $0.id == repo.route.to.id }?.name, "Union Station GO")
         XCTAssertTrue(stations.allSatisfy { !$0.lines.isEmpty })
     }
+
+    // MARK: Stops (TT-118)
+
+    func testStopsRunFromOriginToDestinationInTheRouteDirection() async throws {
+        let morning = try repository(.normal)
+        let stops = try await morning.stops(for: TripKey(serviceDay: day, tripId: "LW-0732-20261105"), on: morning.route)
+        XCTAssertEqual(stops.map(\.id), ["OA", "CL", "PO", "LO", "MO", "EX", "UN"])
+        XCTAssertEqual(stops.first?.scheduled, at(7, 32))
+        XCTAssertEqual(stops.last?.scheduled, at(8, 12))
+        XCTAssertTrue(stops.allSatisfy { $0.expected == nil }, "No arrival estimate, so no stop estimates")
+
+        let evening = try repository(.eveningDark)
+        let back = try await evening.stops(for: TripKey(serviceDay: day, tripId: "LW-1752"), on: evening.route)
+        XCTAssertEqual(back.map(\.id), ["UN", "EX", "MO", "LO", "PO", "CL", "OA"])
+        XCTAssertEqual(back.first?.scheduled, at(17, 52))
+        XCTAssertEqual(back.last?.scheduled, at(18, 27))
+    }
+
+    func testDelayedStopsCarryTheFeedEstimates() async throws {
+        let repo = try repository(.delayed)
+        let stops = try await repo.stops(for: TripKey(serviceDay: day, tripId: "LW-0732-20261105"), on: repo.route)
+        XCTAssertEqual(stops.map(\.expected), [at(7, 41), at(7, 49), at(7, 55), at(8, 1), at(8, 6), at(8, 13), at(8, 21)])
+    }
 }

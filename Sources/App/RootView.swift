@@ -10,7 +10,11 @@ struct RootView: View {
     @State private var settingsModel: SettingsViewModel
     /// The first-use form, replaced by a prefilled one each time the route sheet opens.
     @State private var routeForm: RouteFormViewModel
+    /// The trip the details sheet shows, set each time a card is tapped (TT-118).
+    @State private var tripDetails: TripDetailsViewModel?
     private let stations: any StationRepository
+    private let repository: any ScheduleRepository
+    private let clock: any AppClock
     @Environment(\.colorScheme) private var colorScheme
 
     init(
@@ -33,6 +37,8 @@ struct RootView: View {
             initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
         )
         stations = dependencies.stations
+        repository = dependencies.repository
+        clock = dependencies.clock
         TabBarStyle.apply()
     }
 
@@ -48,7 +54,7 @@ struct RootView: View {
                             onSettings: { router.openSettings() },
                             onEditRoute: { editRoute() },
                             onManageFavourites: { editRoute(managingFavourites: true) },
-                            onOpenTrip: { _ in router.present(.tripDetails) }
+                            onOpenTrip: { openTrip($0) }
                         )
                     }
                 }
@@ -81,6 +87,10 @@ struct RootView: View {
             case .routeEdit:
                 RouteFormView(viewModel: routeForm, onShowTrains: { show($0) })
                     .presentationDragIndicator(.visible)
+            case .tripDetails:
+                if let tripDetails {
+                    TripDetailsView(viewModel: tripDetails, onAlert: { router.present(.alertSetup) })
+                }
             default:
                 SheetPlaceholder(sheet: sheet)
             }
@@ -99,14 +109,19 @@ struct RootView: View {
         router.present(.routeEdit)
     }
 
+    private func openTrip(_ key: TripKey) {
+        guard let route = schedule.route else { return }
+        tripDetails = TripDetailsViewModel(route: route, key: key, repository: repository, clock: clock)
+        router.present(.tripDetails)
+    }
+
     private func show(_ route: Route) {
         router.dismissSheet()
         Task { await schedule.show(route) }
     }
 }
 
-/// Stand-in until the sheets land: station search (TT-121), trip details (TT-118), alert setup (TT-141) and
-/// line notices (TT-132).
+/// Stand-in until the sheets land: station search (TT-121), alert setup (TT-141) and line notices (TT-132).
 private struct SheetPlaceholder: View {
     let sheet: AppSheet
 

@@ -140,6 +140,8 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   const watches: Watch[] = [];
 
   for (const rule of rules.results) {
+    // APNs just rejected this installation's token: leave its other rules for a cycle after it registers again.
+    if (gone.has(rule.installation_id)) continue;
     const direction: Direction = { origin: rule.origin_name, destination: rule.destination_name };
     for (const date of dates) {
       if (rule.kind === 'trip') {

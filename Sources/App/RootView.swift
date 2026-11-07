@@ -1,14 +1,19 @@
 import SwiftUI
 
 /// Two tabs, Schedule and Alerts, and nothing else at the top level. Launch lands on Schedule with no prompt.
+/// Applies the Appearance setting and puts the one time formatter in the environment (TT-105).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
+    @State private var settings: AppSettings
+    @State private var settingsModel: SettingsViewModel
     @Environment(\.colorScheme) private var colorScheme
 
-    init(router: AppRouter = AppRouter(), schedule: ScheduleViewModel? = nil) {
+    init(router: AppRouter = AppRouter(), schedule: ScheduleViewModel? = nil, settings: AppSettings = AppSettings()) {
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule ?? .fixtures())
+        _settings = State(initialValue: settings)
+        _settingsModel = State(initialValue: SettingsViewModel(settings: settings))
         TabBarStyle.apply()
     }
 
@@ -22,7 +27,7 @@ struct RootView: View {
                 )
                     .navigationDestination(for: ScheduleRoute.self) { route in
                         switch route {
-                        case .settings: SettingsView()
+                        case .settings: SettingsView(viewModel: settingsModel)
                         }
                     }
             }
@@ -47,6 +52,8 @@ struct RootView: View {
         .sheet(item: $router.presentedSheet) { sheet in
             SheetPlaceholder(sheet: sheet)
         }
+        .environment(\.timeFormatter, settings.timeFormatter)
+        .preferredColorScheme(settings.appearance.colorScheme)
     }
 }
 

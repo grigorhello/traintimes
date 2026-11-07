@@ -40,6 +40,7 @@ enum TTSize {
     static let iconMD: CGFloat = 22, iconSM: CGFloat = 15
     static let rowMin: CGFloat = 76
     static let dayCell: CGFloat = 44        // 7-day strip
+    static let appMark: CGFloat = 36        // app icon in Settings › About
 }
 
 /// Text styles. Sizes are the default (Large) Dynamic Type values; always pass `relativeTo:` so they scale.

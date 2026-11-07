@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// 18 pt radius surface. Light mode carries a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only.
+/// `padding: 0` for a list of full-width rows split by hairlines (Settings).
 struct Card<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
+    var padding: CGFloat = TTSpace.s4
     @ViewBuilder let content: Content
 
     var body: some View {
         content
-            .padding(TTSpace.s4)
+            .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.lg))
             .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)

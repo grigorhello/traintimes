@@ -39,12 +39,18 @@ final class AppRouterTests: XCTestCase {
 /// Shell states against design/frames/schedule-timeline.png (header and tab bar), light and dark.
 /// Drawn in the host app's key window so the tab bar, navigation stack and safe areas render as on the simulator.
 final class AppShellSnapshotTests: XCTestCase {
-    @MainActor func testScheduleTabLight() { snap(RootView(), .light) }
-    @MainActor func testScheduleTabDark() { snap(RootView(), .dark) }
-    @MainActor func testAlertsDotLight() { snap(RootView(router: dotRouter()), .light) }
-    @MainActor func testAlertsDotDark() { snap(RootView(router: dotRouter()), .dark) }
-    @MainActor func testAlertsTabLight() { snap(RootView(router: alertsRouter()), .light) }
-    @MainActor func testAlertsTabDark() { snap(RootView(router: alertsRouter()), .dark) }
+    @MainActor func testScheduleTabLight() async throws { snap(try await root(), .light) }
+    @MainActor func testScheduleTabDark() async throws { snap(try await root(), .dark) }
+    @MainActor func testAlertsDotLight() async throws { snap(try await root(dotRouter()), .light) }
+    @MainActor func testAlertsDotDark() async throws { snap(try await root(dotRouter()), .dark) }
+    @MainActor func testAlertsTabLight() async throws { snap(try await root(alertsRouter()), .light) }
+    @MainActor func testAlertsTabDark() async throws { snap(try await root(alertsRouter()), .dark) }
+
+    /// A loaded schedule, so the snapshot never races the first load (TT-112).
+    @MainActor
+    private func root(_ router: AppRouter = AppRouter()) async throws -> RootView {
+        RootView(router: router, schedule: try await .loadedFixture())
+    }
 
     @MainActor
     private func dotRouter() -> AppRouter {

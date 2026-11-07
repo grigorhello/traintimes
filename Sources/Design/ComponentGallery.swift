@@ -26,8 +26,8 @@ struct BadgesGallery: View {
                 TimePill(time: "8:05", style: .cancelled)
             }
             VStack(alignment: .leading, spacing: TTSpace.s3) {
-                FreshnessLine(mode: .live)
-                FreshnessLine(mode: .scheduledOnly)
+                FreshnessLine(mode: .live(updated: String(localized: "schedule.updated_just_now")))
+                FreshnessLine(mode: .scheduledOnly(day: nil))
                 FreshnessLine(mode: .stale(lastReported: "7:29 AM"))
                 FreshnessLine(mode: .offline(lastUpdated: "6:52 AM"))
             }

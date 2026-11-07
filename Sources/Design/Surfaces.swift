@@ -17,10 +17,13 @@ struct Card<Content: View>: View {
 /// The one line that states the data mode (D14). Times are formatted by the one time formatter.
 struct FreshnessLine: View {
     enum Mode: Hashable, Sendable {
-        case live
-        case scheduledOnly
+        /// "Updated just now" or "Updated N min ago", from the one formatter.
+        case live(updated: String)
+        /// `day` ("Sun, Nov 8") is set on any day other than today.
+        case scheduledOnly(day: String?)
         case stale(lastReported: String)
-        case offline(lastUpdated: String)
+        /// `lastUpdated` is nil when nothing was ever fetched.
+        case offline(lastUpdated: String?)
     }
 
     let mode: Mode
@@ -36,10 +39,12 @@ struct FreshnessLine: View {
 
     private var text: String {
         switch mode {
-        case .live: String(localized: "schedule.updated_just_now")
-        case .scheduledOnly: String(localized: "freshness.scheduled_only")
+        case .live(let updated): updated
+        case .scheduledOnly(let day?): String(format: String(localized: "freshness.scheduled_only_day"), day)
+        case .scheduledOnly(.none): String(localized: "freshness.scheduled_only")
         case .stale(let time): String(format: String(localized: "freshness.stale"), time)
-        case .offline(let time): String(format: String(localized: "freshness.offline"), time)
+        case .offline(let time?): String(format: String(localized: "freshness.offline"), time)
+        case .offline(.none): String(localized: "schedule.offline")
         }
     }
 

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// One day in the 7-day strip.
+/// One day in the 7-day strip: weekday over day number, 46 pt tall as on the canvas. Fills the width it is given.
 struct DayCell: View {
+    @Environment(\.colorScheme) private var colorScheme
     let weekday: String
     let day: String
     var isSelected = false
@@ -10,12 +11,17 @@ struct DayCell: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 0) {
-                Text(weekday).font(TTFont.subhead)
-                Text(day).font(TTFont.headline).monospacedDigit()
+                Text(weekday)
+                    .font(TTFont.footnote)
+                    .foregroundStyle(isSelected ? TTColor.onAccent : TTColor.inkSecondary)
+                Text(day)
+                    .font(TTFont.headline)
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? TTColor.onAccent : TTColor.ink)
             }
-            .foregroundStyle(isSelected ? TTColor.onAccent : TTColor.ink)
-            .frame(minWidth: TTSize.dayCell, minHeight: TTSize.targetMin + TTSpace.s2)
-            .background(isSelected ? TTColor.accent : TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.sm))
+            .frame(minWidth: TTSize.dayCell, maxWidth: .infinity, minHeight: TTSize.targetMin + 2)
+            .background(isSelected ? TTColor.accent : TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.md))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])

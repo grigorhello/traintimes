@@ -48,3 +48,32 @@ struct ServiceDay: Hashable, Comparable, Sendable, CustomStringConvertible {
         return calendar
     }
 }
+
+/// Day strip and freshness labels (TT-112). Weekday and month names are fixed English abbreviations, as on the canvas.
+extension ServiceDay {
+    /// The service day `days` after this one.
+    func adding(days: Int) -> ServiceDay {
+        ServiceDay(containing: Self.calendar.date(byAdding: .day, value: days, to: noon)!)
+    }
+
+    /// "Sun".
+    var weekdayShort: String {
+        Self.symbols.shortWeekdaySymbols[Self.calendar.component(.weekday, from: noon) - 1]
+    }
+
+    /// "Sun, Nov 8".
+    var shortLabel: String {
+        "\(weekdayShort), \(Self.symbols.shortMonthSymbols[month - 1]) \(day)"
+    }
+
+    /// Noon in Toronto, safely inside the service day whatever the DST change.
+    private var noon: Date {
+        Self.calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
+    private static var symbols: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        return calendar
+    }
+}

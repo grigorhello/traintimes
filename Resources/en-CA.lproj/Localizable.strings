@@ -8,16 +8,20 @@
 "nav.settings" = "Settings";
 "button.now" = "Now";
 "button.today" = "Today";
+"button.now.label" = "Back to now, today";
+"button.today.label" = "Back to today";
 "button.show_trains" = "Show trains";
 "button.add_alert" = "Add alert";
 "button.repeat" = "Repeat";
 "button.open_settings" = "Open Settings";
 
 /* Schedule screen */
+"schedule.route_title" = "%@ to %@";
 "schedule.updated_just_now" = "Updated just now";
 "schedule.updated_ago" = "Updated %@ ago";
 "schedule.offline" = "Offline · showing saved schedule";
 "freshness.scheduled_only" = "Scheduled times only";
+"freshness.scheduled_only_day" = "Scheduled times only · %@";
 "freshness.stale" = "Last reported %@ · showing scheduled times";
 "freshness.offline" = "Offline · last updated %@";
 "schedule.line_notice" = "Line notice";
@@ -45,6 +49,9 @@
 
 /* Route and stations */
 "route.choose" = "Choose a route";
+"route.swap" = "Swap direction";
+"route.favourite_add" = "Add to favourites";
+"route.favourite_remove" = "Remove from favourites";
 "route.from" = "From";
 "route.to" = "To";
 "route.choose_station" = "Choose a station";

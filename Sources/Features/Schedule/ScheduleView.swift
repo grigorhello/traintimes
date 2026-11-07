@@ -3,6 +3,7 @@ import SwiftUI
 /// Schedule tab (TT-112): inline "Train Times" header with the Settings gear, route header, 7-day strip and freshness
 /// row with the Now button, then the to-scale timeline space that TT-113 draws the rail and cards into.
 struct ScheduleView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let viewModel: ScheduleViewModel
     let onSettings: () -> Void
     let onEditRoute: () -> Void
@@ -65,7 +66,7 @@ struct ScheduleView: View {
                     if let line = viewModel.route?.line {
                         HStack(spacing: TTSpace.s2) {
                             Circle()
-                                .fill(line.colorHex.flatMap(Color.init(lineHex:)) ?? TTColor.inkSecondary)
+                                .fill(line.colorHex.flatMap { Color(lineHex: $0, on: colorScheme) } ?? TTColor.inkSecondary)
                                 .frame(width: Self.lineDot, height: Self.lineDot)
                             Text(line.name)
                                 .font(TTFont.subhead)
@@ -100,33 +101,44 @@ struct ScheduleView: View {
 
     // MARK: Day strip
 
-    /// Seven cells fill the width, Today first; the strip scrolls sideways for later dates.
+    /// Seven cells fill the width between the margins, Today first; the strip scrolls sideways for later dates.
     private var dayStrip: some View {
         GeometryReader { geometry in
             let visible = CGFloat(7)
             let width = (geometry.size.width - 2 * TTSpace.s5 - (visible - 1) * TTSpace.s1) / visible
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TTSpace.s1) {
-                    ForEach(Array(viewModel.days.enumerated()), id: \.offset) { index, day in
-                        DayCell(
-                            weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
-                            day: "\(day.day)",
-                            isSelected: day == viewModel.selectedDay
-                        ) {
-                            Task { await viewModel.select(day) }
+            ScrollViewReader { strip in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TTSpace.s1) {
+                        ForEach(Array(viewModel.days.enumerated()), id: \.offset) { index, day in
+                            DayCell(
+                                weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
+                                day: "\(day.day)",
+                                isSelected: day == viewModel.selectedDay
+                            ) {
+                                Task { await viewModel.select(day) }
+                            }
+                            .frame(width: width)
+                            .id(index)
+                            .accessibilityIdentifier("schedule.day.\(index)")
                         }
-                        .frame(width: width)
-                        .accessibilityIdentifier("schedule.day.\(index)")
                     }
+                    // Room for the cell shadow inside the clipped strip.
+                    .padding(.vertical, Self.shadowRoom)
                 }
                 .padding(.horizontal, TTSpace.s5)
+                // Now/Today resets the strip to Today too, even when it was scrolled to a later date.
+                .onChange(of: viewModel.selectedDay) {
+                    if viewModel.isToday { withAnimation(.easeOut(duration: 0.3)) { strip.scrollTo(0, anchor: .leading) } }
+                }
             }
-            .scrollClipDisabled()
         }
-        .frame(height: TTSize.targetMin + 2)
+        .frame(height: TTSize.targetMin + 2 + 2 * Self.shadowRoom)
+        .padding(.vertical, -Self.shadowRoom)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
     }
+
+    private static let shadowRoom: CGFloat = 2
 
     // MARK: Freshness row
 

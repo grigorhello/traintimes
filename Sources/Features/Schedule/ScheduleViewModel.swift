@@ -22,9 +22,12 @@ final class ScheduleViewModel {
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
-    /// Reported by the view: the timeline's scroll offset and visible height.
-    var scrollOffset: CGFloat = 0
-    var viewportHeight: CGFloat = 0
+    /// True while today is selected and the timeline already shows the present: the Now button dims.
+    /// Stored and set only when it flips, so scrolling does not re-render the screen every frame.
+    private(set) var isAtNow = true
+    /// Reported by the view on every scroll frame: the timeline's scroll offset and visible height.
+    @ObservationIgnored var scrollOffset: CGFloat = 0 { didSet { updateIsAtNow() } }
+    @ObservationIgnored var viewportHeight: CGFloat = 0 { didSet { updateIsAtNow() } }
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -57,12 +60,6 @@ final class ScheduleViewModel {
         isToday ? String(localized: "button.now.label") : String(localized: "button.today.label")
     }
 
-    /// True while today is selected and the timeline already shows the present: the Now button dims.
-    var isAtNow: Bool {
-        guard isToday else { return false }
-        let target = min(layout.initialScrollOffset, max(0, layout.height - viewportHeight))
-        return abs(scrollOffset - target) <= Self.atNowTolerance
-    }
 
     /// The freshness line (D14), with times from the one formatter. Nil until the first load.
     func freshnessMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
@@ -91,6 +88,7 @@ final class ScheduleViewModel {
     func select(_ day: ServiceDay) async {
         guard day != selectedDay else { return }
         selectedDay = day
+        updateIsAtNow()
         await load()
         scrollRequest += 1
     }
@@ -99,6 +97,7 @@ final class ScheduleViewModel {
     func backToNow() async {
         if !isToday {
             selectedDay = today
+            updateIsAtNow()
             await load()
         }
         scrollRequest += 1
@@ -130,5 +129,15 @@ final class ScheduleViewModel {
         departures = Departure.resolve(trips, live: live, freshness: freshness, isToday: isToday)
         layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil))
         self.freshness = freshness
+        updateIsAtNow()
+    }
+
+    private func updateIsAtNow() {
+        var value = false
+        if isToday {
+            let target = min(layout.initialScrollOffset, max(0, layout.height - viewportHeight))
+            value = abs(scrollOffset - target) <= Self.atNowTolerance
+        }
+        if value != isAtNow { isAtNow = value }
     }
 }

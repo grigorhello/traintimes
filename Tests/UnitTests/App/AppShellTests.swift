@@ -43,11 +43,20 @@ final class AppShellSnapshotTests: XCTestCase {
     @MainActor func testScheduleTabDark() { snap(RootView(), .dark) }
     @MainActor func testAlertsDotLight() { snap(RootView(router: dotRouter()), .light) }
     @MainActor func testAlertsDotDark() { snap(RootView(router: dotRouter()), .dark) }
+    @MainActor func testAlertsTabLight() { snap(RootView(router: alertsRouter()), .light) }
+    @MainActor func testAlertsTabDark() { snap(RootView(router: alertsRouter()), .dark) }
 
     @MainActor
     private func dotRouter() -> AppRouter {
         let router = AppRouter()
         router.showsAlertsDot = true
+        return router
+    }
+
+    @MainActor
+    private func alertsRouter() -> AppRouter {
+        let router = AppRouter()
+        router.selectedTab = .alerts
         return router
     }
 

@@ -30,8 +30,9 @@ struct RootView: View {
             AlertsView()
                 .tabItem {
                     Label { Text("tab.alerts") } icon: {
+                        let isSelected = router.selectedTab == .alerts
                         TabBarStyle.icon(
-                            "bell", isSelected: router.selectedTab == .alerts, showsDot: router.showsAlertsDot, colorScheme: colorScheme
+                            isSelected ? "bell.fill" : "bell", isSelected: isSelected, showsDot: router.showsAlertsDot, colorScheme: colorScheme
                         )
                     }
                 }

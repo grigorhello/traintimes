@@ -10,6 +10,10 @@ enum TabBarStyle {
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor(named: "Surface")
         appearance.shadowColor = UIColor(named: "Hairline")
+        // 1 pt line as in the frame; UIKit's default shadow is one device pixel. The template image takes shadowColor.
+        appearance.shadowImage = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1), format: .preferred())
+            .image { $0.fill(CGRect(x: 0, y: 0, width: 1, height: 1)) }
+            .withRenderingMode(.alwaysTemplate)
         let normal = UIColor(named: "InkSecondary") ?? .secondaryLabel
         let selected = UIColor(named: "Accent") ?? .tintColor
         for item in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {

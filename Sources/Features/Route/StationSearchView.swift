@@ -110,9 +110,17 @@ struct StationSearchView: View {
             .frame(minHeight: TTSize.targetMin + TTSpace.s3)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StationRowStyle())
         .disabled(row.isDisabled)
         .accessibilityIdentifier("station.\(row.station.id)")
+    }
+}
+
+/// Keeps a greyed row in ink-tertiary as on the frame; the plain style would dim a disabled row further.
+private struct StationRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? TTColor.surfaceRaised : .clear)
     }
 }
 

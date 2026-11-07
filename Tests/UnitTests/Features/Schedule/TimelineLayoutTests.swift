@@ -91,8 +91,19 @@ final class TimelineLayoutTests: XCTestCase {
         let cancelled = train("b", 18, 0, status: .cancelled(reportedAt: at(16, 40)))
         let result = layout([train("a", 17, 0), cancelled, train("c", 18, 10)])
         let fold = try XCTUnwrap(result.folds.first)
-        XCTAssertEqual(fold.minutes, 60)
         XCTAssertEqual(fold.next, at(18, 10))
+        XCTAssertEqual(fold.minutes, 70, "Counted from the 5:00 PM train to the 6:10 PM one it names")
+    }
+
+    func testLongWaitBeforeTheFirstTrainFolds() throws {
+        let result = layout([train("a", 15, 50), train("b", 16, 20)], now: at(10, 0))
+        let fold = try XCTUnwrap(result.folds.first)
+        XCTAssertEqual(result.folds.count, 1)
+        XCTAssertEqual(fold.minutes, 350)
+        XCTAssertEqual(fold.next, at(15, 50))
+        let nowY = try XCTUnwrap(result.nowY)
+        XCTAssertEqual(nowY - result.initialScrollOffset, 14, accuracy: 0.001)
+        XCTAssertEqual(result.cards[0].markerY - nowY, 30 * 7, accuracy: 0.001, "The first train is on the first screen")
     }
 
     // MARK: Delay
@@ -105,6 +116,14 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(bar.upperBound, card.markerY, "The bar runs down to the expected marker")
         XCTAssertEqual(card.top, card.markerY - standard.anchor, "The card sits at the expected time")
         XCTAssertNil(result.cards[1].delayBar)
+    }
+
+    func testDelayOverThirtyMinutesIsNotFolded() throws {
+        let late = train("b", 7, 32, status: .delayed(minutes: 40, reportedAt: at(7, 14)), expected: at(8, 12))
+        let result = layout([train("a", 7, 25), late])
+        let bar = try XCTUnwrap(result.cards[1].delayBar)
+        XCTAssertEqual(bar.upperBound - bar.lowerBound, 40 * 7, accuracy: 0.001, "The bar's length is the delay")
+        XCTAssertTrue(result.folds.isEmpty)
     }
 
     // MARK: Gridline labels, Now and the ends

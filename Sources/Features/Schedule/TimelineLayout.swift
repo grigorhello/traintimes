@@ -101,20 +101,35 @@ extension TimelineLayout {
         markers.sort { ($0.minute, $0.card) < ($1.minute, $1.card) }
 
         // The rail is pieces between breakpoints. A piece covers fixed minutes; its length can stretch.
-        var breaks = [markers[0].minute]
+        let foldAfter = Double(TTTimeline.foldAfterMinutes)
+        var breaks: [Double] = []
         var lengths: [CGFloat] = []
-        var markerBreak = [0]
-        var foldPieces: [(piece: Int, minutes: Double, end: Double)] = []
+        var foldPieces: [(piece: Int, start: Double, end: Double)] = []
+        func addFold(from start: Double, to end: Double) {
+            // Fold: 30 min of rail. The 10 min at each end stay to scale, so the cards and the gridlines next to
+            // them are true; the middle 10 min of rail stand for the rest of the gap and are dashed.
+            let side = foldAfter / 3
+            breaks += [start + side, end - side, end]
+            lengths += Array(repeating: CGFloat(side) * ppm, count: 3)
+            foldPieces.append((piece: lengths.count - 2, start: start, end: end))
+        }
+        // A wait of over 30 min from Now to the first train folds too, so the first screen is never empty rail.
+        if let now = input.now.map(minutes), markers[0].minute - now > foldAfter {
+            breaks = [now]
+            addFold(from: now, to: markers[0].minute)
+        } else {
+            breaks = [markers[0].minute]
+        }
+        var markerBreak = [breaks.count - 1]
+        // A delay bar is never folded: its length is the delay.
+        let delayBars = markers.filter { $0.isScheduled }.compactMap { scheduled in
+            markers.first { $0.card == scheduled.card && !$0.isScheduled }.map { (scheduled.minute, $0.minute) }
+        }
         for (previous, marker) in zip(markers, markers.dropFirst()) {
             let span = marker.minute - previous.minute
-            let fold = Double(TTTimeline.foldAfterMinutes)
-            if span > fold {
-                // Fold: 30 min of rail. The 10 min beside each train stay to scale, so the cards and the gridlines
-                // next to them are true; the middle 10 min of rail stand for the rest of the gap and are dashed.
-                let side = fold / 3
-                breaks += [previous.minute + side, marker.minute - side, marker.minute]
-                lengths += Array(repeating: CGFloat(side) * ppm, count: 3)
-                foldPieces.append((piece: lengths.count - 2, minutes: span, end: marker.minute))
+            let isDelayBar = delayBars.contains { $0.0 <= previous.minute && marker.minute <= $0.1 }
+            if span > foldAfter && !isDelayBar {
+                addFold(from: previous.minute, to: marker.minute)
             } else {
                 breaks.append(marker.minute)
                 lengths.append(CGFloat(span) * ppm)
@@ -156,7 +171,7 @@ extension TimelineLayout {
         // Shift everything down so the first card and pill sit 16 pt below the top, and Now can sit 2 min below it.
         let nowOffset = CGFloat(TTTimeline.nowOffsetFromTopMinutes) * ppm
         let firstCardTop = breakY[cardBreak[0]] - size(0).anchor
-        var top = min(firstCardTop, breakY[0] - Self.pillHeight / 2) - gap
+        var top = min(firstCardTop, breakY[markerBreak[0]] - Self.pillHeight / 2) - gap
         if let now = input.now { top = min(top, rawY(minutes(now)) - nowOffset) }
         let contentTop = top
         func y(_ minute: Double) -> CGFloat { rawY(minute) - contentTop }
@@ -176,11 +191,12 @@ extension TimelineLayout {
         folds = foldPieces.map { fold in
             let dashed = (breakY[fold.piece] - contentTop)...(breakY[fold.piece + 1] - contentTop)
             let next = departures.first { $0.isUsable && minutes($0.departureTime) >= fold.end }?.departureTime
+                ?? origin.addingTimeInterval(fold.end * 60)
             return Fold(
                 dashed: dashed,
                 pillY: (dashed.lowerBound + dashed.upperBound) / 2,
-                minutes: Int(fold.minutes.rounded()),
-                next: next ?? origin.addingTimeInterval(fold.end * 60)
+                minutes: Int((minutes(next) - fold.start).rounded()),
+                next: next
             )
         }
 

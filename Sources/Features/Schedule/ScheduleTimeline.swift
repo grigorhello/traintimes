@@ -10,10 +10,14 @@ struct ScheduleTimeline: View {
 
     /// The right edge of the label column: the pill slot after its 12 pt inset.
     private static let labelColumn = TTTimeline.leftInset + TimePill.railSize.width
+    /// The centre of the pill slot.
+    private static let pillX = TTTimeline.leftInset + TimePill.railSize.width / 2
     private static let railX = labelColumn + 10
     private static let railWidth: CGFloat = 2
     private static let markerSize: CGFloat = 12
     private static let leadMarkerSize: CGFloat = 16
+    /// The amber bar from a delayed train's scheduled marker down to its expected one (TT-114).
+    private static let delayBarWidth: CGFloat = 4
     private static let nowDot: CGFloat = 10
     /// The canvas ring that lifts the next train's dot off the rail.
     private static let leadRing: CGFloat = 3
@@ -28,6 +32,7 @@ struct ScheduleTimeline: View {
             Group {
                 gridlines(layout)
                 rail(layout)
+                delayBars(cards, places)
                 connectors(cards, places)
             }
             .accessibilityHidden(true)
@@ -117,44 +122,76 @@ struct ScheduleTimeline: View {
 
     // MARK: Markers
 
+    /// 4 pt amber bar down the rail from a delayed train's scheduled marker to its expected one: its length is the delay.
+    private func delayBars(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
+        ForEach(cards) { card in
+            if let bar = places[card.id]?.delayBar {
+                Capsule()
+                    .fill(TTColor.delayInk)
+                    .frame(width: Self.delayBarWidth, height: bar.upperBound - bar.lowerBound)
+                    .offset(x: Self.railX - Self.delayBarWidth / 2, y: bar.lowerBound)
+            }
+        }
+    }
+
     /// 2 pt line from each marker to its card, in the marker's colour.
     private func connectors(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
                 Rectangle()
-                    .fill(TTColor.accent)
+                    .fill(card.isCancelled ? TTColor.cancelInk : TTColor.accent)
                     .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
                     .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
             }
         }
     }
 
-    /// Each train's time pill in the label column and its marker on the rail.
+    /// Each train's time pill in the label column and its marker on the rail; a delayed train also keeps an amber struck
+    /// pill and a hollow amber marker at its scheduled time.
     private func markers(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                TimePill(time: card.pillTime, style: card.isNext ? .next : .later, isOnRail: true)
-                    .centred(x: TTTimeline.leftInset + TimePill.railSize.width / 2, y: place.markerY)
-                marker(isNext: card.isNext)
+                if let scheduledY = place.scheduledMarkerY, let scheduledPill = card.scheduledPillTime {
+                    TimePill(time: scheduledPill, style: .slipped, isOnRail: true)
+                        .centred(x: Self.pillX, y: scheduledY)
+                    ring(TTColor.delayInk)
+                        .centred(x: Self.railX, y: scheduledY)
+                }
+                TimePill(time: card.pillTime, style: card.pillStyle, isOnRail: true)
+                    .centred(x: Self.pillX, y: place.markerY)
+                marker(for: card)
                     .centred(x: Self.railX, y: place.markerY)
             }
         }
     }
 
-    /// 16 pt solid accent dot for the next usable train, with a canvas ring; a 12 pt ring for the others.
-    @ViewBuilder private func marker(isNext: Bool) -> some View {
-        if isNext {
+    /// 16 pt solid accent dot for the next usable train, with a canvas ring; a 16 pt red x for a cancelled train or skipped
+    /// stop; a 12 pt ring for the others.
+    @ViewBuilder private func marker(for card: DepartureCard) -> some View {
+        if card.isCancelled {
+            Image(systemName: card.status.symbol)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(TTColor.cancelInk)
+                .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
+                .background(TTColor.canvas, in: Circle())
+        } else if card.isNext {
             Circle()
                 .fill(TTColor.accent)
                 .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
                 .padding(Self.leadRing)
                 .background(TTColor.canvas, in: Circle())
         } else {
-            Circle()
-                .fill(TTColor.surface)
-                .overlay(Circle().strokeBorder(TTColor.accent, lineWidth: Self.railWidth))
-                .frame(width: Self.markerSize, height: Self.markerSize)
+            ring(TTColor.accent)
         }
+    }
+
+    /// A 12 pt hollow marker: accent for a train, amber at a delayed train's scheduled time.
+    private func ring(_ colour: Color) -> some View {
+        Circle()
+            .fill(TTColor.surface)
+            .overlay(Circle().strokeBorder(colour, lineWidth: Self.railWidth))
+            .frame(width: Self.markerSize, height: Self.markerSize)
     }
 
     /// 2 pt accent line across the timeline with a dot on the rail and "Now" in the label column.
@@ -186,7 +223,8 @@ struct ScheduleTimeline: View {
     }
 }
 
-/// One departure (TT-113): time, labelled arrival, status badge, platform or "in N min", tags and the bell.
+/// One departure (TT-113): time, labelled arrival, status badge, platform or "in N min", tags and the bell. A delayed train
+/// shows "Scheduled 7:32 AM" under its expected time; a cancelled one has struck times, "Next usable below" and no bell (TT-114).
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
@@ -208,18 +246,28 @@ struct DepartureCardView: View {
         Card {
             VStack(alignment: .leading, spacing: TTSpace.s1) {
                 HStack(alignment: .top, spacing: TTSpace.s2) {
-                    Text(card.time)
-                        .font(card.isNext ? TTFont.timeLead : TTFont.timeRow)
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.ink)
-                        .lineLimit(1)
-                        // "12:47 PM" beside a long arrival label shrinks a little rather than truncating.
-                        .minimumScaleFactor(Self.timeMinimumScale)
-                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
-                            anchor = $0
-                            report()
+                    VStack(alignment: .leading, spacing: TTSpace.s1 / 2) {
+                        Text(card.time)
+                            .font(card.isNext ? TTFont.timeLead : TTFont.timeRow)
+                            .monospacedDigit()
+                            .strikethrough(card.isCancelled)
+                            .foregroundStyle(card.isCancelled ? TTColor.inkTertiary : TTColor.ink)
+                            .lineLimit(1)
+                            // "12:47 PM" beside a long arrival label shrinks a little rather than truncating.
+                            .minimumScaleFactor(Self.timeMinimumScale)
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
+                                anchor = $0
+                                report()
+                            }
+                        if let scheduled = card.scheduledTime {
+                            Text(scheduled)
+                                .font(TTFont.footnote)
+                                .monospacedDigit()
+                                .foregroundStyle(TTColor.inkSecondary)
+                                .lineLimit(1)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     arrival
                 }
                 badgeRow
@@ -247,7 +295,8 @@ struct DepartureCardView: View {
             Text(card.arrivalTime)
                 .font(TTFont.timeArrival)
                 .monospacedDigit()
-                .foregroundStyle(TTColor.ink)
+                .strikethrough(card.isCancelled)
+                .foregroundStyle(card.isCancelled ? TTColor.inkTertiary : TTColor.ink)
             if card.isNext {
                 platform
             }
@@ -278,8 +327,17 @@ struct DepartureCardView: View {
         }
     }
 
+    /// "in N min" on the next train, "Next usable below" on a cancelled one, else the platform.
     @ViewBuilder private var detail: some View {
-        if let relative = card.relativeTime {
+        if card.isCancelled {
+            if let note = card.note {
+                Text(note)
+                    .font(TTFont.footnote)
+                    .foregroundStyle(TTColor.inkSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        } else if let relative = card.relativeTime {
             Text(relative)
                 .font(TTFont.badge)
                 .monospacedDigit()
@@ -313,11 +371,13 @@ struct DepartureCardView: View {
         }
     }
 
-    /// Armed in TT-141.
-    private var bell: some View {
-        IconButton(systemName: "bell", label: "button.add_alert") {}
-            .padding(.vertical, -Self.bellBleed)
-            .padding(.trailing, -Self.bellBleed)
+    /// Armed in TT-141. A cancelled train has none.
+    @ViewBuilder private var bell: some View {
+        if !card.isCancelled {
+            IconButton(systemName: "bell", label: "button.add_alert") {}
+                .padding(.vertical, -Self.bellBleed)
+                .padding(.trailing, -Self.bellBleed)
+        }
     }
 
     private func report() {

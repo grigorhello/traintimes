@@ -238,7 +238,7 @@ extension Departure {
     }
 
     /// A delayed train keeps a hollow marker and a struck pill at its scheduled time; its card moves to the expected time.
-    fileprivate var scheduledMarker: Date? {
+    var scheduledMarker: Date? {
         guard case .delayed = status, let expected = expectedDeparture, expected > trip.scheduledDeparture else { return nil }
         return trip.scheduledDeparture
     }

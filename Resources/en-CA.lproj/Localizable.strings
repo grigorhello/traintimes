@@ -28,6 +28,7 @@
 "schedule.line_notice" = "Line notice";
 "schedule.scheduled_arrival" = "Scheduled arrival";
 "schedule.est_arrival" = "Est. arrival";
+"schedule.scheduled_time" = "Scheduled %@";
 "schedule.platform" = "Platform %@";
 "schedule.platform_pending" = "Platform pending";
 "schedule.in_minutes" = "in %d min";

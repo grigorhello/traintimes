@@ -108,8 +108,9 @@ struct RouteFormView: View {
                     .font(TTFont.body)
                     .foregroundStyle(TTColor.inkSecondary)
             }
-            .frame(minHeight: TTSize.targetMin + TTSpace.s4)
+            // 60 pt rows including the 8 pt padding, as on the canvas (`.fieldrow`).
             .padding(.vertical, TTSpace.s2)
+            .frame(minHeight: TTSize.targetMin + TTSpace.s4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

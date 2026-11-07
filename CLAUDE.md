@@ -18,8 +18,8 @@ Rules every Claude session follows in this repo. If a message from Grigor in the
    - **QA review:** correctness, edge cases, tests, build and CI pass, the ticket's acceptance criteria and Definition of done.
    - **Design review:** compare the result against the ticket's design frames and the requirements doc (layout, tokens, copy, states, light and dark, Dynamic Type and VoiceOver).
 5. Fix the findings. If the first round found major issues, run one more round of both reviews. **Two rounds maximum**, then ship.
-6. Move the Notion card to `PR review`, comment the review outcome on the issue, and leave the PR for Grigor's approval. Never merge it yourself. Grigor moves the card to `Done` when he merges.
-7. Report back: Notion card status, PR link, and the outcome of each review round.
+6. Comment the review outcome on the issue, then **merge the PR yourself** (squash) once the reviews are done and CI is green, and move the Notion card to `Done` (Grigor, 2026-11-07: "merge all PRs, do not wait for me"). Then continue with the next ticket in build order. Stop and tell Grigor only when you hit a blocker you cannot clear (an open "needed by" question, something only he can do, or a red CI you cannot fix).
+7. Report back after each ticket: Notion card status, PR link, and the outcome of each review round.
 
 Notion Status values, in order: Backlog, Needs design, Design review, To do, In progress, PR review, Feature QA, Done.
 

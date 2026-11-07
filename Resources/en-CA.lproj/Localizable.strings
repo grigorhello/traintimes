@@ -23,6 +23,8 @@
 "schedule.platform" = "Platform %@";
 "schedule.platform_pending" = "Platform pending";
 "schedule.in_minutes" = "in %d min";
+"schedule.departing" = "Departing";
+"schedule.minutes_ago" = "%d min";
 "schedule.no_trains_gap" = "No trains for %d min · next %@";
 "schedule.next_usable_below" = "Next usable below";
 "schedule.empty.title" = "No direct trains";

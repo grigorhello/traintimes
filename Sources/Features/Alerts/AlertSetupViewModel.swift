@@ -26,6 +26,9 @@ final class AlertSetupViewModel {
     private(set) var weekdays: Set<Int>
     /// From "Enable alerts" until the save ends, permission dialog included: "Setting up", and taps send nothing more.
     private(set) var isWorking = false
+    /// The tap that started the save was on a new rule: the sheet keeps "Alert for this train" while it sets up, as in
+    /// permission-prompt.png, although the rule is already kept on device.
+    private var isEnabling = false
 
     private let rules: AlertRules
 
@@ -43,7 +46,7 @@ final class AlertSetupViewModel {
         rules.matching(AlertRule(kind: kind, trip: request.trip, route: request.route))
     }
 
-    var isManaging: Bool { rule != nil }
+    var isManaging: Bool { isWorking ? !isEnabling : rule != nil }
 
     var title: String {
         isManaging ? String(localized: "alert.sheet.manage_title") : String(localized: "alert.sheet.title")
@@ -109,6 +112,7 @@ final class AlertSetupViewModel {
     /// device and on the server whatever the answer. Saving the same train again updates its rule.
     func save() async {
         guard canSave else { return }
+        isEnabling = rule == nil
         isWorking = true
         defer { isWorking = false }
         await rules.requestPermission()

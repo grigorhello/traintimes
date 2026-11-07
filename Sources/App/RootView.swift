@@ -43,7 +43,8 @@ struct RootView: View {
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
-        _settingsModel = State(initialValue: SettingsViewModel(settings: settings))
+        // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
+        _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions))
         _routeForm = State(
             initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
         )

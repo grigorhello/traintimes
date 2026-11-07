@@ -79,6 +79,9 @@ final class AlertSetupViewModelTests: XCTestCase {
         await server.waitUntilHolding()
         XCTAssertEqual(model.state, .settingUp)
         XCTAssertFalse(model.canSave)
+        // A new alert keeps its first title and button while it sets up, as in permission-prompt.png.
+        XCTAssertEqual(model.title, "Alert for this train")
+        XCTAssertEqual(model.buttonTitle, "Enable alerts")
         await model.save()
 
         await server.release()

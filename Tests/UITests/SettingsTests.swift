@@ -9,6 +9,8 @@ final class SettingsTests: XCTestCase {
     @MainActor
     func testChangeAppearanceAndTimeFormat() {
         let app = XCUIApplication.onFixtures()
+        // Not asked yet, whatever an earlier test answered in the iOS dialog (TT-142).
+        app.launchEnvironment["TT_NOTIFICATIONS"] = "notAsked"
         // Start from the defaults whatever an earlier run stored.
         app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"]
         app.launch()
@@ -18,7 +20,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.buttons["System"].isSelected)
         XCTAssertTrue(app.buttons["Device"].isSelected)
         XCTAssertTrue(app.staticTexts["Notification permission"].exists)
-        // The app never asks before an alert is set (TT-141), so the live state is Not asked yet.
+        // The app never asks before an alert is set (TT-142), so a fresh install reads Not asked yet.
         let permission = app.descendants(matching: .any)["settings.permission"]
         XCTAssertTrue(permission.waitForExistence(timeout: 5))
         XCTAssertEqual(permission.label, "Not asked yet")

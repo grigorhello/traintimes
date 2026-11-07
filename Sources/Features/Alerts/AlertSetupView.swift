@@ -96,6 +96,8 @@ struct AlertSetupView: View {
                     DayChip(letter: AlertSetupViewModel.letter(day), isOn: viewModel.weekdays.contains(day)) {
                         viewModel.toggle(day)
                     }
+                    // With notifications off the panel replaces Save, so a change could not be saved.
+                    .disabled(viewModel.state == .notificationsOff)
                     .accessibilityLabel(Text(verbatim: AlertSetupViewModel.fullName(day)))
                     .accessibilityIdentifier("alert.day.\(day)")
                 }
@@ -103,10 +105,12 @@ struct AlertSetupView: View {
         }
     }
 
-    /// The canvas puts the This-trip footnote 12 pt under the button; everything else sits at the sheet's 16 pt gap.
+    /// The canvas puts the This-trip footnote 12 pt under the button and Open Settings 12 pt under the red panel;
+    /// everything else sits at the sheet's 16 pt gap.
     private var actions: some View {
         let state = viewModel.state
-        return VStack(spacing: state == nil && viewModel.kind == .thisTrip ? TTSpace.s3 : TTSpace.s4) {
+        let isTight = (state == nil && viewModel.kind == .thisTrip) || state == .notificationsOff
+        return VStack(spacing: isTight ? TTSpace.s3 : TTSpace.s4) {
             if state == .notificationsOff {
                 deniedPanel
                 Button { openURL(AlertSetupViewModel.notificationSettingsURL) } label: {
@@ -134,11 +138,10 @@ struct AlertSetupView: View {
                 }
             }
             if viewModel.isManaging, state != .settingUp {
+                // The sheet closes at once; the rule is gone on device and the server delete follows (or is retried).
                 Button("alert.delete") {
-                    Task {
-                        await viewModel.delete()
-                        onDelete()
-                    }
+                    onDelete()
+                    Task { await viewModel.delete() }
                 }
                 .buttonStyle(.ttText)
                 .accessibilityIdentifier("alert.delete")
@@ -212,7 +215,8 @@ struct AlertSetupView: View {
     private static func ink(_ state: AlertSetupViewModel.SheetState) -> Color {
         switch state {
         case .settingUp, .paused: TTColor.inkSecondary
-        case .on: TTColor.ontimeInk
+        // Alert rule On states use the accent (requirements' token table, canvas `.phone .state.on`).
+        case .on: TTColor.accent
         case .reviewNeeded: TTColor.delayInk
         case .notificationsOff, .couldNotSave: TTColor.cancelInk
         }

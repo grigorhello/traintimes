@@ -5,11 +5,23 @@ final class LaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Launch lands on Schedule with no prompt; the gear pushes Settings and back returns (TT-104).
     @MainActor
-    func testAppLaunchesToRootView() {
+    func testLaunchLandsOnScheduleAndGearPushesSettings() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["root.title"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["root.title"].label, "Train Times")
+
+        let title = app.staticTexts["schedule.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertEqual(title.label, "Train Times")
+        XCTAssertTrue(app.tabBars.buttons["Schedule"].isSelected)
+        XCTAssertTrue(app.tabBars.buttons["Alerts"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+
+        app.buttons["schedule.settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+
+        app.navigationBars["Settings"].buttons.firstMatch.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
     }
 }

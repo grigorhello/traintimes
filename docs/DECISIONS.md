@@ -36,6 +36,7 @@ Sources: [`design/handoff/README.md`](../design/handoff/README.md) and [`design/
 
 - **D23. Device and review scope (Grigor, 2026-11-07, TT-101).** Build, test and review on iPhone 17 Pro only. Accessibility (VoiceOver labels, Dynamic Type and large-text layouts) and iPad layout are not reviewed or tested in ticket work, even where an issue's Definition of done lists them; the app stays iPhone only. D22's colour + word + icon status rule and 44 pt targets still apply because they are part of the design.
 - **D24. The service day changes at 3:00 AM Toronto time (TT-106).** A moment before 3:00 AM belongs to the previous service day (D18) and sorts by wall-clock minutes plus 24 h, so 00:40 sorts after 23:59. 24-hour times show two-digit hours ("07:32"); 12-hour times show "7:32 AM". Only `Sources/Core/Formatting` may use `DateFormatter` or `Date.formatted`; `scripts/ci-test.sh` fails otherwise.
+- **D25. Classic bars, no Liquid Glass (TT-104).** The app sets `UIDesignRequiresCompatibility` so the tab bar and navigation bars keep the opaque look in the frames (surface tab bar with a hairline, accent selected tab). The Alerts tab shows an accent dot, never a number.
 
 ## Open questions
 

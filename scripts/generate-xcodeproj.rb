@@ -110,6 +110,7 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
+    'INFOPLIST_KEY_UIDesignRequiresCompatibility' => 'YES', # D25: classic bars, as in the frames (TT-104)
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',
     'CODE_SIGN_STYLE' => 'Automatic',

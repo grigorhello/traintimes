@@ -122,6 +122,23 @@
 "alerts.empty.title" = "No alerts yet";
 "alerts.empty.body" = "Tap the bell on a train in Schedule to get a notification when it is delayed or cancelled.";
 
+/* Alert setup sheet (TT-142) */
+"alert.sheet.title" = "Alert for this train";
+"alert.sheet.manage_title" = "Manage alert";
+"alert.usual_train" = "Usual %@ train";
+"alert.days.range" = "%@ to %@";
+"alert.days.every_day" = "Every day";
+"alert.repeat_on" = "Repeat on";
+"alert.body.this_trip" = "Updates start 1 hour before the scheduled departure. Delays and cancellations are sent as changes are reported.";
+"alert.body.repeat" = "Updates start 1 hour before the scheduled departure on each selected day. Delays and cancellations are sent as changes are reported. If the usual train changes, this rule asks for review.";
+"alert.enable" = "Enable alerts";
+"alert.save" = "Save";
+"alert.delete" = "Delete alert";
+"alert.footnote.this_trip" = "No account needed. Notification permission is requested after enabling.";
+"alert.footnote.repeat" = "A return train is a separate rule.";
+"alert.denied.title" = "Notifications off";
+"alert.denied.body" = "The alert is saved, but updates cannot be delivered until notifications are allowed in Settings.";
+
 /* Notifications (title / body). Every change carries the time it was reported. */
 "notif.delay.title" = "%@ train delayed %d min";
 "notif.delay.update.title" = "%@ train now delayed %d min";

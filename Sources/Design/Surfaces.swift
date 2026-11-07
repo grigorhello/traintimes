@@ -62,19 +62,48 @@ struct FreshnessLine: View {
     }
 }
 
-/// Short confirmation, e.g. "Alert on for the 7:32 AM train".
+/// Short confirmation above the tab bar, as the canvas's `.toast`: an icon, one line such as "Alert on for the 7:32 AM
+/// train", and an optional text action such as "Repeat". A surface card with the sheet shadow.
 struct Toast: View {
+    @Environment(\.colorScheme) private var colorScheme
     let message: String
+    var systemImage: String?
+    var tint: Color = TTColor.accent
+    var actionTitle: LocalizedStringKey?
+    var action: () -> Void = {}
+
+    /// The canvas toast's radius and padding.
+    private static let radius: CGFloat = 14
+    private static let insets = EdgeInsets(top: 10, leading: TTSpace.s4, bottom: 10, trailing: TTSpace.s3)
 
     var body: some View {
-        Text(message)
-            .font(TTFont.subhead)
-            .monospacedDigit()
-            .foregroundStyle(TTColor.surface)
-            .padding(.horizontal, TTSpace.s4)
-            .padding(.vertical, TTSpace.s3)
-            .background(TTColor.ink, in: Capsule())
-            .transition(.opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25)))
+        HStack(spacing: TTSpace.s3) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: TTSize.iconButtonGlyph))
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+            }
+            Text(message)
+                .font(TTFont.subhead)
+                .monospacedDigit()
+                .foregroundStyle(TTColor.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let actionTitle {
+                Button(action: action) {
+                    Text(actionTitle).font(TTFont.headline)
+                }
+                .buttonStyle(.ttText)
+                .accessibilityIdentifier("toast.action")
+            }
+        }
+        .frame(minHeight: TTSize.targetMin)
+        .padding(Self.insets)
+        .background(TTColor.surface, in: RoundedRectangle(cornerRadius: Self.radius))
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.14), radius: 15, x: 0, y: -6)
+        .transition(.opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25)))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("toast")
     }
 }
 

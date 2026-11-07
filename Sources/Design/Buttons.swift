@@ -51,9 +51,21 @@ extension ButtonStyle where Self == TextButtonStyle { static var ttText: Self { 
 struct IconButton: View {
     @Environment(\.isEnabled) private var isEnabled
     let systemName: String
-    let label: LocalizedStringKey
+    let label: Text
     var isSelected = false
     let action: () -> Void
+
+    init(systemName: String, label: LocalizedStringKey, isSelected: Bool = false, action: @escaping () -> Void) {
+        self.init(systemName: systemName, label: Text(label), isSelected: isSelected, action: action)
+    }
+
+    /// A label formatted from `Localizable.strings`, such as "Alert for 7:32 AM train".
+    init(systemName: String, label: Text, isSelected: Bool = false, action: @escaping () -> Void) {
+        self.systemName = systemName
+        self.label = label
+        self.isSelected = isSelected
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
@@ -65,7 +77,7 @@ struct IconButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(Text(label))
+        .accessibilityLabel(label)
     }
 }
 

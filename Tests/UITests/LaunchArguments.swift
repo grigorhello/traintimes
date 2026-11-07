@@ -14,6 +14,8 @@ enum LaunchArguments {
     static let freshInstall = ["-route.last", ""] + noFavourites
     /// No dismissed line notices (TT-132), so the fixture's notice shows.
     static let noDismissedNotices = ["-notices.dismissed", ""]
+    /// No alert rules (TT-141), so every bell starts off.
+    static let noAlerts = ["-alerts.rules", ""]
 }
 
 extension XCUIApplication {

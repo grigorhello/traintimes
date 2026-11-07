@@ -7,6 +7,9 @@ struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting
     let onOpen: (TripKey) -> Void
+    /// Each card's bell (TT-141).
+    var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
+    var onBell: (TripKey) -> Void = { _ in }
 
     /// The right edge of the label column: the pill slot after its 12 pt inset.
     private static let labelColumn = TTTimeline.leftInset + TimePill.railSize.width
@@ -54,7 +57,7 @@ struct ScheduleTimeline: View {
     private func cardViews(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DepartureCardView(card: card, onOpen: { onOpen(card.id) }) { size in
+                DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
                 .padding(.leading, Self.cardX)
@@ -228,7 +231,9 @@ struct ScheduleTimeline: View {
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
+    var bell: AlertBellModel.Bell = .off
     let onOpen: () -> Void
+    var onBell: () -> Void = {}
     let onSize: (TimelineCardSize) -> Void
 
     @State private var height: CGFloat = 0
@@ -238,6 +243,8 @@ struct DepartureCardView: View {
     private static let inset = EdgeInsets(top: -2, leading: -2, bottom: -2, trailing: -6)
     /// The bell's 44 pt target bleeds into the card padding, so the badge row stays one badge tall.
     private static let bellBleed: CGFloat = 10
+    /// The bell's height in the badge row once it bleeds; the row is at least this tall, so the bell centres on it.
+    private static let bellRowHeight = TTSize.targetMin - 2 * bellBleed
     /// Between the badge row and the wrapped tags.
     private static let tagRowGap: CGFloat = 6
     private static let timeMinimumScale: CGFloat = 0.85
@@ -284,6 +291,14 @@ struct DepartureCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
+        // The bell sits over its slot in the badge row, outside the card's one element, so it is a separate button.
+        .overlayPreferenceValue(BellSlot.self) { slot in
+            if let slot {
+                GeometryReader { proxy in
+                    bellButton.position(x: proxy[slot].midX, y: proxy[slot].midY)
+                }
+            }
+        }
     }
 
     /// "Scheduled arrival" over the 17 pt time; the next train's platform goes under it.
@@ -306,24 +321,28 @@ struct DepartureCardView: View {
     }
 
     /// Badge, platform or "in N min", tags and the bell on one line; tags wrap under them when they do not fit.
+    /// The bell's slot stays outside `ViewThatFits`, so only one slot reports where the bell goes.
     private var badgeRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: TTSpace.s2) {
-                StatusBadge(status: card.status)
-                detail
-                tags
-                Spacer(minLength: 0)
-                bell
-            }
-            VStack(alignment: .leading, spacing: Self.tagRowGap) {
+        HStack(alignment: .top, spacing: TTSpace.s2) {
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: TTSpace.s2) {
                     StatusBadge(status: card.status)
                     detail
+                    tags
                     Spacer(minLength: 0)
-                    bell
                 }
-                tags
+                .frame(minHeight: card.isCancelled ? 0 : Self.bellRowHeight)
+                VStack(alignment: .leading, spacing: Self.tagRowGap) {
+                    HStack(spacing: TTSpace.s2) {
+                        StatusBadge(status: card.status)
+                        detail
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: card.isCancelled ? 0 : Self.bellRowHeight)
+                    tags
+                }
             }
+            bellSlot
         }
     }
 
@@ -371,18 +390,42 @@ struct DepartureCardView: View {
         }
     }
 
-    /// Armed in TT-141. A cancelled train has none.
-    @ViewBuilder private var bell: some View {
+    /// The bell's place at the end of the badge row. A cancelled train has none.
+    @ViewBuilder private var bellSlot: some View {
         if !card.isCancelled {
-            IconButton(systemName: "bell", label: "button.add_alert") {}
+            Color.clear
+                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                .anchorPreference(key: BellSlot.self, value: .bounds) { $0 }
                 .padding(.vertical, -Self.bellBleed)
                 .padding(.trailing, -Self.bellBleed)
+                .accessibilityHidden(true)
         }
+    }
+
+    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141). Dimmed while Setting up.
+    private var bellButton: some View {
+        let label = bell == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label")
+        return IconButton(
+            systemName: bell == .on ? "bell.fill" : "bell",
+            label: Text(verbatim: String(format: label, card.trainName)),
+            action: onBell
+        )
+        .disabled(bell == .settingUp)
+        .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
     }
 
     private func report() {
         guard height > 0, anchor > 0 else { return }
         onSize(TimelineCardSize(height: height, anchor: anchor))
+    }
+}
+
+/// Where the bell goes in the card (TT-141).
+private struct BellSlot: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? { nil }
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 

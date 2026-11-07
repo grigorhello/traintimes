@@ -27,6 +27,8 @@ struct DepartureCard: Hashable, Identifiable {
     let isCancelled: Bool
     /// Cancelled card: "Next usable below", when a usable train follows it.
     let note: String?
+    /// The train's name, its scheduled departure (D9): "7:32 AM", for the bell's label (TT-141).
+    let trainName: String
 
     init(_ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, now: Date, formatter: some TimeFormatting) {
         id = departure.id
@@ -52,6 +54,7 @@ struct DepartureCard: Hashable, Identifiable {
         scheduledPillTime = scheduled.map { formatter.railTime($0) }
         isCancelled = !departure.isUsable
         note = isCancelled && nextUsableBelow ? String(localized: "schedule.next_usable_below") : nil
+        trainName = formatter.time(departure.trip.scheduledDeparture)
     }
 
     /// Solid for the next usable train, red struck for a cancelled one, accent-soft for the rest.

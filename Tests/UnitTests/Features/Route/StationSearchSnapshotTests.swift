@@ -17,9 +17,9 @@ final class StationSearchSnapshotTests: XCTestCase {
     @MainActor
     private func model(route: (FixtureScheduleRepository) -> Route?, favourites: Bool) async throws -> RouteFormViewModel {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
-        let model = RouteFormViewModel(
-            route: route(repository), repository: repository, favourites: favourites ? [repository.route] : []
-        )
+        let store = Favourites(defaults: .ephemeral())
+        if favourites { store.add(repository.route) }
+        let model = RouteFormViewModel(route: route(repository), repository: repository, favourites: store)
         await model.loadStations()
         return model
     }

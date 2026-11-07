@@ -71,7 +71,7 @@ Set up in TT-101. Every ticket follows these; a reviewer checks them in the QA p
 - Snapshot tests (`assertSnapshot(of:as: .image(layout: .device(config: .iPhone17Pro), traits:))`, config in `Tests/UnitTests/Support`) for every screen state the ticket touches, in light and dark. iPhone 17 Pro only; no large-text or iPad snapshots (D23). Test methods that touch views are `@MainActor`.
 - Snapshots of anything inside the `TabView` or a `NavigationStack` pass `drawHierarchyInKeyWindow: true` (see `Tests/UnitTests/App/AppShellTests.swift`); the default layer render draws the bars and safe areas wrong (TT-104).
 - An XCUITest flow added or updated when a user flow changes. Find elements by `accessibilityIdentifier`.
-- A UI test that needs the Schedule timeline launches with `LaunchArguments.fixtureRoute` (`Tests/UITests/LaunchArguments.swift`); with no saved route the app opens on the route form (TT-120). `LaunchArguments.freshInstall` starts with no route.
+- A UI test that needs the Schedule timeline launches with `LaunchArguments.fixtureRoute` (`Tests/UITests/LaunchArguments.swift`); with no saved route the app opens on the route form (TT-120). `LaunchArguments.freshInstall` starts with no route and no favourites; `LaunchArguments.noFavourites` clears the favourites (TT-122). Unit and snapshot tests pass `Favourites(defaults: .ephemeral())` to anything that reads favourites, never `.standard`.
 
 ### Building and CI
 

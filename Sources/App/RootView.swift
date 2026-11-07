@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Two tabs, Schedule and Alerts, and nothing else at the top level. Launch lands on Schedule with no prompt: the
-/// remembered route, or the route form on first use (TT-120). Applies the Appearance setting and puts the one time
-/// formatter in the environment (TT-105).
+/// remembered route, or the route form on first use (TT-120). Favourites are shared by the Schedule star and the route form
+/// (TT-122). Applies the Appearance setting and puts the one time formatter in the environment (TT-105).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
@@ -18,16 +18,20 @@ struct RootView: View {
         schedule: ScheduleViewModel? = nil,
         settings: AppSettings = AppSettings(),
         dependencies: ScheduleDependencies = .fixtures(),
-        routeStore: any RouteStoring = UserDefaultsRouteStore()
+        routeStore: any RouteStoring = UserDefaultsRouteStore(),
+        favourites: Favourites = Favourites()
     ) {
         let schedule = schedule ?? ScheduleViewModel(
-            route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore
+            route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
+            favourites: favourites
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
         _settingsModel = State(initialValue: SettingsViewModel(settings: settings))
-        _routeForm = State(initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations))
+        _routeForm = State(
+            initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
+        )
         stations = dependencies.stations
         TabBarStyle.apply()
     }
@@ -43,6 +47,7 @@ struct RootView: View {
                             viewModel: schedule,
                             onSettings: { router.openSettings() },
                             onEditRoute: { editRoute() },
+                            onManageFavourites: { editRoute(managingFavourites: true) },
                             onOpenTrip: { _ in router.present(.tripDetails) }
                         )
                     }
@@ -86,8 +91,11 @@ struct RootView: View {
         .preferredColorScheme(settings.appearance.colorScheme)
     }
 
-    private func editRoute() {
-        routeForm = RouteFormViewModel(route: schedule.route, repository: stations)
+    /// The prefilled route sheet; from the star at three favourites it opens with Manage favourites on (TT-122).
+    private func editRoute(managingFavourites: Bool = false) {
+        routeForm = RouteFormViewModel(
+            route: schedule.route, repository: stations, favourites: schedule.favourites, isManagingFavourites: managingFavourites
+        )
         router.present(.routeEdit)
     }
 

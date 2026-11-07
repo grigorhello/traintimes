@@ -12,11 +12,13 @@ extension ScheduleViewModel {
         _ scenario: FixtureScheduleRepository.Scenario = .normal, dayIndex: Int = 0, minutesLater: Int = 0, isFavourite: Bool = true
     ) async throws -> ScheduleViewModel {
         let repository = try FixtureScheduleRepository(scenario: scenario, bundle: Bundle(for: BundleToken.self))
+        let favourites = Favourites(defaults: .ephemeral())
+        if isFavourite { favourites.add(repository.route) }
         let model = ScheduleViewModel(
             route: repository.route,
             repository: repository,
             clock: FixedClock(now: repository.now.addingTimeInterval(TimeInterval(minutesLater * 60))),
-            isFavourite: isFavourite
+            favourites: favourites
         )
         await model.loadIfNeeded()
         if dayIndex > 0 { await model.select(model.days[dayIndex]) }

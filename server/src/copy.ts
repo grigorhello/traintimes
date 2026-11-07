@@ -33,7 +33,7 @@ export interface Notice {
 /** A trip alert the rules decided to send (Notification rules and copy, rules 3 and 4). */
 export type Alert =
   | { kind: 'delay'; delayMin: number; expected: number; update: boolean }
-  | { kind: 'recovery'; expected: number }
+  | { kind: 'recovery'; delayMin: number; expected: number }
   | { kind: 'cancelled' }
   | { kind: 'skipped'; stop: 'origin' | 'destination' };
 

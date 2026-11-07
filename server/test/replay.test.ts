@@ -92,6 +92,27 @@ describe('feed replay', () => {
     assert.deepEqual(await cycle('7:10', delayFeed('7:10', 'LW-1308', 0)), []);
   });
 
+  test('a delay wobbling around 3 min sends one alert and one recovery', async () => {
+    await setUp({ 'LW-1308': '7:51' });
+    const wobble = (time: string, seconds: number): Feed => {
+      const feed = delayFeed(time, 'LW-1308', 0);
+      feed.tripUpdates[0].stopTimeUpdates[0].departure = { delay: seconds };
+      return feed;
+    };
+    const sent = [];
+    for (const [time, seconds] of [['7:10', 185], ['7:11', 170], ['7:12', 185], ['7:13', 170], ['7:14', 185], ['7:15', 175]] as const) {
+      sent.push(...(await cycle(time, wobble(time, seconds))));
+    }
+    assert.deepEqual(sent, [
+      '7:51 AM train delayed 3 min | Oakville to Union. Now expected 7:54 AM, as reported at 7:10 AM.',
+      '7:51 AM train back on time | Oakville to Union. Expected 7:53 AM, as reported at 7:11 AM.',
+    ]);
+    // A real new delay after the recovery is still sent.
+    assert.deepEqual(await cycle('7:16', delayFeed('7:16', 'LW-1308', 8)), [
+      '7:51 AM train delayed 8 min | Oakville to Union. Now expected 7:59 AM, as reported at 7:16 AM.',
+    ]);
+  });
+
   test('rapid changes within 60 s coalesce into the latest status', async () => {
     await setUp({ 'LW-1308': '7:51' });
     await cycle('7:04', delayFeed('7:04', 'LW-1308', 4));

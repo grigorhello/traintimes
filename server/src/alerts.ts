@@ -19,7 +19,7 @@ export const STALE_MS = 3 * MINUTE;
 
 export type SentKind = 'delay' | 'recovery' | 'cancelled' | 'skipped-origin' | 'skipped-destination';
 
-/** The last notification sent for a watched trip. */
+/** The last notification sent for a watched trip, with the delay it reported (a delay or a recovery). */
 export interface Sent {
   kind: SentKind;
   delayMin: number | null;
@@ -50,12 +50,13 @@ export function decide(last: Sent | null, status: LiveStatus | null, now: number
     case 'running': {
       const { delayMin, expected } = status;
       if (delayMin >= DELAY_MIN) {
-        if (last?.kind !== 'delay') return { kind: 'delay', delayMin, expected, update: false };
-        return Math.abs(delayMin - (last.delayMin ?? 0)) >= UPDATE_STEP_MIN
-          ? { kind: 'delay', delayMin, expected, update: true }
-          : null;
+        if (last?.kind !== 'delay' && last?.kind !== 'recovery') return { kind: 'delay', delayMin, expected, update: false };
+        // After a delay or a recovery alert, the delay must move 5 min from the one last sent, so an estimate that
+        // wobbles around 3 min sends one alert and one recovery, not one a minute.
+        if (Math.abs(delayMin - (last.delayMin ?? 0)) < UPDATE_STEP_MIN) return null;
+        return { kind: 'delay', delayMin, expected, update: last.kind === 'delay' };
       }
-      return last && last.kind !== 'recovery' ? { kind: 'recovery', expected } : null;
+      return last && last.kind !== 'recovery' ? { kind: 'recovery', delayMin, expected } : null;
     }
   }
 }

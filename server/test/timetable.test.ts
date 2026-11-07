@@ -91,6 +91,18 @@ describe('repeating rules in the monitoring cycle', () => {
     assert.equal((await call(api, 'GET', `${base}/rules`)).json.rules[0].state, 'on');
   });
 
+  test('a Review needed notification APNs could not take is sent again', async () => {
+    await store('20261109', timetable('20261109-LW-1256', usual.departure + 300));
+    await store('20261110', timetable('20261110-LW-1256', usual.departure + 300));
+    apns.answers = ['retry'];
+    await cycle('6:13');
+    assert.equal((await call(api, 'GET', `${base}/rules`)).json.rules[0].state, 'on');
+    await cycle('6:14');
+    await cycle('6:15');
+    assert.equal(apns.pushes.length, 2, 'one failed attempt, then one delivered');
+    assert.equal((await call(api, 'GET', `${base}/rules`)).json.rules[0].state, 'reviewNeeded');
+  });
+
   test('a selected day with no matching train shows it and sends nothing', async () => {
     await store('20261109', timetable('20261109-LW-9999', 8 * H));
     await store('20261110', timetable('20261110-LW-1256', usual.departure));

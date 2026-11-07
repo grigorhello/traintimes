@@ -58,7 +58,10 @@ test('alert rules: thresholds, steps, status changes and coalescing', () => {
   assert.deepEqual(decide(delayed, running(14), now), { kind: 'delay', delayMin: 14, expected: at('7:44'), update: true });
   assert.equal(decide(delayed, running(14), at('7:00:59')), null, 'within 60 s of the last alert');
   assert.equal(decide(delayed, running(2), now)?.kind, 'recovery');
-  assert.equal(decide({ kind: 'recovery', delayMin: null, at: at('7:00') }, running(1), now), null);
+  const recovered = { kind: 'recovery' as const, delayMin: 2, at: at('7:00') };
+  assert.equal(decide(recovered, running(1), now), null);
+  assert.equal(decide(recovered, running(6), now), null, 'back over 3 min but under the 5 min step');
+  assert.deepEqual(decide(recovered, running(7), now), { kind: 'delay', delayMin: 7, expected: at('7:37'), update: false });
   assert.equal(decide({ kind: 'cancelled', delayMin: null, at: at('7:00') }, { kind: 'cancelled', reportedAt: now }, now), null);
   assert.deepEqual(decide({ kind: 'cancelled', delayMin: null, at: at('7:00') }, running(6), now), { kind: 'delay', delayMin: 6, expected: at('7:36'), update: false });
   assert.equal(decide({ kind: 'skipped-origin', delayMin: null, at: at('7:00') }, { kind: 'skipped', stop: 'destination', reportedAt: now }, now)?.kind, 'skipped');

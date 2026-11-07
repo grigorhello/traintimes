@@ -72,9 +72,10 @@ export default {
 
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     if (controller.cron === HOURLY) {
+      // Retention first, so a failed GTFS download never holds it up.
+      await applyRetention(env.DB, Date.now());
       const imported = await refreshTimetables(env.DB, downloadGTFS, Date.now());
       if (imported) console.log(`Imported the timetable for ${imported} service dates`);
-      await applyRetention(env.DB, Date.now());
       return;
     }
     const client = apnsClient(env);

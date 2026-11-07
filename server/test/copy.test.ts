@@ -29,7 +29,7 @@ test('notifications read as the requirements table', () => {
     title: '7:32 AM train now delayed 15 min',
     body: 'Oakville to Union. Now expected 7:47 AM, as reported at 7:22 AM.',
   });
-  assert.deepEqual(alertNotice({ kind: 'recovery', expected: at('7:32') }, train, direction, at('7:26'), '12h'), {
+  assert.deepEqual(alertNotice({ kind: 'recovery', delayMin: 0, expected: at('7:32') }, train, direction, at('7:26'), '12h'), {
     title: '7:32 AM train back on time',
     body: 'Oakville to Union. Expected 7:32 AM, as reported at 7:26 AM.',
   });

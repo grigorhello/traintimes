@@ -172,7 +172,14 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
           .bind(rule.installation_id, rule.id)
           .run();
         if (changed.meta.changes > 0) {
-          await deliver(rule, { ...reviewNotice(direction), expiration: expiry(usual), data: { ruleId: rule.id } });
+          const result = await deliver(rule, { ...reviewNotice(direction), expiration: expiry(usual), data: { ruleId: rule.id } });
+          if (result === 'retry' || result === 'badToken') {
+            // Not delivered: back to On, so a later cycle sets Review needed again and sends it.
+            await db
+              .prepare(`UPDATE rules SET state = 'on' WHERE installation_id = ? AND id = ? AND state = 'review'`)
+              .bind(rule.installation_id, rule.id)
+              .run();
+          }
         }
       }
     }
@@ -211,7 +218,7 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     if (!alert || !status) continue;
 
     // Claim the send first: an overlapping cycle that read the same version changes nothing and sends nothing.
-    const next = { sent_kind: sentKind(alert), sent_delay: alert.kind === 'delay' ? alert.delayMin : null, sent_at: now };
+    const next = { sent_kind: sentKind(alert), sent_delay: 'delayMin' in alert ? alert.delayMin : null, sent_at: now };
     if (!(await upsertWatch(db, rule.installation_id, key, date, watch, next, version))) continue;
     const notice = alertNotice(alert, departure, { origin: rule.origin_name, destination: rule.destination_name }, status.reportedAt, rule.time_format);
     const result = await deliver(rule, { ...notice, expiration: expiry(departure), data: { tripId, serviceDate: date } });

@@ -88,9 +88,18 @@
 
 /* Settings */
 "settings.appearance" = "Appearance";
+"settings.appearance.system" = "System";
+"settings.appearance.light" = "Light";
+"settings.appearance.dark" = "Dark";
 "settings.time_format" = "Time format";
+"settings.time_format.device" = "Device";
+"settings.time_format.12h" = "12-hour";
+"settings.time_format.24h" = "24-hour";
 "settings.notifications" = "Notifications";
 "settings.notification_permission" = "Notification permission";
+"settings.permission.allowed" = "Allowed";
+"settings.permission.off" = "Off";
+"settings.permission.not_asked" = "Not asked yet";
 "settings.notifications_footnote" = "Updates are sent as changes are reported during each watched trip. Delivery is best effort.";
 "settings.data_privacy" = "Data and privacy";
 "settings.schedule_data" = "Schedule and status data";

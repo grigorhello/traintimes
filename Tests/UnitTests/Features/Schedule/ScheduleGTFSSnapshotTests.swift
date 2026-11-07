@@ -31,7 +31,7 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
         layOutOnce(view)
-        assertSnapshot(
+        let failure = verifySnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
@@ -42,5 +42,9 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
             testName: testName,
             line: line
         )
+        if let failure {
+            XCTFail(failure, line: line)
+            if failure.contains("does not match") { SnapshotDiffReport.report(failure, line: line) }
+        }
     }
 }

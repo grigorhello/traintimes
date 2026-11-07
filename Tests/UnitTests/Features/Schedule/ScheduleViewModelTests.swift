@@ -90,9 +90,9 @@ final class ScheduleViewModelTests: XCTestCase {
 
     func testStarTogglesTheFavourite() async throws {
         let model = try await ScheduleViewModel.loadedFixture(isFavourite: false)
-        model.toggleFavourite()
+        XCTAssertEqual(model.toggleFavourite(), .toggled)
         XCTAssertTrue(model.isFavourite)
-        model.toggleFavourite()
+        XCTAssertEqual(model.toggleFavourite(), .toggled)
         XCTAssertFalse(model.isFavourite)
     }
 

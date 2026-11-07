@@ -95,12 +95,11 @@ app.file_system_synchronized_groups << sources << resources << preview
 app.build_configurations.each do |config|
   s = config.build_settings
   s.delete('INFOPLIST_FILE')
-  # No asset catalog yet. TT-103 must set ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon here (without it the
-  # build stays green but the app has no icon); TT-102 may set the global accent colour name. See CLAUDE.md.
-  s.delete('ASSETCATALOG_COMPILER_APPICON_NAME')
+  # TT-102 may set the global accent colour name. See CLAUDE.md.
   s.delete('ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME')
   s.merge!(
     'TARGETED_DEVICE_FAMILY' => '1',
+    'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon', # Resources/AppIcon.xcassets (TT-103)
     'PRODUCT_NAME' => '$(TARGET_NAME)',
     'PRODUCT_BUNDLE_IDENTIFIER' => BUNDLE_ID,
     'MARKETING_VERSION' => '0.1.0',

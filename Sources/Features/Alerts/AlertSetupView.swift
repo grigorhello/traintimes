@@ -3,7 +3,7 @@ import SwiftUI
 /// Alert setup sheet (TT-142), after design/frames/alert-setup.png, alert-setup-repeat.png and permission-prompt.png:
 /// title and close, the trip card, This trip | Repeat, the Repeat days, the sentence, then "Enable alerts" (or "Save")
 /// with the footnote, or the rule's state in words once it exists. Notifications off replaces the button with the red
-/// panel and Open Settings. The sheet is as tall as its content, as on the canvas.
+/// panel and Open Settings. The sheet is as tall as its content, as on the canvas (D41).
 struct AlertSetupView: View {
     @Bindable var viewModel: AlertSetupViewModel
     /// Delete alert closes the sheet.
@@ -12,7 +12,6 @@ struct AlertSetupView: View {
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
     @State private var height: CGFloat = 460
 
     /// Canvas `.sheet`: 10 pt padding, the 5 pt grabber and its 16 pt margin, the 16 pt gap and the title row's -8 pt.
@@ -45,10 +44,8 @@ struct AlertSetupView: View {
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .frame(maxWidth: .infinity, alignment: .top)
+        // RootView reads it again whenever the app comes back to the foreground (TT-141).
         .task { await viewModel.refresh() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await viewModel.refresh() } }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sheet.alertSetup")
         .presentationDetents([.height(height)])

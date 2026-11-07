@@ -4,17 +4,17 @@ import UIKit
 
 /// The Alert setup sheet (TT-142): a This-trip or Repeat rule for one train, the notification permission asked after the
 /// first "Enable alerts", and the rule's state in words. Saving, the device token and the server live in `AlertRules`
-/// (TT-141); this model only builds the rule and reads its state, so a denied permission never looks like an active alert.
+/// (TT-141); this model builds the rule and reads its state there, so a denied permission never looks like an active alert.
 @Observable @MainActor
 final class AlertSetupViewModel {
-    /// The rule's state as the sheet shows it, from the requirements' rule state table.
+    /// The rule's state as the sheet shows it (the requirements' rule state table).
     enum SheetState: Equatable {
         case settingUp, on, paused, notificationsOff, reviewNeeded, couldNotSave
     }
 
     /// The app's page in the Settings app, where notifications are turned back on.
     static let notificationSettingsURL = URL(string: UIApplication.openNotificationSettingsURLString)!
-    /// Monday to Sunday as ISO weekdays (1 = Monday), the order of the day chips.
+    /// Monday to Sunday as ISO weekdays (1 is Monday), the order of the day chips.
     static let weekdays = Array(1...7)
     /// Monday to Friday, preselected for a new Repeat rule.
     static let workdays: Set<Int> = [1, 2, 3, 4, 5]
@@ -24,23 +24,24 @@ final class AlertSetupViewModel {
     var kind: AlertRule.Kind
     /// The Repeat rule's days, ISO weekdays.
     private(set) var weekdays: Set<Int>
-    /// The permission request and first save are in flight: "Setting up", and repeated taps send nothing.
+    /// From "Enable alerts" until the save ends, permission dialog included: "Setting up", and taps send nothing more.
     private(set) var isWorking = false
 
-    private let store: AlertRules
-    private let permissions: any NotificationPermissionProviding
+    private let rules: AlertRules
 
-    init(request: AlertSetupRequest, store: AlertRules, permissions: any NotificationPermissionProviding) {
+    init(request: AlertSetupRequest, rules: AlertRules) {
         self.request = request
-        self.store = store
-        self.permissions = permissions
+        self.rules = rules
         kind = request.kind
-        weekdays = store.rule(for: request.trip.key, kind: .repeating, request: request)?.weekdays ?? Self.workdays
+        let repeating = rules.matching(AlertRule(kind: .repeating, trip: request.trip, route: request.route))
+        weekdays = repeating.map { Set($0.weekdays) } ?? Self.workdays
     }
 
-    /// The rule the selected kind already has: the sheet is in Manage mode. A This-trip and a Repeat rule for the same
-    /// train are separate.
-    var rule: AlertRule? { store.rule(for: request.trip.key, kind: kind, request: request) }
+    /// The stored rule for this train and the selected kind: the sheet is in Manage mode. A This-trip and a Repeat rule
+    /// for the same train are separate rules.
+    var rule: AlertRule? {
+        rules.matching(AlertRule(kind: kind, trip: request.trip, route: request.route))
+    }
 
     var isManaging: Bool { rule != nil }
 
@@ -64,7 +65,7 @@ final class AlertSetupViewModel {
     var state: SheetState? {
         if isWorking { return .settingUp }
         guard let rule else { return nil }
-        switch store.state(of: rule) {
+        switch rules.state(of: rule) {
         case .settingUp: return .settingUp
         case .on: return rule.paused ? .paused : .on
         case .notificationsOff: return .notificationsOff
@@ -104,49 +105,41 @@ final class AlertSetupViewModel {
         }
     }
 
-    /// "Enable alerts", "Save", or "Try again": asks for notification permission the first time, then saves the rule on
-    /// device and on the server. Saving the same train again updates its rule, and taps while in flight send nothing.
+    /// "Enable alerts", "Save" or "Try again": asks for notification permission the first time, then saves the rule on
+    /// device and on the server whatever the answer. Saving the same train again updates its rule.
     func save() async {
-        guard canSave, !isWorking else { return }
+        guard canSave else { return }
         isWorking = true
         defer { isWorking = false }
-        if await permissions.current() == .notAsked {
-            _ = await permissions.request()
-        }
-        await store.refreshPermission()
-        await store.save(makeRule())
+        await rules.requestPermission()
+        let existing = rule
+        await rules.save(
+            AlertRule(
+                id: existing?.id ?? UUID().uuidString.lowercased(),
+                kind: kind,
+                trip: request.trip,
+                route: request.route,
+                weekdays: weekdays.sorted(),
+                paused: existing?.paused ?? false
+            )
+        )
     }
 
     func delete() async {
         guard let rule else { return }
-        await store.delete(rule.id)
+        await rules.delete(rule.id)
     }
 
-    /// The permission is read again each time the sheet appears or the app comes back from Settings.
+    /// Reads the permission again when the sheet appears, so Notifications off follows Settings.
     func refresh() async {
-        await store.refreshPermission()
-    }
-
-    private func makeRule() -> AlertRule {
-        let existing = rule
-        return AlertRule(
-            id: existing?.id ?? UUID().uuidString.lowercased(),
-            kind: kind,
-            trip: request.trip.key,
-            line: request.route.line?.id ?? "",
-            scheduledDeparture: request.trip.scheduledDeparture,
-            origin: request.route.from,
-            destination: request.route.to,
-            weekdays: kind == .repeating ? weekdays : [],
-            paused: existing?.paused ?? false
-        )
+        await rules.refreshPermission()
     }
 }
 
 // MARK: Weekdays
 
 extension AlertSetupViewModel {
-    /// "Mon to Fri" for a run of three days or more, "Every day", else short names ("Sat, Sun"); nil with no day.
+    /// "Mon to Fri" for three days or more in a row, "Every day", else short names ("Sat, Sun"); nil with no day.
     static func summary(of days: Set<Int>) -> String? {
         let sorted = days.sorted()
         guard let first = sorted.first, let last = sorted.last else { return nil }
@@ -157,7 +150,7 @@ extension AlertSetupViewModel {
         return sorted.map(shortName).joined(separator: ", ")
     }
 
-    /// "M" for the day chip.
+    /// "M", the day chip.
     static func letter(_ weekday: Int) -> String { symbols.veryShortWeekdaySymbols[weekday % 7] }
 
     /// "Monday", the chip's accessibility label.
@@ -166,7 +159,7 @@ extension AlertSetupViewModel {
     /// "Mon".
     static func shortName(_ weekday: Int) -> String { symbols.shortWeekdaySymbols[weekday % 7] }
 
-    /// Fixed English names, as on the canvas and the day strip (ServiceDay); index 0 is Sunday.
+    /// Fixed English names, as on the canvas and the day strip (`ServiceDay`); index 0 is Sunday.
     private static var symbols: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")

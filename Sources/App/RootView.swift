@@ -16,8 +16,8 @@ struct RootView: View {
     /// The alert rules (TT-141), shared by the bells, the alert setup sheet, the Alerts tab and the watched-trip strip.
     @State private var alerts: AlertRules
     @State private var bells: AlertBellModel
-    /// The train the alert setup sheet opens for (TT-142), set each time it opens.
-    @State private var alertSetup: AlertSetupRequest?
+    /// The alert setup sheet for a train (TT-142), made each time it opens.
+    @State private var alertSetup: AlertSetupViewModel?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -106,8 +106,13 @@ struct RootView: View {
             case .tripDetails:
                 if let tripDetails {
                     // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
-                    TripDetailsView(viewModel: tripDetails, onAlert: { router.present(.alertSetup) })
+                    TripDetailsView(viewModel: tripDetails, onAlert: { openAlertSetup(for: tripDetails) })
                         .id(ObjectIdentifier(tripDetails))
+                }
+            case .alertSetup:
+                if let alertSetup {
+                    AlertSetupView(viewModel: alertSetup, onDelete: { router.dismissSheet() })
+                        .id(ObjectIdentifier(alertSetup))
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
@@ -134,8 +139,14 @@ struct RootView: View {
 
     /// The alert setup sheet for a train (TT-142).
     private func openAlertSetup(_ request: AlertSetupRequest) {
-        alertSetup = request
+        alertSetup = AlertSetupViewModel(request: request, rules: alerts)
         router.present(.alertSetup)
+    }
+
+    /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on This trip.
+    private func openAlertSetup(for details: TripDetailsViewModel) {
+        guard let trip = details.departure?.trip else { return }
+        openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: .thisTrip))
     }
 
     /// The prefilled route sheet; from the star at three favourites it opens with Manage favourites on (TT-122).
@@ -148,7 +159,9 @@ struct RootView: View {
 
     private func openTrip(_ key: TripKey, on route: Route? = nil) {
         guard let route = route ?? schedule.route else { return }
-        tripDetails = TripDetailsViewModel(route: route, key: key, repository: repository, clock: clock)
+        tripDetails = TripDetailsViewModel(
+            route: route, key: key, repository: repository, clock: clock, hasAlert: alerts.thisTripRule(for: key, on: route) != nil
+        )
         router.present(.tripDetails)
     }
 
@@ -174,7 +187,7 @@ struct RootView: View {
     }
 }
 
-/// Stand-in until the sheets land: station search (TT-121) and alert setup (TT-142).
+/// Stand-in for a sheet with no screen of its own yet (station search opens from the route form, TT-121).
 private struct SheetPlaceholder: View {
     let sheet: AppSheet
 

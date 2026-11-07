@@ -100,6 +100,15 @@ final class AlertRules: WatchedTripsProviding {
         if current != permission { permission = current }
     }
 
+    /// Shows the iOS permission dialog if the rider has not been asked yet, then reads the answer. The alert setup sheet
+    /// calls it on "Enable alerts" (TT-142), never before.
+    func requestPermission() async {
+        if await permissions.current() == .notAsked {
+            _ = await permissions.request()
+        }
+        await refreshPermission()
+    }
+
     /// Saves the rule on device and on the server: Setting up, then On (or Notifications off), or Could not save.
     /// A rule that duplicates a stored one updates it; a save already in flight for the rule sends nothing more.
     func save(_ candidate: AlertRule) async {

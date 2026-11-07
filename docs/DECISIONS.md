@@ -38,7 +38,7 @@ Sources: [`design/handoff/README.md`](../design/handoff/README.md) and [`design/
 
 Each question has two points: **needed by** is the ticket that cannot start without an answer; **blocks / closes in** is the ticket that answers it, usually because it needs the live feed or the built screen: that ticket ships its feature only once the question is closed. Answering the feed questions is out of TT-100's scope. When a question closes, tick it and add the answer here as a decision. Owner is Grigor unless noted; dates are the start of the named build step in [`BUILD-ORDER.md`](BUILD-ORDER.md).
 
-- [ ] **Q1. Metrolinx GO API access and terms.** Confirm credentials, permitted refresh rate, trip identifiers, cancellation semantics, platform availability and timestamps for the real-time feed. Live endpoints were not validated in the research behind the brief. **Needed by TT-130 (#19)** (credentials and terms, step 19); feed semantics **close in TT-131 (#20)**. Owner: Grigor (API key, see below).
+- [ ] **Q1. Metrolinx GO API access and terms.** Confirm credentials, permitted refresh rate, trip identifiers, cancellation semantics, platform availability and timestamps for the real-time feed. Live endpoints were not validated in the research behind the brief. **Needed by TT-130 (#19)** (credentials and terms, step 19); feed semantics **block and close in TT-131 (#20)**. Owner: Grigor (API key, see below).
 - [ ] **Q2. Freshness threshold.** 3 min is the proposed point where live data is demoted to "Last reported"; tune against observed feed update intervals. Build with 3 min; **blocks and closes in TT-131 (#20)**.
 - [ ] **Q3. Estimated arrival support.** Confirm the feed provides a reliable destination estimate; until it does, destination arrival is always labelled Scheduled. **Blocks and closes in TT-131 (#20)**.
 - [ ] **Q4. Express flag.** Confirm how express or limited-stop services are marked; show the tag only when verified. **Blocks and closes in TT-130 (#19)**.
@@ -57,6 +57,6 @@ Gates M2 (TT-130 onward) and can take time, so it is requested now.
 | | |
 |---|---|
 | Owner | Grigor (the application is made under his name and contact details) |
-| Where | Metrolinx / GO Transit open data portal (check the current URL and terms there) |
+| Where | GO API registration form https://api.openmetrolinx.com/OpenDataAPI/Help/Registration/en (manual review, up to 10 business days). Questions: OpenData.Program@metrolinx.com. Licence: Open Government Licence – Ontario – Metrolinx |
 | Request sent | **Not yet — pending Grigor.** Record the date here when sent: `YYYY-MM-DD` |
 | Key received | — (store it as a secret, never in the repo) |

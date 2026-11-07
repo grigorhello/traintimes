@@ -3,9 +3,10 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The Schedule screen on real GO data (TT-130): Oakville GO to Union Station GO on Mon Nov 9 at 7:21 AM from the feed
-/// sample, scheduled times only, Express on the peak trains that run non-stop from Clarkson, "Platform pending" on every
-/// card. Compare with design/frames/schedule-timeline.png and schedule-timeline-dark.png.
+/// The Schedule screen on real GO data (TT-130): Oakville GO to Union Station GO on Mon Nov 9 at 5:10 AM from the feed
+/// sample, just before the first train, so the top of the timeline is the present (a snapshot cannot scroll to Now):
+/// scheduled times only and "Platform pending" on every card. Compare with design/frames/schedule-timeline.png and
+/// schedule-timeline-dark.png.
 final class ScheduleGTFSSnapshotTests: XCTestCase {
     @MainActor func testRealScheduleLight() async throws { snap(try await model(), .light) }
     @MainActor func testRealScheduleDark() async throws { snap(try await model(), .dark) }
@@ -16,7 +17,7 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         let monday = ServiceDay(year: 2026, month: 11, day: 9)
-        let clock = FixedClock(now: monday.date(hour: 7, minute: 21))
+        let clock = FixedClock(now: monday.date(hour: 5, minute: 10))
         let repository = GTFSScheduleRepository(store: GTFSFeedStore(directory: directory, clock: clock, download: { zip }))
         let route = try await repository.route(
             from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO")

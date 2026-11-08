@@ -98,17 +98,19 @@ struct ScheduleTimeline: View {
                 .stroke(TTColor.controlBorder, style: StrokeStyle(lineWidth: Self.railWidth, dash: [TTSpace.s1, TTSpace.s1]))
                 .frame(width: Self.railWidth, height: fold.dashed.upperBound - fold.dashed.lowerBound)
                 .offset(x: Self.railX - Self.railWidth / 2, y: fold.dashed.lowerBound)
-            Text(fold.label(formatter))
-                .font(TTFont.footnote)
-                .monospacedDigit()
-                .foregroundStyle(TTColor.inkSecondary)
-                .padding(.horizontal, TTSpace.s3)
-                .padding(.vertical, TTSpace.s1 - 1)
-                .background(TTColor.surfaceRaised, in: Capsule())
-                .frame(maxWidth: .infinity)
-                .padding(.leading, Self.cardX)
-                .padding(.trailing, TTSpace.s5)
-                .centred(y: fold.pillY)
+            if let label = fold.label(formatter) {
+                Text(label)
+                    .font(TTFont.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(TTColor.inkSecondary)
+                    .padding(.horizontal, TTSpace.s3)
+                    .padding(.vertical, TTSpace.s1 - 1)
+                    .background(TTColor.surfaceRaised, in: Capsule())
+                    .frame(maxWidth: .infinity)
+                    .padding(.leading, Self.cardX)
+                    .padding(.trailing, TTSpace.s5)
+                    .centred(y: fold.pillY)
+            }
         }
     }
 

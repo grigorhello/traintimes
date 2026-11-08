@@ -51,6 +51,31 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, 3)
     }
 
+    /// TT-153: back in the app the next morning, with the app still in memory, Schedule opens on the new Today with the
+    /// Now line and the next train, not on yesterday (D30, D27).
+    func testANewServiceDayMovesTheScheduleToToday() async throws {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleViewModelTests.self))
+        let clock = TestClock(now: repository.now)
+        let model = ScheduleViewModel(
+            route: repository.route, repository: repository, clock: clock, favourites: Favourites(defaults: .ephemeral())
+        )
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.selectedDay, thursday)
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 24 * 60)
+        let polling = Task { await model.pollLiveStatus(every: .milliseconds(10)) }
+        defer { polling.cancel() }
+        for _ in 0..<500 where model.scrollRequest == scroll {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: 1))
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.days.first, model.selectedDay, "Today is the strip's first day and selected")
+        XCTAssertNotNil(model.layout.nowY)
+        XCTAssertEqual(model.scrollRequest, scroll + 1, "The new day scrolls to Now")
+    }
+
     func testNowDimsOnlyWhileTheTimelineShowsThePresent() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
         model.viewportHeight = 300

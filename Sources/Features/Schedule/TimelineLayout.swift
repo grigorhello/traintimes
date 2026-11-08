@@ -54,12 +54,13 @@ struct TimelineLayout: Hashable, Sendable {
         let pillY: CGFloat
         /// The real length of the gap.
         let minutes: Int
-        /// The departure of the next usable train after the gap; cancelled trains are skipped.
-        let next: Date
+        /// The departure of the next usable train after the gap; cancelled trains are skipped. Nil when no usable
+        /// train follows, and then the fold has no pill.
+        let next: Date?
 
         /// "No trains for 48 min · next 6:40 PM".
-        func label(_ formatter: some TimeFormatting) -> String {
-            String(format: String(localized: "schedule.no_trains_gap"), minutes, formatter.time(next))
+        func label(_ formatter: some TimeFormatting) -> String? {
+            next.map { String(format: String(localized: "schedule.no_trains_gap"), minutes, formatter.time($0)) }
         }
     }
 
@@ -78,6 +79,8 @@ struct TimelineLayout: Hashable, Sendable {
 extension TimelineLayout {
     /// The time pill is 40 × 22 pt, centred on its marker.
     private static let pillHeight: CGFloat = 22
+    /// A fold's pill: one 13 pt footnote line with 3 pt above and below.
+    private static let foldPillHeight: CGFloat = 22
 
     init(_ input: TimelineInput) {
         let departures = input.departures.sorted {
@@ -104,19 +107,19 @@ extension TimelineLayout {
         let foldAfter = Double(TTTimeline.foldAfterMinutes)
         var breaks: [Double] = []
         var lengths: [CGFloat] = []
-        var foldPieces: [(piece: Int, start: Double, end: Double)] = []
-        func addFold(from start: Double, to end: Double) {
+        var foldPieces: [(piece: Int, start: Double, end: Double, fromNow: Bool)] = []
+        func addFold(from start: Double, to end: Double, fromNow: Bool = false) {
             // Fold: 30 min of rail. The 10 min at each end stay to scale, so the cards and the gridlines next to
             // them are true; the middle 10 min of rail stand for the rest of the gap and are dashed.
             let side = foldAfter / 3
             breaks += [start + side, end - side, end]
             lengths += Array(repeating: CGFloat(side) * ppm, count: 3)
-            foldPieces.append((piece: lengths.count - 2, start: start, end: end))
+            foldPieces.append((piece: lengths.count - 2, start: start, end: end, fromNow: fromNow))
         }
         // A wait of over 30 min from Now to the first train folds too, so the first screen is never empty rail.
         if let now = input.now.map(minutes), markers[0].minute - now > foldAfter {
             breaks = [now]
-            addFold(from: now, to: markers[0].minute)
+            addFold(from: now, to: markers[0].minute, fromNow: true)
         } else {
             breaks = [markers[0].minute]
         }
@@ -157,6 +160,15 @@ extension TimelineLayout {
             }
         }
 
+        // A fold's pill keeps 16 pt below the card above it: a tall card (an Express row that wraps, a delay's
+        // scheduled line) stretches the 10 min of rail before the dashed part rather than covering the pill.
+        for fold in foldPieces where !fold.fromNow {
+            guard let above = departures.indices.last(where: { cardBreak[$0] == fold.piece - 1 }) else { continue }
+            let card = size(above)
+            let required = card.height - card.anchor + gap + Self.foldPillHeight / 2 - lengths[fold.piece] / 2
+            if lengths[fold.piece - 1] < required { lengths[fold.piece - 1] = required }
+        }
+
         var breakY: [CGFloat] = [0]
         for length in lengths { breakY.append(breakY[breakY.count - 1] + length) }
         func rawY(_ minute: Double) -> CGFloat {
@@ -190,12 +202,15 @@ extension TimelineLayout {
 
         folds = foldPieces.map { fold in
             let dashed = (breakY[fold.piece] - contentTop)...(breakY[fold.piece + 1] - contentTop)
+            // The real gap runs between usable trains: a cancelled train at either end is left out of the label.
             let next = departures.first { $0.isUsable && minutes($0.departureTime) >= fold.end }?.departureTime
-                ?? origin.addingTimeInterval(fold.end * 60)
+            let start = fold.fromNow ? fold.start
+                : departures.last { $0.isUsable && minutes($0.departureTime) <= fold.start }.map { minutes($0.departureTime) }
+                    ?? fold.start
             return Fold(
                 dashed: dashed,
                 pillY: (dashed.lowerBound + dashed.upperBound) / 2,
-                minutes: Int((minutes(next) - fold.start).rounded()),
+                minutes: Int(((next.map(minutes) ?? fold.end) - start).rounded()),
                 next: next
             )
         }

@@ -10,6 +10,10 @@ final class WatchedStripSnapshotTests: XCTestCase {
     @MainActor func testWatchedLight() async throws { snap(try await .watchedFixture(), .light) }
     @MainActor func testWatchedDark() async throws { snap(try await .watchedFixture(), .dark) }
 
+    /// TT-153: the longest real station name stays readable in the route header and the strip, light and dark.
+    @MainActor func testLongNamesLight() async throws { snap(try await .watchedFixture(route: .longNames), .light) }
+    @MainActor func testLongNamesDark() async throws { snap(try await .watchedFixture(route: .longNames), .dark) }
+
     @MainActor
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let settings = AppSettings(defaults: .ephemeral())
@@ -28,4 +32,12 @@ final class WatchedStripSnapshotTests: XCTestCase {
             line: line
         )
     }
+}
+
+private extension Route {
+    static let longNames = Route(
+        from: Station(id: "UN", name: "Union Station GO"),
+        to: Station(id: "BR", name: "Brampton Innovation District GO"),
+        line: Line(id: "KI", name: "Kitchener", colorHex: nil)
+    )
 }

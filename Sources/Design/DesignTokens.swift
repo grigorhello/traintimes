@@ -46,7 +46,7 @@ enum TTSize {
     static let appMark: CGFloat = 36        // app icon in Settings › About
 }
 
-/// Text styles. Sizes are the default (Large) Dynamic Type values; always pass `relativeTo:` so they scale.
+/// Text styles at the default (Large) Dynamic Type sizes. Fixed sizes, no Dynamic Type scaling (D23, D45).
 enum TTFont {
     static let timeLead   = Font.system(size: 34, weight: .semibold, design: .default)   // next train's time
     static let timeRow    = Font.system(size: 32, weight: .semibold)                      // other trains' time

@@ -64,13 +64,14 @@ struct SegmentedControl<Value: Hashable>: View {
                         .foregroundStyle(TTColor.ink)
                         .frame(maxWidth: .infinity, minHeight: TTSize.targetMin - TTSpace.s1)
                         .background(selected ? TTColor.surface : .clear, in: RoundedRectangle(cornerRadius: TTRadius.sm - 2))
+                        .padding(.vertical, 2)    // inside the button, so each segment takes taps over 44 pt (D45)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .padding(2)
+        .padding(.horizontal, 2)
         .background(TTColor.surfaceRaised, in: RoundedRectangle(cornerRadius: TTRadius.sm))
         .animation(.easeOut(duration: 0.2), value: selection)
     }

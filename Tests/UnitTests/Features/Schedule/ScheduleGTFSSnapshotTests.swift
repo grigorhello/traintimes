@@ -31,10 +31,13 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
         layOutOnce(view)
-        let failure = verifySnapshot(
+        assertSnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
+                // The 6:17 card sits under the tab bar's top edge, whose blur draws about 80 of its pixels a shade (up to
+                // 3/255) differently from one run to the next; a card moved by even 1 px changes thousands.
+                precision: 0.9999,
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
@@ -42,14 +45,5 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
             testName: testName,
             line: line
         )
-        if let failure {
-            XCTFail(failure, line: line)
-            guard failure.contains("does not match") else { return }
-            let cards = schedule.layout.cards.prefix(4).map { card in
-                "\(card.id.tripId) marker \(card.markerY) anchor \(card.markerY - card.top) height \(card.bottom - card.top)"
-            }
-            XCTFail("TTLAYOUT " + cards.joined(separator: "; "), line: line)
-            SnapshotDiffReport.report(failure, line: line)
-        }
     }
 }

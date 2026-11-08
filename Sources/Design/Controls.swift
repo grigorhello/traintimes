@@ -28,7 +28,7 @@ struct DayCell: View {
     }
 }
 
-/// Weekday chip in an alert's Repeat rule.
+/// Weekday chip in an alert's Repeat rule: a 44 pt circle, as the canvas's `.day` (seven fit the sheet's width).
 struct DayChip: View {
     let letter: String
     var isOn = false
@@ -39,7 +39,7 @@ struct DayChip: View {
             Text(letter)
                 .font(TTFont.body)
                 .foregroundStyle(isOn ? TTColor.onAccent : TTColor.ink)
-                .frame(width: TTSize.targetMin + TTSpace.s1, height: TTSize.targetMin + TTSpace.s1)
+                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .background(isOn ? TTColor.accent : .clear, in: Circle())
                 .overlay(Circle().strokeBorder(isOn ? .clear : TTColor.controlBorder, lineWidth: 1))
         }

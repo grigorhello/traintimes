@@ -50,7 +50,7 @@ struct TripDetails: Hashable {
 final class TripDetailsViewModel {
     let route: Route
     let key: TripKey
-    /// An alert rule covers this trip: "Manage alert" in place of "Alert me". Alert rules arrive in TT-142.
+    /// A This-trip alert rule covers this trip: "Manage alert" in place of "Alert me" (TT-142).
     let hasAlert: Bool
 
     /// Nil until loaded, or when the trip is not on the route that day.

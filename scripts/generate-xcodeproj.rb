@@ -120,6 +120,8 @@ app.build_configurations.each do |config|
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',
     'CODE_SIGN_STYLE' => 'Automatic',
+    # TT-142: push notifications (aps-environment) so the app gets an APNs device token for alerts.
+    'CODE_SIGN_ENTITLEMENTS' => 'Config/TrainTimes.entitlements',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks'],
     'SWIFT_EMIT_LOC_STRINGS' => 'YES'
   )

@@ -20,6 +20,14 @@ enum NotificationPermission: String, CaseIterable, Sendable {
 /// Reads the app's notification permission; tests inject a fixed state.
 protocol NotificationPermissionProviding: Sendable {
     func current() async -> NotificationPermission
+    /// Shows the iOS permission dialog if the rider has not been asked yet, then returns the answer. Called only after
+    /// the rider's first "Enable alerts" (TT-142), never before the first timetable.
+    func request() async -> NotificationPermission
+}
+
+extension NotificationPermissionProviding {
+    /// A source that cannot ask, such as a fixed test value, keeps its state.
+    func request() async -> NotificationPermission { await current() }
 }
 
 /// The live permission from `UNUserNotificationCenter`.
@@ -27,6 +35,12 @@ struct SystemNotificationPermission: NotificationPermissionProviding {
     func current() async -> NotificationPermission {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         return NotificationPermission(settings.authorizationStatus)
+    }
+
+    func request() async -> NotificationPermission {
+        // Visible notifications with the default sound; no badges, no critical or time-sensitive alerts.
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        return await current()
     }
 }
 

@@ -5,24 +5,26 @@ final class LaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Launch lands on Schedule with no prompt; the gear pushes Settings and back returns (TT-104).
+    /// Launch lands on Schedule with no prompt, the route card right under the status bar with no app name above it, and
+    /// Settings is the third tab (TT-104, D48).
     @MainActor
-    func testLaunchLandsOnScheduleAndGearPushesSettings() {
+    func testLaunchLandsOnScheduleAndSettingsIsATab() {
         let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
-        let title = app.staticTexts["schedule.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10))
-        XCTAssertEqual(title.label, "Train Times")
-        XCTAssertLessThan(title.frame.midY, 110, "The header sits right under the status bar, as in the frame")
+        let route = app.buttons["schedule.route"]
+        XCTAssertTrue(route.waitForExistence(timeout: 10))
+        XCTAssertLessThan(route.frame.minY, 100, "The route card sits right under the status bar, as on the canvas")
         XCTAssertTrue(app.tabBars.buttons["Schedule"].isSelected)
         XCTAssertTrue(app.tabBars.buttons["Alerts"].exists)
         XCTAssertFalse(app.alerts.firstMatch.exists)
 
-        app.buttons["schedule.settings"].tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Settings"].isSelected)
 
-        app.navigationBars["Settings"].buttons.firstMatch.tap()
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        app.tabBars.buttons["Schedule"].tap()
+        XCTAssertTrue(route.waitForExistence(timeout: 5))
     }
 }

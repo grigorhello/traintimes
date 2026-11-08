@@ -3,9 +3,8 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Settings against design/frames/settings.png, one per notification permission state, light and dark.
-/// Pushed on the Schedule stack, as from the gear, so the navigation bar and back button render as on the simulator.
-/// No TabView: Settings hides the tab bar, and inside a TabView the hide animation races the capture.
+/// The Settings tab (D48) against the canvas "Settings" frame, one per notification permission state, light and dark.
+/// Drawn in the key window so the safe areas render as on the simulator; the tab bar is in the app shell snapshots.
 final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testAllowedLight() { snap(.allowed, .light) }
     @MainActor func testAllowedDark() { snap(.allowed, .dark) }
@@ -23,15 +22,8 @@ final class SettingsSnapshotTests: XCTestCase {
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "1")
         )
         model.permission = permission
-        // The root carries Schedule's title, so the back button reads "Train Times" as in the app.
-        let pushed = NavigationStack(path: .constant([ScheduleRoute.settings])) {
-            TTColor.canvas
-                .navigationTitle(Text("app.name"))
-                .navigationDestination(for: ScheduleRoute.self) { _ in SettingsView(viewModel: model) }
-        }
-
         assertSnapshot(
-            of: pushed,
+            of: SettingsView(viewModel: model),
             as: .image(
                 drawHierarchyInKeyWindow: true,
                 perceptualPrecision: 0.98,

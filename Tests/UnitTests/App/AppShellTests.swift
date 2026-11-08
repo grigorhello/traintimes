@@ -8,17 +8,18 @@ final class AppRouterTests: XCTestCase {
     func testLaunchLandsOnScheduleWithNothingPresented() {
         let router = AppRouter()
         XCTAssertEqual(router.selectedTab, .schedule)
-        XCTAssertTrue(router.schedulePath.isEmpty)
         XCTAssertNil(router.presentedSheet)
         XCTAssertFalse(router.showsAlertsDot)
     }
 
-    func testOpenSettingsPushesSettingsOnSchedule() {
+    /// Settings is the third tab (D48).
+    func testOpenSettingsSelectsTheSettingsTab() {
         let router = AppRouter()
         router.selectedTab = .alerts
         router.openSettings()
+        XCTAssertEqual(router.selectedTab, .settings)
+        router.showSchedule()
         XCTAssertEqual(router.selectedTab, .schedule)
-        XCTAssertEqual(router.schedulePath, [.settings])
     }
 
     func testSheetsPresentAndDismiss() {

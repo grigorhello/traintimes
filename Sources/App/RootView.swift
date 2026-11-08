@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Two tabs, Schedule and Alerts, and nothing else at the top level. Launch lands on Schedule with no prompt: the
-/// remembered route, or the route form on first use (TT-120). Favourites are shared by the Schedule star and the route form
-/// (TT-122). Applies the Appearance setting and puts the one time formatter in the environment (TT-105). Opens the trip or
-/// the Alerts tab for a tapped notification (TT-144).
+/// Three tabs, Schedule, Alerts and Settings (D48), and nothing else at the top level. Launch lands on Schedule with no
+/// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
+/// records them, and the route sheet (D48). Applies the Appearance setting and puts the one time formatter in the
+/// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
@@ -32,7 +32,7 @@ struct RootView: View {
         settings: AppSettings = AppSettings(),
         dependencies: ScheduleDependencies = .app(),
         routeStore: any RouteStoring = UserDefaultsRouteStore(),
-        favourites: Favourites = Favourites(),
+        recents: RecentRoutes = RecentRoutes(),
         dismissedNotices: DismissedNotices = DismissedNotices(),
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
@@ -43,7 +43,7 @@ struct RootView: View {
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            favourites: favourites, dismissedNotices: dismissedNotices, watchedTrips: bells.rules
+            recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
@@ -51,7 +51,7 @@ struct RootView: View {
         // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
         _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions))
         _routeForm = State(
-            initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
+            initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, recents: schedule.recents)
         )
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
@@ -72,27 +72,18 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
-            NavigationStack(path: $router.schedulePath) {
-                Group {
-                    if schedule.route == nil {
-                        RouteFormView(viewModel: routeForm, onSettings: { router.openSettings() }, onShowTrains: { show($0) })
-                    } else {
-                        ScheduleView(
-                            viewModel: schedule,
-                            onSettings: { router.openSettings() },
-                            onEditRoute: { editRoute() },
-                            onManageFavourites: { editRoute(managingFavourites: true) },
-                            onOpenTrip: { openTrip($0) },
-                            onOpenLineNotice: { router.present(.lineNotices) },
-                            bells: bells,
-                            onAlertSetup: { openAlertSetup($0) }
-                        )
-                    }
-                }
-                .navigationDestination(for: ScheduleRoute.self) { route in
-                    switch route {
-                    case .settings: SettingsView(viewModel: settingsModel)
-                    }
+            NavigationStack {
+                if schedule.route == nil {
+                    RouteFormView(viewModel: routeForm, isFirstUse: true, onShowTrains: { show($0) })
+                } else {
+                    ScheduleView(
+                        viewModel: schedule,
+                        onEditRoute: { editRoute() },
+                        onOpenTrip: { openTrip($0) },
+                        onOpenLineNotice: { router.present(.lineNotices) },
+                        bells: bells,
+                        onAlertSetup: { openAlertSetup($0) }
+                    )
                 }
             }
             .tabItem {
@@ -119,6 +110,17 @@ struct RootView: View {
                 }
             }
             .tag(AppTab.alerts)
+
+            SettingsView(viewModel: settingsModel)
+                .tabItem {
+                    Label { Text("tab.settings") } icon: {
+                        let isSelected = router.selectedTab == .settings
+                        TabBarStyle.icon(
+                            isSelected ? "gearshape.fill" : "gearshape", isSelected: isSelected, colorScheme: colorScheme
+                        )
+                    }
+                }
+                .tag(AppTab.settings)
         }
         .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
@@ -192,11 +194,9 @@ struct RootView: View {
         openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: .thisTrip))
     }
 
-    /// The prefilled route sheet; from the star at three favourites it opens with Manage favourites on (TT-122).
-    private func editRoute(managingFavourites: Bool = false) {
-        routeForm = RouteFormViewModel(
-            route: schedule.route, repository: stations, favourites: schedule.favourites, isManagingFavourites: managingFavourites
-        )
+    /// The prefilled route sheet, with the recent routes (D48).
+    private func editRoute() {
+        routeForm = RouteFormViewModel(route: schedule.route, repository: stations, recents: schedule.recents)
         router.present(.routeEdit)
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// The last selected route and its direction, kept on device so the next launch opens it (TT-120).
-/// Favourites are stored separately (`Favourites`, TT-122). Nothing is sent to a server (D5).
+/// Recent routes are stored separately (`RecentRoutes`, D48). Nothing is sent to a server (D5).
 @MainActor
 protocol RouteStoring {
     var route: Route? { get }
@@ -50,7 +50,7 @@ extension Route {
         self.init(from: Station(id: fromId, name: fromName), to: Station(id: toId, name: toName), line: line)
     }
 
-    /// Same stations in the same direction. Each direction is its own favourite (TT-122).
+    /// Same stations in the same direction. Each direction is its own recent route (D48).
     func isSameDirection(as other: Route) -> Bool {
         from.id == other.from.id && to.id == other.to.id
     }

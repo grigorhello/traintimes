@@ -41,7 +41,7 @@ YOUR NEXT TRAIN, AT A GLANCE
 • The next train you can catch stands out, with the minutes until it leaves.
 • Platforms show as soon as they are published.
 • Look ahead to another day with the day strip.
-• Keep up to three favourite routes.
+• Your last three routes are one tap away.
 
 DELAYS AND CANCELLATIONS, SAID PLAINLY
 • A delayed train keeps its scheduled time and shows when it is now expected.
@@ -56,7 +56,7 @@ ALERTS FOR THE TRAINS YOU WATCH
 
 PRIVATE BY DESIGN
 • No account, no ads and no tracking.
-• Your route and favourites stay on your iPhone.
+• Your routes stay on your iPhone.
 • Alerts use an anonymous installation id, never your name or Apple ID.
 
 Light and dark appearance. 12 or 24-hour time.

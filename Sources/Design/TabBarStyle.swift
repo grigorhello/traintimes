@@ -28,7 +28,7 @@ enum TabBarStyle {
 
     /// A tab icon drawn in the token colours. It is a plain image rather than a symbol, so the tab bar
     /// cannot restyle it: the Alerts dot stays accent (the system draws `bell.badge` red) and never shows a number,
-    /// and both tab icons keep one size whether or not the dot is on.
+    /// and the tab icons keep one size whether or not the dot is on.
     @MainActor
     static func icon(_ systemName: String, isSelected: Bool, showsDot: Bool = false, colorScheme: ColorScheme) -> Image {
         let traits = UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light)

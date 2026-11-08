@@ -5,6 +5,7 @@
 "app.name" = "Train Times";
 "tab.schedule" = "Schedule";
 "tab.alerts" = "Alerts";
+"tab.settings" = "Settings";
 "nav.settings" = "Settings";
 "button.now" = "Now";
 "button.today" = "Today";
@@ -86,17 +87,13 @@
 /* Route and stations */
 "route.choose" = "Choose a route";
 "route.swap" = "Swap direction";
-"route.favourite_add" = "Add to favourites";
-"route.favourite_remove" = "Remove from favourites";
 "route.from" = "From";
 "route.to" = "To";
-"route.choose_station" = "Choose a station";
+"route.choose_from" = "Choose starting station";
+"route.choose_to" = "Choose destination";
 "route.same_station" = "From and To must be different stations.";
 "route.footnote" = "No account or permission is needed. The route is saved on this device and opens next time.";
-"route.favourites" = "Favourites";
-"route.favourites_count" = "%d of %d";
-"route.favourites_footnote" = "Up to three favourites are kept on this device. Remove one to add another.";
-"route.manage_favourites" = "Manage favourites";
+"route.recent" = "Recent";
 "stations.yours" = "Your stations";
 "stations.all" = "All stations";
 "stations.search" = "Search stations";

@@ -15,8 +15,8 @@ final class SettingsTests: XCTestCase {
         app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"]
         app.launch()
 
-        app.buttons["schedule.settings"].tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["System"].isSelected)
         XCTAssertTrue(app.buttons["Device"].isSelected)
         XCTAssertTrue(app.staticTexts["Notification permission"].exists)

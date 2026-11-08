@@ -70,3 +70,11 @@ Accessibility pass, website and required pages, App Store listing, acceptance QA
 | 29 | TT-152 · App Store listing and screenshots | [#29](https://github.com/grigorhello/traintimes/issues/29) | P1 | 2 | TT-150 (#27) |
 | 30 | TT-153 · Acceptance QA and the three-second test | [#30](https://github.com/grigorhello/traintimes/issues/30) | P0 | 2 | TT-150 (#27), TT-144 (#26) |
 | 31 | TT-154 · Ship to TestFlight and the App Store | [#31](https://github.com/grigorhello/traintimes/issues/31) | P0 | 2 | TT-152 (#29), TT-153 (#30), TT-151 (#28) |
+
+## TestFlight feedback tickets
+
+Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub issue and a Notion card (Order after 31) for visibility, and ships in a new TestFlight build.
+
+| Order | Ticket | Issue | Priority | Pts | From |
+|---|---|---|---|---|---|
+| 32 | TT-155 · Route card, Settings tab and Recent routes | [#67](https://github.com/grigorhello/traintimes/issues/67) | P1 | 3 | TestFlight 1.0 (3), D48 |

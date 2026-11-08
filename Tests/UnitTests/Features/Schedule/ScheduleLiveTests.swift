@@ -19,8 +19,7 @@ final class ScheduleLiveTests: XCTestCase {
         let model = ScheduleViewModel(
             route: route,
             repository: try GTFSScheduleRepository.replaying(replay, clock: clock, directory: directory),
-            clock: clock,
-            favourites: Favourites(defaults: .ephemeral())
+            clock: clock
         )
         await model.loadIfNeeded()
         return model

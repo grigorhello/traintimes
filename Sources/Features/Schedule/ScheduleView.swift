@@ -84,7 +84,8 @@ struct ScheduleView: View {
 
     // MARK: Route header
 
-    /// Origin and destination wrap to two lines before truncating; tapping them opens the route sheet.
+    /// Origin and destination wrap to two lines, and the longest names shrink a little to fit them rather than being cut
+    /// off (TT-153); tapping them opens the route sheet.
     private var routeHeader: some View {
         HStack(spacing: TTSpace.s2) {
             Button(action: onEditRoute) {
@@ -94,6 +95,7 @@ struct ScheduleView: View {
                             .font(TTFont.route)
                             .foregroundStyle(TTColor.ink)
                             .lineLimit(2)
+                            .minimumScaleFactor(Self.routeTitleMinimumScale)
                             .multilineTextAlignment(.leading)
                     }
                     if let line = viewModel.route?.line {
@@ -131,6 +133,8 @@ struct ScheduleView: View {
 
     /// The canvas's line dot (`.rh .dot`).
     private static let lineDot: CGFloat = 10
+    /// How far the route title may shrink to keep long names (Brampton Innovation District GO) whole on two lines.
+    private static let routeTitleMinimumScale: CGFloat = 0.7
 
     // MARK: Day strip
 

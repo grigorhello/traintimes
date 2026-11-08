@@ -21,9 +21,10 @@ extension ScheduleViewModel {
     /// (scheduled at Union 7:45 AM), which left on time and is expected at Union at 7:46 AM. The clock is `hour:minute`
     /// (7:28 AM in the frame) and the feed is fresh at that moment. `isWatched` arms its alert; `hasArrivalEstimate` false
     /// leaves the arrival scheduled; `hasLiveData` false leaves the 7:05 AM train out of the feed, so it stays Scheduled.
+    /// `route` replaces the canvas route on screen (the trains stay the fixture's).
     @MainActor
     static func watchedFixture(
-        hour: Int = 7, minute: Int = 28, isWatched: Bool = true, hasArrivalEstimate: Bool = true, hasLiveData: Bool = true
+        route: Route? = nil, hour: Int = 7, minute: Int = 28, isWatched: Bool = true, hasArrivalEstimate: Bool = true, hasLiveData: Bool = true
     ) async throws -> ScheduleViewModel {
         let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
         let day = fixture.serviceDay
@@ -46,10 +47,11 @@ extension ScheduleViewModel {
         let repository = StubScheduleRepository(
             tripList: [watched] + (try await fixture.trips(for: fixture.route, on: day)), live: live, stopList: []
         )
+        let route = route ?? fixture.route
         let favourites = Favourites(defaults: .ephemeral())
-        favourites.add(fixture.route)
+        favourites.add(route)
         let model = ScheduleViewModel(
-            route: fixture.route, repository: repository, clock: FixedClock(now: now), favourites: favourites,
+            route: route, repository: repository, clock: FixedClock(now: now), favourites: favourites,
             watchedTrips: FakeWatchedTrips(isWatched ? [key] : [])
         )
         await model.loadIfNeeded()

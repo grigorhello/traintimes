@@ -160,9 +160,21 @@ final class AlertRules: WatchedTripsProviding {
     /// must stay offered. An unreachable server changes nothing. Called on coming to the foreground and on the Alerts tab.
     func refresh() async {
         await refreshPermission()
-        guard !rules.isEmpty else { return }
+        // A delete the server missed is sent again even when no rule is left, so a deleted alert stops (TT-153).
         await retryPendingDeletes()
-        guard let statuses = try? await server.rules(installation: installation) else { return }
+        guard !rules.isEmpty else { return }
+        let statuses: [AlertRuleStatus]
+        do {
+            statuses = try await server.rules(installation: installation)
+        } catch AlertServerError.unknownInstallation {
+            // The server dropped this installation (APNs reported its token gone): register again and save each rule
+            // again, so none reads On while nothing watches it (TT-153).
+            registered = nil
+            for rule in rules where !inFlight.contains(rule.id) { await save(rule) }
+            return
+        } catch {
+            return
+        }
         var dates = noTrainDates
         for status in statuses where contains(status.id) && !inFlight.contains(status.id) && serverStates[status.id] != .couldNotSave {
             let state: AlertRuleState = status.state == .reviewNeeded ? .reviewNeeded : .on
@@ -170,6 +182,10 @@ final class AlertRules: WatchedTripsProviding {
             dates[status.id] = status.noMatchingTrainOn
         }
         if dates != noTrainDates { noTrainDates = dates }
+        // The token and Time format reach the server once per launch and whenever either changed (a restored backup, a
+        // TestFlight build over a Debug one, Settings › Time format), not only with the next save (TT-153). Last, so a
+        // slow push token never holds up the states above.
+        try? await registerIfNeeded()
     }
 
     /// Puts a deleted rule back where it was and saves it again with the same id, so the server has it again (the Alerts

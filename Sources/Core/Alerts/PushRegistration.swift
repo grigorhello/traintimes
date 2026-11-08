@@ -12,14 +12,27 @@ protocol PushRegistering {
 final class SystemPushRegistration: PushRegistering {
     static let shared = SystemPushRegistration()
 
+    /// iOS may answer neither way while it cannot reach APNs; a save then ends in Could not save after this long (TT-153).
+    static let timeout: Duration = .seconds(10)
+
     private var token: String?
     private var waiting: [CheckedContinuation<String, any Error>] = []
+    /// Counts registrations, so a timeout only ends the one it was started for.
+    private var attempt = 0
 
     func deviceToken() async throws -> String {
         if let token { return token }
         return try await withCheckedThrowingContinuation { continuation in
             waiting.append(continuation)
-            if waiting.count == 1 { UIApplication.shared.registerForRemoteNotifications() }
+            guard waiting.count == 1 else { return }
+            attempt += 1
+            let current = attempt
+            UIApplication.shared.registerForRemoteNotifications()
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: Self.timeout)
+                guard let self, self.attempt == current else { return }
+                self.resume(with: .failure(URLError(.timedOut)))
+            }
         }
     }
 

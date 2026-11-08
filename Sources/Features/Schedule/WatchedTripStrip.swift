@@ -27,15 +27,17 @@ struct WatchedTripStripView: View {
                 .foregroundStyle(TTColor.accent)
                 .frame(width: TTSize.iconMD, height: TTSize.iconMD)
             VStack(alignment: .leading, spacing: 0) {
+                // A long destination wraps rather than being cut off (TT-153).
                 Text(verbatim: strip.title)
                     .font(TTFont.headline)
                     .foregroundStyle(TTColor.ink)
+                    .lineLimit(2)
                 Text(verbatim: strip.detail)
                     .font(TTFont.footnote)
                     .foregroundStyle(TTColor.inkSecondary)
+                    .lineLimit(1)
             }
             .monospacedDigit()
-            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             Image(systemName: "chevron.right")
                 .font(.system(size: TTSize.iconSM, weight: .semibold))

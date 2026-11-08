@@ -95,6 +95,33 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(fold.minutes, 70, "Counted from the 5:00 PM train to the 6:10 PM one it names")
     }
 
+    /// TT-153: a cancelled train at the start of a fold is left out too, so the label gives the real wait.
+    func testFoldLabelCountsFromTheLastUsableTrain() throws {
+        let cancelled = train("b", 17, 10, status: .cancelled(reportedAt: at(16, 40)))
+        let result = layout([train("a", 17, 0), cancelled, train("c", 17, 50)])
+        let fold = try XCTUnwrap(result.folds.first)
+        XCTAssertEqual(fold.next, at(17, 50))
+        XCTAssertEqual(fold.minutes, 50, "Counted from the 5:00 PM train, not the cancelled 5:10 PM one")
+    }
+
+    /// TT-153: when every train after a fold is cancelled, the fold names no next train and has no pill.
+    func testFoldBeforeOnlyCancelledTrainsHasNoLabel() throws {
+        let cancelled = train("b", 19, 0, status: .cancelled(reportedAt: at(17, 40)))
+        let result = layout([train("a", 18, 0), cancelled])
+        let fold = try XCTUnwrap(result.folds.first)
+        XCTAssertNil(fold.next)
+        XCTAssertNil(fold.label(TimeFormatter(format: .twelveHour)))
+    }
+
+    /// TT-153: a tall card before a fold (an Express row that wraps) stretches the rail so the pill stays readable.
+    func testFoldPillClearsATallCardAbove() throws {
+        let first = train("a", 17, 0)
+        let result = layout([first, train("b", 17, 48)], sizes: [first.id: TimelineCardSize(height: 143, anchor: 35)])
+        let fold = try XCTUnwrap(result.folds.first)
+        XCTAssertGreaterThanOrEqual(fold.pillY - 11, result.cards[0].bottom + TTTimeline.minCardGap - 0.001)
+        XCTAssertEqual(fold.minutes, 48)
+    }
+
     func testLongWaitBeforeTheFirstTrainFolds() throws {
         let result = layout([train("a", 15, 50), train("b", 16, 20)], now: at(10, 0))
         let fold = try XCTUnwrap(result.folds.first)

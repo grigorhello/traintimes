@@ -58,6 +58,18 @@ final class AlertSetupViewModelTests: XCTestCase {
         XCTAssertEqual(requestsAfter, 1)
     }
 
+    /// TT-153: launch and coming back to the app read the permission but never show the iOS dialog; only Enable alerts
+    /// asks, so a new rider reaches the timeline with no prompt.
+    func testLaunchAndForegroundNeverAsk() async {
+        let permission = AskingPermission(answer: .allowed)
+        let rules = Self.rules(FakeAlertServer(), permission)
+        await rules.refresh()
+        await rules.refreshPermission()
+        let requests = await permission.requests
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(rules.permission, .notAsked)
+    }
+
     func testDeniedPermissionShowsNotificationsOffNeverOn() async {
         let server = FakeAlertServer()
         let model = AlertSetupViewModel(request: Self.request(), rules: Self.rules(server, AskingPermission(answer: .off)))

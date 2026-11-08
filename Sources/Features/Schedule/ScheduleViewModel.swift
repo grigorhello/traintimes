@@ -276,8 +276,17 @@ final class ScheduleViewModel {
             if hasLoaded, !isLoading {
                 // Data left on screen while the app was away ages first, so it never shows as live during the fetch (D13).
                 now = clock.now
-                resolve()
-                if isToday { await load() }
+                if selectedDay < today {
+                    // The service day changed while the app stayed in memory: yesterday is no longer in the day strip,
+                    // so the timeline moves to Today and the present, as a relaunch would (D30).
+                    selectedDay = today
+                    updateIsAtNow()
+                    await load()
+                    scrollRequest += 1
+                } else {
+                    resolve()
+                    if isToday { await load() }
+                }
             }
             try? await Task.sleep(for: interval)
         }

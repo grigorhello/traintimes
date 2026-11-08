@@ -249,12 +249,12 @@ The product is called Train Times. The name says exactly what the app is, in the
 | Home-screen label | Train Times |
 | Promotional text | Independent app for GO train riders. Your next direct trains on one timeline, delays shown as they are reported, alerts for the trains you watch. No login, no ads. |
 | Description, first line | Independent app, not affiliated with GO Transit or Metrolinx. |
-| Keywords | go transit,lakeshore,union station,toronto,hamilton,commuter,rail,departures,late,next train |
+| Keywords | transit,lakeshore,union station,toronto,hamilton,commuter,rail,departures,late,next train |
 | Screenshot captions | Your next GO train, in 11 min · Delays drawn as reported · Watch a train with one tap · Alerts for the trains you watch · Cancelled, said plainly |
 | Tagline | Your next GO train, at a glance. |
 | Website | traintimes.ca (registered, auto-renew on, expires 6 November 2027); traintimes.app optional; never a domain containing go or gotrain. Support address support@traintimes.ca, privacy page traintimes.ca/privacy, attribution page traintimes.ca/data |
 
-The keyword field does not repeat words already in the title and subtitle (Apple indexes those) and leaves out metrolinx on purpose: a registered mark used as a keyword invites a takedown, while GO train in the title is descriptive of what the app shows. The website is one page plus the three pages Apple and the data provider require: the privacy page, the data attribution page (Metrolinx open data terms) and a support contact, all of which Settings links to, with the store badge and the independent-app line in the header. Before release, run a three-second test with five GO riders: show the icon and the first screen for three seconds and ask what the app does. The brand passes when four of five answer GO train times or delays; if it fails, the first screenshot caption changes first, not the mark.
+The keyword field does not repeat words already in the title and subtitle (Apple indexes those) and leaves out metrolinx and go transit on purpose: a registered mark used as a keyword invites a takedown, while GO train in the title is descriptive of what the app shows. Apple matches words across the title and keywords, so GO in the title plus transit in the keywords still answers a go transit search (D42). The website is one page plus the three pages Apple and the data provider require: the privacy page, the data attribution page (Metrolinx open data terms) and a support contact, all of which Settings links to, with the store badge and the independent-app line in the header. Before release, run a three-second test with five GO riders: show the icon and the first screen for three seconds and ask what the app does. The brand passes when four of five answer GO train times or delays; if it fails, the first screenshot caption changes first, not the mark.
 
 ## Visual tokens and accessibility
 

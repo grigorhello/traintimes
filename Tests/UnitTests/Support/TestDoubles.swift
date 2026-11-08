@@ -48,6 +48,7 @@ actor FakeAlertServer: AlertServer {
     private(set) var statuses: [AlertRuleStatus] = []
     private var failing = false
     private var holding = false
+    private var holdingDeletes = false
     private var unknownInstallationOnce = false
     private var held: [CheckedContinuation<Void, Never>] = []
 
@@ -56,10 +57,12 @@ actor FakeAlertServer: AlertServer {
     func setFailing(_ value: Bool) { failing = value }
     func setStatuses(_ value: [AlertRuleStatus]) { statuses = value }
     func holdSaves() { holding = true }
+    func holdDeletes() { holdingDeletes = true }
     func answerUnknownInstallationOnce() { unknownInstallationOnce = true }
 
     func release() {
         holding = false
+        holdingDeletes = false
         held.forEach { $0.resume() }
         held = []
     }
@@ -80,6 +83,7 @@ actor FakeAlertServer: AlertServer {
     }
 
     func delete(ruleId: String, installation: String) async throws {
+        if holdingDeletes { await withCheckedContinuation { held.append($0) } }
         if failing { throw URLError(.cannotFindHost) }
         deleted.append(ruleId)
     }
@@ -89,7 +93,7 @@ actor FakeAlertServer: AlertServer {
         return statuses
     }
 
-    /// Waits until a save is held.
+    /// Waits until a save or a delete is held.
     func waitUntilHolding() async {
         while held.isEmpty { await Task.yield() }
     }
@@ -132,9 +136,9 @@ enum AlertFixtures {
 /// Line notices without a Schedule view model, for the Alerts tab (TT-143).
 @MainActor
 final class FakeLineNotices: LineNoticesProviding {
-    var lineNotices: [LineNotice]
+    var todayNotices: [LineNotice]
 
-    init(_ lineNotices: [LineNotice] = []) {
-        self.lineNotices = lineNotices
+    init(_ todayNotices: [LineNotice] = []) {
+        self.todayNotices = todayNotices
     }
 }

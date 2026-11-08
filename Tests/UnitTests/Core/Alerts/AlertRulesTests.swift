@@ -138,6 +138,14 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertTrue(rules.isWatched(trip.key))
         XCTAssertFalse(rules.isWatched(AlertFixtures.trip("LW-0758-20261105").key))
 
+        // Paused on the Alerts tab (TT-143): no notifications, so not watched.
+        var paused = rule
+        paused.paused = true
+        await rules.save(paused)
+        XCTAssertFalse(rules.isWatched(trip.key))
+        await rules.save(rule)
+        XCTAssertTrue(rules.isWatched(trip.key))
+
         await rules.delete(rule.id)
         XCTAssertFalse(rules.isWatched(trip.key))
     }
@@ -175,6 +183,24 @@ final class AlertRulesTests: XCTestCase {
         await rules.refresh()
         XCTAssertEqual(rules.state(of: rule), .on)
         XCTAssertFalse(rules.needsReview)
+    }
+
+    /// A pause that never reached the server: the server still lists the rule as On, but the row keeps Try again.
+    func testRefreshKeepsARuleThatCouldNotBeSaved() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        var rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+
+        rule.paused = true
+        await server.setFailing(true)
+        await rules.save(rule)
+        XCTAssertEqual(rules.state(of: rule), .couldNotSave)
+
+        await server.setFailing(false)
+        await server.setStatuses([AlertRuleStatus(id: rule.id, state: .on)])
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .couldNotSave)
     }
 
     func testRefreshWithTheServerUnreachableKeepsEveryState() async {

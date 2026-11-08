@@ -89,10 +89,11 @@ final class AlertRules: WatchedTripsProviding {
         rules.first { $0.kind == .thisTrip && $0.trip == trip && $0.origin.id == route.from.id && $0.destination.id == route.to.id }
     }
 
-    /// The watched-trip strip's question (TT-144, D39): a trip is watched while a This-trip rule for it is On, as the
-    /// filled bell shows. A Repeat rule's usual train cannot be named by a trip id alone; TT-142 adds it with Repeat.
+    /// The watched-trip strip's question (TT-144, D39): a trip is watched while a This-trip rule for it is On and not
+    /// paused, as the filled bell shows. A Repeat rule's usual train cannot be named by a trip id alone; TT-142 adds it
+    /// with Repeat.
     func isWatched(_ trip: TripKey) -> Bool {
-        rules.contains { $0.kind == .thisTrip && $0.trip == trip && state(of: $0) == .on }
+        rules.contains { $0.kind == .thisTrip && $0.trip == trip && !$0.paused && state(of: $0) == .on }
     }
 
     /// The stored rule the candidate would duplicate: the same train for This trip, the same usual train for Repeat
@@ -155,14 +156,15 @@ final class AlertRules: WatchedTripsProviding {
 
     /// Reads the permission again and what the server says about each rule (TT-143): Review needed once the usual train
     /// has changed, back to On once a save cleared it, and the last day with no matching train. A rule being saved keeps
-    /// its state, and an unreachable server changes nothing. Called on coming to the foreground and on the Alerts tab.
+    /// its state, and so does one that could not be saved, since the server still has its old version and Try again
+    /// must stay offered. An unreachable server changes nothing. Called on coming to the foreground and on the Alerts tab.
     func refresh() async {
         await refreshPermission()
         guard !rules.isEmpty else { return }
         await retryPendingDeletes()
         guard let statuses = try? await server.rules(installation: installation) else { return }
         var dates = noTrainDates
-        for status in statuses where contains(status.id) && !inFlight.contains(status.id) {
+        for status in statuses where contains(status.id) && !inFlight.contains(status.id) && serverStates[status.id] != .couldNotSave {
             let state: AlertRuleState = status.state == .reviewNeeded ? .reviewNeeded : .on
             if serverStates[status.id] != state { set(state, for: status.id) }
             dates[status.id] = status.noMatchingTrainOn

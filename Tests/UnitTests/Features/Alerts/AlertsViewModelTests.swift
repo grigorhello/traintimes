@@ -113,6 +113,28 @@ final class AlertsViewModelTests: XCTestCase {
         XCTAssertEqual(saved.last, AlertsFixtures.evening, "saved on the server again with the same id")
     }
 
+    /// A second swipe while the first delete still waits on the server: its rule goes on device at once, so its row
+    /// cannot come back when the toast ends.
+    func testASecondDeleteDoesNotWaitForTheFirst() async {
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.evening, AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules)
+        await server.holdDeletes()
+
+        let first = model.delete("evening")
+        await server.waitUntilHolding()
+        let second = model.delete("morning")
+        for _ in 0..<100 where rules.rules.contains(where: { $0.id == "morning" }) { await Task.yield() }
+        XCTAssertTrue(rules.rules.isEmpty)
+        XCTAssertEqual(model.deleted?.id, "morning")
+
+        await server.release()
+        await first?.value
+        await second?.value
+        let deleted = await server.deleted
+        XCTAssertEqual(Set(deleted), ["evening", "morning"])
+    }
+
     func testTheUndoToastGoesAfterItsTime() async throws {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])

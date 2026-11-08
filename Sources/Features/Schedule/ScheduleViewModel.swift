@@ -30,6 +30,11 @@ final class ScheduleViewModel {
     /// Today's line-wide notices for the route's line that the rider has not dismissed (TT-132). They show as the
     /// "Line notice" link and never change a trip's status. Another day has none.
     private(set) var lineNotices: [LineNotice] = []
+    /// The same notices from the last load of today, kept while another day is shown: the Alerts tab's Line notices and
+    /// the notice sheet it opens (TT-143). Equal to `lineNotices` while today is shown.
+    private(set) var todayNotices: [LineNotice] = []
+    /// The line `todayNotices` were read for, so another route's line drops them.
+    @ObservationIgnored private var todayNoticesLine: Line.ID?
     /// Watched-trip strips the rider swiped away while the app runs (TT-144).
     private(set) var dismissedWatchedTrips: Set<TripKey> = []
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
@@ -233,7 +238,7 @@ final class ScheduleViewModel {
 
     /// The line notice sheet's rows, times from the one formatter the view passes in.
     func noticeRows(_ formatter: some TimeFormatting) -> [LineNoticeRow] {
-        lineNotices.map { notice in
+        todayNotices.map { notice in
             LineNoticeRow(
                 id: notice.id,
                 title: String(format: String(localized: "notice.title"), notice.lineName),
@@ -248,6 +253,7 @@ final class ScheduleViewModel {
     func dismissNotice(_ id: String) {
         dismissedNotices.dismiss(id)
         lineNotices.removeAll { $0.id == id }
+        todayNotices.removeAll { $0.id == id }
     }
 
     /// The first load, then a scroll to the present.
@@ -353,6 +359,7 @@ final class ScheduleViewModel {
             departures = []
             freshness = nil
             lineNotices = []
+            if isToday { setTodayNotices([], line: route.line) }
             relayout()
             return
         }
@@ -369,6 +376,11 @@ final class ScheduleViewModel {
         // Filtered only now, so a notice dismissed while this load ran stays hidden.
         let visible = notices.filter { !dismissedNotices.contains($0.id) }
         if visible != lineNotices { lineNotices = visible }
+        if isToday {
+            setTodayNotices(visible, line: route.line)
+        } else if route.line?.id != todayNoticesLine {
+            setTodayNotices([], line: nil)
+        }
         now = clock.now
         loaded = (day, trips, live)
         resolve()
@@ -386,6 +398,11 @@ final class ScheduleViewModel {
         if departures != self.departures { self.departures = departures }
         if freshness != self.freshness { self.freshness = freshness }
         relayout()
+    }
+
+    private func setTodayNotices(_ notices: [LineNotice], line: Line?) {
+        todayNoticesLine = line?.id
+        if notices != todayNotices { todayNotices = notices }
     }
 
     /// Today's notices for the route's line. They are read apart from the trips, so they never change a status.

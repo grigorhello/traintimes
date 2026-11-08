@@ -120,7 +120,7 @@ final class AlertsViewModel {
 
     func noticeRows(_ formatter: some TimeFormatting) -> [NoticeRow] {
         let now = clock.now
-        return notices.lineNotices.map { notice in
+        return notices.todayNotices.map { notice in
             NoticeRow(
                 id: notice.id,
                 line: notice.lineName,
@@ -156,11 +156,8 @@ final class AlertsViewModel {
         guard let index = rules.rules.firstIndex(where: { $0.id == id }) else { return nil }
         deleted = rules.rules[index]
         deletedIndex = index
-        let previous = deleteTask
-        let task = Task {
-            await previous?.value
-            await rules.delete(id)
-        }
+        // Each delete runs at once, never behind an earlier one's server call, so its row cannot come back meanwhile.
+        let task = Task { await rules.delete(id) }
         deleteTask = task
         hideToast(after: toastDuration)
         return task

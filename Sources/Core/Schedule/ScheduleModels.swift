@@ -113,11 +113,11 @@ struct LineNotice: Hashable, Sendable, Identifiable {
     let reportedAt: Date
 }
 
-/// Today's line notices for the saved route's line that the rider has not dismissed (TT-132). Schedule's view model
-/// provides them; the Alerts tab lists them apart from trip updates (TT-143).
+/// Today's line notices for the saved route's line that the rider has not dismissed (TT-132), whichever day Schedule
+/// shows. Schedule's view model provides them; the Alerts tab lists them apart from trip updates (TT-143).
 @MainActor
 protocol LineNoticesProviding: AnyObject {
-    var lineNotices: [LineNotice] { get }
+    var todayNotices: [LineNotice] { get }
 }
 
 /// The schedule as the timeline reads it: fixtures in previews and tests, the GO GTFS feed in the app (TT-130), and

@@ -50,8 +50,9 @@ final class AlertBellModel {
         self.toastDuration = toastDuration
     }
 
+    /// A rule paused on the Alerts tab (TT-143) sends nothing, so its bell is outlined.
     func bell(for trip: Trip, on route: Route) -> Bell {
-        guard let rule = rules.thisTripRule(for: trip.key, on: route) else { return .off }
+        guard let rule = rules.thisTripRule(for: trip.key, on: route), !rule.paused else { return .off }
         return switch rules.state(of: rule) {
         case .on: .on
         case .settingUp: .settingUp
@@ -59,8 +60,8 @@ final class AlertBellModel {
         }
     }
 
-    /// Arms or turns off the This-trip alert. Returns the alert setup sheet to open when notifications are not allowed
-    /// yet: on the first tap ever, or after the rider turned them off.
+    /// Arms or turns off the This-trip alert; a paused one is resumed. Returns the alert setup sheet to open when
+    /// notifications are not allowed yet: on the first tap ever, or after the rider turned them off.
     func tap(_ trip: Trip, on route: Route) async -> AlertSetupRequest? {
         guard !busy.contains(trip.key) else { return nil }
         busy.insert(trip.key)
@@ -71,11 +72,11 @@ final class AlertBellModel {
             switch rules.state(of: existing) {
             case .settingUp:
                 return nil
-            case .on:
+            case .on where !existing.paused:
                 await rules.delete(existing.id)
                 show(.off, trip: trip, route: route)
                 return nil
-            case .notificationsOff, .couldNotSave, .reviewNeeded:
+            case .on, .notificationsOff, .couldNotSave, .reviewNeeded:
                 break
             }
         }
@@ -83,7 +84,8 @@ final class AlertBellModel {
         guard rules.permission == .allowed else {
             return AlertSetupRequest(route: route, trip: trip, kind: .thisTrip)
         }
-        let rule = existing ?? AlertRule(kind: .thisTrip, trip: trip, route: route)
+        var rule = existing ?? AlertRule(kind: .thisTrip, trip: trip, route: route)
+        rule.paused = false
         show(.settingUp, trip: trip, route: route)
         await rules.save(rule)
         switch rules.state(of: rule) {

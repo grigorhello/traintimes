@@ -114,7 +114,7 @@ struct RootView: View {
                     let isSelected = router.selectedTab == .alerts
                     TabBarStyle.icon(
                         isSelected ? "bell.fill" : "bell", isSelected: isSelected,
-                        showsDot: router.showsAlertsDot || alertsModel.showsTabDot, colorScheme: colorScheme
+                        showsDot: !isSelected && (router.showsAlertsDot || alertsModel.showsTabDot), colorScheme: colorScheme
                     )
                 }
             }
@@ -158,8 +158,9 @@ struct RootView: View {
             guard scenePhase == .active else { return }
             await refreshAlerts()
         }
-        // Opening the Alerts tab turns its dot off (TT-143).
-        .onChange(of: router.selectedTab) { _, tab in
+        // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
+        .onChange(of: router.selectedTab) { old, tab in
+            if old == .alerts { alertsModel.markReviewsSeen() }
             guard tab == .alerts else { return }
             router.showsAlertsDot = false
             alertsModel.markReviewsSeen()

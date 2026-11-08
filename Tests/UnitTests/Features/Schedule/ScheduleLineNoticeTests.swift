@@ -60,7 +60,11 @@ final class ScheduleLineNoticeTests: XCTestCase {
         XCTAssertEqual(model.lineNotices.count, 1)
         await model.select(model.days[1])
         XCTAssertTrue(model.lineNotices.isEmpty)
+        // The Alerts tab and its notice sheet still list today's notice (TT-143).
+        XCTAssertEqual(model.todayNotices.count, 1)
+        XCTAssertEqual(model.noticeRows(TimeFormatter(format: .twelveHour)).count, 1)
         await model.backToNow()
         XCTAssertEqual(model.lineNotices.count, 1)
+        XCTAssertEqual(model.todayNotices, model.lineNotices)
     }
 }

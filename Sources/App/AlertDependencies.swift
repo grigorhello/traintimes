@@ -10,7 +10,9 @@ struct AlertDependencies {
     let push: any PushRegistering
     let permissions: any NotificationPermissionProviding
     let defaults: UserDefaults?
-    /// How long the bell's toast shows (TT-141).
+    /// The notifications Notification Center still shows, for Recent updates (TT-143); none in fixture runs.
+    var delivered: any DeliveredNotificationsProviding = FixedDeliveredNotifications()
+    /// How long the bell's toast and the Alerts tab's undo toast show (TT-141, TT-143).
     var toastDuration: Duration = .seconds(5)
 
     static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> AlertDependencies {
@@ -34,11 +36,16 @@ struct AlertDependencies {
         }
         #endif
         return AlertDependencies(
-            server: HTTPAlertServer(), push: SystemPushRegistration.shared, permissions: SystemNotificationPermission(), defaults: .standard
+            server: HTTPAlertServer(), push: SystemPushRegistration.shared, permissions: SystemNotificationPermission(), defaults: .standard,
+            delivered: SystemDeliveredNotifications()
         )
     }
 
     func rules(settings: AppSettings) -> AlertRules {
         AlertRules(server: server, push: push, permissions: permissions, settings: settings, defaults: defaults)
+    }
+
+    func updates(clock: any AppClock) -> AlertUpdates {
+        AlertUpdates(source: delivered, clock: clock, defaults: defaults)
     }
 }

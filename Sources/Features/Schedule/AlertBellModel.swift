@@ -35,11 +35,14 @@ final class AlertBellModel {
     private(set) var toast: AlertToast?
     /// Counts alerts turned on, for the light haptic.
     private(set) var enabledCount = 0
+    /// "Tap the bell on a train" for 5 s, after the Alerts tab's "Add alert" (TT-143).
+    private(set) var showsHint = false
     private let toastDuration: Duration
     /// Trains whose tap is being handled, so repeated taps send one request.
     @ObservationIgnored private var busy: Set<TripKey> = []
     @ObservationIgnored private var toastCount = 0
     @ObservationIgnored private var hideTask: Task<Void, Never>?
+    @ObservationIgnored private var hintTask: Task<Void, Never>?
 
     /// A toast shows for 5 s.
     init(rules: AlertRules, toastDuration: Duration = .seconds(5)) {
@@ -47,8 +50,9 @@ final class AlertBellModel {
         self.toastDuration = toastDuration
     }
 
+    /// A rule paused on the Alerts tab (TT-143) sends nothing, so its bell is outlined.
     func bell(for trip: Trip, on route: Route) -> Bell {
-        guard let rule = rules.thisTripRule(for: trip.key, on: route) else { return .off }
+        guard let rule = rules.thisTripRule(for: trip.key, on: route), !rule.paused else { return .off }
         return switch rules.state(of: rule) {
         case .on: .on
         case .settingUp: .settingUp
@@ -56,8 +60,8 @@ final class AlertBellModel {
         }
     }
 
-    /// Arms or turns off the This-trip alert. Returns the alert setup sheet to open when notifications are not allowed
-    /// yet: on the first tap ever, or after the rider turned them off.
+    /// Arms or turns off the This-trip alert; a paused one is resumed. Returns the alert setup sheet to open when
+    /// notifications are not allowed yet: on the first tap ever, or after the rider turned them off.
     func tap(_ trip: Trip, on route: Route) async -> AlertSetupRequest? {
         guard !busy.contains(trip.key) else { return nil }
         busy.insert(trip.key)
@@ -68,11 +72,11 @@ final class AlertBellModel {
             switch rules.state(of: existing) {
             case .settingUp:
                 return nil
-            case .on:
+            case .on where !existing.paused:
                 await rules.delete(existing.id)
                 show(.off, trip: trip, route: route)
                 return nil
-            case .notificationsOff, .couldNotSave, .reviewNeeded:
+            case .on, .notificationsOff, .couldNotSave, .reviewNeeded:
                 break
             }
         }
@@ -80,7 +84,8 @@ final class AlertBellModel {
         guard rules.permission == .allowed else {
             return AlertSetupRequest(route: route, trip: trip, kind: .thisTrip)
         }
-        let rule = existing ?? AlertRule(kind: .thisTrip, trip: trip, route: route)
+        var rule = existing ?? AlertRule(kind: .thisTrip, trip: trip, route: route)
+        rule.paused = false
         show(.settingUp, trip: trip, route: route)
         await rules.save(rule)
         switch rules.state(of: rule) {
@@ -100,6 +105,18 @@ final class AlertBellModel {
         guard let toast else { return nil }
         dismissToast()
         return AlertSetupRequest(route: toast.route, trip: toast.trip, kind: .repeating)
+    }
+
+    /// The hint the Alerts tab's "Add alert" leaves on Schedule, for as long as a toast shows.
+    func showHint() {
+        showsHint = true
+        hintTask?.cancel()
+        let duration = toastDuration
+        hintTask = Task { [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, let self else { return }
+            self.showsHint = false
+        }
     }
 
     func dismissToast() {

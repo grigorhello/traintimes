@@ -68,13 +68,7 @@ final class AlertSetupViewModel {
     var state: SheetState? {
         if isWorking { return .settingUp }
         guard let rule else { return nil }
-        switch rules.state(of: rule) {
-        case .settingUp: return .settingUp
-        case .on: return rule.paused ? .paused : .on
-        case .notificationsOff: return .notificationsOff
-        case .reviewNeeded: return .reviewNeeded
-        case .couldNotSave: return .couldNotSave
-        }
+        return SheetState(rules.state(of: rule), paused: rule.paused)
     }
 
     /// Off while setting up, and for a Repeat rule with no day selected.

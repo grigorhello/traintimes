@@ -112,21 +112,30 @@ struct EmptyStateCard: View {
     let title: Text
     let message: Text
     var actionTitle: Text?
+    /// The action as the primary pill ("Add alert" on the Alerts tab, TT-143) rather than accent text.
+    var isPrimaryAction = false
     var action: () -> Void = {}
 
     init(
         systemImage: String, title: LocalizedStringKey, message: LocalizedStringKey, actionTitle: LocalizedStringKey? = nil,
-        action: @escaping () -> Void = {}
+        isPrimaryAction: Bool = false, action: @escaping () -> Void = {}
     ) {
-        self.init(systemImage: systemImage, title: Text(title), message: Text(message), actionTitle: actionTitle.map { Text($0) }, action: action)
+        self.init(
+            systemImage: systemImage, title: Text(title), message: Text(message), actionTitle: actionTitle.map { Text($0) },
+            isPrimaryAction: isPrimaryAction, action: action
+        )
     }
 
     /// Copy already formatted from `Localizable.strings`, such as "No direct trains on Sunday".
-    init(systemImage: String, title: Text, message: Text, actionTitle: Text? = nil, action: @escaping () -> Void = {}) {
+    init(
+        systemImage: String, title: Text, message: Text, actionTitle: Text? = nil, isPrimaryAction: Bool = false,
+        action: @escaping () -> Void = {}
+    ) {
         self.systemImage = systemImage
         self.title = title
         self.message = message
         self.actionTitle = actionTitle
+        self.isPrimaryAction = isPrimaryAction
         self.action = action
     }
 
@@ -139,7 +148,12 @@ struct EmptyStateCard: View {
                     .padding(.bottom, TTSpace.s2)
                 title.font(TTFont.headline).foregroundStyle(TTColor.ink)
                 message.font(TTFont.subhead).foregroundStyle(TTColor.inkSecondary)
-                if let actionTitle {
+                if let actionTitle, isPrimaryAction {
+                    Button(action: action) { actionTitle }
+                        .buttonStyle(.ttPrimary)
+                        .padding(.top, TTSpace.s2)
+                        .accessibilityIdentifier("emptyState.action")
+                } else if let actionTitle {
                     Button(action: action) { actionTitle }
                         .buttonStyle(.ttText)
                         .accessibilityIdentifier("emptyState.action")

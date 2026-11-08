@@ -44,19 +44,25 @@ actor FakeAlertServer: AlertServer {
     private(set) var registrations: [InstallationRegistration] = []
     private(set) var saved: [AlertRule] = []
     private(set) var deleted: [String] = []
+    /// What `GET …/rules` answers (TT-143).
+    private(set) var statuses: [AlertRuleStatus] = []
     private var failing = false
     private var holding = false
+    private var holdingDeletes = false
     private var unknownInstallationOnce = false
     private var held: [CheckedContinuation<Void, Never>] = []
 
     var isHolding: Bool { !held.isEmpty }
 
     func setFailing(_ value: Bool) { failing = value }
+    func setStatuses(_ value: [AlertRuleStatus]) { statuses = value }
     func holdSaves() { holding = true }
+    func holdDeletes() { holdingDeletes = true }
     func answerUnknownInstallationOnce() { unknownInstallationOnce = true }
 
     func release() {
         holding = false
+        holdingDeletes = false
         held.forEach { $0.resume() }
         held = []
     }
@@ -77,11 +83,17 @@ actor FakeAlertServer: AlertServer {
     }
 
     func delete(ruleId: String, installation: String) async throws {
+        if holdingDeletes { await withCheckedContinuation { held.append($0) } }
         if failing { throw URLError(.cannotFindHost) }
         deleted.append(ruleId)
     }
 
-    /// Waits until a save is held.
+    func rules(installation: String) async throws -> [AlertRuleStatus] {
+        if failing { throw URLError(.cannotFindHost) }
+        return statuses
+    }
+
+    /// Waits until a save or a delete is held.
     func waitUntilHolding() async {
         while held.isEmpty { await Task.yield() }
     }
@@ -104,6 +116,11 @@ enum AlertFixtures {
         )
     }
 
+    /// A route on the Lakeshore West line, "Union to Oakville".
+    static func route(_ from: (String, String), _ to: (String, String)) -> Route {
+        Route(from: Station(id: from.0, name: from.1), to: Station(id: to.0, name: to.1), line: Line(id: "LW", name: "Lakeshore West", colorHex: nil))
+    }
+
     @MainActor
     static func rules(
         _ server: FakeAlertServer, permission: NotificationPermission = .allowed, settings: AppSettings? = nil,
@@ -113,5 +130,15 @@ enum AlertFixtures {
             server: server, push: FixturePushRegistration(), permissions: FakeNotificationPermission(permission),
             settings: settings, defaults: defaults
         )
+    }
+}
+
+/// Line notices without a Schedule view model, for the Alerts tab (TT-143).
+@MainActor
+final class FakeLineNotices: LineNoticesProviding {
+    var todayNotices: [LineNotice]
+
+    init(_ todayNotices: [LineNotice] = []) {
+        self.todayNotices = todayNotices
     }
 }

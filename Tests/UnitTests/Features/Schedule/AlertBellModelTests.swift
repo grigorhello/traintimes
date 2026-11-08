@@ -28,6 +28,26 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(deleted, saved.map(\.id))
     }
 
+    /// Paused on the Alerts tab (TT-143): the bell is outlined, and a tap resumes the alert instead of deleting it.
+    func testAPausedAlertShowsAnOutlinedBellAndATapResumesIt() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        _ = await bells.tap(trip, on: route)
+        var rule = try XCTUnwrap(rules.thisTripRule(for: trip.key, on: route))
+        rule.paused = true
+        await rules.save(rule)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off)
+
+        _ = await bells.tap(trip, on: route)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+        XCTAssertEqual(bells.toast?.kind, .on)
+        XCTAssertEqual(rules.rules.map(\.id), [rule.id], "the same rule, not deleted")
+        XCTAssertEqual(rules.rules.first?.paused, false)
+        let deleted = await server.deleted
+        XCTAssertTrue(deleted.isEmpty)
+    }
+
     func testWithoutPermissionTheTapOpensTheSetupSheet() async {
         for permission in [NotificationPermission.notAsked, .off] {
             let server = FakeAlertServer()

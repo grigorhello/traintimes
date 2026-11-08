@@ -138,6 +138,14 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertTrue(rules.isWatched(trip.key))
         XCTAssertFalse(rules.isWatched(AlertFixtures.trip("LW-0758-20261105").key))
 
+        // Paused on the Alerts tab (TT-143): no notifications, so not watched.
+        var paused = rule
+        paused.paused = true
+        await rules.save(paused)
+        XCTAssertFalse(rules.isWatched(trip.key))
+        await rules.save(rule)
+        XCTAssertTrue(rules.isWatched(trip.key))
+
         await rules.delete(rule.id)
         XCTAssertFalse(rules.isWatched(trip.key))
     }
@@ -154,5 +162,74 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(relaunched.rules, [rule])
         XCTAssertEqual(relaunched.state(of: rule), .on)
         XCTAssertEqual(rule.trip, AlertFixtures.trip().key)
+    }
+
+    // MARK: Alerts tab (TT-143)
+
+    func testRefreshReadsReviewNeededFromTheServerAndBackToOnOnceCleared() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+
+        await server.setStatuses([AlertRuleStatus(id: rule.id, state: .reviewNeeded, noMatchingTrainOn: "20261105")])
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .reviewNeeded)
+        XCTAssertTrue(rules.needsReview)
+        XCTAssertTrue(rules.hasNoMatchingTrain(rule, on: ServiceDay(year: 2026, month: 11, day: 5)))
+        XCTAssertFalse(rules.hasNoMatchingTrain(rule, on: ServiceDay(year: 2026, month: 11, day: 6)))
+
+        await server.setStatuses([AlertRuleStatus(id: rule.id, state: .on)])
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .on)
+        XCTAssertFalse(rules.needsReview)
+    }
+
+    /// A pause that never reached the server: the server still lists the rule as On, but the row keeps Try again.
+    func testRefreshKeepsARuleThatCouldNotBeSaved() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        var rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+
+        rule.paused = true
+        await server.setFailing(true)
+        await rules.save(rule)
+        XCTAssertEqual(rules.state(of: rule), .couldNotSave)
+
+        await server.setFailing(false)
+        await server.setStatuses([AlertRuleStatus(id: rule.id, state: .on)])
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .couldNotSave)
+    }
+
+    func testRefreshWithTheServerUnreachableKeepsEveryState() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        await rules.save(rule)
+
+        await server.setFailing(true)
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .on)
+    }
+
+    func testRestorePutsADeletedRuleBackAndSavesItAgainWithTheSameId() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let first = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        let second = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0758-20261105", departure: "12:58"), route: route)
+        await rules.save(first)
+        await rules.save(second)
+
+        await rules.delete(first.id)
+        await rules.restore(first, at: 1)
+
+        XCTAssertEqual(rules.rules.map(\.id), [second.id, first.id])
+        XCTAssertEqual(rules.state(of: first), .on)
+        let deleted = await server.deleted
+        let saved = await server.saved
+        XCTAssertEqual(deleted, [first.id])
+        XCTAssertEqual(saved.map(\.id), [first.id, second.id, first.id])
     }
 }

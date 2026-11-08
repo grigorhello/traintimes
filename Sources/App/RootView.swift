@@ -18,6 +18,8 @@ struct RootView: View {
     @State private var bells: AlertBellModel
     /// The alert setup sheet for a train (TT-142), made each time it opens.
     @State private var alertSetup: AlertSetupViewModel?
+    /// The Alerts tab (TT-143): the rules, recent updates and the saved route's line notices.
+    @State private var alertsModel: AlertsViewModel
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -33,7 +35,8 @@ struct RootView: View {
         favourites: Favourites = Favourites(),
         dismissedNotices: DismissedNotices = DismissedNotices(),
         alertDependencies: AlertDependencies = .app(),
-        bells: AlertBellModel? = nil
+        bells: AlertBellModel? = nil,
+        alertUpdates: AlertUpdates? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.toastDuration
@@ -52,6 +55,15 @@ struct RootView: View {
         )
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
+        _alertsModel = State(
+            initialValue: AlertsViewModel(
+                rules: bells.rules,
+                updates: alertUpdates ?? alertDependencies.updates(clock: dependencies.clock),
+                notices: schedule,
+                clock: dependencies.clock,
+                toastDuration: alertDependencies.toastDuration
+            )
+        )
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -90,16 +102,23 @@ struct RootView: View {
             }
             .tag(AppTab.schedule)
 
-            AlertsView()
-                .tabItem {
-                    Label { Text("tab.alerts") } icon: {
-                        let isSelected = router.selectedTab == .alerts
-                        TabBarStyle.icon(
-                            isSelected ? "bell.fill" : "bell", isSelected: isSelected, showsDot: router.showsAlertsDot, colorScheme: colorScheme
-                        )
-                    }
+            AlertsView(
+                viewModel: alertsModel,
+                onAddAlert: { addAlert() },
+                onOpenRule: { openAlertSetup($0) },
+                onOpenUpdate: { link in Task { await open(link) } },
+                onOpenLineNotice: { router.present(.lineNotices) }
+            )
+            .tabItem {
+                Label { Text("tab.alerts") } icon: {
+                    let isSelected = router.selectedTab == .alerts
+                    TabBarStyle.icon(
+                        isSelected ? "bell.fill" : "bell", isSelected: isSelected,
+                        showsDot: !isSelected && (router.showsAlertsDot || alertsModel.showsTabDot), colorScheme: colorScheme
+                    )
                 }
-                .tag(AppTab.alerts)
+            }
+            .tag(AppTab.alerts)
         }
         .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
@@ -133,11 +152,32 @@ struct RootView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
         .environment(\.timeFormatter, settings.timeFormatter)
         .preferredColorScheme(settings.appearance.colorScheme)
-        // Notifications may have been allowed or turned off in Settings while the app was away (TT-141).
+        // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
+        // review and notifications may have arrived (TT-143).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
-            await alerts.refreshPermission()
+            await refreshAlerts()
         }
+        // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
+        .onChange(of: router.selectedTab) { old, tab in
+            if old == .alerts { alertsModel.markReviewsSeen() }
+            guard tab == .alerts else { return }
+            router.showsAlertsDot = false
+            alertsModel.markReviewsSeen()
+            Task { await refreshAlerts() }
+        }
+    }
+
+    /// The rules' states and the recent updates; a rule needing review shown on the open Alerts tab is seen.
+    private func refreshAlerts() async {
+        await alertsModel.refresh()
+        if router.selectedTab == .alerts { alertsModel.markReviewsSeen() }
+    }
+
+    /// The Alerts tab's "Add alert": the Schedule tab with "Tap the bell on a train" for 5 s.
+    private func addAlert() {
+        router.showSchedule()
+        bells.showHint()
     }
 
     /// The alert setup sheet for a train (TT-142).

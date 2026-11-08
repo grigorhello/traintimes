@@ -43,7 +43,7 @@ struct LineNoticeSheet: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(TTColor.surface)
-        .onChange(of: viewModel.lineNotices.isEmpty) { _, isEmpty in
+        .onChange(of: viewModel.todayNotices.isEmpty) { _, isEmpty in
             if isEmpty { dismiss() }
         }
         .accessibilityElement(children: .contain)

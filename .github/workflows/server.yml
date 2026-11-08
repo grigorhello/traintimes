@@ -9,6 +9,7 @@ on:
       - 'Tests/UnitTests/Core/Realtime/*.pb'
       - 'Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip'
       - '.github/workflows/server.yml'
+      - '.github/workflows/server-timetable.yml'
   push:
     branches: [main]
     paths:
@@ -17,6 +18,7 @@ on:
       - 'Tests/UnitTests/Core/Realtime/*.pb'
       - 'Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip'
       - '.github/workflows/server.yml'
+      - '.github/workflows/server-timetable.yml'
   workflow_dispatch:
 
 permissions:

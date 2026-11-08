@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type { Push, PushResult } from '../src/apns.ts';
+import { saveTimetable } from '../src/monitor.ts';
 import { decodeFeed, type Feed } from '../src/realtime.ts';
+import { importTimetables } from '../src/timetable.ts';
 
 const repo = join(import.meta.dirname, '..', '..');
 
@@ -19,6 +21,13 @@ export function sampleFeed(time: '0700' | '0701' | '0702'): Feed {
 
 /** The TT-130 sample GTFS: Lakeshore West and Kitchener trips on Nov 8, 9 and 27, 2026. */
 export const sampleGTFS = () => repoFile('Tests/UnitTests/Core/GTFS/go-gtfs-sample.zip');
+
+/** Stores the sample timetable for these dates, as the daily upload would (D43). */
+export async function saveSampleTimetables(db: D1Database, dates: string[]): Promise<void> {
+  for (const [date, trips] of await importTimetables(sampleGTFS(), dates)) {
+    if (Object.keys(trips).length > 0) await saveTimetable(db, date, JSON.stringify(trips), Date.parse('2026-11-09T08:40:00Z'));
+  }
+}
 
 /** Epoch ms of a Toronto wall-clock time on Monday Nov 9, 2026 (EST, UTC-5). */
 export function at(hhmm: string, date = '2026-11-09'): number {

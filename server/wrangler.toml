@@ -7,15 +7,18 @@ compatibility_date = "2026-11-01"
 routes = [{ pattern = "alerts.traintimes.ca", custom_domain = true }]
 
 [triggers]
-# Every minute: the monitoring cycle. Hourly: timetable refresh and retention (HOURLY in src/index.ts).
-crons = ["* * * * *", "17 * * * *"]
+# Every minute: the monitoring cycle. Daily at 3:17 AM EST (4:17 AM EDT): retention (DAILY in src/index.ts).
+crons = ["* * * * *", "17 8 * * *"]
 
-# CPU: the hourly timetable import takes about 2 s on a full-size feed and the minute cycle tens of ms, past the Free
-# plan's 10 ms, so the Worker needs the Workers Paid plan (30 s per minute cycle, 15 min per hourly run).
+# Workers Free plan (D43): 10 ms of CPU and 50 outside requests per run, 100,000 requests a day; D1 Free: 5 million
+# rows read and 100,000 written a day. The timetable import (about 2 s of CPU) runs in GitHub Actions instead
+# (.github/workflows/server-timetable.yml), and a minute cycle reads only what it watches (src/monitor.ts).
 
 [vars]
 APNS_TOPIC = "ca.traintimes.TrainTimes"
 TRIP_UPDATES_URL = "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/TripUpdates"
+# The workflow whose GitHub OIDC token may upload timetables (src/upload.ts).
+TIMETABLE_WORKFLOW = "grigorhello/traintimes/.github/workflows/server-timetable.yml@refs/heads/main"
 
 [[d1_databases]]
 binding = "DB"

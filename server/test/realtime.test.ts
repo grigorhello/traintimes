@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decide, hasDeparted } from '../src/alerts.ts';
-import { liveStatus, tripUpdatesOn, type Call } from '../src/realtime.ts';
+import { decodeFeed, liveStatus, tripUpdatesOn, type Call } from '../src/realtime.ts';
 import { importTimetables } from '../src/timetable.ts';
 import { gtfsInstant } from '../src/time.ts';
-import { at, sampleFeed, sampleGTFS } from './support.ts';
+import { at, repoFile, sampleFeed, sampleGTFS } from './support.ts';
 
 const timetable = (await importTimetables(sampleGTFS(), ['20261109'])).get('20261109')!;
 
@@ -67,4 +67,13 @@ test('alert rules: thresholds, steps, status changes and coalescing', () => {
   assert.equal(decide({ kind: 'skipped-origin', delayMin: null, at: at('7:00') }, { kind: 'skipped', stop: 'destination', reportedAt: now }, now)?.kind, 'skipped');
   assert.equal(hasDeparted(running(5), at('7:35')), true);
   assert.equal(hasDeparted(running(5), at('7:34')), false);
+});
+
+test('decodes only the watched trips when given them (Workers Free plan CPU, D43)', () => {
+  const bytes = repoFile('Tests/UnitTests/Core/Realtime/tripupdates-0700.pb');
+  const all = decodeFeed(bytes);
+  const watched = all.tripUpdates[1];
+  const some = decodeFeed(bytes, new Set([watched.tripId]));
+  assert.ok(all.tripUpdates.length > 1);
+  assert.deepEqual(some, { timestamp: all.timestamp, tripUpdates: [watched] });
 });

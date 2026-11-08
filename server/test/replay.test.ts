@@ -5,19 +5,19 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
 import { handleRequest } from '../src/api.ts';
-import { monitor, refreshTimetables } from '../src/monitor.ts';
+import { MAX_SENDS, monitor } from '../src/monitor.ts';
 import type { Feed } from '../src/realtime.ts';
-import { at, call, FakeApns, INSTALLATION, memoryD1, sampleFeed, sampleGTFS, TOKEN } from './support.ts';
+import { at, call, FakeApns, INSTALLATION, memoryD1, sampleFeed, saveSampleTimetables, TOKEN } from './support.ts';
 
 let db: D1Database;
 let apns: FakeApns;
 const api = (request: Request) => handleRequest(request, db, at('6:30'));
 
 /** Registers the device and arms This-trip alerts, Oakville to Union, for trains on Monday Nov 9. */
-async function setUp(trains: Record<string, string>, timeFormat = '12h') {
-  assert.equal((await call(api, 'PUT', `/v1/installations/${INSTALLATION}`, { deviceToken: TOKEN, timeFormat })).status, 204);
+async function setUp(trains: Record<string, string>, timeFormat = '12h', installation = INSTALLATION) {
+  assert.equal((await call(api, 'PUT', `/v1/installations/${installation}`, { deviceToken: TOKEN, timeFormat })).status, 204);
   for (const [trip, departure] of Object.entries(trains)) {
-    const response = await call(api, 'PUT', `/v1/installations/${INSTALLATION}/rules/${trip}`, {
+    const response = await call(api, 'PUT', `/v1/installations/${installation}/rules/${trip}`, {
       kind: 'trip',
       tripId: `20261109-${trip}`,
       serviceDate: '20261109',
@@ -50,7 +50,8 @@ function delayFeed(time: string, trip: string, minutes: number): Feed {
 beforeEach(async () => {
   db = memoryD1();
   apns = new FakeApns();
-  assert.equal(await refreshTimetables(db, async () => sampleGTFS(), at('3:30')), 1);
+  // As the daily upload of Nov 9 sends it: Nov 9 to 16, of which the sample has Nov 9 (D43).
+  await saveSampleTimetables(db, ['20261109', '20261110', '20261111', '20261112', '20261113', '20261114', '20261115', '20261116']);
 });
 
 describe('feed replay', () => {
@@ -65,9 +66,10 @@ describe('feed replay', () => {
     assert.deepEqual(await cycle('7:01:05', sampleFeed('0701')), [
       '7:28 AM train cancelled | Oakville to Union. Cancelled, as reported at 7:00 AM. Open to see the next trains.',
     ]);
+    // The 7:44 had no alert yet, so it goes before the 7:21's update.
     assert.deepEqual(await cycle('7:02:05', sampleFeed('0702')), [
-      '7:21 AM train back on time | Oakville to Union. Expected 7:22 AM, as reported at 7:02 AM.',
       '7:44 AM train will skip Oakville | Skips Oakville, as reported at 7:02 AM. Open to see the next trains.',
+      '7:21 AM train back on time | Oakville to Union. Expected 7:22 AM, as reported at 7:02 AM.',
     ]);
     // The same feed read again, and the same states in later feeds, send nothing.
     assert.deepEqual(await cycle('7:03:05', sampleFeed('0702')), []);
@@ -180,6 +182,47 @@ describe('feed replay', () => {
       weekdays: [1, 2, 3, 4, 5],
     });
     assert.equal((await cycle('7:00:05', sampleFeed('0700'))).length, 1);
+  });
+
+  test(`at most ${MAX_SENDS} APNs calls a cycle (Workers Free plan); the rest go the next minute`, async () => {
+    const riders = Array.from({ length: MAX_SENDS + 5 }, (_, i) => `6f1c2a9e-3b4d-4c5e-9f60-${String(i).padStart(12, '0')}`);
+    for (const rider of riders) await setUp({ 'LW-1308': '7:51' }, '12h', rider);
+    assert.equal((await cycle('7:04', delayFeed('7:04', 'LW-1308', 4))).length, MAX_SENDS);
+    assert.equal((await cycle('7:05', delayFeed('7:05', 'LW-1308', 4))).length, 5);
+    assert.equal((await cycle('7:06', delayFeed('7:06', 'LW-1308', 4))).length, 0);
+  });
+
+  test('past the cap, riders sent nothing yet go before updates', async () => {
+    const riders = Array.from({ length: MAX_SENDS + 5 }, (_, i) => `6f1c2a9e-3b4d-4c5e-9f60-${String(i).padStart(12, '0')}`);
+    for (const rider of riders) await setUp({ 'LW-1308': '7:51' }, '12h', rider);
+    await cycle('7:04', delayFeed('7:04', 'LW-1308', 4));
+    // The delay grows 5 min a minute: 45 updates are due, and 5 riders still have no alert.
+    await cycle('7:05', delayFeed('7:05', 'LW-1308', 10));
+    const alerted = await db.prepare('SELECT COUNT(*) AS n FROM watches WHERE sent_kind IS NOT NULL').first<{ n: number }>();
+    assert.equal(alerted!.n, riders.length);
+  });
+
+  test('a late train is still watched after the service day changes at 3 AM', async () => {
+    await call(api, 'PUT', `/v1/installations/${INSTALLATION}`, { deviceToken: TOKEN, timeFormat: '12h' });
+    // Sunday Nov 8's 26:50 train (2:50 AM Monday), checked at 3:10 AM, when Monday's service day has begun.
+    await call(api, 'PUT', `/v1/installations/${INSTALLATION}/rules/late`, {
+      kind: 'trip',
+      tripId: '20261108-LW-9999',
+      serviceDate: '20261108',
+      line: 'LW',
+      scheduledDeparture: new Date(at('2:50')).toISOString(),
+      origin: { id: 'OA', name: 'Oakville' },
+      destination: { id: 'UN', name: 'Union' },
+    });
+    const late: Feed = {
+      timestamp: at('3:10'),
+      tripUpdates: [
+        { tripId: '20261108-LW-9999', startDate: '20261108', cancelled: false, stopTimeUpdates: [{ stopId: 'OA', relationship: 'scheduled', departure: { delay: 1800 } }] },
+      ],
+    };
+    assert.deepEqual(await cycle('3:10', late), [
+      '2:50 AM train delayed 30 min | Oakville to Union. Now expected 3:20 AM, as reported at 3:10 AM.',
+    ]);
   });
 
   test('a deleted or paused rule stops within one cycle', async () => {

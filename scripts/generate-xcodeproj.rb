@@ -104,7 +104,8 @@ app.build_configurations.each do |config|
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon', # Resources/AppIcon.xcassets (TT-103)
     'PRODUCT_NAME' => '$(TARGET_NAME)',
     'PRODUCT_BUNDLE_IDENTIFIER' => BUNDLE_ID,
-    'MARKETING_VERSION' => '0.1.0',
+    # D47: the TestFlight workflow sets CURRENT_PROJECT_VERSION to its run number when it archives.
+    'MARKETING_VERSION' => '1.0',
     'CURRENT_PROJECT_VERSION' => '1',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     'INFOPLIST_KEY_CFBundleDisplayName' => 'Train Times',
@@ -116,6 +117,7 @@ app.build_configurations.each do |config|
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D25: UIDesignRequiresCompatibility keeps the classic bars from the frames (TT-104).
     # D36: MetrolinxAPIKey comes from the METROLINX_API_KEY setting in Config/App.xcconfig (TT-131).
+    # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).
     'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',
@@ -144,7 +146,7 @@ unit.build_configurations.each do |config|
     'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes',
     'CODE_SIGN_STYLE' => 'Automatic',
     'CURRENT_PROJECT_VERSION' => '1',
-    'MARKETING_VERSION' => '0.1.0',
+    'MARKETING_VERSION' => '1.0',
     # Snapshot references are read from the source tree (#filePath). Bundling them would copy every
     # __Snapshots__/<Class>/<test>.1.png flat into the bundle, and two classes with the same test name collide.
     'EXCLUDED_SOURCE_FILE_NAMES' => '.gitkeep *.png'
@@ -164,7 +166,7 @@ ui.build_configurations.each do |config|
     'TEST_TARGET_NAME' => 'TrainTimes',
     'CODE_SIGN_STYLE' => 'Automatic',
     'CURRENT_PROJECT_VERSION' => '1',
-    'MARKETING_VERSION' => '0.1.0'
+    'MARKETING_VERSION' => '1.0'
   )
 end
 

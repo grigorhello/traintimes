@@ -1,0 +1,77 @@
+name: TestFlight
+
+# Archives the app and uploads it to TestFlight (TT-154, D47). Start it from Actions › TestFlight › Run workflow.
+# Secrets (Settings › Secrets and variables › Actions): ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8, an App Store Connect
+# API key with the Admin role, and METROLINX_API_KEY once it arrives (without it the build shows the timetable only).
+# On a pull request that changes the release files it only checks that the Release archive builds, unsigned.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/testflight.yml
+      - scripts/testflight.sh
+      - scripts/asc-signing.mjs
+      - scripts/generate-xcodeproj.rb
+      - Config/**
+
+concurrency:
+  group: testflight-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Archive and upload
+    runs-on: macos-latest
+    timeout-minutes: 45
+    outputs:
+      certificate: ${{ steps.upload.outputs.certificate }}
+      profile: ${{ steps.upload.outputs.profile }}
+      build: ${{ steps.upload.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Release archive builds (unsigned)
+        if: github.event_name == 'pull_request'
+        env:
+          DRY_RUN: 1
+        run: scripts/testflight.sh
+
+      - name: Archive and upload to App Store Connect
+        id: upload
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/testflight.sh
+
+  processed:
+    name: Wait for TestFlight processing
+    needs: upload
+    if: always() && github.event_name == 'workflow_dispatch' && needs.upload.outputs.certificate != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Wait until TestFlight has processed the build
+        if: needs.upload.result == 'success'
+        env:
+          BUILD_NUMBER: ${{ needs.upload.outputs.build }}
+        run: node scripts/asc-signing.mjs wait
+
+      - name: Revoke this run's certificate and profile
+        if: always()
+        env:
+          ASC_CERTIFICATE_ID: ${{ needs.upload.outputs.certificate }}
+          ASC_PROFILE_ID: ${{ needs.upload.outputs.profile }}
+        run: node scripts/asc-signing.mjs cleanup

@@ -390,42 +390,7 @@
 			};
 			name = Release;
 		};
-		0DA6A2D7817FD044ADAB20648392C693 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_ENTITLEMENTS = Config/TrainTimes.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
-				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		19F3F2B58556D7EF20BDC81AF6BCC820 /* Debug */ = {
+		192EA7740768A54B391B91991E3F8189 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
@@ -433,7 +398,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -441,28 +406,7 @@
 			};
 			name = Debug;
 		};
-		6D095CE9938E9CD83475D48A0D64F74E /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					.gitkeep,
-					"*.png",
-				);
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.Tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes";
-			};
-			name = Debug;
-		};
-		88E2AB329CE4C88A8263D32777EE360F /* Release */ = {
+		50E5198AF475557AADDF7FA0225CE764 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
@@ -470,7 +414,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -553,7 +497,29 @@
 			};
 			name = Debug;
 		};
-		A549AE7D10BF9490478741282F884239 /* Release */ = {
+		A1AD530AF883A2A1D974A0D3710F8ABB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					.gitkeep,
+					"*.png",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AAFECBAADE4F34E8FF79FBE984C332DE /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -582,7 +548,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -592,7 +558,42 @@
 			};
 			name = Release;
 		};
-		E37E1CA8163847D280DA889D87EC64CA /* Release */ = {
+		B4BD385E015F1111B72C8969EB25818A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = Config/TrainTimes.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		E8E1A18053E7550B4B7E8FE9C4E20197 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -605,14 +606,13 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrainTimes.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TrainTimes";
-				VALIDATE_PRODUCT = YES;
 			};
-			name = Release;
+			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
@@ -629,8 +629,8 @@
 		55F64983617E2B83DA518BF5E87E24AA /* Build configuration list for PBXNativeTarget "TrainTimesUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				88E2AB329CE4C88A8263D32777EE360F /* Release */,
-				19F3F2B58556D7EF20BDC81AF6BCC820 /* Debug */,
+				50E5198AF475557AADDF7FA0225CE764 /* Release */,
+				192EA7740768A54B391B91991E3F8189 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -638,8 +638,8 @@
 		64472B7CA632563D4CBD65A1990AFFB2 /* Build configuration list for PBXNativeTarget "TrainTimesTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E37E1CA8163847D280DA889D87EC64CA /* Release */,
-				6D095CE9938E9CD83475D48A0D64F74E /* Debug */,
+				A1AD530AF883A2A1D974A0D3710F8ABB /* Release */,
+				E8E1A18053E7550B4B7E8FE9C4E20197 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -647,8 +647,8 @@
 		7EB63B44AD525181B15DC311BAC986E2 /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A549AE7D10BF9490478741282F884239 /* Release */,
-				0DA6A2D7817FD044ADAB20648392C693 /* Debug */,
+				AAFECBAADE4F34E8FF79FBE984C332DE /* Release */,
+				B4BD385E015F1111B72C8969EB25818A /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -108,7 +108,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 16. First use shows empty fields and a disabled Show trains button; picking From opens To.
 - Simulator and CI: **passes.** `RouteTests.testFirstUseShowsTrainsAndRelaunchOpensTheRoute`, `RouteFormViewModelTests.testFirstUseTakesTwoPicksAndOneTap`, `testUnionIsSuggestedFirstWhenChoosingTo`, snapshots `RouteFormSnapshotTests.testFirstUseLight/Dark`.
-- iPhone: fresh install: both fields "Choose a station" in grey, Show trains grey and inert; pick From: the sheet turns to To with Union Station GO first.
+- iPhone: fresh install: the rows read "Choose starting station" and "Choose destination" in grey, Show trains grey and inert; pick From: the sheet turns to To with Union Station GO first.
 - [ ] Light
 - [ ] Dark
 

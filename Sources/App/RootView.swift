@@ -113,11 +113,9 @@ struct RootView: View {
 
             SettingsView(viewModel: settingsModel)
                 .tabItem {
+                    // The outline gear in both states, as on the canvas; only the bell fills when selected.
                     Label { Text("tab.settings") } icon: {
-                        let isSelected = router.selectedTab == .settings
-                        TabBarStyle.icon(
-                            isSelected ? "gearshape.fill" : "gearshape", isSelected: isSelected, colorScheme: colorScheme
-                        )
+                        TabBarStyle.icon("gearshape", isSelected: router.selectedTab == .settings, colorScheme: colorScheme)
                     }
                 }
                 .tag(AppTab.settings)

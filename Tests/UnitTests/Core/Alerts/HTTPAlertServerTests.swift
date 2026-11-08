@@ -33,4 +33,31 @@ final class HTTPAlertServerTests: XCTestCase {
         XCTAssertEqual(delete.httpMethod, "DELETE")
         XCTAssertNil(delete.httpBody)
     }
+
+    /// `GET …/rules` as the server answers it (server/src/api.ts `ruleJSON`, TT-143).
+    func testRuleListReadsEachRulesState() throws {
+        let server = HTTPAlertServer()
+        let get = try server.request("GET", path: "v1/installations/abc/rules", body: nil as AlertRule?)
+        XCTAssertEqual(get.httpMethod, "GET")
+        XCTAssertEqual(get.url?.absoluteString, "https://alerts.traintimes.ca/v1/installations/abc/rules")
+        XCTAssertNil(get.httpBody)
+
+        let json = """
+        {"rules": [
+          {"id": "r1", "kind": "repeat", "tripId": "LW-0732-20261105", "serviceDate": "20261105", "line": "LW",
+           "scheduledDeparture": "2026-11-05T12:32:00.000Z", "origin": {"id": "OA", "name": "Oakville"},
+           "destination": {"id": "UN", "name": "Union"}, "weekdays": [1, 2, 3, 4, 5], "paused": false,
+           "state": "reviewNeeded", "noMatchingTrainOn": null},
+          {"id": "r2", "kind": "trip", "tripId": "LW-0758-20261105", "serviceDate": "20261105", "line": "LW",
+           "scheduledDeparture": "2026-11-05T12:58:00.000Z", "origin": {"id": "OA", "name": "Oakville"},
+           "destination": {"id": "UN", "name": "Union"}, "weekdays": [], "paused": true, "state": "on",
+           "noMatchingTrainOn": "20261105"}
+        ]}
+        """
+        let list = try JSONDecoder().decode(HTTPAlertServer.RuleList.self, from: Data(json.utf8))
+        XCTAssertEqual(list.rules, [
+            AlertRuleStatus(id: "r1", state: .reviewNeeded, noMatchingTrainOn: nil),
+            AlertRuleStatus(id: "r2", state: .on, noMatchingTrainOn: "20261105"),
+        ])
+    }
 }

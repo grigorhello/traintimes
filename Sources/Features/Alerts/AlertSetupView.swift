@@ -173,13 +173,7 @@ struct AlertSetupView: View {
 
     /// The rule state in words with its icon (canvas `.state`); "Could not save · Try again" saves again.
     @ViewBuilder private func stateLine(_ state: AlertSetupViewModel.SheetState) -> some View {
-        let line = HStack(spacing: TTSpace.s1) {
-            if let symbol = Self.symbol(state) { Image(systemName: symbol).accessibilityHidden(true) }
-            Text(Self.text(state))
-        }
-        .font(TTFont.footnote)
-        .foregroundStyle(Self.ink(state))
-        .frame(maxWidth: .infinity)
+        let line = AlertStateLabel(state: state).frame(maxWidth: .infinity)
         if state == .couldNotSave {
             Button { Task { await viewModel.save() } } label: { line.frame(minHeight: TTSize.targetMin) }
                 .buttonStyle(PressScaleStyle())
@@ -188,37 +182,6 @@ struct AlertSetupView: View {
             line
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("alert.state")
-        }
-    }
-
-    private static func text(_ state: AlertSetupViewModel.SheetState) -> LocalizedStringKey {
-        switch state {
-        case .settingUp: "alert.state.setting_up"
-        case .on: "alert.state.on"
-        case .paused: "alert.state.paused"
-        case .notificationsOff: "alert.state.off"
-        case .reviewNeeded: "alert.state.review"
-        case .couldNotSave: "alert.state.could_not_save"
-        }
-    }
-
-    private static func symbol(_ state: AlertSetupViewModel.SheetState) -> String? {
-        switch state {
-        case .settingUp: "clock"
-        case .on: "checkmark.circle.fill"
-        case .paused: nil
-        case .reviewNeeded: "clock.badge.exclamationmark"
-        case .notificationsOff, .couldNotSave: "xmark.octagon.fill"
-        }
-    }
-
-    private static func ink(_ state: AlertSetupViewModel.SheetState) -> Color {
-        switch state {
-        case .settingUp, .paused: TTColor.inkSecondary
-        // Alert rule On states use the accent (requirements' token table, canvas `.phone .state.on`).
-        case .on: TTColor.accent
-        case .reviewNeeded: TTColor.delayInk
-        case .notificationsOff, .couldNotSave: TTColor.cancelInk
         }
     }
 }

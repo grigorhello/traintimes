@@ -35,11 +35,14 @@ final class AlertBellModel {
     private(set) var toast: AlertToast?
     /// Counts alerts turned on, for the light haptic.
     private(set) var enabledCount = 0
+    /// "Tap the bell on a train" for 5 s, after the Alerts tab's "Add alert" (TT-143).
+    private(set) var showsHint = false
     private let toastDuration: Duration
     /// Trains whose tap is being handled, so repeated taps send one request.
     @ObservationIgnored private var busy: Set<TripKey> = []
     @ObservationIgnored private var toastCount = 0
     @ObservationIgnored private var hideTask: Task<Void, Never>?
+    @ObservationIgnored private var hintTask: Task<Void, Never>?
 
     /// A toast shows for 5 s.
     init(rules: AlertRules, toastDuration: Duration = .seconds(5)) {
@@ -100,6 +103,18 @@ final class AlertBellModel {
         guard let toast else { return nil }
         dismissToast()
         return AlertSetupRequest(route: toast.route, trip: toast.trip, kind: .repeating)
+    }
+
+    /// The hint the Alerts tab's "Add alert" leaves on Schedule, for as long as a toast shows.
+    func showHint() {
+        showsHint = true
+        hintTask?.cancel()
+        let duration = toastDuration
+        hintTask = Task { [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, let self else { return }
+            self.showsHint = false
+        }
     }
 
     func dismissToast() {

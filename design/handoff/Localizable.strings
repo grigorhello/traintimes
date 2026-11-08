@@ -20,6 +20,8 @@
 "button.alert_me" = "Alert me";
 "button.manage_alert" = "Manage alert";
 "button.try_again" = "Try again";
+"button.undo" = "Undo";
+"button.delete" = "Delete";
 
 /* Schedule screen */
 "schedule.route_title" = "%@ to %@";
@@ -120,7 +122,17 @@
 "alerts.recent_updates" = "Recent updates";
 "alerts.line_notices" = "Line notices";
 "alerts.empty.title" = "No alerts yet";
-"alerts.empty.body" = "Tap the bell on a train in Schedule to get a notification when it is delayed or cancelled.";
+"alerts.empty.body" = "Tap the bell on a train to get updates about delays and cancellations.";
+"alerts.empty.footnote" = "Updates are sent as changes are reported, from 1 hour before the scheduled departure.";
+"alerts.add_hint" = "Tap the bell on a train";
+"alerts.rule.title" = "%@ · %@";
+"alerts.today_only" = "Today only";
+"alerts.no_train_today" = "%@ · No matching train today";
+"alerts.deleted" = "Alert deleted";
+"alerts.notice.summary" = "%@, as reported at %@.";
+"alerts.time.today" = "Today, %@";
+"alerts.time.yesterday" = "Yesterday, %@";
+"alerts.time.day" = "%@, %@";
 
 /* Alert setup sheet (TT-142) */
 "alert.sheet.title" = "Alert for this train";

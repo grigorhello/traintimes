@@ -223,7 +223,7 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     const next = { sent_kind: sentKind(alert), sent_delay: 'delayMin' in alert ? alert.delayMin : null, sent_at: now };
     if (!(await upsertWatch(db, rule.installation_id, key, date, watch, next, version))) continue;
     const notice = alertNotice(alert, departure, { origin: rule.origin_name, destination: rule.destination_name }, status.reportedAt, rule.time_format);
-    const result = await deliver(rule, { ...notice, expiration: expiry(departure), data: { tripId, serviceDate: date, originId: rule.origin_id, destinationId: rule.destination_id } });
+    const result = await deliver(rule, { ...notice, expiration: expiry(departure), data: { tripId, serviceDate: date, originId: rule.origin_id, destinationId: rule.destination_id, kind: alert.kind } });
     if (result === 'retry' || result === 'badToken') {
       // Not delivered: put the last sent state back so a later cycle (after the app registers again) decides again.
       const previous = { sent_kind: watch?.sent_kind ?? null, sent_delay: watch?.sent_delay ?? null, sent_at: watch?.sent_at ?? null };

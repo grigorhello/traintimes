@@ -27,8 +27,11 @@ final class AlertRules: WatchedTripsProviding {
     private(set) var rules: [AlertRule] = []
     /// The notification permission last read; nil until the first read.
     private(set) var permission: NotificationPermission?
-    /// What the server said about each rule: Setting up while a save is in flight, then On or Could not save.
+    /// What the server said about each rule: Setting up while a save is in flight, then On or Could not save, or
+    /// Review needed once the server finds the usual train changed (TT-143).
     private var serverStates: [AlertRule.ID: AlertRuleState] = [:]
+    /// The last selected day with no matching train, by rule, as the server reported it ("20261105", rule 8).
+    private var noTrainDates: [AlertRule.ID: String] = [:]
 
     /// The anonymous installation id (D5), a lowercase UUID kept on device.
     let installation: String
@@ -69,6 +72,16 @@ final class AlertRules: WatchedTripsProviding {
         let state = serverStates[rule.id] ?? .couldNotSave
         if state == .on, let permission, permission != .allowed { return .notificationsOff }
         return state
+    }
+
+    /// A rule the server set to Review needed: its usual train has changed (the Alerts tab dot, TT-143).
+    var needsReview: Bool {
+        rules.contains { state(of: $0) == .reviewNeeded }
+    }
+
+    /// The server found no matching train for this Repeat rule on that service day (rule 8): "No matching train today".
+    func hasNoMatchingTrain(_ rule: AlertRule, on day: ServiceDay) -> Bool {
+        noTrainDates[rule.id] == String(day.dateKey)
     }
 
     /// The This-trip rule for a train between the route's stations.
@@ -140,11 +153,39 @@ final class AlertRules: WatchedTripsProviding {
         }
     }
 
+    /// Reads the permission again and what the server says about each rule (TT-143): Review needed once the usual train
+    /// has changed, back to On once a save cleared it, and the last day with no matching train. A rule being saved keeps
+    /// its state, and an unreachable server changes nothing. Called on coming to the foreground and on the Alerts tab.
+    func refresh() async {
+        await refreshPermission()
+        guard !rules.isEmpty else { return }
+        await retryPendingDeletes()
+        guard let statuses = try? await server.rules(installation: installation) else { return }
+        var dates = noTrainDates
+        for status in statuses where contains(status.id) && !inFlight.contains(status.id) {
+            let state: AlertRuleState = status.state == .reviewNeeded ? .reviewNeeded : .on
+            if serverStates[status.id] != state { set(state, for: status.id) }
+            dates[status.id] = status.noMatchingTrainOn
+        }
+        if dates != noTrainDates { noTrainDates = dates }
+    }
+
+    /// Puts a deleted rule back where it was and saves it again with the same id, so the server has it again (the Alerts
+    /// tab's Undo, TT-143).
+    func restore(_ rule: AlertRule, at index: Int) async {
+        if !contains(rule.id) {
+            rules.insert(rule, at: min(max(index, 0), rules.count))
+            pendingDeletes.removeAll { $0 == rule.id }
+        }
+        await save(rule)
+    }
+
     /// Removes the rule on device at once and on the server; if the server cannot be reached, it is deleted there on the
     /// next call.
     func delete(_ id: AlertRule.ID) async {
         rules.removeAll { $0.id == id }
         serverStates[id] = nil
+        noTrainDates[id] = nil
         persist()
         do {
             try await server.delete(ruleId: id, installation: installation)

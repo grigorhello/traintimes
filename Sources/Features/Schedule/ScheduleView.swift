@@ -53,6 +53,7 @@ struct ScheduleView: View {
         .background(TTColor.canvas)
         .overlay(alignment: .bottom) { alertToast }
         .animation(.easeOut(duration: 0.25), value: bells?.toast)
+        .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
         // A light haptic when an alert turns on (TT-141).
         .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
         // Title stays set so Settings' back button reads "Train Times"; the header above replaces the bar.
@@ -321,9 +322,13 @@ struct ScheduleView: View {
     }
 
     /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
-    /// "Alert off", or "Could not save" with Try again.
+    /// "Alert off", or "Could not save" with Try again; else "Tap the bell on a train" after the Alerts tab's "Add alert".
     @ViewBuilder private var alertToast: some View {
-        if let bells, let toast = bells.toast {
+        if let bells, bells.toast == nil, bells.showsHint {
+            Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell")
+                .padding(.horizontal, TTSpace.s5)
+                .padding(.bottom, TTSpace.s2)
+        } else if let bells, let toast = bells.toast {
             Group {
                 switch toast.kind {
                 case .settingUp:

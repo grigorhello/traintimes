@@ -36,10 +36,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let link = NotificationLink(userInfo: response.notification.request.content.userInfo)
+        // A tapped notification leaves Notification Center, so the Alerts tab's Recent updates keeps it here (TT-143).
+        let update = AlertUpdate(response.notification)
         completionHandler()
-        guard let link else { return }
         Task { @MainActor in
-            self.router.open(link)
+            if let update { AlertUpdates.record(update, in: .standard) }
+            if let link { self.router.open(link) }
+        }
+    }
+
+    /// A notification arriving while the app is open is not shown (D39), but Recent updates lists it (TT-143).
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let update = AlertUpdate(notification)
+        completionHandler([])
+        guard let update else { return }
+        Task { @MainActor in
+            AlertUpdates.record(update, in: .standard)
         }
     }
 }

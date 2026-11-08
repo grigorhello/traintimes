@@ -1,14 +1,32 @@
 // One monitoring cycle, run every minute: find the trips active rules watch, read the live feed once, and send what the
-// alert rules decide. Plus the hourly jobs: refresh the timetable and apply retention (D38).
+// alert rules decide. Plus the daily retention and storing the uploaded timetable (D38, D43).
+//
+// A cycle stays inside the Workers Free plan (D43): it reads only the rules whose watch window is open, the watched
+// trips' part of the feed and today's timetable (the coming week's only when the usual train is missing today), reads
+// the watches in one query, and makes at most MAX_SENDS calls to APNs.
 
-import { decide, expiry, hasDeparted, isWatching, sentKind, STALE_MS, type Sent, type SentKind } from './alerts.ts';
+import {
+  decide,
+  expiry,
+  hasDeparted,
+  isWatching,
+  sentKind,
+  STALE_MS,
+  WATCH_AFTER_MS,
+  WATCH_BEFORE_MS,
+  type Sent,
+  type SentKind,
+} from './alerts.ts';
 import { deleteInstallation } from './api.ts';
 import type { Push, PushResult } from './apns.ts';
 import { alertNotice, reviewNotice, type Direction } from './copy.ts';
 import { liveStatus, tripUpdatesOn, type Call, type Feed } from './realtime.ts';
-import { importTimetables, resolveUsualTrain, type Timetable } from './timetable.ts';
-import { addDays, DAY, gtfsInstant, HOUR, isoWeekday, serviceDate, type TimeFormat } from './time.ts';
+import { resolveUsualTrain, type Timetable } from './timetable.ts';
+import { addDays, DAY, gtfsInstant, gtfsSeconds, isoWeekday, MINUTE, serviceDate, type TimeFormat } from './time.ts';
 import type { ApnsEnvironment } from './apns.ts';
+
+/** APNs calls per cycle: the Free plan allows 50 outside requests per run and the feed takes one. The rest go next minute. */
+export const MAX_SENDS = 45;
 
 export interface Sender {
   send(push: Push, now: number): Promise<PushResult>;
@@ -34,6 +52,8 @@ interface RuleRow {
 }
 
 interface WatchRow {
+  installation_id: string;
+  key: string;
   sent_kind: SentKind | null;
   sent_delay: number | null;
   sent_at: number | null;
@@ -98,8 +118,8 @@ interface Watch {
 export interface MonitorDeps {
   db: D1Database;
   apns: Sender;
-  /** The latest TripUpdates feed; null when there is none (no key yet, or the fetch failed). */
-  feed: () => Promise<Feed | null>;
+  /** The latest TripUpdates feed, decoded for these trips only; null when there is none (no key yet, or the fetch failed). */
+  feed: (trips: ReadonlySet<string>) => Promise<Feed | null>;
   now: number;
 }
 
@@ -107,10 +127,12 @@ export interface MonitorDeps {
 export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): Promise<Push[]> {
   const sent: Push[] = [];
   const gone = new Set<string>();
+  let sends = 0;
 
   async function deliver(rule: RuleRow, push: Omit<Push, 'token' | 'environment'>): Promise<PushResult> {
     if (gone.has(rule.installation_id)) return 'failed';
     const full = { ...push, token: rule.device_token, environment: rule.environment };
+    sends++;
     const result = await apns.send(full, now);
     if (result === 'sent') sent.push(full);
     if (result === 'unregistered') {
@@ -129,12 +151,20 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
 
   const today = serviceDate(now);
   const dates = [addDays(today, -1), today];
+  // Only rules whose watch window may be open on one of the dates (a minute of margin; isWatching decides).
+  const windows = dates.flatMap((date) => {
+    const seconds = gtfsSeconds(date, now);
+    return [seconds - (WATCH_AFTER_MS + MINUTE) / 1000, seconds + (WATCH_BEFORE_MS + MINUTE) / 1000];
+  });
   const rules = await db
     .prepare(
       `SELECT r.*, i.device_token, i.environment, i.time_format FROM rules r
        JOIN installations i ON i.id = r.installation_id
-       WHERE r.paused = 0 AND r.state = 'on' AND i.device_token IS NOT NULL`,
+       WHERE r.paused = 0 AND r.state = 'on' AND i.device_token IS NOT NULL
+         AND (r.departure BETWEEN ? AND ? OR r.departure BETWEEN ? AND ?)
+         AND (r.kind = 'repeat' OR r.service_date IN (?, ?))`,
     )
+    .bind(...windows, ...dates)
     .all<RuleRow>();
   const timetables = new Timetables(db);
   const watches: Watch[] = [];
@@ -155,19 +185,25 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
       // A repeating rule: resolve today's trip for the usual train once its watch window opens (rule 7).
       const weekdays = rule.weekdays.split(',').map(Number);
       const usual = gtfsInstant(date, rule.departure);
-      if (!weekdays.includes(isoWeekday(date)) || !isWatching(usual, now)) continue;
-      await timetables.load(Array.from({ length: 8 }, (_, days) => addDays(date, days)));
+      // "No matching train today" is already shown for this date.
+      if (!weekdays.includes(isoWeekday(date)) || !isWatching(usual, now) || rule.no_train_date === date) continue;
       const train = { line: rule.line, origin: rule.origin_id, destination: rule.destination_id, departure: rule.departure, weekdays };
-      const resolution = resolveUsualTrain(train, date, (d) => timetables.peek(d));
+      // Today's timetable usually has the usual train; the coming week is read only when it does not.
+      await timetables.load([date]);
+      let resolution = resolveUsualTrain(train, date, (d) => timetables.peek(d));
+      if (resolution.kind === 'noTrain') {
+        await timetables.load(Array.from({ length: 7 }, (_, days) => addDays(date, days + 1)));
+        resolution = resolveUsualTrain(train, date, (d) => timetables.peek(d));
+      }
       if (resolution.kind === 'trip') {
         watches.push({ rule, date, tripId: resolution.tripId, departure: usual, call: callFor(timetables.peek(date), resolution.tripId, rule, date) });
-      } else if (resolution.kind === 'noTrain' && rule.no_train_date !== date) {
+      } else if (resolution.kind === 'noTrain') {
         // "No matching train today" in the Alerts row; nothing is sent (rule 8).
         await db
           .prepare('UPDATE rules SET no_train_date = ? WHERE installation_id = ? AND id = ?')
           .bind(date, rule.installation_id, rule.id)
           .run();
-      } else if (resolution.kind === 'changed') {
+      } else if (resolution.kind === 'changed' && sends < MAX_SENDS) {
         // Review needed, and one notification: only the cycle that changes the state sends it.
         const changed = await db
           .prepare(`UPDATE rules SET state = 'review' WHERE installation_id = ? AND id = ? AND state = 'on'`)
@@ -188,12 +224,18 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   }
   if (watches.length === 0) return sent;
 
-  const feed = await loadFeed();
+  const feed = await loadFeed(new Set(watches.map((watch) => watch.tripId)));
   const feedTime = feed?.timestamp;
   // Stale data never starts an alert or ends a watch (Q2, D13).
   const fresh = feed && feedTime !== undefined && now - feedTime <= STALE_MS ? feed : null;
   const updatesByDate = new Map(dates.map((date) => [date, fresh ? tripUpdatesOn(fresh, date) : new Map()]));
   const seen = new Set<string>();
+  // Every watch of these dates in one query, rather than one query per watched trip.
+  const rows = await db
+    .prepare('SELECT installation_id, key, sent_kind, sent_delay, sent_at, done, version FROM watches WHERE service_date IN (?, ?)')
+    .bind(...dates)
+    .all<WatchRow>();
+  const watchRows = new Map(rows.results.map((row) => [`${row.installation_id}|${row.key}`, row]));
 
   for (const { rule, date, tripId, departure, call } of watches) {
     const key = `${date}|${tripId}|${rule.origin_id}|${rule.destination_id}`;
@@ -201,10 +243,7 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     if (seen.has(`${rule.installation_id}|${key}`) || gone.has(rule.installation_id)) continue;
     seen.add(`${rule.installation_id}|${key}`);
 
-    const watch = await db
-      .prepare('SELECT sent_kind, sent_delay, sent_at, done, version FROM watches WHERE installation_id = ? AND key = ?')
-      .bind(rule.installation_id, key)
-      .first<WatchRow>();
+    const watch = watchRows.get(`${rule.installation_id}|${key}`) ?? null;
     if (watch?.done) continue;
     const update = updatesByDate.get(date)?.get(tripId);
     const status = update && fresh ? liveStatus(update, call, feedTime!) : null;
@@ -217,7 +256,8 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     }
     const last: Sent | null = watch?.sent_kind ? { kind: watch.sent_kind, delayMin: watch.sent_delay, at: watch.sent_at ?? 0 } : null;
     const alert = decide(last, status, now);
-    if (!alert || !status) continue;
+    // Past the cycle's APNs calls, the alert is decided again next minute.
+    if (!alert || !status || sends >= MAX_SENDS) continue;
 
     // Claim the send first: an overlapping cycle that read the same version changes nothing and sends nothing.
     const next = { sent_kind: sentKind(alert), sent_delay: 'delayMin' in alert ? alert.delayMin : null, sent_at: now };
@@ -257,26 +297,16 @@ async function upsertWatch(
   return result.meta.changes > 0;
 }
 
-/** Reads the timetable for today and the next 7 days from the GTFS zip, once a day (hourly while it fails). */
-export async function refreshTimetables(db: D1Database, download: () => Promise<Uint8Array>, now: number): Promise<number> {
-  const today = serviceDate(now);
-  const current = await db
-    .prepare('SELECT imported_at FROM timetables WHERE service_date = ?')
-    .bind(today)
-    .first<{ imported_at: number }>();
-  if (current && now - current.imported_at < 24 * HOUR) return 0;
-  const dates = Array.from({ length: 8 }, (_, days) => addDays(today, days));
-  const timetables = await importTimetables(await download(), dates);
-  // A date the feed does not cover stays missing rather than empty, so it never reads as "the train is gone".
-  const rows = [...timetables].filter(([, trips]) => Object.keys(trips).length > 0);
-  await db.batch(
-    rows.map(([date, trips]) =>
-      db
-        .prepare('INSERT OR REPLACE INTO timetables (service_date, trips, imported_at) VALUES (?, ?, ?)')
-        .bind(date, JSON.stringify(trips), now),
-    ),
-  );
-  return rows.length;
+/**
+ * Stores one service date's rail timetable (JSON trips by trip id, as `importTimetables` reads them). The daily upload
+ * sends today and the next 7 days (D43); a date the feed does not cover is never sent, so it stays missing rather than
+ * empty and never reads as "the train is gone".
+ */
+export async function saveTimetable(db: D1Database, date: string, trips: string, now: number): Promise<void> {
+  await db
+    .prepare('INSERT OR REPLACE INTO timetables (service_date, trips, imported_at) VALUES (?, ?, ?)')
+    .bind(date, trips, now)
+    .run();
 }
 
 /**

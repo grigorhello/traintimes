@@ -222,7 +222,8 @@ export interface UsualTrain {
 
 /** The trip on this date that is the usual train: same line, leaves the origin at the same time, then calls at the destination. */
 export function findUsualTrain(timetable: Timetable, train: UsualTrain): string | null {
-  for (const [tripId, trip] of Object.entries(timetable)) {
+  for (const tripId in timetable) {
+    const trip = timetable[tripId];
     if (trip.line !== train.line) continue;
     const from = trip.stops.indexOf(train.origin);
     if (from < 0 || trip.departures[from] !== train.departure) continue;

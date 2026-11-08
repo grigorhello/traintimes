@@ -84,13 +84,21 @@ export function isoWeekday(date: string): number {
  * wall-clock times and 25:10:00 is 1:10 AM the next morning (D35).
  */
 export function gtfsInstant(date: string, seconds: number): number {
-  const [y, m, d] = parseDate(date);
-  const guess = Date.UTC(y, m - 1, d, 12);
-  const wall = toronto(guess);
-  const offset = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second) - guess;
-  const noon = guess - offset;
-  return noon - 12 * HOUR + seconds * 1000;
+  let start = dayStarts.get(date);
+  if (start === undefined) {
+    const [y, m, d] = parseDate(date);
+    const guess = Date.UTC(y, m - 1, d, 12);
+    const wall = toronto(guess);
+    const offset = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second) - guess;
+    start = guess - offset - 12 * HOUR;
+    if (dayStarts.size > 100) dayStarts.clear();
+    dayStarts.set(date, start);
+  }
+  return start + seconds * 1000;
 }
+
+/** Noon minus 12 h by service date: the time zone lookup is most of a minute cycle's CPU otherwise (D43). */
+const dayStarts = new Map<string, number>();
 
 /** Seconds after noon minus 12 h on the service date: the inverse of `gtfsInstant`. */
 export function gtfsSeconds(date: string, ms: number): number {

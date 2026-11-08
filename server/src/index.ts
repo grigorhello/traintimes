@@ -1,13 +1,13 @@
-// Train Times alert server (TT-140, D38): a Cloudflare Worker with a D1 database.
-// - fetch: the app's API (src/api.ts).
+// Train Times alert server (TT-140, D38): a Cloudflare Worker with a D1 database, on the Workers Free plan (D43).
+// - fetch: the app's API (src/api.ts) and the daily timetable upload from GitHub Actions (src/upload.ts).
 // - every minute: the monitoring cycle (src/monitor.ts).
-// - hourly: refresh the GO rail timetable and apply retention.
+// - daily: retention.
 
 import { handleRequest } from './api.ts';
 import { ApnsClient } from './apns.ts';
-import { applyRetention, monitor, refreshTimetables } from './monitor.ts';
+import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed, type Feed } from './realtime.ts';
-import { GTFS_URL } from './timetable.ts';
+import { GITHUB_JWKS_URL, handleTimetableUpload, type JWKS } from './upload.ts';
 
 export interface Env {
   DB: D1Database;
@@ -21,10 +21,12 @@ export interface Env {
   TRIP_UPDATES_URL: string;
   /** Secret. Until Metrolinx issues it there is no live feed, so nothing is sent (D36). */
   METROLINX_API_KEY?: string;
+  /** The only workflow allowed to upload timetables, as its GitHub OIDC token names it (D43). */
+  TIMETABLE_WORKFLOW: string;
 }
 
-/** The hourly schedule in wrangler.toml; the other is every minute. */
-const HOURLY = '17 * * * *';
+/** The daily schedule in wrangler.toml; the other is every minute. */
+const DAILY = '17 8 * * *';
 
 let apns: ApnsClient | null = null;
 
@@ -37,7 +39,7 @@ function apnsClient(env: Env): ApnsClient | null {
   return apns;
 }
 
-async function fetchTripUpdates(env: Env): Promise<Feed | null> {
+async function fetchTripUpdates(env: Env, trips: ReadonlySet<string>): Promise<Feed | null> {
   const url = new URL(env.TRIP_UPDATES_URL);
   // The parameter name is to be confirmed when the key arrives (Q1), as in the app.
   if (env.METROLINX_API_KEY) url.searchParams.set('key', env.METROLINX_API_KEY);
@@ -47,22 +49,25 @@ async function fetchTripUpdates(env: Env): Promise<Feed | null> {
       console.warn(`TripUpdates ${response.status}`);
       return null;
     }
-    return decodeFeed(new Uint8Array(await response.arrayBuffer()));
+    return decodeFeed(new Uint8Array(await response.arrayBuffer()), trips);
   } catch (error) {
     console.warn('TripUpdates fetch failed', error);
     return null;
   }
 }
 
-async function downloadGTFS(): Promise<Uint8Array> {
-  const response = await fetch(GTFS_URL);
-  if (!response.ok) throw new Error(`GTFS download ${response.status}`);
-  return new Uint8Array(await response.arrayBuffer());
+async function githubKeys(): Promise<JWKS> {
+  const response = await fetch(GITHUB_JWKS_URL);
+  if (!response.ok) throw new Error(`GitHub JWKS ${response.status}`);
+  return response.json();
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      if (new URL(request.url).pathname.startsWith('/v1/timetables/')) {
+        return await handleTimetableUpload(request, env.DB, Date.now(), env.TIMETABLE_WORKFLOW, githubKeys);
+      }
       return await handleRequest(request, env.DB, Date.now());
     } catch (error) {
       console.error(error);
@@ -71,11 +76,8 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
-    if (controller.cron === HOURLY) {
-      // Retention first, so a failed GTFS download never holds it up.
+    if (controller.cron === DAILY) {
       await applyRetention(env.DB, Date.now());
-      const imported = await refreshTimetables(env.DB, downloadGTFS, Date.now());
-      if (imported) console.log(`Imported the timetable for ${imported} service dates`);
       return;
     }
     const client = apnsClient(env);
@@ -83,7 +85,7 @@ export default {
       console.warn('APNS_KEY, APNS_KEY_ID or APNS_TEAM_ID is not set; no alerts are sent.');
       return;
     }
-    const sent = await monitor({ db: env.DB, apns: client, feed: () => fetchTripUpdates(env), now: Date.now() });
+    const sent = await monitor({ db: env.DB, apns: client, feed: (trips) => fetchTripUpdates(env, trips), now: Date.now() });
     if (sent.length) console.log(`Sent ${sent.length} alerts`);
   },
 } satisfies ExportedHandler<Env>;

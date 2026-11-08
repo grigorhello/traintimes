@@ -1,0 +1,27 @@
+name: Alert server timetable
+
+# Every day: read the GO rail timetable for today and the next 7 service days and upload it to the alert server (D43).
+# The server runs on the Workers Free plan, whose 10 ms of CPU per run cannot read the GTFS zip. Does nothing until the
+# server is set up (server/README.md).
+on:
+  schedule:
+    # 3:40 AM EST (4:40 AM EDT), after the service day changes at 3 AM (D24).
+    - cron: '40 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The GitHub OIDC token the server checks in place of a shared secret (server/src/upload.ts).
+  id-token: write
+
+jobs:
+  upload:
+    name: Upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node server/scripts/push-timetable.ts

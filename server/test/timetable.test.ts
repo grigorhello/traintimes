@@ -111,6 +111,16 @@ describe('repeating rules in the monitoring cycle', () => {
     assert.equal((await call(api, 'GET', `${base}/rules`)).json.rules[0].noMatchingTrainOn, '20261109');
   });
 
+  test('a usual train back in a later upload of today is watched again', async () => {
+    await store('20261109', timetable('20261109-LW-9999', 8 * H));
+    await store('20261110', timetable('20261110-LW-1256', usual.departure));
+    await cycle('6:13');
+    await store('20261109', timetable('20261109-LW-1256', usual.departure));
+    const watched: string[] = [];
+    await monitor({ db, apns, feed: async (trips) => (watched.push(...trips), null), now: at('6:20') });
+    assert.deepEqual(watched, ['20261109-LW-1256']);
+  });
+
   test('an unselected day stays quiet', async () => {
     await call(api, 'PUT', `${base}/rules/r1`, { ...repeat, weekdays: [6, 7] });
     await store('20261109', {});

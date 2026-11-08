@@ -48,9 +48,13 @@ CREATE TABLE IF NOT EXISTS watches (
   PRIMARY KEY (installation_id, key)
 );
 
--- The GO rail timetable per service date (JSON trips by trip id), imported from the public GTFS feed.
+-- The GO rail timetable per service date (JSON trips by trip id), uploaded daily from the public GTFS feed (D43).
 CREATE TABLE IF NOT EXISTS timetables (
   service_date TEXT PRIMARY KEY,
   trips TEXT NOT NULL,
   imported_at INTEGER NOT NULL
 );
+
+-- A minute cycle reads only the rules whose watch window is open and one day's watches (Workers Free plan, D43).
+CREATE INDEX IF NOT EXISTS rules_departure ON rules (departure);
+CREATE INDEX IF NOT EXISTS watches_service_date ON watches (service_date);

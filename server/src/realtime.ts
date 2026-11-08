@@ -40,6 +40,8 @@ interface Field {
   wireType: number;
 }
 
+const utf8 = new TextDecoder();
+
 /** Reads protobuf fields: varints, length-delimited values and nested messages. */
 class ProtobufReader {
   bytes: Uint8Array;
@@ -90,7 +92,7 @@ class ProtobufReader {
 
   string(): string {
     const [start, end] = this.lengthDelimited();
-    return new TextDecoder().decode(this.bytes.subarray(start, end));
+    return utf8.decode(this.bytes.subarray(start, end));
   }
 
   skip(field: Field): void {
@@ -131,8 +133,11 @@ function instant(seconds: number): number | undefined {
   return seconds > 0 ? seconds * 1000 : undefined;
 }
 
-/** Decodes a `FeedMessage`. Fields the server does not read are skipped. */
-export function decodeFeed(bytes: Uint8Array): Feed {
+/**
+ * Decodes a `FeedMessage`. Fields the server does not read are skipped, and with `trips` so is the rest of every other
+ * trip's update, which keeps a minute cycle inside the Workers Free plan's 10 ms of CPU (D43).
+ */
+export function decodeFeed(bytes: Uint8Array, trips?: ReadonlySet<string>): Feed {
   const feed: Feed = { tripUpdates: [] };
   const message = new ProtobufReader(bytes);
   for (let field = message.next(); field; field = message.next()) {
@@ -143,25 +148,25 @@ export function decodeFeed(bytes: Uint8Array): Feed {
         else header.skip(f);
       }
     } else if (field.number === 2 && field.wireType === 2) {
-      const update = entity(message.message());
+      const update = entity(message.message(), trips);
       if (update) feed.tripUpdates.push(update);
     } else message.skip(field);
   }
   return feed;
 }
 
-function entity(reader: ProtobufReader): TripUpdate | null {
+function entity(reader: ProtobufReader, trips?: ReadonlySet<string>): TripUpdate | null {
   let update: TripUpdate | null = null;
   let deleted = false;
   for (let field = reader.next(); field; field = reader.next()) {
     if (field.number === 2 && field.wireType === 0) deleted = reader.varint().lo !== 0;
-    else if (field.number === 3 && field.wireType === 2) update = tripUpdate(reader.message());
+    else if (field.number === 3 && field.wireType === 2) update = tripUpdate(reader.message(), trips);
     else reader.skip(field);
   }
   return deleted ? null : update;
 }
 
-function tripUpdate(reader: ProtobufReader): TripUpdate {
+function tripUpdate(reader: ProtobufReader, trips?: ReadonlySet<string>): TripUpdate | null {
   const update: TripUpdate = { tripId: '', cancelled: false, stopTimeUpdates: [] };
   for (let field = reader.next(); field; field = reader.next()) {
     if (field.number === 1 && field.wireType === 2) {
@@ -174,12 +179,13 @@ function tripUpdate(reader: ProtobufReader): TripUpdate {
           update.cancelled = relationship === 3 || relationship === 7; // CANCELED, DELETED
         } else trip.skip(f);
       }
+      if (trips && !trips.has(update.tripId)) return null;
     } else if (field.number === 2 && field.wireType === 2) update.stopTimeUpdates.push(stopTimeUpdate(reader.message()));
     else if (field.number === 4 && field.wireType === 0) update.timestamp = instant(reader.uint());
     else if (field.number === 5 && field.wireType === 0) update.delay = reader.int32();
     else reader.skip(field);
   }
-  return update;
+  return trips && !trips.has(update.tripId) ? null : update;
 }
 
 function stopTimeUpdate(reader: ProtobufReader): StopTimeUpdate {

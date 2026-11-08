@@ -67,3 +67,13 @@ Schedule and status data: Metrolinx open data. Times may differ from station dis
 ## Screenshots (later, from the finished app)
 
 Captions in order: Your next GO train, in 11 min · Delays drawn as reported · Watch a train with one tap · Alerts for the trains you watch · Cancelled, said plainly. iPhone only (the app is iPhone only, so no iPad set). App Store Connect needs the 6.9-inch size (1320 × 2868, iPhone 17 Pro Max simulator); the iPhone 17 Pro's 1206 × 2622 is not an accepted size. No GO Transit or Metrolinx marks in any screenshot.
+
+## TestFlight builds (TT-154, D47)
+
+One-time setup, done by the account holder or an Admin in App Store Connect and GitHub:
+
+1. App Store Connect › Users and Access › Integrations › App Store Connect API › Team Keys: generate a key named "GitHub TestFlight" with the **Admin** role (it creates a signing certificate for each build). Download the `.p8` file (it can be downloaded only once) and note the Key ID and the Issuer ID shown above the list.
+2. GitHub › grigorhello/traintimes › Settings › Secrets and variables › Actions › New repository secret, three times: `ASC_KEY_ID` (the Key ID), `ASC_ISSUER_ID` (the Issuer ID) and `ASC_KEY_P8` (the whole `.p8` file opened in a text editor, including the BEGIN and END lines).
+3. App Store Connect › Train Times › TestFlight › Internal Testing: create a group and add yourself, so each processed build reaches the TestFlight app on your iPhone.
+
+Each build: GitHub › Actions › TestFlight › Run workflow (branch `main`). It uploads 1.0 (run number) and finishes once TestFlight has processed it, about 15 to 30 minutes in all. Apple may email the account holder about the certificate each run creates and revokes. When the Metrolinx key arrives, add it as the `METROLINX_API_KEY` secret and run the workflow again.

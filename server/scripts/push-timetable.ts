@@ -15,17 +15,18 @@ if (config.includes('database_id = "00000000-0000-0000-0000-000000000000"')) {
   process.exit(0);
 }
 
-const { ACTIONS_ID_TOKEN_REQUEST_URL: tokenURL, ACTIONS_ID_TOKEN_REQUEST_TOKEN: tokenRequest } = process.env;
-if (!tokenURL || !tokenRequest) throw new Error('Run in GitHub Actions with the id-token: write permission.');
-const oidc = await fetch(`${tokenURL}&audience=${encodeURIComponent(AUDIENCE)}`, { headers: { authorization: `Bearer ${tokenRequest}` } });
-if (!oidc.ok) throw new Error(`GitHub OIDC token ${oidc.status}`);
-const { value: token } = (await oidc.json()) as { value: string };
-
 const zip = await fetch(GTFS_URL);
 if (!zip.ok) throw new Error(`GTFS download ${zip.status}`);
 const today = serviceDate(Date.now());
 const dates = Array.from({ length: 8 }, (_, days) => addDays(today, days));
 const timetables = await importTimetables(new Uint8Array(await zip.arrayBuffer()), dates);
+
+// Asked for after the import: the token lasts about 5 minutes.
+const { ACTIONS_ID_TOKEN_REQUEST_URL: tokenURL, ACTIONS_ID_TOKEN_REQUEST_TOKEN: tokenRequest } = process.env;
+if (!tokenURL || !tokenRequest) throw new Error('Run in GitHub Actions with the id-token: write permission.');
+const oidc = await fetch(`${tokenURL}&audience=${encodeURIComponent(AUDIENCE)}`, { headers: { authorization: `Bearer ${tokenRequest}` } });
+if (!oidc.ok) throw new Error(`GitHub OIDC token ${oidc.status}`);
+const { value: token } = (await oidc.json()) as { value: string };
 
 for (const [date, trips] of timetables) {
   const count = Object.keys(trips).length;

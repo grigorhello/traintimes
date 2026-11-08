@@ -66,9 +66,10 @@ describe('feed replay', () => {
     assert.deepEqual(await cycle('7:01:05', sampleFeed('0701')), [
       '7:28 AM train cancelled | Oakville to Union. Cancelled, as reported at 7:00 AM. Open to see the next trains.',
     ]);
+    // The 7:44 had no alert yet, so it goes before the 7:21's update.
     assert.deepEqual(await cycle('7:02:05', sampleFeed('0702')), [
-      '7:21 AM train back on time | Oakville to Union. Expected 7:22 AM, as reported at 7:02 AM.',
       '7:44 AM train will skip Oakville | Skips Oakville, as reported at 7:02 AM. Open to see the next trains.',
+      '7:21 AM train back on time | Oakville to Union. Expected 7:22 AM, as reported at 7:02 AM.',
     ]);
     // The same feed read again, and the same states in later feeds, send nothing.
     assert.deepEqual(await cycle('7:03:05', sampleFeed('0702')), []);
@@ -189,6 +190,16 @@ describe('feed replay', () => {
     assert.equal((await cycle('7:04', delayFeed('7:04', 'LW-1308', 4))).length, MAX_SENDS);
     assert.equal((await cycle('7:05', delayFeed('7:05', 'LW-1308', 4))).length, 5);
     assert.equal((await cycle('7:06', delayFeed('7:06', 'LW-1308', 4))).length, 0);
+  });
+
+  test('past the cap, riders sent nothing yet go before updates', async () => {
+    const riders = Array.from({ length: MAX_SENDS + 5 }, (_, i) => `6f1c2a9e-3b4d-4c5e-9f60-${String(i).padStart(12, '0')}`);
+    for (const rider of riders) await setUp({ 'LW-1308': '7:51' }, '12h', rider);
+    await cycle('7:04', delayFeed('7:04', 'LW-1308', 4));
+    // The delay grows 5 min a minute: 45 updates are due, and 5 riders still have no alert.
+    await cycle('7:05', delayFeed('7:05', 'LW-1308', 10));
+    const alerted = await db.prepare('SELECT COUNT(*) AS n FROM watches WHERE sent_kind IS NOT NULL').first<{ n: number }>();
+    assert.equal(alerted!.n, riders.length);
   });
 
   test('a late train is still watched after the service day changes at 3 AM', async () => {

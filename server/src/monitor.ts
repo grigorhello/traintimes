@@ -25,7 +25,10 @@ import { resolveUsualTrain, type Timetable } from './timetable.ts';
 import { addDays, DAY, gtfsInstant, gtfsSeconds, isoWeekday, MINUTE, serviceDate, type TimeFormat } from './time.ts';
 import type { ApnsEnvironment } from './apns.ts';
 
-/** APNs calls per cycle: the Free plan allows 50 outside requests per run and the feed takes one. The rest go next minute. */
+/**
+ * APNs calls per cycle: the Free plan allows 50 outside requests per run and the feed takes one. The rest are decided
+ * again the next minute. On Workers Paid (10,000 per run) this can be raised.
+ */
 export const MAX_SENDS = 45;
 
 export interface Sender {
@@ -185,19 +188,18 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
       // A repeating rule: resolve today's trip for the usual train once its watch window opens (rule 7).
       const weekdays = rule.weekdays.split(',').map(Number);
       const usual = gtfsInstant(date, rule.departure);
-      // "No matching train today" is already shown for this date.
-      if (!weekdays.includes(isoWeekday(date)) || !isWatching(usual, now) || rule.no_train_date === date) continue;
+      if (!weekdays.includes(isoWeekday(date)) || !isWatching(usual, now)) continue;
       const train = { line: rule.line, origin: rule.origin_id, destination: rule.destination_id, departure: rule.departure, weekdays };
-      // Today's timetable usually has the usual train; the coming week is read only when it does not.
+      // Today's timetable usually has the usual train; the coming week is read only when it does not, once a day.
       await timetables.load([date]);
       let resolution = resolveUsualTrain(train, date, (d) => timetables.peek(d));
-      if (resolution.kind === 'noTrain') {
+      if (resolution.kind === 'noTrain' && rule.no_train_date !== date) {
         await timetables.load(Array.from({ length: 7 }, (_, days) => addDays(date, days + 1)));
         resolution = resolveUsualTrain(train, date, (d) => timetables.peek(d));
       }
       if (resolution.kind === 'trip') {
         watches.push({ rule, date, tripId: resolution.tripId, departure: usual, call: callFor(timetables.peek(date), resolution.tripId, rule, date) });
-      } else if (resolution.kind === 'noTrain') {
+      } else if (resolution.kind === 'noTrain' && rule.no_train_date !== date) {
         // "No matching train today" in the Alerts row; nothing is sent (rule 8).
         await db
           .prepare('UPDATE rules SET no_train_date = ? WHERE installation_id = ? AND id = ?')
@@ -230,20 +232,25 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   const fresh = feed && feedTime !== undefined && now - feedTime <= STALE_MS ? feed : null;
   const updatesByDate = new Map(dates.map((date) => [date, fresh ? tripUpdatesOn(fresh, date) : new Map()]));
   const seen = new Set<string>();
-  // Every watch of these dates in one query, rather than one query per watched trip.
+  // The watches of the watched dates in one query, rather than one query per watched trip.
+  const watchDates = [...new Set(watches.map((watch) => watch.date))];
   const rows = await db
     .prepare('SELECT installation_id, key, sent_kind, sent_delay, sent_at, done, version FROM watches WHERE service_date IN (?, ?)')
-    .bind(...dates)
+    .bind(watchDates[0], watchDates.at(-1))
     .all<WatchRow>();
   const watchRows = new Map(rows.results.map((row) => [`${row.installation_id}|${row.key}`, row]));
+  // Riders sent nothing yet go first, then those sent to longest ago, so past MAX_SENDS nobody waits behind updates.
+  const queue = watches
+    .map((watch) => {
+      const key = `${watch.date}|${watch.tripId}|${watch.rule.origin_id}|${watch.rule.destination_id}`;
+      return { ...watch, key, watch: watchRows.get(`${watch.rule.installation_id}|${key}`) ?? null };
+    })
+    .sort((a, b) => (a.watch?.sent_at ?? 0) - (b.watch?.sent_at ?? 0));
 
-  for (const { rule, date, tripId, departure, call } of watches) {
-    const key = `${date}|${tripId}|${rule.origin_id}|${rule.destination_id}`;
+  for (const { rule, date, tripId, departure, call, key, watch } of queue) {
     // A This-trip rule and a Repeat rule for the same train share one watch, so the rider gets one message.
     if (seen.has(`${rule.installation_id}|${key}`) || gone.has(rule.installation_id)) continue;
     seen.add(`${rule.installation_id}|${key}`);
-
-    const watch = watchRows.get(`${rule.installation_id}|${key}`) ?? null;
     if (watch?.done) continue;
     const update = updatesByDate.get(date)?.get(tripId);
     const status = update && fresh ? liveStatus(update, call, feedTime!) : null;

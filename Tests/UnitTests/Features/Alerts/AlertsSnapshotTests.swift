@@ -15,7 +15,7 @@ final class AlertsSnapshotTests: XCTestCase {
     @MainActor func testNotificationsOffDark() async throws { snap(try await notificationsOff(), .dark) }
 
     /// alerts.png: three rules, the two recent updates and the Lakeshore West notice. The rule needing review is listed
-    /// first, as the requirements order rows (D43).
+    /// first, as the requirements order rows (D44).
     @MainActor
     private func frame() async throws -> RootView {
         let rules = await AlertsFixtures.rules(

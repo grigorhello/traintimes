@@ -20,7 +20,6 @@ final class ScheduleLineNoticeTests: XCTestCase {
             route: route,
             repository: try GTFSScheduleRepository.replaying(nil, alerts: alerts, clock: clock, directory: directory),
             clock: clock,
-            favourites: Favourites(defaults: .ephemeral()),
             dismissedNotices: DismissedNotices(defaults: defaults)
         )
         await model.loadIfNeeded()

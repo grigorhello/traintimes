@@ -3,38 +3,38 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Station search against design/frames/station-search.png, light and dark: choosing From with favourites (the frame),
+/// Station search against design/frames/station-search.png, light and dark: choosing From with a recent route (D48),
 /// choosing To on first use (Union Station GO first), and the search for "oak". Drawn in the key window, since the sheet
 /// is a NavigationStack with a search bar.
 final class StationSearchSnapshotTests: XCTestCase {
-    @MainActor func testFromLight() async throws { snap(try await fromWithFavourites(), .light) }
-    @MainActor func testFromDark() async throws { snap(try await fromWithFavourites(), .dark) }
+    @MainActor func testFromLight() async throws { snap(try await fromWithRecent(), .light) }
+    @MainActor func testFromDark() async throws { snap(try await fromWithRecent(), .dark) }
     @MainActor func testToLight() async throws { snap(try await toOnFirstUse(), .light) }
     @MainActor func testToDark() async throws { snap(try await toOnFirstUse(), .dark) }
     @MainActor func testSearchLight() async throws { snap(try await search(), .light) }
     @MainActor func testSearchDark() async throws { snap(try await search(), .dark) }
 
     @MainActor
-    private func model(route: (FixtureScheduleRepository) -> Route?, favourites: Bool) async throws -> RouteFormViewModel {
+    private func model(route: (FixtureScheduleRepository) -> Route?, recent: Bool) async throws -> RouteFormViewModel {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
-        let store = Favourites(defaults: .ephemeral())
-        if favourites { store.add(repository.route) }
-        let model = RouteFormViewModel(route: route(repository), repository: repository, favourites: store)
+        let recents = RecentRoutes(defaults: .ephemeral())
+        if recent { recents.record(repository.route) }
+        let model = RouteFormViewModel(route: route(repository), repository: repository, recents: recents)
         await model.loadStations()
         return model
     }
 
-    /// The frame: Oakville to Union saved and a favourite, choosing From, so Union Station GO is greyed "Same as To".
+    /// The frame: Oakville to Union on screen and recent, choosing From, so Union Station GO is greyed "Same as To".
     @MainActor
-    private func fromWithFavourites() async throws -> RouteFormViewModel {
-        let model = try await model(route: { $0.route }, favourites: true)
+    private func fromWithRecent() async throws -> RouteFormViewModel {
+        let model = try await model(route: { $0.route }, recent: true)
         model.open(.from)
         return model
     }
 
     @MainActor
     private func toOnFirstUse() async throws -> RouteFormViewModel {
-        let model = try await model(route: { _ in nil }, favourites: false)
+        let model = try await model(route: { _ in nil }, recent: false)
         model.open(.from)
         model.pick(try XCTUnwrap(model.stations.first { $0.id == "OA" }))
         return model
@@ -42,7 +42,7 @@ final class StationSearchSnapshotTests: XCTestCase {
 
     @MainActor
     private func search() async throws -> RouteFormViewModel {
-        let model = try await model(route: { _ in nil }, favourites: false)
+        let model = try await model(route: { _ in nil }, recent: false)
         model.open(.from)
         model.query = "oak"
         return model

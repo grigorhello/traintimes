@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Station search (TT-121) against design/frames/station-search.png: the sheet the route form opens for From or To.
-/// A native search field, then Your stations (starred) and All stations. The other field's station is greyed with its
+/// A native search field, then Your stations (from the recent routes, with a clock, D48) and All stations. The other field's station is greyed with its
 /// reason and cannot be picked; Cancel returns to the form unchanged.
 struct StationSearchView: View {
     @Bindable var viewModel: RouteFormViewModel
@@ -97,10 +97,10 @@ struct StationSearchView: View {
                 }
                 .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
-                if row.isFavourite {
-                    Image(systemName: "star.fill")
+                if row.isRecent {
+                    Image(systemName: "clock")
                         .font(TTFont.body)
-                        .foregroundStyle(row.isDisabled ? TTColor.inkTertiary : TTColor.accent)
+                        .foregroundStyle(row.isDisabled ? TTColor.inkTertiary : TTColor.inkSecondary)
                         .accessibilityHidden(true)
                 }
             }

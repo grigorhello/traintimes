@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Route form, first use and favourites</title>
+<title>Route form on first use, and the route sheet with recent routes</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="gt-theme.css">
 <link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
@@ -13,95 +13,88 @@
 <style>
 body{margin:0}
 a{color:inherit}a:hover{color:inherit}
-.fieldrow{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 0}
-.fieldrow .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.rcard{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:0 8px 0 16px}
+.mk{display:flex;flex-direction:column;align-items:center;padding-top:18px;height:97px;box-sizing:border-box}
+.mk .ring{width:12px;height:12px;border-radius:9999px;box-shadow:inset 0 0 0 2.5px var(--ink-secondary);flex:none}
+.mk .pt{width:3px;height:3px;border-radius:9999px;background:var(--ink-tertiary);margin-top:6px;flex:none}
+.mk .pin{width:20px;height:20px;margin-top:6px;color:var(--accent);flex:none;display:block}
+.rrow{display:flex;align-items:center;gap:8px;min-height:48px}
+.rrow .stn{flex:1;min-width:0}
+.mini{align-self:flex-start;display:flex;flex-direction:column;align-items:center;width:14px;padding-top:6px;flex:none}
+.mini .ring{width:10px;height:10px;border-radius:9999px;box-shadow:inset 0 0 0 2px var(--ink-secondary)}
+.mini .pt{width:2px;height:2px;border-radius:9999px;background:var(--ink-tertiary);margin-top:3px}
+.mini .pin{width:14px;height:14px;margin-top:3px;color:var(--accent);display:block}
 </style>
 </helmet>
-<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
 
-  <div class="navbar">
-    <span class="nav-title">Train Times</span>
-    <a class="icon-btn" href="Settings.dc.html" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></a>
-  </div>
+  <sc-if value="{{isFirstUse}}" hint-placeholder-val="{{true}}">
+  <div style="position: absolute; inset: 0; padding-top: 54px; display: flex; flex-direction: column; background: var(--canvas)">
+    <div class="screen" style="gap: 16px; padding-top: 24px">
+      <h1 class="large-title">Choose a route</h1>
 
-  <div class="screen" style="gap: 16px; padding-top: 12px">
-    <h1 class="route">Choose a route</h1>
-
-    <sc-if value="{{isFirstUse}}" hint-placeholder-val="{{true}}">
-    <div style="display: flex; flex-direction: column; gap: 16px">
-      <div class="card" style="display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 8px 0 16px">
-        <div style="display: flex; flex-direction: column">
-          <a class="fieldrow" href="Station-Search.dc.html" aria-label="From, choose a station">
-            <div class="txt"><span class="footnote muted">From</span><span class="body skip">Choose a station</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
-          </a>
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <a class="rrow" href="Station-Search.dc.html" aria-label="Choose starting station"><span class="stn body skip">Choose starting station</span></a>
           <div style="height: 1px; background: var(--hairline)"></div>
-          <a class="fieldrow" href="Station-Search.dc.html" aria-label="To, choose a station">
-            <div class="txt"><span class="footnote muted">To</span><span class="body skip">Choose a station</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
-          </a>
+          <a class="rrow" href="Station-Search.dc.html" aria-label="Choose destination"><span class="stn body skip">Choose destination</span></a>
         </div>
-        <button class="icon-btn" aria-label="Swap direction" disabled style="margin-left: 8px; color: var(--ink-tertiary)"><span class="ico i-swap" aria-hidden="true"></span></button>
+        <button class="icon-btn" aria-label="Swap direction" disabled style="color: var(--ink-tertiary)"><span class="ico i-swap" aria-hidden="true"></span></button>
       </div>
 
       <button class="btn btn-primary block" disabled>Show trains</button>
 
       <p class="footnote muted" style="text-align: center; padding: 0 12px">No account or permission is needed. The route is saved on this device and opens next time.</p>
     </div>
-    </sc-if>
 
-    <sc-if value="{{isReturning}}" hint-placeholder-val="{{false}}">
-    <div style="display: flex; flex-direction: column; gap: 16px">
-      <div class="card" style="display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 8px 0 16px">
-        <div style="display: flex; flex-direction: column">
-          <a class="fieldrow" href="Station-Search.dc.html" aria-label="From, Oakville GO. Change station">
-            <div class="txt"><span class="footnote muted">From</span><span class="body">Oakville GO</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
-          </a>
+    <nav class="tabs" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+      <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+      <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+      <a href="Settings.dc.html"><span class="ico i-gear" aria-hidden="true"></span><span class="tab-label">Settings</span></a>
+    </nav>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{isReturning}}" hint-placeholder-val="{{false}}">
+  <div style="position: absolute; inset: 0; padding-top: 54px; display: flex; flex-direction: column; background: #000000">
+    <div style="height: 10px; margin: 0 16px; border-radius: 12px 12px 0 0; background: var(--surface-raised); opacity: 0.6" aria-hidden="true"></div>
+    <div style="flex: 1; min-height: 0; background: var(--canvas); border-radius: 28px 28px 0 0; padding: 8px 20px 0; display: flex; flex-direction: column; gap: 16px">
+      <div class="grabber" style="margin: 0 auto"></div>
+      <h1 class="route" style="margin-top: 8px">Choose a route</h1>
+
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <a class="rrow" href="Station-Search.dc.html" aria-label="From Oakville GO. Change station"><span class="stn headline">Oakville GO</span></a>
           <div style="height: 1px; background: var(--hairline)"></div>
-          <a class="fieldrow" href="Station-Search.dc.html" aria-label="To, Union Station GO. Change station">
-            <div class="txt"><span class="footnote muted">To</span><span class="body">Union Station GO</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
-          </a>
+          <a class="rrow" href="Station-Search.dc.html" aria-label="To Union Station GO. Change station"><span class="stn headline">Union Station GO</span></a>
         </div>
-        <button class="icon-btn filled" aria-label="Swap direction" style="margin-left: 8px"><span class="ico i-swap" aria-hidden="true"></span></button>
+        <button class="icon-btn filled" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
       </div>
 
       <a class="btn btn-primary block" href="Main.dc.html">Show trains</a>
 
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px">
-          <h2 class="footnote muted">Favourites</h2>
-          <span class="footnote muted">3 of 3</span>
-        </div>
+        <h2 class="footnote muted" style="padding: 0 16px">Recent</h2>
         <div class="list">
-          <a class="cell" href="Main.dc.html" aria-label="Oakville to Union, Lakeshore West">
-            <span class="ico i-star-fill" aria-hidden="true" style="color: var(--accent)"></span>
-            <div class="txt"><span class="headline">Oakville to Union</span><span class="footnote muted">Lakeshore West</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
+          <a class="cell" href="Schedule-Dark.dc.html" aria-label="Union Station GO to Oakville GO, Lakeshore West">
+            <span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span>
+            <div class="txt"><span class="headline">Union Station GO</span><span class="headline">Oakville GO</span><span class="footnote muted">Lakeshore West</span></div>
           </a>
-          <a class="cell" href="Main.dc.html" aria-label="Union to Oakville, Lakeshore West">
-            <span class="ico i-star-fill" aria-hidden="true" style="color: var(--accent)"></span>
-            <div class="txt"><span class="headline">Union to Oakville</span><span class="footnote muted">Lakeshore West</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
+          <a class="cell" href="Main.dc.html" aria-label="Burlington GO to Union Station GO, Lakeshore West">
+            <span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span>
+            <div class="txt"><span class="headline">Burlington GO</span><span class="headline">Union Station GO</span><span class="footnote muted">Lakeshore West</span></div>
           </a>
-          <a class="cell" href="Main.dc.html" aria-label="Burlington to Union, Lakeshore West">
-            <span class="ico i-star-fill" aria-hidden="true" style="color: var(--accent)"></span>
-            <div class="txt"><span class="headline">Burlington to Union</span><span class="footnote muted">Lakeshore West</span></div>
-            <span class="ico i-chevron muted" aria-hidden="true"></span>
+          <a class="cell" href="Main.dc.html" aria-label="Clarkson GO to Union Station GO, Lakeshore West">
+            <span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span>
+            <div class="txt"><span class="headline">Clarkson GO</span><span class="headline">Union Station GO</span><span class="footnote muted">Lakeshore West</span></div>
           </a>
         </div>
-        <p class="footnote muted" style="padding: 0 16px">Up to three favourites are kept on this device. Remove one to add another.</p>
-        <button class="btn btn-secondary" style="align-self: flex-start; margin-left: 16px">Manage favourites</button>
       </div>
     </div>
-    </sc-if>
   </div>
-
-  <nav class="tabs">
-    <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
-    <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
-  </nav>
+  </sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"rider":{"editor":"enum","options":["first use","returning"],"default":"first use","section":"Demo"},"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>

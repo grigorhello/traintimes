@@ -51,8 +51,8 @@ final class ScheduleViewModel {
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
-    /// The star (TT-122), shared with the route form's favourites list.
-    let favourites: Favourites
+    /// Each route shown is recorded first (D48); the route sheet lists the others under Recent.
+    let recents: RecentRoutes
     private let dismissedNotices: DismissedNotices
     /// The trips with an alert, for the watched-trip strip (TT-144).
     private let watchedTrips: any WatchedTripsProviding
@@ -66,24 +66,23 @@ final class ScheduleViewModel {
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
-        favourites: Favourites = Favourites(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
+        recents: RecentRoutes = RecentRoutes(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
         watchedTrips: any WatchedTripsProviding = NoWatchedTrips()
     ) {
         self.route = route
         self.repository = repository
         self.clock = clock
         self.routeStore = routeStore
-        self.favourites = favourites
+        self.recents = recents
         self.dismissedNotices = dismissedNotices
         self.watchedTrips = watchedTrips
         let now = clock.now
         self.now = now
         selectedDay = ServiceDay(containing: now)
+        if let route { recents.record(route) }
     }
 
     var today: ServiceDay { ServiceDay(containing: clock.now) }
-    /// The star: on when this route, in this direction, is a favourite.
-    var isFavourite: Bool { route.map { favourites.contains($0) } ?? false }
     var isToday: Bool { selectedDay == today }
     /// The day strip, Today first, ending at the schedule's last service day. Today always shows.
     var days: [ServiceDay] {
@@ -323,6 +322,7 @@ final class ScheduleViewModel {
         let swapped = Route(from: route.to, to: route.from, line: route.line)
         self.route = swapped
         routeStore?.save(swapped)
+        recents.record(swapped)
         await load()
         scrollRequest += 1
     }
@@ -331,26 +331,11 @@ final class ScheduleViewModel {
     func show(_ route: Route) async {
         self.route = route
         routeStore?.save(route)
+        recents.record(route)
         // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
         guard hasLoaded else { return }
         await load()
         scrollRequest += 1
-    }
-
-    enum FavouriteResult {
-        case toggled
-        /// Three favourites already: the star never replaces one, the route sheet opens to manage them instead.
-        case full
-    }
-
-    /// The star toggles the current route as a favourite; at three favourites it leaves the list unchanged.
-    func toggleFavourite() -> FavouriteResult {
-        guard let route else { return .toggled }
-        if favourites.contains(route) {
-            favourites.remove(route)
-            return .toggled
-        }
-        return favourites.add(route) ? .toggled : .full
     }
 
     private func load() async {

@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// The route form (TT-120): From and To, swap, and "Show trains" once both are set and different, then the favourites
-/// list (TT-122). It is the first screen on first launch and the route sheet from the Schedule header.
+/// The route form (TT-120): From and To, swap, and "Show trains" once both are set and different, then the routes opened
+/// last (D48). It is the first screen on first launch and the route sheet from the Schedule route card.
 /// Station search (TT-121) picks for one field at a time: Your stations, then All stations, filtered by `query`.
 @Observable @MainActor
 final class RouteFormViewModel {
@@ -15,7 +15,8 @@ final class RouteFormViewModel {
         let station: Station
         /// Line context in `footnote` ("Lakeshore West", "All lines"), plus "Same as To" or "Same as From" when greyed.
         let detail: String
-        let isFavourite: Bool
+        /// In one of the recent routes: listed under Your stations, with a clock.
+        let isRecent: Bool
         /// The other field already holds this station, so the row is greyed and cannot be picked.
         let isDisabled: Bool
 
@@ -34,30 +35,25 @@ final class RouteFormViewModel {
     /// The station search text; cleared each time the search opens or moves on to another field.
     var query = ""
 
-    /// Manage favourites: each row shows a remove button instead of opening its route.
-    private(set) var isManagingFavourites: Bool
-    /// Shared with the Schedule star (TT-122).
-    let favourites: Favourites
+    /// The routes opened last, shared with Schedule, which records them (D48).
+    let recents: RecentRoutes
 
     private let repository: any StationRepository
+    /// The route the sheet opened with, left out of Recent since it is on screen.
+    private let current: Route?
 
-    /// `route` prefills the form when it opens from the Schedule header; nil on first use. `favourites` are the rider's
-    /// favourite routes: the list under the form, and their stations make up Your stations. `isManagingFavourites` is set
-    /// when the star opens the sheet at three favourites.
-    init(
-        route: Route?, repository: any StationRepository, favourites: Favourites = Favourites(defaults: nil),
-        isManagingFavourites: Bool = false
-    ) {
+    /// `route` prefills the form when it opens from the Schedule route card; nil on first use. `recents` are the routes
+    /// opened last: the Recent list under the form, and their stations make up Your stations.
+    init(route: Route?, repository: any StationRepository, recents: RecentRoutes = RecentRoutes(defaults: nil)) {
         from = route?.from
         to = route?.to
+        current = route
         self.repository = repository
-        self.favourites = favourites
-        self.isManagingFavourites = isManagingFavourites && !favourites.routes.isEmpty
+        self.recents = recents
     }
 
-    /// The stations of the favourite routes, read live so a removal in Manage favourites shows in Your stations too.
-    private var favouriteStationIds: Set<String> {
-        Set(favourites.routes.flatMap { [$0.from.id, $0.to.id] })
+    private var recentStationIds: Set<String> {
+        Set(recents.routes.flatMap { [$0.from.id, $0.to.id] })
     }
 
     /// Identical stations are rejected inline.
@@ -65,9 +61,9 @@ final class RouteFormViewModel {
     var canShowTrains: Bool { from != nil && to != nil && !isSameStation }
     var canSwap: Bool { from != nil || to != nil }
 
-    /// Stations in the rider's favourite routes, alphabetically and starred.
+    /// Stations in the recent routes, alphabetically, with a clock.
     var yourStations: [StationRow] {
-        rows(stations.filter { favouriteStationIds.contains($0.id) })
+        rows(stations.filter { recentStationIds.contains($0.id) })
     }
 
     /// Every station alphabetically; when choosing To, Union Station GO comes first unless it is the From station.
@@ -119,30 +115,14 @@ final class RouteFormViewModel {
         (from, to) = (to, from)
     }
 
-    // MARK: Favourites
+    // MARK: Recent
 
-    var favouriteRoutes: [Route] { favourites.routes }
+    /// Up to three routes opened last, newest first, without the one on screen.
+    var recentRoutes: [Route] { recents.routes(excluding: current) }
 
-    /// "3 of 3".
-    var favouritesCount: String {
-        String(format: String(localized: "route.favourites_count"), favourites.routes.count, Favourites.limit)
-    }
-
-    /// "Up to three favourites are kept on this device. Remove one to add another." shows once the list is full.
-    var isFavouritesFull: Bool { favourites.isFull }
-
-    /// "Oakville to Union".
+    /// "Oakville to Union", read for a Recent row.
     func title(_ route: Route) -> String {
         String(format: String(localized: "schedule.route_title"), route.from.name, route.to.name)
-    }
-
-    func toggleManagingFavourites() {
-        isManagingFavourites.toggle()
-    }
-
-    func removeFavourite(_ route: Route) {
-        favourites.remove(route)
-        if favourites.routes.isEmpty { isManagingFavourites = false }
     }
 
     /// The route "Show trains" opens, with its line from the repository; nil until the form is valid.
@@ -172,7 +152,7 @@ final class RouteFormViewModel {
                 return StationRow(
                     station: station,
                     detail: isDisabled ? String(format: sameAs, lines) : lines,
-                    isFavourite: favouriteStationIds.contains(station.id),
+                    isRecent: recentStationIds.contains(station.id),
                     isDisabled: isDisabled
                 )
             }

@@ -22,13 +22,11 @@ a{color:inherit}a:hover{color:inherit}
 </helmet>
 <div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
 
-  <div class="navbar" style="padding-right: 20px">
-    <a class="back body" href="Main.dc.html" aria-label="Back to Train Times"><span class="ico i-chevron" aria-hidden="true"></span>Train Times</a>
-    <span class="nav-title">Settings</span>
-    <span style="width: 64px" aria-hidden="true"></span>
+  <div class="navbar" style="height: 52px; align-items: flex-end; padding-bottom: 4px">
+    <h1 class="large-title">Settings</h1>
   </div>
 
-  <div class="screen" style="gap: 8px; padding-top: 12px">
+  <div class="screen" style="gap: 8px; padding-top: 8px">
     <div class="list">
       <div class="cell" style="flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 16px 12px">
         <span class="body">Appearance</span>
@@ -73,6 +71,12 @@ a{color:inherit}a:hover{color:inherit}
       </div>
     </div>
   </div>
+
+  <nav class="tabs" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+    <a href="Main.dc.html"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
+    <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+    <a class="sel" href="Settings.dc.html" aria-current="page"><span class="ico i-gear" aria-hidden="true"></span><span class="tab-label">Settings</span></a>
+  </nav>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>

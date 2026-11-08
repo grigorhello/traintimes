@@ -22,7 +22,7 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
         let route = try await repository.route(
             from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO")
         )
-        let model = ScheduleViewModel(route: route, repository: repository, clock: clock, favourites: Favourites(defaults: .ephemeral()))
+        let model = ScheduleViewModel(route: route, repository: repository, clock: clock)
         await model.loadIfNeeded()
         return model
     }

@@ -76,7 +76,7 @@
    "h": 844,
    "is_interactive": true,
    "radius": 44,
-   "title": "First use · route form",
+   "title": "Route form · first use, and the route sheet (Rider in Tweaks)",
    "w": 390,
    "x": 0,
    "y": 1300
@@ -153,7 +153,7 @@
    "h": 844,
    "is_interactive": true,
    "radius": 44,
-   "title": "Settings",
+   "title": "Settings tab",
    "w": 390,
    "x": 940,
    "y": 2600
@@ -253,8 +253,8 @@
   },
   "s-sheets": {
    "fill": "blue",
-   "text": "Bell = one tap. Once permission exists, tapping a card's bell arms a This-trip alert immediately and shows a toast (Alert on for the 7:32 AM train · Repeat) for 5 s; tapping the bell again turns it off. The sheet opens only the first time (permission), from the toast's Repeat link, or from a filled bell held or tapped on the Alerts tab (Manage). A denied permission shows Notifications off with Open Settings; it never shows On.\n\nFirst use: both fields empty, Show trains disabled; picking From opens To automatically. Add alert on the Alerts tab goes to Schedule.\n\nTrip identity never changes: the 7:32 AM train stays the 7:32 AM train when its estimate moves to 7:41 AM.",
-   "w": 300,
+   "text": "Bell = one tap. Once permission exists, tapping a card's bell arms a This-trip alert immediately and shows a toast (Alert on for the 7:32 AM train · Repeat) for 5 s; tapping the bell again turns it off. The sheet opens only the first time (permission), from the toast's Repeat link, or from a filled bell held or tapped on the Alerts tab (Manage). A denied permission shows Notifications off with Open Settings; it never shows On.\n\nRoute card (Grigor, Nov 8): a hollow ring marks where you get on, a dotted line, a green pin where you get off; no From or To words and no arrows. Tapping either station on Schedule opens the route sheet, where Recent lists the last three routes opened, newest first, without the one on screen. No favourites in v1. Settings is the third tab.\n\nFirst use: both rows empty, Show trains disabled; picking the starting station opens the destination search automatically. Add alert on the Alerts tab goes to Schedule.\n\nTrip identity never changes: the 7:32 AM train stays the 7:32 AM train when its estimate moves to 7:41 AM.",
+   "w": 320,
    "x": 2820,
    "y": 1300
   },

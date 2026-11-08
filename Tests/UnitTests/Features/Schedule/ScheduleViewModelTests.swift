@@ -8,10 +8,9 @@ final class ScheduleViewModelTests: XCTestCase {
     private let thursday = ServiceDay(year: 2026, month: 11, day: 5)
 
     func testTodayIsSelectedFirstWithTheRouteAndLiveFreshness() async throws {
-        let model = try await ScheduleViewModel.loadedFixture(isFavourite: false)
+        let model = try await ScheduleViewModel.loadedFixture()
         XCTAssertEqual(model.routeTitle, "Oakville to Union")
         XCTAssertEqual(model.route?.line?.name, "Lakeshore West")
-        XCTAssertFalse(model.isFavourite)
         XCTAssertEqual(model.days.count, 14)
         XCTAssertEqual(model.days.first, thursday)
         XCTAssertEqual(model.days[3], ServiceDay(year: 2026, month: 11, day: 8))
@@ -56,9 +55,7 @@ final class ScheduleViewModelTests: XCTestCase {
     func testANewServiceDayMovesTheScheduleToToday() async throws {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleViewModelTests.self))
         let clock = TestClock(now: repository.now)
-        let model = ScheduleViewModel(
-            route: repository.route, repository: repository, clock: clock, favourites: Favourites(defaults: .ephemeral())
-        )
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
         await model.loadIfNeeded()
         XCTAssertEqual(model.selectedDay, thursday)
         let scroll = model.scrollRequest
@@ -111,14 +108,6 @@ final class ScheduleViewModelTests: XCTestCase {
         await model.swap()
         XCTAssertEqual(model.routeTitle, "Union to Oakville")
         XCTAssertEqual(model.route?.line?.name, "Lakeshore West")
-    }
-
-    func testStarTogglesTheFavourite() async throws {
-        let model = try await ScheduleViewModel.loadedFixture(isFavourite: false)
-        XCTAssertEqual(model.toggleFavourite(), .toggled)
-        XCTAssertTrue(model.isFavourite)
-        XCTAssertEqual(model.toggleFavourite(), .toggled)
-        XCTAssertFalse(model.isFavourite)
     }
 
     /// Without Fixtures.json (Release builds, D20) there is no route until the route form lands (TT-120).

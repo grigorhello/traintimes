@@ -11,7 +11,7 @@ The product promise is unchanged: know when your train leaves, whether it is del
 | In version 1 | Out of version 1 |
 | --- | --- |
 | Direct GO trains between two stations, scheduled departures and arrivals, 7-day date choice | Login, payment, subscription, advertising, sponsor placement |
-| Saved last route and up to three favourites, kept on device | AI chat, live train maps, ticketing, refunds |
+| Saved last route and the last three routes opened (Recent), kept on device (D48) | AI chat, live train maps, ticketing, refunds |
 | Live status: on time, delayed, cancelled, scheduled only, stale, offline | Bus planning, UP Express, transfer routing, crowd reports |
 | Published platform, or Platform pending | Calendar access, GPS tracking, widgets, Apple Watch app |
 | Trip details with stop list and arrival basis | Delay threshold settings or any advanced alert options |
@@ -22,7 +22,7 @@ All station names, times, platforms, train numbers and stop lists shown on the c
 
 ## Navigation and shared rules
 
-The app has two bottom tabs, Schedule and Alerts, and nothing else at the top level. A gear in the Schedule header pushes Settings. Route editing, station search, trip details, alert setup and line notices open as native sheets (`.sheet`), so the timetable is always one dismiss away. There is no splash, tutorial, permission request or carousel before the first timetable.
+The app has three bottom tabs, Schedule, Alerts and Settings, and nothing else at the top level (D48). Route editing, station search, trip details, alert setup and line notices open as native sheets (`.sheet`), so the timetable is always one dismiss away. There is no splash, tutorial, permission request or carousel before the first timetable.
 
 **Trip identity never changes.** A trip is keyed by service date plus the feed's stable trip id, never by departure time. In every label and notification the train is named by its scheduled origin departure: the 7:32 AM train stays "7:32 AM train" when its estimate moves to 7:41 AM. Do not create a new trip when an estimate moves.
 
@@ -48,9 +48,9 @@ Missing or stale data must never produce an On time badge. Express is an outline
 
 ## Schedule screen (timeline)
 
-The Schedule tab is a vertical, to-scale timeline of today's direct trains for the saved route, with the next usable train emphasised and the current time marked. Top to bottom: inline title "Train Times" with a gear; route header; 7-day strip; freshness row with a Now button; optional watched-trip strip; the timeline; the tab bar. Three departures fit on a 390 pt phone at default text size in the normal state.
+The Schedule tab is a vertical, to-scale timeline of today's direct trains for the saved route, with the next usable train emphasised and the current time marked. Top to bottom: route card with the line under it (no app name above it, D48); 7-day strip; freshness row with a Now button; optional watched-trip strip; the timeline; the tab bar. Three departures fit on a 390 pt phone at default text size in the normal state.
 
-**Route header.** Origin and destination in `route` style (22 pt semibold), wrapping to two lines before truncating, with the line name and a dot in the line colour from feed metadata (ink-secondary when none). Tapping the names opens the route sheet. Swap (`arrow.up.arrow.down`) and favourite star are 44 pt buttons; swap is explicit and never automatic.
+**Route card** (D48). A card drawn like a maps route box: a hollow ring for the origin, three dots, and an accent pin for the destination down the left; origin over destination in `headline`, one 48 pt row each split by a hairline, on one line (long names shrink a little rather than truncate); no "From"/"To" words and no chevrons. Tapping the stations opens the route sheet. Swap (`arrow.up.arrow.down`, filled) is a 44 pt button to the right of both rows; swap is explicit and never automatic. Under the card, the line name and a dot in the line colour from feed metadata (ink-secondary when none).
 
 **Day strip.** Seven cells, Today first, each a 44 pt target showing the weekday above the day number. The selected day is solid accent with on-accent text; others are surface cards. The strip scrolls sideways for later dates within the published schedule horizon. Selecting any day other than today shows scheduled times only, hides the Now line, and starts the timeline at the first train of that service day.
 
@@ -89,7 +89,7 @@ Every state below is visibly different from the others and keeps the timetable u
 
 | State | Trigger | What the rider sees | Canvas board |
 | --- | --- | --- | --- |
-| Loading first timetable | No cached schedule for this route yet | Route header, day strip and rail stay; freshness reads "Loading timetable"; three skeleton cards with grey pills, gently fading unless Reduce Motion is on | Schedule · first load |
+| Loading first timetable | No cached schedule for this route yet | Route card, day strip and rail stay; freshness reads "Loading timetable"; three skeleton cards with grey pills, gently fading unless Reduce Motion is on | Schedule · first load |
 | Refreshing | Foreground, pull to refresh, periodic refresh | Existing timeline stays in place; freshness updates quietly; no spinner over content | Main |
 | Live on time | Fresh explicit evidence or fresh prediction under 3 min late | On time badge, platform when published | Main (State: normal) |
 | Delayed | Reported delay of 3 min or more | Expected time large, "Scheduled 7:32 AM" beneath, amber slip on the rail, Delayed N min badge, Est. arrival only when supported | Main (State: delayed), Schedule · delayed |
@@ -112,15 +112,15 @@ A delayed train stays on the timeline past its scheduled time until the feed rep
 
 On first launch the app opens directly to a compact route form, and the first valid route is saved automatically; no account, permission or onboarding comes first.
 
-**Route form** (sheet; also the first screen). Title "Choose a route". A card with two rows, From and To, each showing the full station name under a small label, and a single 44 pt swap button to the right of both rows. Below it one primary button, "Show trains", enabled only when both stations are set and different. On first use both fields show the placeholder "Choose a station" in ink-tertiary, the button is disabled, and picking From opens the To search automatically, so the first route takes two picks and one tap. A footnote says "No account or permission is needed. The route is saved on this device and opens next time."
+**Route form** (sheet; also the first screen, under a large title). Title "Choose a route". The route card (see Schedule, D48): origin row then destination row, each opening station search for that field, and a single 44 pt swap button to the right of both rows. Below it one primary button, "Show trains", enabled only when both stations are set and different. On first use the rows show the placeholders "Choose starting station" and "Choose destination" in ink-tertiary, the button is disabled, and picking From opens the To search automatically, so the first route takes two picks and one tap. A footnote says "No account or permission is needed. The route is saved on this device and opens next time."
 
-**Favourites.** A returning rider sees a Favourites list under the form (name, line, chevron), a "3 of 3" count and the sentence "Up to three favourites are kept on this device. Remove one to add another." The star in the Schedule header toggles the current route as a favourite. At three favourites the star does not silently replace one: it opens "Manage favourites" (secondary button on the route form) where rows can be removed. Each direction is its own favourite; the last selected route and its direction are remembered separately from favourites.
+**Recent** (D48; replaces favourites in version 1). A returning rider sees "Recent" under the form in place of the footnote: the last three routes opened, newest first, leaving out the route on screen. Each row shows mini route markers, origin over destination in `headline` and the line in `footnote`, with no chevron; tapping a row shows that route at once. Each direction is its own entry, and opening a route again moves it to the top. The last selected route and its direction are remembered separately.
 
 **Swap** reverses From and To explicitly and reloads the timeline. The app never reverses a route on its own based on time of day or location.
 
-**Station search** (sheet opened from From or To). A native searchable field with placeholder "Search stations", then two groups: Your stations (stations in the rider's favourite routes, starred) and All stations alphabetically; when choosing To, Union Station GO is listed first as a suggestion unless it is already the From station, each row showing the full station name in `headline` and its line context in `footnote` ("Lakeshore West", "All lines"). Station names are never abbreviated. The station already chosen for the other field is shown greyed with "Same as To" (or "Same as From") and cannot be selected. Cancel returns to the form unchanged.
+**Station search** (sheet opened from From or To). A native searchable field with placeholder "Search stations", then two groups: Your stations (stations in the recent routes, with a clock icon, D48) and All stations alphabetically; when choosing To, Union Station GO is listed first as a suggestion unless it is already the From station, each row showing the full station name in `headline` and its line context in `footnote` ("Lakeshore West", "All lines"). Station names are never abbreviated. The station already chosen for the other field is shown greyed with "Same as To" (or "Same as From") and cannot be selected. Cancel returns to the form unchanged.
 
-**Validation and persistence.** Identical stations are rejected inline. Choosing a pair with no direct service still saves the route and shows the "No direct connection" state on Schedule. Route, direction, favourites and the selected service day are stored locally; nothing is sent to a server for route selection.
+**Validation and persistence.** Identical stations are rejected inline. Choosing a pair with no direct service still saves the route and shows the "No direct connection" state on Schedule. Route, direction, recent routes and the selected service day are stored locally; nothing is sent to a server for route selection.
 
 ## Trip details sheet
 
@@ -212,7 +212,7 @@ Titles start with the scheduled train identity and never change it (the 7:32 AM 
 
 ## Settings
 
-Settings is pushed from the gear on Schedule and contains only what the brief requires; nothing here is needed to use the timetable.
+Settings is the third tab, under a large title "Settings" (D48), and contains only what the brief requires; nothing here is needed to use the timetable.
 
 | Group | Row | Control | Behaviour |
 | --- | --- | --- | --- |
@@ -238,7 +238,7 @@ The product is called Train Times. The name says exactly what the app is, in the
 
 **Wordmark and lockup.** Train Times in SF Pro Display Semibold, sentence case, two words. Ink #111827 in light mode, white on green and in dark mode; never green text on its own, which reads as a link. Horizontal lockup: symbol box 1.6 × cap height, gap 0.5 × cap height, symbol centred on the x-height. Clear space on every side equals the windscreen height. Minimums: lockup 12 pt cap height on screen and 3 mm in print; below that, the wordmark alone. The stacked lockup (symbol, wordmark, tagline) is for the first App Store screenshot and the website header only. No lockup on the launch screen, in the Schedule navigation title, in empty states or in notifications, and never beside GO Transit or Metrolinx marks.
 
-**In the app.** The Schedule navigation title is the plain text Train Times at 17 pt semibold; Alerts and Settings keep their large titles. Settings › About shows the app icon at 36 pt, the name, and Version 1.0 (1) · Your next GO train, at a glance. The notification icon and the permission prompt ("Train Times" Would Like to Send You Notifications) are supplied by the system.
+**In the app.** Schedule has no title: the route card is its header (D48); Alerts and Settings keep their large titles. Settings › About shows the app icon at 36 pt, the name, and Version 1.0 (1) · Your next GO train, at a glance. The notification icon and the permission prompt ("Train Times" Would Like to Send You Notifications) are supplied by the system.
 
 **Voice.** Every delay and cancellation carries the time it was reported (as reported at 7:14 AM). A train keeps its name: the 7:32 AM train, now expected 7:41 AM, never the 7:41 train. Copy states and never promises (expected, never will arrive). One fact per sentence. Freshness is always visible. Plain words, sentence case, Canadian spelling, no exclamation marks and no emoji. The notification strings in Notification rules and copy, the Alerts tab's recent updates and the toasts follow these rules.
 
@@ -274,7 +274,7 @@ The app uses the system font, SF Symbols and the tokens in the [GO Train App des
 
 **Type.** System font only, weights 400 and 600, tabular numerals on every time (`.monospacedDigit()`). Sizes at default Dynamic Type: timeline lead time 34 pt, other card times 32 pt, arrival 17 pt semibold, route 22 pt semibold, large titles 34 pt semibold, body 17 pt, subhead 15 pt, footnote 13 pt (smallest allowed), badge 13 pt semibold, tab labels system size. Tracking −0.3 to −0.4 pt from 17 pt up.
 
-**Space and shape.** 4 pt scale; 20 pt screen margins; 14 pt card padding on the timeline; 18 pt card radius; pill buttons, chips and badges; 44 × 44 pt minimum hit area on every control including the bell, swap, star, gear, day cells and the Now button. Light mode cards use a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only. Sheets carry the one real shadow.
+**Space and shape.** 4 pt scale; 20 pt screen margins; 14 pt card padding on the timeline; 18 pt card radius; pill buttons, chips and badges; 44 × 44 pt minimum hit area on every control including the bell, swap, the route card rows, day cells and the Now button. Light mode cards use a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only. Sheets carry the one real shadow.
 
 **Dynamic Type.** Support to AX5. From xxxLarge: the day strip scrolls with five cells visible; the rail column widens so pills hold 19 pt digits; cards stack time, arrival and status in three rows; fewer cards fit and that is acceptable. Nothing critical clips or truncates mid-time; long station names wrap to two lines.
 

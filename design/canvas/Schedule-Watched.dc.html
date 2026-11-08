@@ -13,25 +13,30 @@
 <style>
 body{margin:0}
 a{color:inherit}a:hover{color:inherit}
+.rcard{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:0 8px 0 16px}
+.mk{display:flex;flex-direction:column;align-items:center;padding-top:18px;height:97px;box-sizing:border-box}
+.mk .ring{width:12px;height:12px;border-radius:9999px;box-shadow:inset 0 0 0 2.5px var(--ink-secondary);flex:none}
+.mk .pt{width:3px;height:3px;border-radius:9999px;background:var(--ink-tertiary);margin-top:6px;flex:none}
+.mk .pin{width:20px;height:20px;margin-top:6px;color:var(--accent);flex:none;display:block}
+.rrow{display:flex;align-items:center;gap:8px;min-height:48px}
+.rrow .stn{flex:1;min-width:0}
 </style>
 </helmet>
 <div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
 
-  <div class="navbar">
-    <span class="nav-title">Train Times</span>
-    <a class="icon-btn" href="Settings.dc.html" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></a>
-  </div>
 
-  <div class="screen">
-    <div class="rh">
-      <div class="names">
-        <a class="route" href="Route-Picker.dc.html" aria-label="Change route, Oakville to Union">Oakville to Union</a>
-        <span class="line subhead"><span class="dot" aria-hidden="true"></span>Lakeshore West</span>
+  <div class="screen" style="padding-top: 12px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <a class="rrow" href="Route-Picker.dc.html" aria-label="From Oakville GO. Change route"><span class="stn headline">Oakville GO</span></a>
+          <div style="height: 1px; background: var(--hairline)"></div>
+          <a class="rrow" href="Route-Picker.dc.html" aria-label="To Union Station GO. Change route"><span class="stn headline">Union Station GO</span></a>
+        </div>
+        <button class="icon-btn filled" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
       </div>
-      <div class="acts">
-        <button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
-        <button class="icon-btn on" aria-label="Remove from favourites"><span class="ico i-star-fill" aria-hidden="true"></span></button>
-      </div>
+      <div style="display: flex; align-items: center; padding-left: 4px; height: 24px"><span class="subhead" style="display: flex; align-items: center; gap: 8px; color: var(--ink-secondary)"><span style="width: 10px; height: 10px; border-radius: 9999px; background: var(--ink-secondary)" aria-hidden="true"></span>Lakeshore West</span></div>
     </div>
 
     <div class="days" role="tablist" aria-label="Service day">
@@ -109,9 +114,10 @@ a{color:inherit}a:hover{color:inherit}
     </div>
   </div>
 
-  <nav class="tabs">
+  <nav class="tabs" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
     <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
     <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
+    <a href="Settings.dc.html"><span class="ico i-gear" aria-hidden="true"></span><span class="tab-label">Settings</span></a>
   </nav>
 </div>
 </x-dc>

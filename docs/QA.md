@@ -23,13 +23,13 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 - [ ] Dark
 
 ### 2. A returning rider sees the remembered route and reads the next usable train and its status in about three seconds.
-- Simulator and CI: **passes** for the behaviour: `RouteTests` and `FavouritesTests` relaunch onto the saved route and direction; `ScheduleViewModelTests.testTodayIsSelectedFirstWithTheRouteAndLiveFreshness` (opens on Today, D30); `TimelineCardsTests.testNextUsableTrainLeadsWithMinutesUntilDeparture`; `AppShellTests` snapshots (34 pt lead card, badge, "in 11 min"). Fixed in TT-153: coming back to the app on a new day left yesterday selected (`ScheduleViewModelTests.testANewServiceDayMovesTheScheduleToToday`). The three seconds are a phone test.
+- Simulator and CI: **passes** for the behaviour: `RouteTests` and `RecentRoutesTests` relaunch onto the saved route and direction; `ScheduleViewModelTests.testTodayIsSelectedFirstWithTheRouteAndLiveFreshness` (opens on Today, D30); `TimelineCardsTests.testNextUsableTrainLeadsWithMinutesUntilDeparture`; `AppShellTests` snapshots (34 pt lead card, badge, "in 11 min"). Fixed in TT-153: coming back to the app on a new day left yesterday selected (`ScheduleViewModelTests.testANewServiceDayMovesTheScheduleToToday`). The three seconds are a phone test.
 - iPhone: with a route saved, swipe the app away and open it again. Within about three seconds you can read the route and the big green next train with "in N min" and its badge. Pick another day, quit, reopen: it comes back on Today. Also leave the app in the background overnight and open it in the morning: Today, with the Now line.
 - [ ] Light
 - [ ] Dark
 
 ### 3. Swapping direction is explicit; full station names stay readable.
-- Simulator and CI: **passes.** Swap only on tap and remembered: `FavouritesTests.testStarListsTheFavouriteAndRelaunchRestoresTheDirection`, `ScheduleRouteTests.testSwapIsRemembered`, `RouteFormViewModelTests.testSwapReversesTheStations`. Fixed in TT-153: the route header cut long names off after two lines; it now shrinks them to fit (`WatchedStripSnapshotTests.testLongNamesLight/Dark`, Union Station GO to Brampton Innovation District GO).
+- Simulator and CI: **passes.** Swap only on tap and remembered: `RecentRoutesTests.testRecentRouteOpensFromTheRouteSheetAndSurvivesRelaunch`, `ScheduleRouteTests.testSwapIsRemembered`, `RouteFormViewModelTests.testSwapReversesTheStations`. Fixed in TT-153: the route header cut long names off after two lines; it now shrinks them to fit (`WatchedStripSnapshotTests.testLongNamesLight/Dark`, Union Station GO to Brampton Innovation District GO).
 - iPhone: tap the arrows beside the route: the names flip and the trains reload; reopen the app, the direction stays. Pick Brampton Innovation District GO to Union Station GO and swap: both names read in full.
 - [ ] Light
 - [ ] Dark
@@ -90,7 +90,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 13. Long names, dark appearance and accessibility text sizes do not clip critical information.
 - Simulator and CI: **passes** for dark (every screen has dark snapshots) and long names in the route form, station search, Trip details and the Alerts tab, which wrap. Fixed in TT-153: the Schedule route header and the watched-trip strip cut long names off (`WatchedStripSnapshotTests.testLongNamesLight/Dark`). Accessibility text sizes are skipped (D45).
-- iPhone: Brampton Innovation District GO to Union Station GO, and Union Station GO to Durham College Oshawa GO: the Schedule header, favourites, station search, Trip details and an alert row read in full.
+- iPhone: Brampton Innovation District GO to Union Station GO, and Union Station GO to Durham College Oshawa GO: the Schedule route card, Recent, station search, Trip details and an alert row read in full.
 - [ ] Light
 - [ ] Dark
 
@@ -108,7 +108,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 16. First use shows empty fields and a disabled Show trains button; picking From opens To.
 - Simulator and CI: **passes.** `RouteTests.testFirstUseShowsTrainsAndRelaunchOpensTheRoute`, `RouteFormViewModelTests.testFirstUseTakesTwoPicksAndOneTap`, `testUnionIsSuggestedFirstWhenChoosingTo`, snapshots `RouteFormSnapshotTests.testFirstUseLight/Dark`.
-- iPhone: fresh install: both fields "Choose a station" in grey, Show trains grey and inert; pick From: the sheet turns to To with Union Station GO first.
+- iPhone: fresh install: the rows read "Choose starting station" and "Choose destination" in grey, Show trains grey and inert; pick From: the sheet turns to To with Union Station GO first.
 - [ ] Light
 - [ ] Dark
 

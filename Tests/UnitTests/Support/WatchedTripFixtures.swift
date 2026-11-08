@@ -48,10 +48,8 @@ extension ScheduleViewModel {
             tripList: [watched] + (try await fixture.trips(for: fixture.route, on: day)), live: live, stopList: []
         )
         let route = route ?? fixture.route
-        let favourites = Favourites(defaults: .ephemeral())
-        favourites.add(route)
         let model = ScheduleViewModel(
-            route: route, repository: repository, clock: FixedClock(now: now), favourites: favourites,
+            route: route, repository: repository, clock: FixedClock(now: now),
             watchedTrips: FakeWatchedTrips(isWatched ? [key] : [])
         )
         await model.loadIfNeeded()

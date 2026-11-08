@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings, pushed from the Schedule gear (TT-105). Matches design/frames/settings.png.
+/// Settings, the third tab (TT-105, D48): the large title, then the cards of design/frames/settings.png.
 /// Nothing here is needed to use the timetable; no login, payment, advertising or rating prompt (D5).
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
@@ -14,6 +14,12 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TTSpace.s2) {
+                Text("nav.settings")
+                    .font(TTFont.largeTitle)
+                    .foregroundStyle(TTColor.ink)
+                    .frame(minHeight: TTSize.targetMin)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("settings.title")
                 Card(padding: 0) {
                     VStack(spacing: 0) {
                         segmentRow("settings.appearance", selection: $viewModel.appearance, options: [
@@ -53,13 +59,9 @@ struct SettingsView: View {
                 Card(padding: 0) { aboutRow }
             }
             .padding(.horizontal, TTSpace.s5)
-            .padding(.top, TTSpace.s3)
             .padding(.bottom, TTSpace.s6)
         }
         .background(TTColor.canvas)
-        .navigationTitle(Text("nav.settings"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar) // the frame has no tab bar; it returns on back
         // Reads the permission when Settings appears and again each time the app returns to the foreground.
         .task(id: scenePhase) {
             if scenePhase == .active { await viewModel.refreshPermission() }

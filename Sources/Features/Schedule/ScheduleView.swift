@@ -1,16 +1,14 @@
 import SwiftUI
 
-/// Schedule tab (TT-112): inline "Train Times" header with the Settings gear, route header, 7-day strip and freshness
-/// row with the Now button, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline
-/// with its rail and cards (TT-113).
+/// Schedule tab (TT-112): the route card with the line under it (D48), 7-day strip and freshness row with the Now button,
+/// the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and cards
+/// (TT-113).
 struct ScheduleView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
-    let onSettings: () -> Void
+    /// Tap the route card: the route sheet with Recent (D48).
     let onEditRoute: () -> Void
-    /// The star at three favourites: the route sheet opens with the favourites to remove one (TT-122).
-    var onManageFavourites: () -> Void = {}
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
     /// "Line notice" in the freshness row: the notice sheet (TT-132).
@@ -26,7 +24,6 @@ struct ScheduleView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navigationHeader
             VStack(alignment: .leading, spacing: 0) {
                 routeHeader
                     .padding(.horizontal, TTSpace.s5)
@@ -45,7 +42,7 @@ struct ScheduleView: View {
                     .padding(.top, TTSpace.s3 - TTSpace.s1 / 2)
                 }
             }
-            .padding(.top, TTSpace.s1)
+            .padding(.top, TTSpace.s3)
             timeline
                 .padding(.top, TTSpace.s3)
         }
@@ -56,8 +53,6 @@ struct ScheduleView: View {
         .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
         // A light haptic when an alert turns on (TT-141).
         .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
-        // Title stays set so Settings' back button reads "Train Times"; the header above replaces the bar.
-        .navigationTitle(Text("app.name"))
         .toolbar(.hidden, for: .navigationBar)
         .task { await viewModel.loadIfNeeded() }
         .task { await viewModel.runClock() }
@@ -68,73 +63,39 @@ struct ScheduleView: View {
         }
     }
 
-    private var navigationHeader: some View {
-        HStack {
-            Text("app.name")
-                .font(TTFont.navTitle)
-                .foregroundStyle(TTColor.ink)
-                .accessibilityIdentifier("schedule.title")
-            Spacer()
-            IconButton(systemName: "gearshape", label: "nav.settings", action: onSettings)
-                .accessibilityIdentifier("schedule.settings")
-        }
-        .padding(.leading, TTSpace.s5)
-        .padding(.trailing, TTSpace.s2)
-    }
-
     // MARK: Route header
 
-    /// Origin and destination wrap to two lines, and the longest names shrink a little to fit them rather than being cut
-    /// off (TT-153); tapping them opens the route sheet.
+    /// The route card, origin over destination (D48); tapping it opens the route sheet. The line sits under it.
     private var routeHeader: some View {
-        HStack(spacing: TTSpace.s2) {
-            Button(action: onEditRoute) {
-                VStack(alignment: .leading, spacing: TTSpace.s1 / 2) {
-                    if let title = viewModel.routeTitle {
-                        Text(title)
-                            .font(TTFont.route)
-                            .foregroundStyle(TTColor.ink)
-                            .lineLimit(2)
-                            .minimumScaleFactor(Self.routeTitleMinimumScale)
-                            .multilineTextAlignment(.leading)
-                    }
-                    if let line = viewModel.route?.line {
-                        HStack(spacing: TTSpace.s2) {
-                            Circle()
-                                .fill(line.colorHex.flatMap { Color(lineHex: $0, on: colorScheme) } ?? TTColor.inkSecondary)
-                                .frame(width: Self.lineDot, height: Self.lineDot)
-                            Text(line.name)
-                                .font(TTFont.subhead)
-                                .foregroundStyle(TTColor.inkSecondary)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: Self.lineRowGap) {
+            RouteCard(
+                from: viewModel.route?.from.name,
+                to: viewModel.route?.to.name,
+                tap: .card(label: viewModel.routeTitle ?? "", id: "schedule.route", action: onEditRoute),
+                swapID: "schedule.swap"
+            ) {
+                Task { await viewModel.swap() }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("schedule.route")
-
-            HStack(spacing: 0) {
-                IconButton(systemName: "arrow.up.arrow.down", label: "route.swap") {
-                    Task { await viewModel.swap() }
+            if let line = viewModel.route?.line {
+                HStack(spacing: TTSpace.s2) {
+                    Circle()
+                        .fill(line.colorHex.flatMap { Color(lineHex: $0, on: colorScheme) } ?? TTColor.inkSecondary)
+                        .frame(width: Self.lineDot, height: Self.lineDot)
+                    Text(line.name)
+                        .font(TTFont.subhead)
+                        .foregroundStyle(TTColor.inkSecondary)
                 }
-                .accessibilityIdentifier("schedule.swap")
-                IconButton(
-                    systemName: viewModel.isFavourite ? "star.fill" : "star",
-                    label: viewModel.isFavourite ? "route.favourite_remove" : "route.favourite_add"
-                ) {
-                    if viewModel.toggleFavourite() == .full { onManageFavourites() }
-                }
-                .accessibilityIdentifier("schedule.favourite")
+                .frame(height: Self.lineRowHeight)
+                .padding(.leading, TTSpace.s1)
             }
         }
     }
 
-    /// The canvas's line dot (`.rh .dot`).
+    /// The canvas's line dot.
     private static let lineDot: CGFloat = 10
-    /// How far the route title may shrink to keep long names (Brampton Innovation District GO) whole on two lines.
-    private static let routeTitleMinimumScale: CGFloat = 0.7
+    /// The canvas's line row under the card: 6 pt below it, 24 pt tall.
+    private static let lineRowGap: CGFloat = 6
+    private static let lineRowHeight: CGFloat = 24
 
     // MARK: Day strip
 
@@ -404,6 +365,6 @@ struct ScheduleView: View {
 
 #Preview {
     NavigationStack {
-        ScheduleView(viewModel: .fixtures(), onSettings: {}, onEditRoute: {})
+        ScheduleView(viewModel: .fixtures(), onEditRoute: {})
     }
 }

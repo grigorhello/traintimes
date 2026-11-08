@@ -6,11 +6,12 @@ final class RouteFormViewModelTests: XCTestCase {
     private let oakville = Station(id: "OA", name: "Oakville GO", lines: ["Lakeshore West"])
     private let union = Station(id: "UN", name: "Union Station GO")
 
-    private func model(_ route: Route? = nil, favourites routes: [Route] = []) async throws -> RouteFormViewModel {
-        let favourites = Favourites(defaults: .ephemeral())
-        routes.forEach { favourites.add($0) }
+    /// `recent` are recorded oldest first, so the last one is the newest.
+    private func model(_ route: Route? = nil, recent routes: [Route] = []) async throws -> RouteFormViewModel {
+        let recents = RecentRoutes(defaults: .ephemeral())
+        routes.forEach { recents.record($0) }
         let model = RouteFormViewModel(
-            route: route, repository: try FixtureScheduleRepository(bundle: Bundle(for: Self.self)), favourites: favourites
+            route: route, repository: try FixtureScheduleRepository(bundle: Bundle(for: Self.self)), recents: recents
         )
         await model.loadStations()
         return model
@@ -78,47 +79,17 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(route?.line?.name, "Lakeshore West", "The line serves both directions")
     }
 
-    /// TT-122: the favourites list under the form, its count and the full-list sentence.
-    func testFavouritesListShowsTheCount() throws {
-        let favourites = Favourites(defaults: .ephemeral())
-        let model = RouteFormViewModel(
-            route: nil, repository: try FixtureScheduleRepository(bundle: Bundle(for: Self.self)), favourites: favourites
-        )
-        XCTAssertTrue(model.favouriteRoutes.isEmpty)
-        XCTAssertEqual(model.favouritesCount, "0 of 3")
-
-        favourites.add(Route(from: oakville, to: union, line: nil))
-        XCTAssertEqual(model.favouritesCount, "1 of 3")
-        XCTAssertFalse(model.isFavouritesFull)
-        XCTAssertEqual(model.title(model.favouriteRoutes[0]), "Oakville GO to Union Station GO")
-
-        favourites.add(Route(from: union, to: oakville, line: nil))
-        favourites.add(Route(from: Station(id: "BU", name: "Burlington"), to: union, line: nil))
-        XCTAssertEqual(model.favouritesCount, "3 of 3")
-        XCTAssertTrue(model.isFavouritesFull)
-    }
-
-    /// Manage favourites removes rows; it ends by itself once the list is empty, and needs a list to start.
-    func testManageFavouritesRemovesRows() throws {
-        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
-        XCTAssertFalse(RouteFormViewModel(route: nil, repository: repository, isManagingFavourites: true).isManagingFavourites)
-
-        let favourites = Favourites(defaults: .ephemeral())
+    /// D48: Recent lists the routes opened last, newest first, without the route the sheet opened with.
+    func testRecentLeavesOutTheRouteOnScreen() async throws {
         let there = Route(from: oakville, to: union, line: nil)
         let back = Route(from: union, to: oakville, line: nil)
-        favourites.add(there)
-        favourites.add(back)
-        let model = RouteFormViewModel(route: there, repository: repository, favourites: favourites)
-        XCTAssertFalse(model.isManagingFavourites)
-        model.toggleManagingFavourites()
-        XCTAssertTrue(model.isManagingFavourites)
+        let burlington = Route(from: Station(id: "BU", name: "Burlington GO"), to: union, line: nil)
+        let model = try await model(there, recent: [burlington, back, there])
+        XCTAssertEqual(model.recentRoutes, [back, burlington])
+        XCTAssertEqual(model.title(model.recentRoutes[0]), "Union Station GO to Oakville GO")
 
-        model.removeFavourite(there)
-        XCTAssertEqual(model.favouriteRoutes, [back])
-        XCTAssertTrue(model.isManagingFavourites)
-        model.removeFavourite(back)
-        XCTAssertTrue(model.favouriteRoutes.isEmpty)
-        XCTAssertFalse(model.isManagingFavourites)
+        let firstUse = try await self.model()
+        XCTAssertTrue(firstUse.recentRoutes.isEmpty, "First use shows the footnote")
     }
 
     /// A pair with no direct service still makes a route, with no line (Schedule then shows No direct connection).
@@ -170,7 +141,7 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(rows.prefix(3).map(\.station.name), ["Acton GO", "Agincourt GO", "Ajax GO"])
         XCTAssertEqual(rows.first?.detail, "Kitchener")
         XCTAssertEqual(rows.first { $0.id == "UN" }?.detail, "All lines")
-        XCTAssertEqual(model.yourStations, [], "No favourites, no Your stations group")
+        XCTAssertEqual(model.yourStations, [], "No recent routes, no Your stations group")
     }
 
     /// Choosing To lists Union Station GO first, unless it is the From station.
@@ -189,19 +160,15 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(fromUnion.allStations.first { $0.id == "UN" }).isDisabled)
     }
 
-    /// Your stations come from the favourite routes, alphabetically and starred.
-    func testYourStationsComeFromFavourites() async throws {
-        let model = try await model(favourites: [Route(from: union, to: oakville, line: nil)])
+    /// Your stations come from the recent routes, alphabetically and with a clock (D48).
+    func testYourStationsComeFromRecentRoutes() async throws {
+        let model = try await model(recent: [Route(from: union, to: oakville, line: nil)])
         model.open(.from)
         XCTAssertEqual(model.yourStations.map(\.station.name), ["Oakville GO", "Union Station GO"])
-        XCTAssertTrue(model.yourStations.allSatisfy(\.isFavourite))
-        XCTAssertTrue(try XCTUnwrap(model.allStations.first { $0.id == "OA" }).isFavourite)
+        XCTAssertTrue(model.yourStations.allSatisfy(\.isRecent))
+        XCTAssertTrue(try XCTUnwrap(model.allStations.first { $0.id == "OA" }).isRecent)
         model.query = "uni"
         XCTAssertEqual(model.yourStations.map(\.station.name), ["Union Station GO"])
-
-        // A favourite removed in Manage favourites leaves Your stations at once (TT-122).
-        model.removeFavourite(Route(from: union, to: oakville, line: nil))
-        XCTAssertTrue(model.yourStations.isEmpty)
     }
 
     /// Each time the search opens, or moves on from From to To, it starts empty.

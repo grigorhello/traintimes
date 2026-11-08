@@ -36,6 +36,12 @@ cd server && npm ci && npm test && npm run typecheck
 
 The replays in `test/replay.test.ts` run the server end to end on the TT-131 sample feeds and the TT-130 sample timetable, so no Metrolinx key is needed.
 
+## Deployed
+
+Set up on 2026-11-08 on Grigor's Cloudflare account (Workers Free plan) at https://alerts.traintimes.ca, the address the app uses (`HTTPAlertServer`): the D1 database `traintimes-alerts` (id in `wrangler.toml`, schema applied), the Worker with both crons, the APNs secrets and the custom domain. Until the Metrolinx key is added (step 6) it runs but sends nothing.
+
+To deploy a change, run `npx wrangler deploy` (step 4) or have a Claude session upload the bundle through the Cloudflare connector, keeping the secrets (`keep_bindings: ["secret_text"]`).
+
 ## Set up and deploy (once)
 
 These steps need Grigor's accounts. Never paste a key in chat or commit it. Run the commands in `server/` after `npm ci` and `npx wrangler login`.

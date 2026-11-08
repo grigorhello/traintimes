@@ -23,5 +23,5 @@ TIMETABLE_WORKFLOW = "grigorhello/traintimes/.github/workflows/server-timetable.
 [[d1_databases]]
 binding = "DB"
 database_name = "traintimes-alerts"
-# Filled in by `npx wrangler d1 create traintimes-alerts` (README.md).
-database_id = "00000000-0000-0000-0000-000000000000"
+# Created 2026-11-08 (README.md, Deployed).
+database_id = "7be39f88-bd9d-4bd9-87b9-9b9d719d3c36"

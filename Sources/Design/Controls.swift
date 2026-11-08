@@ -42,6 +42,7 @@ struct DayChip: View {
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .background(isOn ? TTColor.accent : .clear, in: Circle())
                 .overlay(Circle().strokeBorder(isOn ? .clear : TTColor.controlBorder, lineWidth: 1))
+                .contentShape(Circle())    // an unselected chip's clear fill takes no taps on its own (D45)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isOn ? .isSelected : [])

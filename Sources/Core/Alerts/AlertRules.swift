@@ -175,9 +175,6 @@ final class AlertRules: WatchedTripsProviding {
         } catch {
             return
         }
-        // The token and Time format reach the server once per launch and whenever either changed (a restored backup, a
-        // TestFlight build over a Debug one, Settings › Time format), not only with the next save (TT-153).
-        try? await registerIfNeeded()
         var dates = noTrainDates
         for status in statuses where contains(status.id) && !inFlight.contains(status.id) && serverStates[status.id] != .couldNotSave {
             let state: AlertRuleState = status.state == .reviewNeeded ? .reviewNeeded : .on
@@ -185,6 +182,10 @@ final class AlertRules: WatchedTripsProviding {
             dates[status.id] = status.noMatchingTrainOn
         }
         if dates != noTrainDates { noTrainDates = dates }
+        // The token and Time format reach the server once per launch and whenever either changed (a restored backup, a
+        // TestFlight build over a Debug one, Settings › Time format), not only with the next save (TT-153). Last, so a
+        // slow push token never holds up the states above.
+        try? await registerIfNeeded()
     }
 
     /// Puts a deleted rule back where it was and saves it again with the same id, so the server has it again (the Alerts

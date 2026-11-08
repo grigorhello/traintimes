@@ -1,8 +1,9 @@
 import UIKit
 import UserNotifications
 
-/// Notification taps (TT-144). It becomes the notification centre's delegate at launch, so a tap that launches a closed
-/// app reaches it too, and hands each tap's link to the router, which RootView opens.
+/// Notification taps (TT-144) and the APNs device token (TT-141). It becomes the notification centre's delegate at launch,
+/// so a tap that launches a closed app reaches it too, and hands each tap's link to the router, which RootView opens.
+/// The token callbacks go to `SystemPushRegistration`, which the alert rules ask for the token.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     /// The app's one router; created on first use, so the delegate's init stays free of main-actor work.
@@ -19,6 +20,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
         #endif
         return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        SystemPushRegistration.shared.didRegister(deviceToken: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: any Error) {
+        SystemPushRegistration.shared.didFail(error)
     }
 
     nonisolated func userNotificationCenter(

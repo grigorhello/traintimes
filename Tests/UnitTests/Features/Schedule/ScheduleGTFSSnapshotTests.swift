@@ -35,6 +35,9 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
+                // The 6:17 card sits under the tab bar's top edge, whose blur draws about 80 of its pixels a shade (up to
+                // 3/255) differently from one run to the next; a card moved by even 1 px changes thousands.
+                precision: 0.9999,
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)

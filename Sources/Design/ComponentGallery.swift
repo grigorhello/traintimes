@@ -102,7 +102,7 @@ struct SurfacesGallery: View {
                 actionTitle: "route.choose"
             )
             SkeletonCard(pulses: false)
-            Toast(message: String(format: String(localized: "alert.toast_on"), "7:32 AM"))
+            Toast(message: String(format: String(localized: "alert.toast_on"), "7:32 AM"), systemImage: "bell.fill", actionTitle: "alert.repeat")
         }
     }
 }

@@ -38,3 +38,80 @@ final class TestClock: AppClock, @unchecked Sendable {
         lock.withLock { value = value.addingTimeInterval(TimeInterval(minutes * 60)) }
     }
 }
+
+/// The alert server in alert tests: records every call, can fail, and can hold a rule's save until the test releases it.
+actor FakeAlertServer: AlertServer {
+    private(set) var registrations: [InstallationRegistration] = []
+    private(set) var saved: [AlertRule] = []
+    private(set) var deleted: [String] = []
+    private var failing = false
+    private var holding = false
+    private var unknownInstallationOnce = false
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    var isHolding: Bool { !held.isEmpty }
+
+    func setFailing(_ value: Bool) { failing = value }
+    func holdSaves() { holding = true }
+    func answerUnknownInstallationOnce() { unknownInstallationOnce = true }
+
+    func release() {
+        holding = false
+        held.forEach { $0.resume() }
+        held = []
+    }
+
+    func register(_ registration: InstallationRegistration, installation: String) async throws {
+        if failing { throw URLError(.cannotFindHost) }
+        registrations.append(registration)
+    }
+
+    func save(_ rule: AlertRule, installation: String) async throws {
+        if holding { await withCheckedContinuation { held.append($0) } }
+        if failing { throw URLError(.cannotFindHost) }
+        if unknownInstallationOnce {
+            unknownInstallationOnce = false
+            throw AlertServerError.unknownInstallation
+        }
+        saved.append(rule)
+    }
+
+    func delete(ruleId: String, installation: String) async throws {
+        if failing { throw URLError(.cannotFindHost) }
+        deleted.append(ruleId)
+    }
+
+    /// Waits until a save is held.
+    func waitUntilHolding() async {
+        while held.isEmpty { await Task.yield() }
+    }
+}
+
+/// Alert test values: the 7:32 AM train from Oakville to Union on Thu Nov 5 (the fixture route).
+enum AlertFixtures {
+    static let route = Route(
+        from: Station(id: "OA", name: "Oakville"), to: Station(id: "UN", name: "Union"),
+        line: Line(id: "LW", name: "Lakeshore West", colorHex: nil)
+    )
+
+    static func trip(_ id: String = "LW-0732-20261105", day: Int = 5, departure: String = "12:32") -> Trip {
+        Trip(
+            key: TripKey(serviceDay: ServiceDay(year: 2026, month: 11, day: day), tripId: id),
+            scheduledDeparture: try! Date(String(format: "2026-11-%02dT%@:00Z", day, departure), strategy: .iso8601),
+            scheduledArrival: try! Date(String(format: "2026-11-%02dT13:12:00Z", day), strategy: .iso8601),
+            platform: .pending,
+            tags: []
+        )
+    }
+
+    @MainActor
+    static func rules(
+        _ server: FakeAlertServer, permission: NotificationPermission = .allowed, settings: AppSettings? = nil,
+        defaults: UserDefaults? = nil
+    ) -> AlertRules {
+        AlertRules(
+            server: server, push: FixturePushRegistration(), permissions: FakeNotificationPermission(permission),
+            settings: settings, defaults: defaults
+        )
+    }
+}

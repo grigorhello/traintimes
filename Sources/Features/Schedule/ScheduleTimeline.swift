@@ -7,6 +7,9 @@ struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting
     let onOpen: (TripKey) -> Void
+    /// Each card's bell (TT-141).
+    var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
+    var onBell: (TripKey) -> Void = { _ in }
 
     /// The right edge of the label column: the pill slot after its 12 pt inset.
     private static let labelColumn = TTTimeline.leftInset + TimePill.railSize.width
@@ -54,7 +57,7 @@ struct ScheduleTimeline: View {
     private func cardViews(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DepartureCardView(card: card, onOpen: { onOpen(card.id) }) { size in
+                DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
                 .padding(.leading, Self.cardX)
@@ -228,16 +231,21 @@ struct ScheduleTimeline: View {
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
+    var bell: AlertBellModel.Bell = .off
     let onOpen: () -> Void
+    var onBell: () -> Void = {}
     let onSize: (TimelineCardSize) -> Void
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
+    @Environment(\.displayScale) private var displayScale
 
     /// The canvas card pads 14 pt, and 10 pt on the bell side; `Card` pads 16 pt.
     private static let inset = EdgeInsets(top: -2, leading: -2, bottom: -2, trailing: -6)
     /// The bell's 44 pt target bleeds into the card padding, so the badge row stays one badge tall.
     private static let bellBleed: CGFloat = 10
+    /// The bell's height in the badge row once it bleeds; the row is at least this tall, so the bell centres on it.
+    private static let bellRowHeight = TTSize.targetMin - 2 * bellBleed
     /// Between the badge row and the wrapped tags.
     private static let tagRowGap: CGFloat = 6
     private static let timeMinimumScale: CGFloat = 0.85
@@ -284,6 +292,13 @@ struct DepartureCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
+        // The bell sits over its slot in the badge row, outside the card's one element, so it is a separate button. The
+        // slot's alignment guides place it in the same layout pass as the card, so every frame draws it in place.
+        .overlay(alignment: .bellSlot) {
+            if !card.isCancelled {
+                bellButton
+            }
+        }
     }
 
     /// "Scheduled arrival" over the 17 pt time; the next train's platform goes under it.
@@ -306,22 +321,35 @@ struct DepartureCardView: View {
     }
 
     /// Badge, platform or "in N min", tags and the bell on one line; tags wrap under them when they do not fit.
-    private var badgeRow: some View {
+    /// The bell's slot stays outside `ViewThatFits`, so there is one slot whichever row layout fits. A cancelled card has
+    /// no bell, so its rows stay as they were before the bell (TT-114).
+    @ViewBuilder private var badgeRow: some View {
+        if card.isCancelled {
+            badgeRows
+        } else {
+            HStack(alignment: .top, spacing: TTSpace.s2) {
+                badgeRows
+                bellSlot
+            }
+        }
+    }
+
+    private var badgeRows: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: TTSpace.s2) {
                 StatusBadge(status: card.status)
                 detail
                 tags
                 Spacer(minLength: 0)
-                bell
             }
+            .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
             VStack(alignment: .leading, spacing: Self.tagRowGap) {
                 HStack(spacing: TTSpace.s2) {
                     StatusBadge(status: card.status)
                     detail
                     Spacer(minLength: 0)
-                    bell
                 }
+                .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
                 tags
             }
         }
@@ -371,19 +399,78 @@ struct DepartureCardView: View {
         }
     }
 
-    /// Armed in TT-141. A cancelled train has none.
-    @ViewBuilder private var bell: some View {
-        if !card.isCancelled {
-            IconButton(systemName: "bell", label: "button.add_alert") {}
-                .padding(.vertical, -Self.bellBleed)
-                .padding(.trailing, -Self.bellBleed)
-        }
+    /// The bell's place at the end of the badge row; its centre sets the guides the bell aligns on.
+    private var bellSlot: some View {
+        Color.clear
+            .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+            .alignmentGuide(HorizontalAlignment.bellSlot) { $0[HorizontalAlignment.center] }
+            .alignmentGuide(VerticalAlignment.bellSlot) { $0[VerticalAlignment.center] }
+            .padding(.vertical, -Self.bellBleed)
+            .padding(.trailing, -Self.bellBleed)
+            .accessibilityHidden(true)
+    }
+
+    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141). Dimmed while Setting up.
+    private var bellButton: some View {
+        let label = bell == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label")
+        return IconButton(
+            systemName: bell == .on ? "bell.fill" : "bell",
+            label: Text(verbatim: String(format: label, card.trainName)),
+            action: onBell
+        )
+        .disabled(bell == .settingUp)
+        .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
     }
 
     private func report() {
         guard height > 0, anchor > 0 else { return }
-        onSize(TimelineCardSize(height: height, anchor: anchor))
+        onSize(TimelineCardSize(height: wholePixels(height), anchor: wholePixels(anchor)))
     }
+
+    /// A 32 pt time's centre falls on a half pixel, so a card can land on that half pixel too, and floating-point noise in
+    /// the measurement then picks the pixel it draws on: one snapshot run drew a card 1 px off another. Snapped to whole
+    /// pixels (a half pixel rounds down), every measurement of the same card is the same number.
+    private func wholePixels(_ value: CGFloat) -> CGFloat {
+        let scale = max(displayScale, 1)
+        let halfPixels = (value * scale * 2).rounded()
+        return (halfPixels / 2).rounded(.down) / scale
+    }
+}
+
+/// A badge row with a bell is at least the bell's height once it bleeds, so the bell centres on it. A cancelled card has no
+/// bell and keeps its row unframed, so its struck time keeps full size.
+private struct BellRowHeight: ViewModifier {
+    let minHeight: CGFloat?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let minHeight {
+            content.frame(minHeight: minHeight)
+        } else {
+            content
+        }
+    }
+}
+
+/// Where the bell goes in the card (TT-141): the centre of its slot in the badge row, which sets both guides. A view that
+/// sets neither aligns on its centre.
+private enum BellSlotX: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat { dimensions[HorizontalAlignment.center] }
+}
+
+private enum BellSlotY: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat { dimensions[VerticalAlignment.center] }
+}
+
+private extension HorizontalAlignment {
+    static var bellSlot: HorizontalAlignment { HorizontalAlignment(BellSlotX.self) }
+}
+
+private extension VerticalAlignment {
+    static var bellSlot: VerticalAlignment { VerticalAlignment(BellSlotY.self) }
+}
+
+private extension Alignment {
+    static var bellSlot: Alignment { Alignment(horizontal: .bellSlot, vertical: .bellSlot) }
 }
 
 /// The card's own coordinate space, where its time line's centre is the layout anchor.

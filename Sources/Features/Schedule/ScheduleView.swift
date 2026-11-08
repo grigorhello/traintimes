@@ -15,6 +15,10 @@ struct ScheduleView: View {
     var onOpenTrip: (TripKey) -> Void = { _ in }
     /// "Line notice" in the freshness row: the notice sheet (TT-132).
     var onOpenLineNotice: () -> Void = {}
+    /// The one-tap bells and their toast (TT-141); nil shows outlined bells that do nothing.
+    var bells: AlertBellModel?
+    /// The alert setup sheet (TT-142): a bell tapped before notifications are allowed, or the toast's Repeat.
+    var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
@@ -47,6 +51,10 @@ struct ScheduleView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TTColor.canvas)
+        .overlay(alignment: .bottom) { alertToast }
+        .animation(.easeOut(duration: 0.25), value: bells?.toast)
+        // A light haptic when an alert turns on (TT-141).
+        .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
         // Title stays set so Settings' back button reads "Train Times"; the header above replaces the bar.
         .navigationTitle(Text("app.name"))
         .toolbar(.hidden, for: .navigationBar)
@@ -247,7 +255,9 @@ struct ScheduleView: View {
                         ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
                     case .timeline:
                         ZStack(alignment: .top) {
-                            ScheduleTimeline(viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip)
+                            ScheduleTimeline(
+                                viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
+                            )
                             Color.clear
                                 .frame(height: 1)
                                 .id(TimelineAnchor.top)
@@ -283,6 +293,65 @@ struct ScheduleView: View {
                 }
             }
             .accessibilityIdentifier("schedule.timeline")
+        }
+    }
+
+    // MARK: Alerts
+
+    private func train(_ id: TripKey) -> (trip: Trip, route: Route)? {
+        guard let route = viewModel.route, let departure = viewModel.departures.first(where: { $0.id == id }) else { return nil }
+        return (departure.trip, route)
+    }
+
+    private func bell(for id: TripKey) -> AlertBellModel.Bell {
+        guard let bells, let train = train(id) else { return .off }
+        return bells.bell(for: train.trip, on: train.route)
+    }
+
+    private func tapBell(_ id: TripKey) {
+        guard let train = train(id) else { return }
+        tapBell(train.trip, on: train.route)
+    }
+
+    private func tapBell(_ trip: Trip, on route: Route) {
+        guard let bells else { return }
+        Task {
+            if let request = await bells.tap(trip, on: route) { onAlertSetup(request) }
+        }
+    }
+
+    /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
+    /// "Alert off", or "Could not save" with Try again.
+    @ViewBuilder private var alertToast: some View {
+        if let bells, let toast = bells.toast {
+            Group {
+                switch toast.kind {
+                case .settingUp:
+                    Toast(message: String(localized: "alert.state.setting_up"), systemImage: "clock", tint: TTColor.inkSecondary)
+                case .on:
+                    Toast(
+                        message: String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
+                        systemImage: "bell.fill",
+                        actionTitle: "alert.repeat"
+                    ) {
+                        if let request = bells.repeatRequest() { onAlertSetup(request) }
+                    }
+                case .off:
+                    Toast(message: String(localized: "alert.toast_off"), systemImage: "bell.slash", tint: TTColor.inkSecondary)
+                case .couldNotSave:
+                    Toast(
+                        message: String(localized: "alert.could_not_save"),
+                        systemImage: "xmark.circle.fill",
+                        tint: TTColor.cancelInk,
+                        actionTitle: "button.try_again"
+                    ) {
+                        tapBell(toast.trip, on: toast.route)
+                    }
+                }
+            }
+            .id(toast.id)
+            .padding(.horizontal, TTSpace.s5)
+            .padding(.bottom, TTSpace.s2)
         }
     }
 

@@ -13,7 +13,7 @@ struct ScheduleDependencies {
     /// scenario.
     static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> ScheduleDependencies {
         #if DEBUG
-        if ["TT_FIXTURES", "XCTestConfigurationFilePath", "XCODE_RUNNING_FOR_PREVIEWS"].contains(where: { environment[$0] != nil }) {
+        if isFixtureRun(environment) {
             return .fixtures(scenario: environment["TT_FIXTURES"].flatMap { FixtureScheduleRepository.Scenario(rawValue: $0) } ?? .normal)
         }
         #endif
@@ -24,6 +24,11 @@ struct ScheduleDependencies {
             alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
         )
         return ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
+    }
+
+    /// Xcode previews, the unit test host and UI tests run on the fixtures (Debug builds only).
+    static func isFixtureRun(_ environment: [String: String]) -> Bool {
+        ["TT_FIXTURES", "XCTestConfigurationFilePath", "XCODE_RUNNING_FOR_PREVIEWS"].contains { environment[$0] != nil }
     }
 
     /// `Fixtures.json` ships in Debug builds and the unit test bundle only, so Release gets an empty schedule here.

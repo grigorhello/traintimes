@@ -13,10 +13,16 @@ struct RootView: View {
     @State private var routeForm: RouteFormViewModel
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
+    /// The alert rules (TT-141), shared by the bells, the alert setup sheet, the Alerts tab and the watched-trip strip.
+    @State private var alerts: AlertRules
+    @State private var bells: AlertBellModel
+    /// The train the alert setup sheet opens for (TT-142), set each time it opens.
+    @State private var alertSetup: AlertSetupRequest?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     init(
         router: AppRouter = AppRouter(),
@@ -26,11 +32,15 @@ struct RootView: View {
         routeStore: any RouteStoring = UserDefaultsRouteStore(),
         favourites: Favourites = Favourites(),
         dismissedNotices: DismissedNotices = DismissedNotices(),
-        watchedTrips: any WatchedTripsProviding = NoWatchedTrips()
+        alertDependencies: AlertDependencies = .app(),
+        bells: AlertBellModel? = nil
     ) {
+        let bells = bells ?? AlertBellModel(
+            rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.toastDuration
+        )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            favourites: favourites, dismissedNotices: dismissedNotices, watchedTrips: watchedTrips
+            favourites: favourites, dismissedNotices: dismissedNotices, watchedTrips: bells.rules
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
@@ -39,6 +49,8 @@ struct RootView: View {
         _routeForm = State(
             initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, favourites: schedule.favourites)
         )
+        _alerts = State(initialValue: bells.rules)
+        _bells = State(initialValue: bells)
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -58,7 +70,9 @@ struct RootView: View {
                             onEditRoute: { editRoute() },
                             onManageFavourites: { editRoute(managingFavourites: true) },
                             onOpenTrip: { openTrip($0) },
-                            onOpenLineNotice: { router.present(.lineNotices) }
+                            onOpenLineNotice: { router.present(.lineNotices) },
+                            bells: bells,
+                            onAlertSetup: { openAlertSetup($0) }
                         )
                     }
                 }
@@ -113,6 +127,17 @@ struct RootView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
         .environment(\.timeFormatter, settings.timeFormatter)
         .preferredColorScheme(settings.appearance.colorScheme)
+        // Notifications may have been allowed or turned off in Settings while the app was away (TT-141).
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await alerts.refreshPermission()
+        }
+    }
+
+    /// The alert setup sheet for a train (TT-142).
+    private func openAlertSetup(_ request: AlertSetupRequest) {
+        alertSetup = request
+        router.present(.alertSetup)
     }
 
     /// The prefilled route sheet; from the star at three favourites it opens with Manage favourites on (TT-122).
@@ -151,7 +176,7 @@ struct RootView: View {
     }
 }
 
-/// Stand-in until the sheets land: station search (TT-121) and alert setup (TT-141).
+/// Stand-in until the sheets land: station search (TT-121) and alert setup (TT-142).
 private struct SheetPlaceholder: View {
     let sheet: AppSheet
 

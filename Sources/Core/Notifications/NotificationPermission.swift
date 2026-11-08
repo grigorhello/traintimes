@@ -1,7 +1,8 @@
 import UserNotifications
 
 /// Notification permission in words (Settings, TT-105): Allowed, Off or Not asked yet.
-enum NotificationPermission: CaseIterable, Sendable {
+/// Raw values are what `TT_NOTIFICATIONS` takes in fixture runs.
+enum NotificationPermission: String, CaseIterable, Sendable {
     case allowed
     case off
     case notAsked
@@ -27,4 +28,11 @@ struct SystemNotificationPermission: NotificationPermissionProviding {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         return NotificationPermission(settings.authorizationStatus)
     }
+}
+
+/// A fixed permission: UI tests set it with `TT_NOTIFICATIONS` (allowed, off or notAsked) in fixture runs.
+struct FixedNotificationPermission: NotificationPermissionProviding {
+    let value: NotificationPermission
+
+    func current() async -> NotificationPermission { value }
 }

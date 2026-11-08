@@ -19,6 +19,7 @@
 "button.close" = "Close";
 "button.alert_me" = "Alert me";
 "button.manage_alert" = "Manage alert";
+"button.try_again" = "Try again";
 
 /* Schedule screen */
 "schedule.route_title" = "%@ to %@";
@@ -109,6 +110,12 @@
 "alert.state.paused" = "Paused";
 "alert.state.review" = "Review needed · usual train has changed";
 "alert.state.off" = "Notifications off · Open Settings";
+"alert.state.setting_up" = "Setting up";
+"alert.state.could_not_save" = "Could not save · Try again";
+"alert.toast_off" = "Alert off";
+"alert.could_not_save" = "Could not save";
+"alert.bell.label" = "Alert for %@ train";
+"alert.bell.label_on" = "Alert on for %@ train";
 "alerts.my_alerts" = "My alerts";
 "alerts.recent_updates" = "Recent updates";
 "alerts.line_notices" = "Line notices";

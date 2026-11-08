@@ -90,6 +90,10 @@ actor FakeAlertServer: AlertServer {
 
     func rules(installation: String) async throws -> [AlertRuleStatus] {
         if failing { throw URLError(.cannotFindHost) }
+        if unknownInstallationOnce {
+            unknownInstallationOnce = false
+            throw AlertServerError.unknownInstallation
+        }
         return statuses
     }
 

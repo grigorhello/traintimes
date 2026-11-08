@@ -86,6 +86,52 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(registrations.count, 2)
     }
 
+    /// TT-153: deleting the only alert with no connection: the next foreground sends the delete, so it stops notifying.
+    func testRefreshSendsAMissedDeleteWhenNoRuleIsLeft() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        await rules.save(rule)
+
+        await server.setFailing(true)
+        await rules.delete(rule.id)
+        await server.setFailing(false)
+        await rules.refresh()
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, [rule.id])
+    }
+
+    /// TT-153: the server dropped the installation (APNs said the token is gone): the app registers again and saves the
+    /// rule again rather than showing On while nothing watches it.
+    func testRefreshAfterTheServerDroppedTheInstallationRegistersAndSavesAgain() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        await rules.save(rule)
+
+        await server.answerUnknownInstallationOnce()
+        await rules.refresh()
+        XCTAssertEqual(rules.state(of: rule), .on)
+        let registrations = await server.registrations
+        XCTAssertEqual(registrations.count, 2)
+        let saved = await server.saved
+        XCTAssertEqual(saved.map(\.id), [rule.id, rule.id])
+    }
+
+    /// TT-153: a Time format change reaches the server on the next foreground, so notifications show times as the app does.
+    func testRefreshSendsANewTimeFormat() async {
+        let server = FakeAlertServer()
+        let settings = AppSettings(defaults: .ephemeral())
+        settings.timeFormat = .twelveHour
+        let rules = AlertFixtures.rules(server, settings: settings)
+        await rules.save(AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route))
+
+        settings.timeFormat = .twentyFourHour
+        await rules.refresh()
+        let registrations = await server.registrations
+        XCTAssertEqual(registrations.map(\.timeFormat), ["12h", "24h"])
+    }
+
     func testDeleteRemovesAtOnceAndRetriesTheServerLater() async {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)

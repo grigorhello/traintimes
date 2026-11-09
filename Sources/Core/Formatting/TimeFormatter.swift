@@ -19,7 +19,7 @@ protocol TimeFormatting: Sendable {
 }
 
 extension TimeFormatting {
-    /// The timeline's rail labels (time pills, gridlines): the clock time without AM or PM, "7:32" or "07:32".
+    /// The timeline's rail labels (gridlines and the Now label): the clock time without AM or PM, "7:32" or "07:32".
     func railTime(_ date: Date) -> String {
         let full = time(date)
         return full.split(separator: " ").first.map(String.init) ?? full

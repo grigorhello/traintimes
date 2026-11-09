@@ -28,14 +28,15 @@ struct DemoScheduleRepository: ScheduleRepository {
             return LiveSnapshot(updatedAt: now.addingTimeInterval(-Self.offlineLastUpdated), isOffline: true)
         case .delays:
             let trips = try await base.trips(for: route, on: day).sorted { $0.scheduledDeparture < $1.scheduledDeparture }
-            // The next train still to leave is late and the one after it is cancelled; the rest run on time.
-            let upcoming = trips.filter { $0.scheduledDeparture >= now }
+            // The next train still to leave is late and the one after it is cancelled; the rest run on time. A late train
+            // has not left until its late time, so it stays the late one until then.
+            let delay = TimeInterval(Self.delayMinutes * 60)
+            let upcoming = trips.filter { $0.scheduledDeparture.addingTimeInterval(delay) >= now }
             var updates: [String: LiveTripUpdate] = [:]
             for trip in trips {
                 updates[trip.key.tripId] = LiveTripUpdate(expectedDeparture: trip.scheduledDeparture, reportedAt: now)
             }
             if let next = upcoming.first {
-                let delay = TimeInterval(Self.delayMinutes * 60)
                 updates[next.key.tripId] = LiveTripUpdate(
                     expectedDeparture: next.scheduledDeparture.addingTimeInterval(delay),
                     expectedArrival: next.scheduledArrival.addingTimeInterval(delay),

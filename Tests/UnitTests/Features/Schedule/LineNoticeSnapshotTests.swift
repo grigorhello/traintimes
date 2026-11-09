@@ -4,7 +4,7 @@ import XCTest
 @testable import TrainTimes
 
 /// The line notice sheet (TT-132), light and dark, with the fixture's Lakeshore West notice from the delayed scenario.
-/// The link in the freshness row is in `ScheduleSnapshotTests.testDelayed*` (design/frames/schedule-delayed.png). The
+/// The Notice chip is in `ScheduleSnapshotTests.testDelayed*` (design/frames/schedule-delayed.png). The
 /// sheet content is drawn on its own; the system draws the grabber.
 final class LineNoticeSnapshotTests: XCTestCase {
     @MainActor func testSheetLight() async throws { snap(try await .loadedFixture(.delayed), .light) }

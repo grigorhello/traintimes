@@ -66,6 +66,9 @@ struct StatusBadge: View {
         .labelStyle(BadgeLabelStyle(spacing: isLarge ? 5 : TTSpace.s1))
         .font(isLarge ? TTFont.badgeLarge : TTFont.badge)
         .foregroundStyle(status.ink)
+        // A badge never wraps its text; the row around it wraps instead.
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
         .padding(.leading, isLarge ? 9 : TTSpace.s2)
         .padding(.trailing, isLarge ? 11 : TTSpace.s2)
         .padding(.vertical, TTSpace.s1)

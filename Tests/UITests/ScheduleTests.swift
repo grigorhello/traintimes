@@ -5,7 +5,7 @@ final class ScheduleTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Selecting Sun 8, then tapping the Schedule tab again, returns to today and now (D49: there is no Now button). The
+    /// Selecting Sun 8, then tapping the Schedule tab again, returns to Today (D49: there is no Now button). The
     /// app runs on the fixture clock, Thu Nov 5, so tile 3 is Sun 8.
     @MainActor
     func testAnotherDayThenScheduleTabReturnsToNow() {
@@ -20,7 +20,8 @@ final class ScheduleTests: XCTestCase {
         XCTAssertFalse(app.buttons["schedule.now"].exists, "No Now button anywhere")
 
         sunday.tap()
-        XCTAssertTrue(sunday.waitForExistence(timeout: 5))
+        // The fixtures run no trains on Sunday, so the empty state shows once the day has switched.
+        XCTAssertTrue(app.buttons["emptyState.action"].waitForExistence(timeout: 5))
         XCTAssertTrue(sunday.isSelected)
         XCTAssertFalse(today.isSelected)
 

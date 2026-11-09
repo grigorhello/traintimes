@@ -1,6 +1,6 @@
 import Foundation
 
-/// The data mode the freshness row states (D14).
+/// The data mode the status row and Trip details' freshness line state (D14).
 enum Freshness: Hashable, Sendable {
     case live(updatedAt: Date)
     case scheduledOnly

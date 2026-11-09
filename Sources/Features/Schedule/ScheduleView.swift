@@ -338,7 +338,7 @@ struct ScheduleView: View {
                 .padding(.horizontal, TTSpace.s3)
         }
         .padding(.horizontal, TTSpace.s5)
-        .padding(.top, TTSpace.s3)
+        .padding(.top, TTSpace.s6)
     }
 
     /// "No direct connection" with "Open GO trip planner" (`components.png`).

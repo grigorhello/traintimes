@@ -43,6 +43,18 @@ final class DemoScheduleRepositoryTests: XCTestCase {
         XCTAssertEqual(departures.filter { $0.status == .onTime }.count, 2)
     }
 
+    /// A train 9 min late has not left at its scheduled time, so it stays the late one and the cancelled one stays cancelled.
+    func testTheLateTrainStaysLateAfterItsScheduledTime() async throws {
+        let base = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let trips = try await base.trips(for: base.route, on: base.serviceDay).sorted { $0.scheduledDeparture < $1.scheduledDeparture }
+        let first = try XCTUnwrap(trips.first)
+        let clock = FixedClock(now: first.scheduledDeparture.addingTimeInterval(60))
+        let repository = DemoScheduleRepository(base: base, clock: clock, mode: { .delays })
+        let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertEqual(live.updates[first.key.tripId]?.delayMinutes, DemoScheduleRepository.delayMinutes)
+        XCTAssertEqual(live.updates[trips[1].key.tripId]?.isCancelled, true)
+    }
+
     func testDelaysAddsALineNotice() async throws {
         let (repository, base) = try demo(.delays)
         let notices = try await repository.lineNotices(for: try XCTUnwrap(base.route.line))

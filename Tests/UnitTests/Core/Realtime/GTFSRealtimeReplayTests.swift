@@ -26,7 +26,7 @@ final class GTFSRealtimeReplayTests: XCTestCase {
         try .replaying(replay, clock: clock, directory: directory)
     }
 
-    /// The route's departures as the timeline resolves them, by train ("LW-1108"), with the freshness row's mode.
+    /// The route's departures as the timeline resolves them, by train ("LW-1108"), with the freshness mode.
     private func resolve(_ repository: GTFSScheduleRepository, now: Date) async throws -> (Freshness, [String: Departure]) {
         let trips = try await repository.trips(for: route, on: monday)
         let live = try await repository.liveStatus(for: route, on: monday)

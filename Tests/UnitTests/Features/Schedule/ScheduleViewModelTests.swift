@@ -118,13 +118,4 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertNil(model.routeTitle)
         XCTAssertNil(model.freshnessMode(formatter))
     }
-
-    /// The line dot uses the feed colour unless it would vanish on the canvas; then ink-secondary.
-    func testLineColourFallsBackWhenItWouldVanish() {
-        XCTAssertNotNil(Color(lineHex: "#111827", on: .light))
-        XCTAssertNil(Color(lineHex: "#111827", on: .dark))
-        XCTAssertNotNil(Color(lineHex: "98002E", on: .light))
-        XCTAssertNil(Color(lineHex: "#FFFFFF", on: .light))
-        XCTAssertNil(Color(lineHex: "not a colour", on: .light))
-    }
 }

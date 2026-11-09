@@ -28,11 +28,11 @@ struct TimelineInput: Hashable, Sendable {
 struct TimelineLayout: Hashable, Sendable {
     struct Card: Hashable, Sendable, Identifiable {
         let id: TripKey
-        /// The centre of the marker, its time pill and the connector: the expected departure, else the scheduled one.
+        /// The centre of the marker and the connector: the expected departure, else the scheduled one.
         let markerY: CGFloat
         let top: CGFloat
         let bottom: CGFloat
-        /// Delayed train only: the hollow marker and struck pill at the scheduled time.
+        /// Delayed train only: the hollow marker at the scheduled time.
         let scheduledMarkerY: CGFloat?
 
         /// The 4 pt bar from the scheduled marker down to the expected one; its length is the delay.

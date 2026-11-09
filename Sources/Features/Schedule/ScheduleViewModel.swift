@@ -29,7 +29,7 @@ final class ScheduleViewModel {
     /// The last day the schedule covers (the GTFS feed's validity window); nil when it has no end.
     private(set) var lastServiceDay: ServiceDay?
     /// Today's line-wide notices for the route's line that the rider has not dismissed (TT-132). They show as the
-    /// "Line notice" link and never change a trip's status. Another day has none.
+    /// Notice chip and never change a trip's status. Another day has none.
     private(set) var lineNotices: [LineNotice] = []
     /// The same notices from the last load of today, kept while another day is shown: the Alerts tab's Line notices and
     /// the notice sheet it opens (TT-143). Equal to `lineNotices` while today is shown.
@@ -397,7 +397,7 @@ final class ScheduleViewModel {
         resolve()
     }
 
-    /// The statuses and the freshness row from the last load at the current clock.
+    /// The statuses and the status row from the last load at the current clock.
     private func resolve() {
         guard let loaded else {
             relayout()

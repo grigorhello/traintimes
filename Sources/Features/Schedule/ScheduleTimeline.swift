@@ -351,6 +351,20 @@ struct DepartureCardView: View {
                 .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
                 tags
             }
+            // Badge alone, then the platform and tags: a long badge never shares a line it cannot fit (the canvas wraps
+            // the meta row, not the badge).
+            VStack(alignment: .leading, spacing: Self.tagRowGap) {
+                HStack(spacing: 0) {
+                    StatusBadge(status: card.status, isLarge: true)
+                    Spacer(minLength: 0)
+                }
+                .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
+                HStack(spacing: TTSpace.s2) {
+                    detail
+                    tags
+                    Spacer(minLength: 0)
+                }
+            }
         }
     }
 

@@ -10,7 +10,7 @@ The product promise is unchanged: know when your train leaves, whether it is del
 
 | In version 1 | Out of version 1 |
 | --- | --- |
-| Direct GO trains between two stations, scheduled departures and arrivals, 7-day date choice | Login, payment, subscription, advertising, sponsor placement |
+| Direct GO trains between two stations, scheduled departures and arrivals, a date choice of up to 42 days | Login, payment, subscription, advertising, sponsor placement |
 | Saved last route and the last three routes opened (Recent), kept on device (D48) | AI chat, live train maps, ticketing, refunds |
 | Live status: on time, delayed, cancelled, scheduled only, stale, offline | Bus planning, UP Express, transfer routing, crowd reports |
 | Published platform, or Platform pending | Calendar access, GPS tracking, widgets, Apple Watch app |
@@ -34,11 +34,11 @@ The app has three bottom tabs, Schedule, Alerts and Settings, and nothing else a
 | Delayed N min | Reported departure delay of at least 3 min | delay-ink on delay-fill | clock.badge.exclamationmark |
 | Cancelled | Trip cancelled in the feed | cancel-ink on cancel-fill | xmark.octagon.fill |
 | Stop skipped | Selected origin or destination skipped | cancel-ink on cancel-fill | xmark.octagon.fill |
-| Scheduled | No live estimate for this trip, or a day other than today | scheduled-ink on scheduled-fill (neutral grey) | clock |
+| Scheduled | Offline only (D49: a train with no live status reads On time) | scheduled-ink on scheduled-fill (neutral grey) | clock |
 | Last reported HH:MM | Live data older than the freshness threshold (proposed 3 min, tune against the feed) | scheduled-ink on scheduled-fill | clock |
 | Offline | No connection; cached schedule shown | scheduled-ink on scheduled-fill | wifi.slash |
 
-Missing or stale data must never produce an On time badge. Express is an outlined tag, not a status, and appears only when the feed verifies it. The tag shows the lightning bolt riders already know from GO's trip planner (SF Symbol bolt.fill) plus the word "Express"; when a row carries more than one tag, the word is hidden and only the glyph stays, with the accessibility label still reading Express. If the tags still do not fit beside the status badge and platform, they wrap to a second line under them and the card grows; the timeline's minimum-gap rule keeps spacing. Express is the only tag in version 1; Bike coach and Quiet zone on the canvas are placeholders showing the overflow behaviour.
+Missing or stale data is never reported as live: the domain status stays Scheduled (D12, D13), Schedule and Trip details present it as On time unless offline (D49), and the status row says when data is stale or offline. Express is an outlined tag, not a status, and appears only when the feed verifies it. The tag shows the lightning bolt riders already know from GO's trip planner (SF Symbol bolt.fill) plus the word "Express"; when a row carries more than one tag, the word is hidden and only the glyph stays, with the accessibility label still reading Express. If the tags still do not fit beside the status badge and platform, they wrap to a second line under them and the card grows; the timeline's minimum-gap rule keeps spacing. Express is the only tag in version 1; Bike coach and Quiet zone on the canvas are placeholders showing the overflow behaviour.
 
 **Freshness** is one line that states the data mode, shown on Schedule only when there is something to say (D49): "Loading timetable", "Last reported 7:29 AM · showing scheduled times" (stale), "Offline · last updated 6:52 AM" (cached). Live data and timetable-only data show no line. Trip details keeps the full set ("Updated just now", "Scheduled times only"). Refresh on foreground, on pull to refresh, and on a periodic interval agreed with the data provider; a refresh keeps row identity and scroll position and updates the line quietly.
 
@@ -52,7 +52,7 @@ The Schedule tab is a vertical, to-scale timeline of today's direct trains for t
 
 **Route card** (D48). A card drawn like a maps route box: a hollow ring for the origin, three dots, and an accent pin for the destination down the left; origin over destination in `headline`, one 48 pt row each split by a hairline, on one line (long names shrink a little rather than truncate); no "From"/"To" words and no chevrons. Tapping the stations opens the route sheet. Swap (`arrow.up.arrow.down`) is a 44 pt Liquid Glass button (a raised surface before iOS 26) to the right of both rows; swap is explicit and never automatic.
 
-**Line row** (D49). Above the route card: a 32 pt rounded tile with the line's code (LW, LE, MI, KI, RH, BR, ST) in white on the GO line colour, then the line's name in 26 pt bold, ink. Colours follow GO's own, which riders already know: Lakeshore West #8B1A31, Lakeshore East #EA3624, Milton #E6853E, Kitchener #3A8346, Richmond Hill #4397C3, Barrie #143664, Stouffville #724715; a line outside the table uses ink-secondary. When a line-wide notice applies, an amber "Notice" chip (warning glyph and the word, 44 pt target) sits at the right end of the row and opens the notice in a sheet; the notice is dismissible per notice id and never changes a trip's status.
+**Line row** (D49). Above the route card: a 32 pt rounded tile with the line's code (LW, LE, MI, KI, RH, BR, ST) in white on the GO line colour, then the line's name in 26 pt bold, ink. Colours follow GO's own, which riders already know: Lakeshore West #8B1A31, Lakeshore East #EA3624, Milton #E6853E, Kitchener #3A8346, Richmond Hill #4397C3, Barrie #143664, Stouffville #724715; a line outside the table uses the feed's own colour, else ink-secondary. When a line-wide notice applies, an amber "Notice" chip (warning glyph and the word, 44 pt target) sits at the right end of the row and opens the notice in a sheet; the notice is dismissible per notice id and never changes a trip's status.
 
 **Day strip** (D49). A horizontal carousel of 60 × 48 pt tiles with 12 pt radius, the weekday over the day number, with a 20 pt margin at the leading edge. The first tile reads "Today"; every day the schedule covers follows (the feed's calendar, 42 days at most; 14 when the schedule has no end), and five tiles show in full with the sixth peeking under a 16 pt fade so the strip clearly scrolls. The selected day is solid accent with on-accent text; others are surface tiles; while another day is selected, "Today" turns accent green so the way back is visible. Selecting any day other than today shows scheduled times only, hides the Now line, and starts the timeline at the first train of that service day. Selecting a tile that is out of view scrolls the strip to it. There is no depart-after filter; looking ahead is scrolling or picking a day.
 
@@ -96,8 +96,8 @@ Every state below is visibly different from the others and keeps the timetable u
 | Live on time | Fresh explicit evidence or fresh prediction under 3 min late | On time badge, platform when published | Main (State: normal) |
 | Delayed | Reported delay of 3 min or more | Expected time large, "Scheduled 7:32 AM" beneath, amber slip on the rail, Delayed N min badge, Est. arrival only when supported | Main (State: delayed), Schedule · delayed |
 | Cancelled or stop skipped | Trip cancelled, or origin/destination skipped | Red x marker, struck times, Cancelled or Stop skipped badge, "Next usable below"; excluded from usable departures; the next valid train becomes the lead | Main (State: cancelled), Schedule · dark |
-| No live estimate | Trip has no live data | Scheduled badge; never infer On time | Main |
-| Stale live information | Live data older than 3 min (tune against the feed) | Freshness "Last reported 7:29 AM · showing scheduled times"; badges fall back to Scheduled; cards move back to scheduled positions | Component sheet (freshness variants) |
+| No live estimate | Trip has no live data | Domain status Scheduled, shown as On time (D49); the Scheduled badge only while offline | Main |
+| Stale live information | Live data older than 3 min (tune against the feed) | Freshness "Last reported 7:29 AM · showing scheduled times"; badges read On time as for a train with no live status (D49); cards move back to scheduled positions | Component sheet (freshness variants) |
 | Offline | No connection | Cached schedule stays usable; freshness "Offline · last updated 6:52 AM" with wifi.slash; all badges Scheduled; platform pending; Now line still shown from device time | Main (State: offline), Schedule · offline |
 | Future day | Any day strip cell other than Today | No status row; no Now line; timeline starts at the first train of that service day; On time badges only | Schedule · future day |
 | No direct trains that day | Zero direct services on the selected day | Empty card: "No direct trains on Sunday", one sentence, action "Show Monday" (next day with service); footnote pointing to the official GO trip planner | Schedule · future day |
@@ -133,7 +133,7 @@ Top to bottom: grabber; sheet title with the trip identity ("7:32 AM train") and
 | Fact | Shown as | When missing |
 | --- | --- | --- |
 | Scheduled departure | 7:32 AM | Always present |
-| Expected departure | 7:41 AM in delay-ink when later than scheduled | Omit the cell; the badge reads Scheduled |
+| Expected departure | 7:41 AM in delay-ink when later than scheduled | Omit the cell; the badge reads On time (Scheduled while offline) |
 | Scheduled arrival | 8:12 AM | Always present |
 | Est. arrival | 8:21 AM | Omit the cell; only the scheduled arrival remains, labelled Scheduled |
 | Platform | Platform 2 | "Platform pending" |
@@ -222,7 +222,7 @@ Settings is the third tab, under a large title "Settings" (D48), and contains on
 | Appearance | Time format | Segmented: Device, 12-hour, 24-hour | Default Device; every time in the app, in notifications and in VoiceOver follows it |
 | Notifications | Notification permission | State in words (Allowed, Off, Not asked yet) with an "Open Settings" text button when Off | Reflects `UNUserNotificationCenter` authorization status, refreshed on foreground |
 | Notifications | footnote | — | "Updates are sent as changes are reported during each watched trip. Delivery is best effort." |
-| Testing (TestFlight and Debug builds only, D49) | Demo trains | Segmented: Off, Delays, Offline | Default Off; "Delays" puts made-up live status on the route's real timetable (the next train 9 min late, the one after it cancelled, the rest on time, plus a line notice); "Offline" shows the cached timetable as if there were no connection. Schedule refreshes at once. The App Store build has no Testing section |
+| Testing (TestFlight and Debug builds only, D49) | Demo trains | Segmented: Off, Delays, Offline | Default Off; "Delays" puts made-up live status on the route's real timetable (the next train 9 min late, the one after it cancelled, the rest on time, plus a line notice); "Offline" shows the cached timetable as if there were no connection. Schedule refreshes at once. Installs from the App Store have no Testing section |
 | Data and privacy | Schedule and status data | Row with chevron | Opens the data attribution page required by the provider's terms (Metrolinx open data) |
 | Data and privacy | Privacy | Row with chevron | Opens the privacy page: no account; alert rules use an anonymous device token; what is stored on the server and for how long |
 | Data and privacy | Official GO service updates | Row with chevron | Opens the official GO service updates page in Safari |
@@ -237,7 +237,7 @@ The product is called Train Times. The name says exactly what the app is, in the
 
 **Mark and app icon.** A white train head on brand green #0C7B53: cab 64 × 62 units with 18-unit top corners and 10-unit bottom corners, windscreen 44 × 22, two lights 12 in diameter, a rail 52 × 7 beneath. Three flat shapes, no gradient, shadow or outline; it reads as a train at 29 px. Dark icon: mint #6EE7B7 on #0B1F17. Tinted icon: the same shapes in white on black. The contained symbol takes the current text colour and is the in-app glyph (a 22 pt mask) in Settings › About. The icon never carries letters (a white G or GO on green is GO Transit's mark), GO's olive green, GO or Metrolinx logos or livery, status colours, or an added clock or badge.
 
-**Colour.** Brand green replaces indigo as the accent everywhere; the values are in Visual tokens and accessibility. Because green is now the brand, On time is a neutral badge (ink on a grey fill) and only delays (amber) and cancellations (red) carry colour; the On state of an alert rule uses the accent. Light accent #0C7B53 on white measures 5.3:1; dark accent #6EE7B7 on the dark surface measures above 10:1.
+**Colour.** Brand green replaces indigo as the accent everywhere; the values are in Visual tokens and accessibility. Because green is now the brand, On time is a green badge in the accent (D49: a neutral grey badge looked disabled), delays are amber and cancellations red; the grey Scheduled badge is only for offline; the On state of an alert rule uses the accent. Light accent #0C7B53 on white measures 5.3:1; dark accent #6EE7B7 on the dark surface measures above 10:1.
 
 **Wordmark and lockup.** Train Times in SF Pro Display Semibold, sentence case, two words. Ink #111827 in light mode, white on green and in dark mode; never green text on its own, which reads as a link. Horizontal lockup: symbol box 1.6 × cap height, gap 0.5 × cap height, symbol centred on the x-height. Clear space on every side equals the windscreen height. Minimums: lockup 12 pt cap height on screen and 3 mm in print; below that, the wordmark alone. The stacked lockup (symbol, wordmark, tagline) is for the first App Store screenshot and the website header only. No lockup on the launch screen, in the Schedule navigation title, in empty states or in notifications, and never beside GO Transit or Metrolinx marks.
 
@@ -270,12 +270,12 @@ The app uses the system font, SF Symbols and the tokens in the [GO Train App des
 | surface-raised | #EDEFF5 | #222B3B | Search field, skeletons, Scheduled badge, fold pill |
 | hairline / control-border | #E2E6EE / #7C8AA0 | #2A3446 / #6B7891 | Gridlines and rail / control outlines (3:1) |
 | ink / ink-secondary / ink-tertiary | #111827 / #475569 / #5E6E85 | #F4F7FB / #B8C3D4 / #8C99AD | Text / labels / placeholders, struck times, gap labels |
-| accent / on-accent / accent-soft | #0C7B53 / #FFFFFF / #DDF3E9 | #6EE7B7 / #0B1F17 / #163A2C | Next train, Now line, selected day, links / text on accent / time pills, watched strip |
-| ontime-ink on ontime-fill | #1F2937 on #E9ECF2 | #D1D5DB on #2A3446 | On time; neutral on purpose, because green is the brand colour, so only delays and cancellations carry colour. Alert rule On states use the accent. |
+| accent / on-accent / accent-soft | #0C7B53 / #FFFFFF / #DDF3E9 | #6EE7B7 / #0B1F17 / #163A2C | Next train, Now line, selected day, links / text on accent / watched strip, On time badge |
+| ontime-ink on ontime-fill | #0C7B53 on #DDF3E9 | #6EE7B7 on #163A2C | On time (D49): the accent on accent-soft. The grey scheduled-ink on scheduled-fill is for the offline Scheduled badge. Alert rule On states use the accent. |
 | delay-ink on delay-fill | #92400E on #FEF3C7 | #FDE68A on #422D12 | Delayed, slip bar, line notice |
 | cancel-ink on cancel-fill | #B91C1C on #FEE2E2 | #FCA5A5 on #431C24 | Cancelled, Notifications off, Could not save |
 
-**Type.** System font only, weights 400 and 600, tabular numerals on every time (`.monospacedDigit()`). Sizes at default Dynamic Type: timeline lead time 34 pt, other card times 32 pt, arrival 17 pt semibold, route 22 pt semibold, large titles 34 pt semibold, body 17 pt, subhead 15 pt, footnote 13 pt (smallest allowed), badge 13 pt semibold, tab labels system size. Tracking −0.3 to −0.4 pt from 17 pt up.
+**Type.** System font only, weights 400 and 600, tabular numerals on every time (`.monospacedDigit()`). Sizes at default Dynamic Type: timeline lead time 34 pt, other card times 32 pt, arrival time 20 pt semibold (its label 15 pt), route 22 pt semibold, large titles 34 pt semibold, body 17 pt, subhead 15 pt, footnote 13 pt (smallest allowed), badge 13 pt semibold (15 pt on timeline cards), tab labels system size. Tracking −0.3 to −0.4 pt from 17 pt up.
 
 **Space and shape.** 4 pt scale; 20 pt screen margins; 14 pt card padding on the timeline; 18 pt card radius; pill buttons, chips and badges; 44 × 44 pt minimum hit area on every control including the bell (a 48 pt target), swap, the route card rows, day tiles and the Notice chip. On iOS 26 and later the tab bar, swap button and other system chrome use Liquid Glass (D49). Light mode cards use a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only. Sheets carry the one real shadow.
 
@@ -317,7 +317,7 @@ The build is accepted when every item below passes on a physical iPhone in light
 
 - [ ] Direct stopping patterns, express services, holidays, DST and after-midnight service dates validated against real schedules.
 - [ ] A delayed train remains visible past its scheduled departure until an actual or reliable estimated departure is resolved.
-- [ ] Missing live data cannot produce an On time badge; cached data cannot appear freshly live.
+- [ ] Stale or missing live data is never reported as live (the status row says when data is stale or offline); cached data cannot appear freshly live.
 - [ ] Timeline positions are computed from expected time, scale and the minimum-gap rule, and recomputed on every refresh without resetting scroll.
 - [ ] Real APNs delivery exercised on a physical device while backgrounded and locked; disabled permission, expired token and registration failure tested separately.
 - [ ] Feed replays verify one initial alert, meaningful updates, recovery, cancellation, expiry and no duplicates.

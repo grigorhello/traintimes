@@ -27,6 +27,14 @@ extension XCUIApplication {
         return app
     }
 
+    /// The fixtures' full-day scenario (TT-159): a train every 30 min from 5:24 AM to 11:24 PM, so the timeline is as long
+    /// as a real day's. Pair it with `-settings.mockTime` to put Now anywhere in it.
+    static func onFullDayFixture() -> XCUIApplication {
+        let app = onFixtures()
+        app.launchEnvironment["TT_FIXTURES"] = "fullDay"
+        return app
+    }
+
     /// The same on the fixtures' delayed scenario, which has a line notice (TT-132).
     static func onDelayedFixture() -> XCUIApplication {
         let app = onFixtures()

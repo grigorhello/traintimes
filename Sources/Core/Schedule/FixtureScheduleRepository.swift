@@ -9,6 +9,9 @@ struct FixtureScheduleRepository: ScheduleRepository {
         case eveningDark
         /// No connection: the cached schedule from `offlineScenario.lastUpdated` (TT-115).
         case offline
+        /// A train every 30 min from 5:24 AM to 11:24 PM with no live data, so UI tests can scroll to Now and cross midnight
+        /// on a timeline as long as a real day's (TT-159, D52).
+        case fullDay
     }
 
     enum FixtureError: Error {
@@ -51,6 +54,16 @@ struct FixtureScheduleRepository: ScheduleRepository {
         let line = Line(id: file.route.line.id, name: file.route.line.name, colorHex: file.route.line.color)
 
         var trains = file.trains
+        if scenario == .fullDay {
+            trains = stride(from: 5 * 60 + 24, through: 23 * 60 + 24, by: 30).map { minute in
+                func clock(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60, minute % 60) }
+                return FixtureFile.TrainDTO(
+                    tripId: "LW-\(String(format: "%02d%02d", minute / 60, minute % 60))-\(file.serviceDate.replacingOccurrences(of: "-", with: ""))",
+                    scheduledDeparture: clock(minute), scheduledArrival: clock(minute + 35), expectedDeparture: nil,
+                    expectedArrival: nil, status: "scheduled", platform: nil, tags: nil, reportedAt: nil
+                )
+            }
+        }
         var route = Route(from: from, to: to, line: line)
         var now = try at(file.now)
         var updatedAt = try at(file.feedUpdatedAt)
@@ -96,7 +109,7 @@ struct FixtureScheduleRepository: ScheduleRepository {
         case .cancelled:
             let cancelled = file.cancelledScenario
             updates[cancelled.tripId] = LiveTripUpdate(isCancelled: true, reportedAt: try at(cancelled.reportedAt))
-        case .normal, .eveningDark, .offline:
+        case .normal, .eveningDark, .offline, .fullDay:
             break
         }
 

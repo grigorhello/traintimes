@@ -42,7 +42,7 @@ Missing or stale data is never reported as live: a train with no live status rea
 
 **Freshness** is one line that states the data mode, shown on Schedule only when there is something to say (D49): "Loading timetable", "Last reported 7:29 AM · showing scheduled times" (stale), "Offline · last updated 6:52 AM" (cached). Live data and timetable-only data show no line. Trip details keeps the full set ("Updated just now", "Scheduled times only"). Refresh on foreground, on pull to refresh, and on a periodic interval agreed with the data provider; a refresh keeps row identity and scroll position and updates the line quietly.
 
-**Time and date.** Times follow the device 12/24-hour setting unless overridden in Settings, use America/Toronto, and respect daylight-saving changes. The service day is the GO service day: trips after midnight belong to the previous service day and sort after 11:59 PM. Every arrival is labelled "Arrival" on a Schedule card ("Scheduled arrival" or "Est. arrival" on Trip details); an estimate is shown only when the feed supplies or reliably supports one.
+**Time and date.** Times follow the device 12/24-hour setting unless overridden in Settings, use America/Toronto, and respect daylight-saving changes. The service day is the GO service day: trips after midnight belong to the previous service day and sort after 11:59 PM. The Schedule screen itself turns to the next calendar day at 12:00 AM Toronto time, not at the 3:00 AM service cutoff (D52): the day strip, the selected day and the timeline all move together, and an app opened at 12:01 AM shows the actual day, selected, from its top. Every arrival is labelled "Arrival" on a Schedule card ("Scheduled arrival" or "Est. arrival" on Trip details); an estimate is shown only when the feed supplies or reliably supports one.
 
 **Copy.** Sentence case everywhere, Canadian spelling (favourite, colour, cancelled), no exclamation marks, no emoji, no promises: write "Send updates as changes are reported", never "Never miss a train".
 
@@ -64,7 +64,7 @@ The Schedule tab is a vertical, to-scale timeline of today's direct trains for t
 | --- | --- |
 | Scale | 7 pt per minute at default text size; gridline every 15 min, each labelled with its time in grey footnote text on the left |
 | Now line | 2 pt accent line across the timeline with a dot on the rail and a "Now" label; moves once a minute |
-| Initial scroll | The app opens already scrolled so Now sits about 5 min (35 pt) below the top of the timeline, once the cards are measured; earlier trains are above and reachable by scrolling up |
+| Initial scroll | The app opens already scrolled so Now sits about 5 min (35 pt) below the top of the timeline, once the cards are measured; earlier trains are above and reachable by scrolling up. The scroll repeats shortly after, so it lands even when the content was laid out late, and stops repeating the moment the rider drags (D52) |
 | Train marker | A dot on the rail at the train's expected departure (scheduled when no estimate): 12 pt ring for a train, 16 pt solid accent dot for the next usable train |
 | Left column | Gridline times and the Now label only (D49): train times are on the cards, so no train has a time pill in the column |
 | Connector | 14 pt, 2 pt horizontal line from marker to card in the marker's colour |
@@ -304,6 +304,7 @@ The build is accepted when every item below passes on a physical iPhone in light
 - [ ] Gaps of 20 min or more are labelled; gaps over 30 min fold with the real duration shown.
 - [ ] Three departures are visible on a 390 pt phone at default text size in the normal state; two on a compact phone.
 - [ ] The day strip switches days in one tap; tapping the Schedule tab again returns to the present and Today in one tap; the app opens scrolled to Now.
+- [ ] With Mock time at 11:58 PM, the strip's Today and the timeline move to the next day at 12:00 AM and start from the top; with Mock time at 12:01 AM the app opens on the actual day, selected; a rider browsing another day stays there (D52).
 - [ ] Light and dark on iOS 26: the glass tab bar, the swap button and the sheets read well over the timeline; the line tile uses the GO line colour; no train time sits in the left column and every 15 min has a time.
 - [ ] Settings › Testing › Demo trains: Delays shows a late train, a cancelled train and the Notice chip; Offline shows the Offline row and grey Scheduled status; Off restores live data.
 - [ ] Enabling, repeating, pausing and deleting alerts is understandable without instructions.

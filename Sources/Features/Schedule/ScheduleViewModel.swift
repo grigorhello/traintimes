@@ -44,6 +44,9 @@ final class ScheduleViewModel {
     /// Bumped once, after a scroll request, when every card has been measured and the layout has settled: the view
     /// scrolls again without animation, because the first scroll ran on estimated card sizes (D49).
     private(set) var settleRequest = 0
+    /// Bumped twice, a moment after a scroll request: the view scrolls again without animation, in case the first scroll
+    /// ran before the content was laid out, as when the timeline had just replaced the loading skeleton (TT-159, D52).
+    private(set) var rescrollRequest = 0
     /// A scroll request is waiting for the cards to be measured.
     @ObservationIgnored private var awaitsMeasurement = false
 
@@ -58,6 +61,8 @@ final class ScheduleViewModel {
     private let watchedTrips: any WatchedTripsProviding
     private var hasLoaded = false
     private var isLoading = false
+    /// The Today last acted on, so the day turning over at midnight is seen once (TT-159, D52).
+    @ObservationIgnored private var knownToday: ServiceDay
     /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
     /// freshness threshold while the app was away turns stale at once (D13).
     @ObservationIgnored private var loaded: (day: ServiceDay, trips: [Trip], live: LiveSnapshot)?
@@ -78,11 +83,14 @@ final class ScheduleViewModel {
         self.watchedTrips = watchedTrips
         let now = clock.now
         self.now = now
-        selectedDay = ServiceDay(containing: now)
+        selectedDay = ServiceDay(calendarDayContaining: now)
+        knownToday = selectedDay
         if let route { recents.record(route) }
     }
 
-    var today: ServiceDay { ServiceDay(containing: clock.now) }
+    /// The calendar day in Toronto: the screen turns to the next day at 12:00 AM, not at the 3:00 AM service-day cutoff
+    /// the rest of the app keeps (TT-159, D52).
+    var today: ServiceDay { ServiceDay(calendarDayContaining: clock.now) }
     var isToday: Bool { selectedDay == today }
     /// The day strip, Today first, running to the schedule's last service day (every day of the GTFS calendar, up to
     /// `maxDayCount`). Today always shows.
@@ -168,7 +176,18 @@ final class ScheduleViewModel {
     private func requestScroll() {
         scrollRequest += 1
         awaitsMeasurement = !departures.allSatisfy { cardSizes[$0.id] != nil }
+        let request = scrollRequest
+        Task {
+            for delay in Self.rescrollDelays {
+                try? await Task.sleep(for: delay)
+                guard request == scrollRequest else { return }
+                rescrollRequest += 1
+            }
+        }
     }
+
+    /// When the view scrolls again after a scroll request (TT-159, D52).
+    private static let rescrollDelays: [Duration] = [.milliseconds(150), .milliseconds(600)]
 
     private func settleIfMeasured() {
         guard awaitsMeasurement, departures.allSatisfy({ cardSizes[$0.id] != nil }) else { return }
@@ -188,12 +207,33 @@ final class ScheduleViewModel {
     /// (from Settings, say) never shows the minute it was left.
     func runClock() async {
         tick()
+        await rollOverIfNeeded()
         while !Task.isCancelled {
             let seconds = 60 - clock.now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 60)
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
             tick()
+            await rollOverIfNeeded()
         }
+    }
+
+    /// Midnight passed while the screen stayed open (TT-159, D52): a rider looking at Today, or at the day that has just
+    /// become Today, moves to the new Today from its top (Now is the first thing on it), as a relaunch would, and the strip
+    /// selects it. A rider browsing another day stays there; the strip only shifts by one.
+    func rollOverIfNeeded() async {
+        let current = today
+        guard current != knownToday else { return }
+        let followsToday = selectedDay == knownToday || selectedDay == current
+        knownToday = current
+        now = clock.now
+        guard followsToday else {
+            resolve()
+            return
+        }
+        selectedDay = current
+        guard hasLoaded else { return }
+        await load()
+        requestScroll()
     }
 
 
@@ -289,12 +329,10 @@ final class ScheduleViewModel {
             if hasLoaded, !isLoading {
                 // Data left on screen while the app was away ages first, so it never shows as live during the fetch (D13).
                 now = clock.now
-                if selectedDay < today {
-                    // The service day changed while the app stayed in memory: yesterday is no longer in the day strip,
-                    // so the timeline moves to Today and the present, as a relaunch would (D30).
-                    selectedDay = today
-                    await load()
-                    requestScroll()
+                if today != knownToday {
+                    // The day changed while the app stayed in memory (or in the background): the timeline moves to Today
+                    // and the present, as a relaunch would (D30, D52).
+                    await rollOverIfNeeded()
                 } else {
                     resolve()
                     if isToday { await load() }
@@ -314,6 +352,7 @@ final class ScheduleViewModel {
 
     /// Tapping the Schedule tab while Schedule shows: back to today and the present in one tap (D49).
     func backToNow() async {
+        knownToday = today
         if !isToday {
             selectedDay = today
             await load()
@@ -323,6 +362,7 @@ final class ScheduleViewModel {
 
     /// The clock jumped (Mock time changed in Settings, TT-158): back to today and the present, as a relaunch would.
     func restart() async {
+        knownToday = today
         selectedDay = today
         now = clock.now
         guard hasLoaded else { return }

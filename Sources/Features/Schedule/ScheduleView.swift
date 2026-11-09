@@ -24,6 +24,8 @@ struct ScheduleView: View {
     @Environment(\.openURL) private var openURL
     /// The strip's leftmost tile, for scrolling it to a tile that is out of view.
     @State private var stripPosition: Int?
+    /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
+    @State private var riderScrolled = false
 
     var body: some View {
         timeline
@@ -239,6 +241,7 @@ struct ScheduleView: View {
             .softBottomEdge()
             .refreshable { await viewModel.refresh() }
             .onChange(of: viewModel.scrollRequest) { previous, _ in
+                riderScrolled = false
                 let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
                 if previous == 0 {
                     proxy.scrollTo(anchor, anchor: .top)
@@ -248,10 +251,28 @@ struct ScheduleView: View {
             }
             // The cards are measured after the first scroll, which moves Now: scroll again, without animation (D49).
             .onChange(of: viewModel.settleRequest) {
-                let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
-                proxy.scrollTo(anchor, anchor: .top)
+                settle(proxy)
             }
+            // And again a moment after the request, when the content was not laid out yet at the first scroll (D52).
+            .onChange(of: viewModel.rescrollRequest) {
+                settle(proxy)
+            }
+            .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
+                if !riderScrolled { riderScrolled = true }
+            })
             .accessibilityIdentifier("schedule.timeline")
+        }
+    }
+
+    /// A scroll to the present again, unless the rider has taken over the scrolling. Without animation on the first request
+    /// (the launch); later ones animate, as the request did, so the second scroll only steers the first.
+    private func settle(_ proxy: ScrollViewProxy) {
+        guard !riderScrolled else { return }
+        let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
+        if viewModel.scrollRequest <= 1 {
+            proxy.scrollTo(anchor, anchor: .top)
+        } else {
+            withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(anchor, anchor: .top) }
         }
     }
 

@@ -80,3 +80,6 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 32 | TT-155 · Route card, Settings tab and Recent routes | [#67](https://github.com/grigorhello/traintimes/issues/67) | P1 | 3 | TestFlight 1.0 (3), D48 |
 | 33 | TT-156 · Schedule refresh | [#69](https://github.com/grigorhello/traintimes/issues/69) | P1 | 8 | TestFlight 1.0 (4), D49 |
 | 34 | TT-157 · Departure card redesign | [#71](https://github.com/grigorhello/traintimes/issues/71) | P1 | 5 | TestFlight 1.0 (11), D50 |
+| 35 | TT-158 · Settings › Testing: mock time | [#73](https://github.com/grigorhello/traintimes/issues/73) | P1 | 3 | Grigor, 2026-11-09, D51 |
+| 36 | TT-159 · Schedule opens at Now and rolls over at midnight | [#74](https://github.com/grigorhello/traintimes/issues/74) | P0 | 3 | Grigor, 2026-11-09 |
+| 37 | TT-160 · Day strip shows the previous 7 days | [#75](https://github.com/grigorhello/traintimes/issues/75) | P2 | 2 | Grigor, 2026-11-09 |

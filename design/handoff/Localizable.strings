@@ -195,6 +195,14 @@
 "settings.demo_trains.off" = "Off";
 "settings.demo_trains.delays" = "Delays";
 "settings.demo_trains.offline" = "Offline";
+"settings.mock_time" = "Time";
+"settings.mock_time.off" = "Real time";
+"settings.mock_time.on" = "Mock time";
+"settings.mock_time.early" = "Early morning";
+"settings.mock_time.late" = "Late evening";
+"settings.mock_time.day_change" = "Just before midnight";
+"settings.mock_time.real" = "Use real time";
+"settings.mock_time_footnote" = "Mock time pretends it is the date and time you pick (Toronto) and keeps running from there, so you can watch the timeline early, late and across midnight. Schedule then shows the timetable only, with no live status.";
 "settings.demo_trains_footnote" = "Delays puts made-up live status on your route's real timetable: the next train late, one cancelled, the rest on time, plus a line notice. Offline shows the cached timetable as if there were no connection.";
 "settings.about" = "About";
 "settings.version" = "Version %@ (%@) · Your next GO train, at a glance.";

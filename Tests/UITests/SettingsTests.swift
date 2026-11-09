@@ -55,4 +55,42 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.buttons["Offline"].isSelected)
         XCTAssertFalse(app.buttons["Off"].firstMatch.isSelected)
     }
+
+    /// Settings › Testing › Mock time (TT-158, D51), in Debug and TestFlight builds: Mock time with a quick choice moves
+    /// Schedule's clock (the 7:32 AM train is no longer "in 11 min"), and Use real time brings it back.
+    @MainActor
+    func testMockTimeMovesTheScheduleClockAndUseRealTimeBringsItBack() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.launch()
+
+        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.label.contains("in 11 min"), "The fixture clock is 7:21 AM")
+
+        // Tapping stores Mock time on the simulator, so a failure part way still turns it off for the next test.
+        addTeardownBlock {
+            app.tabBars.buttons["Settings"].tap()
+            let real = app.buttons["settings.mockTime.real"]
+            if real.exists { real.tap() }
+        }
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["Mock time"].tap()
+        let dayChange = app.buttons["settings.mockTime.dayChange"]
+        XCTAssertTrue(dayChange.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.mockTime.picker"].exists)
+        dayChange.tap()
+        XCTAssertTrue(app.buttons["Mock time"].isSelected)
+
+        app.tabBars.buttons["Schedule"].tap()
+        wait(for: [expectation(for: NSPredicate(format: "NOT (label CONTAINS 'in 11 min')"), evaluatedWith: card)], timeout: 10)
+
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["settings.mockTime.real"].tap()
+        XCTAssertTrue(app.buttons["Real time"].isSelected)
+        XCTAssertFalse(app.buttons["settings.mockTime.dayChange"].exists)
+
+        app.tabBars.buttons["Schedule"].tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS 'in 11 min'"), evaluatedWith: card)], timeout: 10)
+    }
 }

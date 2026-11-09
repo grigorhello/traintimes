@@ -43,13 +43,22 @@ struct SettingsView: View {
                 if viewModel.showsTesting {
                     header("settings.testing")
                     Card(padding: 0) {
-                        segmentRow("settings.demo_trains", selection: $viewModel.demoTrains, options: [
-                            (DemoTrains.off, "settings.demo_trains.off"),
-                            (DemoTrains.delays, "settings.demo_trains.delays"),
-                            (DemoTrains.offline, "settings.demo_trains.offline"),
-                        ])
+                        VStack(spacing: 0) {
+                            segmentRow("settings.demo_trains", selection: $viewModel.demoTrains, options: [
+                                (DemoTrains.off, "settings.demo_trains.off"),
+                                (DemoTrains.delays, "settings.demo_trains.delays"),
+                                (DemoTrains.offline, "settings.demo_trains.offline"),
+                            ])
+                            hairline
+                            segmentRow("settings.mock_time", selection: $viewModel.isMockTimeOn, options: [
+                                (false, "settings.mock_time.off"),
+                                (true, "settings.mock_time.on"),
+                            ])
+                            if viewModel.isMockTimeOn { mockTimeRows }
+                        }
                     }
                     footnote("settings.demo_trains_footnote")
+                    footnote("settings.mock_time_footnote")
                 }
 
                 header("settings.data_privacy")
@@ -91,6 +100,40 @@ struct SettingsView: View {
         }
         .padding(.horizontal, TTSpace.s4)
         .padding(.vertical, TTSpace.s3)
+    }
+
+    /// Mock time on (TT-158): the date and time picker in Toronto time, the quick choices and Use real time.
+    @ViewBuilder private var mockTimeRows: some View {
+        hairline
+        HStack {
+            DatePicker(
+                "settings.mock_time", selection: $viewModel.mockTimeStart, displayedComponents: [.date, .hourAndMinute]
+            )
+            .labelsHidden()
+            .environment(\.timeZone, goTimeZone)
+            .accessibilityIdentifier("settings.mockTime.picker")
+            Spacer(minLength: 0)
+        }
+        .modifier(SettingsRow())
+        ForEach(MockTimePreset.allCases, id: \.self) { preset in
+            hairline
+            textRow(LocalizedStringKey(preset.titleKey), id: preset.identifier) { viewModel.chooseMockTime(preset) }
+        }
+        hairline
+        textRow("settings.mock_time.real", id: "settings.mockTime.real") { viewModel.useRealTime() }
+    }
+
+    private func textRow(_ title: LocalizedStringKey, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).font(TTFont.body).foregroundStyle(TTColor.accent)
+                Spacer(minLength: 0)
+            }
+            .modifier(SettingsRow())
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 
     private var permissionRow: some View {

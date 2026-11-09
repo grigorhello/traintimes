@@ -8,6 +8,8 @@ struct DemoScheduleRepository: ScheduleRepository {
     let clock: any AppClock
     /// The setting, read on each call so a change applies at the next refresh.
     let mode: @Sendable () -> DemoTrains
+    /// Mock time is on (TT-158): the real live status belongs to the real clock, so with Demo trains off there is none.
+    var isMockTime: @Sendable () -> Bool = { false }
 
     /// The next train is this late, in minutes; its estimated arrival moves with it.
     static let delayMinutes = 9
@@ -23,7 +25,7 @@ struct DemoScheduleRepository: ScheduleRepository {
         let now = clock.now
         switch mode {
         case .off:
-            return try await base.liveStatus(for: route, on: day)
+            return isMockTime() ? .empty : try await base.liveStatus(for: route, on: day)
         case .offline:
             return LiveSnapshot(updatedAt: now.addingTimeInterval(-Self.offlineLastUpdated), isOffline: true)
         case .delays:

@@ -30,17 +30,21 @@ final class SettingsViewModel {
     /// nil until the first read from the system; refreshed each time Settings appears or the app returns to the foreground.
     var permission: NotificationPermission?
     private let permissions: any NotificationPermissionProviding
+    /// The app's clock (with Mock time off, the device or fixture clock): Mock time starts from its "now".
+    private let clock: any AppClock
 
     init(
         settings: AppSettings,
         permissions: any NotificationPermissionProviding = SystemNotificationPermission(),
         appInfo: AppInfo = .main,
-        showsTesting: Bool = BuildChannel.showsTesting
+        showsTesting: Bool = BuildChannel.showsTesting,
+        clock: any AppClock = SystemClock()
     ) {
         self.settings = settings
         self.showsTesting = showsTesting
         self.permissions = permissions
         self.appInfo = appInfo
+        self.clock = clock
     }
 
     var appearance: Appearance {
@@ -56,6 +60,31 @@ final class SettingsViewModel {
     var demoTrains: DemoTrains {
         get { settings.demoTrains }
         set { settings.demoTrains = newValue }
+    }
+
+    /// Mock time (TT-158, D51): Off pretends nothing; On starts from the app's current time.
+    var isMockTimeOn: Bool {
+        get { settings.mockTime != nil }
+        set { settings.mockTime = newValue ? MockTimeSetting(start: clock.now, setAt: Date()) : nil }
+    }
+
+    /// The moment the app pretends it is, at the moment it was chosen; the picker's value. Toronto time, as Schedule reads it.
+    var mockTimeStart: Date {
+        get { settings.mockTime?.start ?? clock.now }
+        set { settings.mockTime = MockTimeSetting(start: newValue, setAt: Date()) }
+    }
+
+    /// A quick choice: the picker's date at the preset's time.
+    func chooseMockTime(_ preset: MockTimePreset) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        let moment = calendar.date(bySettingHour: preset.hour, minute: preset.minute, second: 0, of: mockTimeStart)
+        mockTimeStart = moment ?? mockTimeStart
+    }
+
+    /// "Use real time".
+    func useRealTime() {
+        settings.mockTime = nil
     }
 
     /// "Version 1.0 (1) · Your next GO train, at a glance."

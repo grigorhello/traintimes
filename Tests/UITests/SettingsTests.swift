@@ -68,6 +68,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         XCTAssertTrue(card.label.contains("in 11 min"), "The fixture clock is 7:21 AM")
 
+        // Tapping stores Mock time on the simulator, so a failure part way still turns it off for the next test.
+        addTeardownBlock {
+            app.tabBars.buttons["Settings"].tap()
+            let real = app.buttons["settings.mockTime.real"]
+            if real.exists { real.tap() }
+        }
         app.tabBars.buttons["Settings"].tap()
         app.buttons["Mock time"].tap()
         let dayChange = app.buttons["settings.mockTime.dayChange"]

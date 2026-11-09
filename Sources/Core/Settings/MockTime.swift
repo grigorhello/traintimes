@@ -19,7 +19,7 @@ enum MockTime {
     static let startKey = "settings.mockTime"
     static let setAtKey = "settings.mockTimeSetAt"
 
-    /// When this run began (first read, at launch).
+    /// When this run began: first read, which `AppSettings` makes as the app starts.
     static let processStart = Date()
 
     static func read(from defaults: UserDefaults) -> MockTimeSetting? {

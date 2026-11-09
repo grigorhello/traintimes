@@ -67,17 +67,63 @@ struct IconButton: View {
         self.action = action
     }
 
+    /// The glyph and the tap target in points; the defaults are the canvas's `.icon-btn` (the timeline bell is 26 in 48, D49).
+    private var glyph = TTSize.iconButtonGlyph
+    private var target = TTSize.targetMin
+
+    func sized(glyph: CGFloat, target: CGFloat) -> IconButton {
+        var copy = self
+        copy.glyph = glyph
+        copy.target = target
+        return copy
+    }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: TTSize.iconButtonGlyph))
+                .font(.system(size: glyph))
                 .foregroundStyle(!isEnabled ? TTColor.inkTertiary : systemName.hasSuffix(".fill") || isSelected ? TTColor.accent : TTColor.inkSecondary)
-                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                .frame(width: target, height: target)
                 .background(isSelected ? TTColor.surfaceRaised : .clear, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityLabel(label)
+    }
+}
+
+/// A round control floating over content, 44 pt (D49): Liquid Glass on iOS 26 and later, a raised surface before it.
+/// Accent glyph; dimmed when disabled.
+struct GlassIconButton: View {
+    @Environment(\.isEnabled) private var isEnabled
+    let systemName: String
+    let label: LocalizedStringKey
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
+                .foregroundStyle(isEnabled ? TTColor.accent : TTColor.inkTertiary)
+                .opacity(isEnabled ? 1 : 0.55)
+                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                .ttGlass(in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressScaleStyle())
+        .accessibilityLabel(Text(label))
+    }
+}
+
+extension View {
+    /// Liquid Glass in `shape` on iOS 26 and later; a raised surface on earlier systems (D49). Only for controls that
+    /// float over content: cards and tiles stay solid.
+    @ViewBuilder func ttGlass(in shape: some Shape) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(.regular.interactive(), in: shape)
+        } else {
+            background(TTColor.surfaceRaised, in: shape)
+        }
     }
 }
 

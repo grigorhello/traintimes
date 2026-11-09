@@ -9,8 +9,6 @@
 "nav.settings" = "Settings";
 "button.now" = "Now";
 "button.today" = "Today";
-"button.now.label" = "Back to now, today";
-"button.today.label" = "Back to today";
 "button.show_trains" = "Show trains";
 "button.add_alert" = "Add alert";
 "button.repeat" = "Repeat";
@@ -34,10 +32,12 @@
 "freshness.stale" = "Last reported %@ · showing scheduled times";
 "freshness.offline" = "Offline · last updated %@";
 "schedule.line_notice" = "Line notice";
+"schedule.notice_chip" = "Notice";
 "notice.title" = "%@ notice";
 "notice.reported" = "Reported at %@";
 "notice.dismiss" = "Dismiss notice";
 "schedule.scheduled_arrival" = "Scheduled arrival";
+"schedule.arrival" = "Arrival";
 "schedule.est_arrival" = "Est. arrival";
 "schedule.scheduled_time" = "Scheduled %@";
 "schedule.platform" = "Platform %@";
@@ -186,5 +186,11 @@
 "settings.official_updates" = "Official GO service updates";
 "settings.official_updates_sub" = "Opens gotransit.com";
 "settings.independent" = "Independent app, not affiliated with GO Transit or Metrolinx. Times may differ from station displays.";
+"settings.testing" = "Testing · TestFlight builds only";
+"settings.demo_trains" = "Demo trains";
+"settings.demo_trains.off" = "Off";
+"settings.demo_trains.delays" = "Delays";
+"settings.demo_trains.offline" = "Offline";
+"settings.demo_trains_footnote" = "Delays puts made-up live status on your route's real timetable: the next train late, one cancelled, the rest on time, plus a line notice. Offline shows the cached timetable as if there were no connection.";
 "settings.about" = "About";
 "settings.version" = "Version %@ (%@) · Your next GO train, at a glance.";

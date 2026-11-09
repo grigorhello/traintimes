@@ -5,33 +5,31 @@ final class ScheduleTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Selecting Sun 8 then tapping Today returns to today and now in one tap (TT-112). The app runs on the fixture
-    /// clock, Thu Nov 5, so cell 3 is Sun 8.
+    /// Selecting Sun 8, then tapping the Schedule tab again, returns to Today (D49: there is no Now button). The
+    /// app runs on the fixture clock, Thu Nov 5, so tile 3 is Sun 8.
     @MainActor
-    func testAnotherDayThenTodayReturnsToNow() {
+    func testAnotherDayThenScheduleTabReturnsToNow() {
         let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
         XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Updated just now"].waitForExistence(timeout: 5))
         let today = app.buttons["schedule.day.0"]
         let sunday = app.buttons["schedule.day.3"]
-        let now = app.buttons["schedule.now"]
         XCTAssertTrue(today.isSelected)
-        XCTAssertEqual(now.label, "Back to now, today")
+        XCTAssertFalse(app.buttons["schedule.now"].exists, "No Now button anywhere")
 
         sunday.tap()
-        XCTAssertTrue(app.staticTexts["Scheduled times only · Sun, Nov 8"].waitForExistence(timeout: 5))
+        // The fixtures run no trains on Sunday, so the empty state shows once the day has switched.
+        XCTAssertTrue(app.buttons["emptyState.action"].waitForExistence(timeout: 5))
         XCTAssertTrue(sunday.isSelected)
         XCTAssertFalse(today.isSelected)
-        XCTAssertEqual(now.label, "Back to today")
 
-        now.tap()
-        XCTAssertTrue(app.staticTexts["Updated just now"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Schedule"].tap()
+        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertTrue(today.isSelected)
         XCTAssertFalse(sunday.isSelected)
-        XCTAssertEqual(now.label, "Back to now, today")
     }
 
     /// Tapping a card opens Trip details for that train (TT-113, TT-118); Close returns to the timetable.
@@ -54,7 +52,7 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(card.exists)
     }
 
-    /// "Line notice" in the freshness row opens the notice sheet; dismissing the notice closes the sheet and hides the
+    /// The Notice chip on the line row opens the notice sheet; dismissing the notice closes the sheet and hides the
     /// link (TT-132).
     @MainActor
     func testLineNoticeOpensAndDismisses() {

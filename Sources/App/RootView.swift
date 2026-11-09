@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Three tabs, Schedule, Alerts and Settings (D48), and nothing else at the top level. Launch lands on Schedule with no
+/// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
+/// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
 /// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
 /// records them, and the route sheet (D48). Applies the Appearance setting and puts the one time formatter in the
 /// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
@@ -71,7 +72,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $router.selectedTab) {
+        TabView(selection: tabSelection) {
             NavigationStack {
                 if schedule.route == nil {
                     RouteFormView(viewModel: routeForm, isFirstUse: true, onShowTrains: { show($0) })
@@ -87,9 +88,11 @@ struct RootView: View {
                 }
             }
             .tabItem {
-                Label { Text("tab.schedule") } icon: {
-                    TabBarStyle.icon("line.3.horizontal", isSelected: router.selectedTab == .schedule, colorScheme: colorScheme)
-                }
+                TabBarStyle.icon(
+                    "tram.fill", label: String(localized: "tab.schedule"), isSelected: router.selectedTab == .schedule,
+                    colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.schedule"))
             }
             .tag(AppTab.schedule)
 
@@ -101,22 +104,22 @@ struct RootView: View {
                 onOpenLineNotice: { router.present(.lineNotices) }
             )
             .tabItem {
-                Label { Text("tab.alerts") } icon: {
-                    let isSelected = router.selectedTab == .alerts
-                    TabBarStyle.icon(
-                        isSelected ? "bell.fill" : "bell", isSelected: isSelected,
-                        showsDot: !isSelected && (router.showsAlertsDot || alertsModel.showsTabDot), colorScheme: colorScheme
-                    )
-                }
+                let isSelected = router.selectedTab == .alerts
+                TabBarStyle.icon(
+                    "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
+                    showsDot: !isSelected && (router.showsAlertsDot || alertsModel.showsTabDot), colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.alerts"))
             }
             .tag(AppTab.alerts)
 
             SettingsView(viewModel: settingsModel)
                 .tabItem {
-                    // The outline gear in both states, as on the canvas; only the bell fills when selected.
-                    Label { Text("tab.settings") } icon: {
-                        TabBarStyle.icon("gearshape", isSelected: router.selectedTab == .settings, colorScheme: colorScheme)
-                    }
+                    TabBarStyle.icon(
+                        "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,
+                        colorScheme: colorScheme
+                    )
+                    .accessibilityLabel(Text("tab.settings"))
                 }
                 .tag(AppTab.settings)
         }
@@ -151,6 +154,8 @@ struct RootView: View {
         // The first route saved on device, with a light haptic (TT-120).
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
         .environment(\.timeFormatter, settings.timeFormatter)
+        // Demo trains (D49): the timeline shows the new scenario at once.
+        .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
         .preferredColorScheme(settings.appearance.colorScheme)
         // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
         // review and notifications may have arrived (TT-143).
@@ -166,6 +171,20 @@ struct RootView: View {
             alertsModel.markReviewsSeen()
             Task { await refreshAlerts() }
         }
+    }
+
+    /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now
+    /// button. SwiftUI calls the setter on every tap of a tab, also the selected one.
+    private var tabSelection: Binding<AppTab> {
+        Binding(
+            get: { router.selectedTab },
+            set: { tab in
+                if tab == .schedule, router.selectedTab == .schedule {
+                    Task { await schedule.backToNow() }
+                }
+                router.selectedTab = tab
+            }
+        )
     }
 
     /// The rules' states and the recent updates; a rule needing review shown on the open Alerts tab is seen.

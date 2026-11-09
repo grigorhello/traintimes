@@ -65,13 +65,15 @@ struct ControlsGallery: View {
     var body: some View {
         GalleryPage {
             HStack(spacing: TTSpace.s2) {
-                DayCell(weekday: "Today", day: "5", isSelected: true) {}
+                DayCell(weekday: "Today", day: "5", isSelected: true, isToday: true) {}
                 DayCell(weekday: "Fri", day: "6") {}
                 DayCell(weekday: "Sat", day: "7") {}
                 DayCell(weekday: "Sun", day: "8") {}
                 DayCell(weekday: "Mon", day: "9") {}
-                DayCell(weekday: "Tue", day: "10") {}
-                DayCell(weekday: "Wed", day: "11") {}
+            }
+            HStack(spacing: TTSpace.s2) {
+                DayCell(weekday: "Today", day: "5", isToday: true) {}
+                DayCell(weekday: "Fri", day: "6", isSelected: true) {}
             }
             HStack(spacing: TTSpace.s1) {
                 ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, letter in
@@ -88,7 +90,7 @@ struct SurfacesGallery: View {
         GalleryPage {
             Card {
                 VStack(alignment: .leading, spacing: TTSpace.s1) {
-                    Text("schedule.scheduled_arrival").font(TTFont.subhead).foregroundStyle(TTColor.inkSecondary)
+                    Text("schedule.arrival").font(TTFont.subhead).foregroundStyle(TTColor.inkSecondary)
                     Text(verbatim: "7:32 AM").font(TTFont.timeRow).monospacedDigit().foregroundStyle(TTColor.ink)
                     StatusBadge(status: .onTime)
                 }

@@ -19,9 +19,7 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.departures.count, 4)
         XCTAssertNotNil(model.layout.nowY)
         XCTAssertEqual(model.freshnessMode(formatter), .live(updated: "Updated just now"))
-        XCTAssertEqual(model.nowButtonTitle, "Now")
-        XCTAssertEqual(model.nowButtonAccessibilityLabel, "Back to now, today")
-        XCTAssertTrue(model.isAtNow, "Launch already shows the present, so Now is dimmed")
+        XCTAssertNil(model.statusRowMode(formatter), "Live data says nothing in the status row (D49)")
         XCTAssertEqual(model.scrollRequest, 1, "The first load scrolls to Now")
     }
 
@@ -29,16 +27,13 @@ final class ScheduleViewModelTests: XCTestCase {
         let model = try await ScheduleViewModel.loadedFixture(dayIndex: 3)
         XCTAssertFalse(model.isToday)
         XCTAssertEqual(model.freshnessMode(formatter), .scheduledOnly(day: "Sun, Nov 8"))
-        XCTAssertEqual(model.nowButtonTitle, "Today")
-        XCTAssertEqual(model.nowButtonAccessibilityLabel, "Back to today")
-        XCTAssertFalse(model.isAtNow)
         XCTAssertNil(model.layout.nowY)
         XCTAssertTrue(model.departures.isEmpty, "The fixtures run no trains on Sundays")
         XCTAssertEqual(model.scrollRequest, 2, "A new day starts at its first train")
     }
 
-    /// Acceptance: selecting Sun 8 then tapping Today returns to today and now in one tap.
-    func testTodayButtonReturnsToTodayAndNowInOneTap() async throws {
+    /// D49: there is no Now button; tapping the Schedule tab again returns to today and now in one tap.
+    func testReTappingTheScheduleTabReturnsToTodayAndNow() async throws {
         let model = try await ScheduleViewModel.loadedFixture(dayIndex: 3)
         await model.backToNow()
         XCTAssertEqual(model.selectedDay, thursday)
@@ -46,7 +41,6 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.departures.count, 4)
         XCTAssertNotNil(model.layout.nowY)
         XCTAssertEqual(model.freshnessMode(formatter), .live(updated: "Updated just now"))
-        XCTAssertEqual(model.nowButtonTitle, "Now")
         XCTAssertEqual(model.scrollRequest, 3)
     }
 
@@ -73,26 +67,33 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, scroll + 1, "The new day scrolls to Now")
     }
 
-    func testNowDimsOnlyWhileTheTimelineShowsThePresent() async throws {
+    /// On today the tab re-tap scrolls to the present again.
+    func testBackToNowScrollsToThePresentOnToday() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
-        model.viewportHeight = 300
-        XCTAssertTrue(model.isAtNow)
-        model.scrollOffset = 200
-        XCTAssertFalse(model.isAtNow)
         await model.backToNow()
-        XCTAssertEqual(model.scrollRequest, 2, "Now scrolls back to the present")
-        model.scrollOffset = model.layout.initialScrollOffset
-        XCTAssertTrue(model.isAtNow)
+        XCTAssertEqual(model.scrollRequest, 2)
+        XCTAssertTrue(model.isToday)
+    }
+
+    /// The first scroll ran on estimated card sizes, so one more follows once every card is measured (D49).
+    func testScrollSettlesOnceEveryCardIsMeasured() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.settleRequest, 0)
+        let ids = model.departures.map(\.id)
+        for id in ids.dropLast() { model.setCardSize(TimelineCardSize(height: 110, anchor: 35), for: id) }
+        XCTAssertEqual(model.settleRequest, 0, "One card is still unmeasured")
+        model.setCardSize(TimelineCardSize(height: 110, anchor: 35), for: try XCTUnwrap(ids.last))
+        XCTAssertEqual(model.settleRequest, 1)
+        model.setCardSize(TimelineCardSize(height: 140, anchor: 35), for: ids[0])
+        XCTAssertEqual(model.settleRequest, 1, "Only a scroll request asks for another")
     }
 
     func testRefreshKeepsCardIdentityAndScrollPosition() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
         let ids = model.departures.map(\.id)
-        model.scrollOffset = 120
         await model.refresh()
         XCTAssertEqual(model.departures.map(\.id), ids)
         XCTAssertEqual(model.scrollRequest, 1, "A refresh never scrolls")
-        XCTAssertEqual(model.scrollOffset, 120)
     }
 
     func testFreshnessFollowsTheFeedAge() async throws {
@@ -116,14 +117,5 @@ final class ScheduleViewModelTests: XCTestCase {
         await model.loadIfNeeded()
         XCTAssertNil(model.routeTitle)
         XCTAssertNil(model.freshnessMode(formatter))
-    }
-
-    /// The line dot uses the feed colour unless it would vanish on the canvas; then ink-secondary.
-    func testLineColourFallsBackWhenItWouldVanish() {
-        XCTAssertNotNil(Color(lineHex: "#111827", on: .light))
-        XCTAssertNil(Color(lineHex: "#111827", on: .dark))
-        XCTAssertNotNil(Color(lineHex: "98002E", on: .light))
-        XCTAssertNil(Color(lineHex: "#FFFFFF", on: .light))
-        XCTAssertNil(Color(lineHex: "not a colour", on: .light))
     }
 }

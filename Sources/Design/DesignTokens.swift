@@ -16,7 +16,7 @@ enum TTColor {
     static let accentPressed = Color("AccentPressed")
     static let onAccent = Color("OnAccent")
     static let accentSoft = Color("AccentSoft")
-    static let ontimeInk = Color("OntimeInk")      // neutral on purpose: green is the brand, not a status
+    static let ontimeInk = Color("OntimeInk")      // green, the accent: "On time" reads as good news (TT-156, D49)
     static let ontimeFill = Color("OntimeFill")
     static let delayInk = Color("DelayInk")
     static let delayFill = Color("DelayFill")
@@ -42,7 +42,6 @@ enum TTSize {
     /// icon-md box; an SF Symbol at 18 pt matches their drawn size in the frames (TT-116).
     static let iconButtonGlyph: CGFloat = 18
     static let rowMin: CGFloat = 76
-    static let dayCell: CGFloat = 44        // 7-day strip
     static let appMark: CGFloat = 36        // app icon in Settings › About
 }
 
@@ -51,6 +50,7 @@ enum TTFont {
     static let timeLead   = Font.system(size: 34, weight: .semibold, design: .default)   // next train's time
     static let timeRow    = Font.system(size: 32, weight: .semibold)                      // other trains' time
     static let timeArrival = Font.system(size: 17, weight: .semibold)
+    static let timeArrivalCard = Font.system(size: 20, weight: .semibold)                     // arrival time on a timeline card
     static let largeTitle = Font.system(size: 34, weight: .semibold)
     static let route      = Font.system(size: 22, weight: .semibold)                      // "Oakville to Union"
     static let navTitle   = Font.system(size: 17, weight: .semibold)
@@ -59,6 +59,9 @@ enum TTFont {
     static let subhead    = Font.system(size: 15, weight: .regular)
     static let footnote   = Font.system(size: 13, weight: .regular)
     static let badge      = Font.system(size: 13, weight: .semibold)
+    static let badgeLarge = Font.system(size: 15, weight: .semibold)                          // status badge on a timeline card
+    static let lineName   = Font.system(size: 26, weight: .bold)                              // the line above the route card
+    static let lineCode   = Font.system(size: 13, weight: .bold)                              // the code in the line tile
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }
 
@@ -70,8 +73,9 @@ enum TTTimeline {
     static let minCardGap: CGFloat = 16              // cards never touch; zoom the segment locally if they would
     static let connectorLength: CGFloat = 14         // marker to card
     static let foldAfterMinutes = 30                 // gaps longer than this fold to a dashed 30-min segment
-    static let pillLabelHideDistance: CGFloat = 22   // gridline label hides within this distance of a pill
+    static let pillLabelHideDistance: CGFloat = 22   // gridline label hides within this distance of the Now label
     static let leftInset: CGFloat = 12
-    static let nowOffsetFromTopMinutes = 2           // initial scroll puts Now about 2 min below the top edge
+    static let labelWidth: CGFloat = 40              // the gridline time column (40 pt after the 12 pt inset)
+    static let nowOffsetFromTopMinutes = 5           // initial scroll puts Now about 5 min (35 pt) below the top edge
     static let foregroundRefreshSeconds: TimeInterval = 30
 }

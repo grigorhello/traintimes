@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-130: the day strip only offers dates within the feed's validity window (Q6), and a first use with no timetable keeps
+/// TT-130, D49: the day strip only offers dates within the feed's validity window (Q6), and a first use with no timetable keeps
 /// "Loading timetable" instead of claiming there are no trains.
 @MainActor
 final class ScheduleHorizonTests: XCTestCase {
@@ -35,8 +35,21 @@ final class ScheduleHorizonTests: XCTestCase {
         XCTAssertEqual(model.days, (0...3).map { today.adding(days: $0) })
     }
 
-    func testALongerWindowKeepsFourteenDays() async {
+    /// The strip covers every day of the feed's calendar (D49), not a fixed two weeks.
+    func testALongerWindowShowsEveryDay() async {
         let model = model(WindowRepository(lastDay: today.adding(days: 18)))
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.days, (0...18).map { today.adding(days: $0) })
+    }
+
+    func testAVeryLongWindowStopsAtSixWeeks() async {
+        let model = model(WindowRepository(lastDay: today.adding(days: 200)))
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.days.count, ScheduleViewModel.maxDayCount)
+    }
+
+    func testNoKnownEndKeepsFourteenDays() async {
+        let model = model(WindowRepository(lastDay: nil))
         await model.loadIfNeeded()
         XCTAssertEqual(model.days.count, ScheduleViewModel.dayCount)
     }

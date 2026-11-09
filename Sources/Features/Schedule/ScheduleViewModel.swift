@@ -2,14 +2,15 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// The Schedule screen (TT-112): route header, day strip, freshness row with the line notice link (TT-132) and the Now
-/// button, plus the departures, cards and layout the timeline draws (TT-113).
+/// The Schedule screen (TT-112): line and route header, day strip, the status row when offline or stale, and the line notice
+/// chip (TT-132), plus the departures, cards and layout the timeline draws (TT-113). There is no Now button: tapping the
+/// Schedule tab again scrolls back to Now (D49).
 @Observable @MainActor
 final class ScheduleViewModel {
-    /// Today plus 13 days at most; the strip stops sooner at the schedule's last service day (Q6, D35).
+    /// Today plus 13 days when the schedule has no known end (the fixtures).
     static let dayCount = 14
-    /// The Now button dims while the timeline sits within a minute of the present.
-    static let atNowTolerance = TTTimeline.pointsPerMinute
+    /// Today plus 41 days at most; the strip covers every day to the schedule's last service day (Q6, D35, D49).
+    static let maxDayCount = 42
     /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
     static let livePollInterval: Duration = .seconds(30)
     /// The watched-trip strip stays this long after the train's arrival (TT-144).
@@ -28,7 +29,7 @@ final class ScheduleViewModel {
     /// The last day the schedule covers (the GTFS feed's validity window); nil when it has no end.
     private(set) var lastServiceDay: ServiceDay?
     /// Today's line-wide notices for the route's line that the rider has not dismissed (TT-132). They show as the
-    /// "Line notice" link and never change a trip's status. Another day has none.
+    /// Notice chip and never change a trip's status. Another day has none.
     private(set) var lineNotices: [LineNotice] = []
     /// The same notices from the last load of today, kept while another day is shown: the Alerts tab's Line notices and
     /// the notice sheet it opens (TT-143). Equal to `lineNotices` while today is shown.
@@ -40,12 +41,11 @@ final class ScheduleViewModel {
     /// Bumped when the timeline should scroll: to Now on today, to the first train on another day.
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
-    /// True while today is selected and the timeline already shows the present: the Now button dims.
-    /// Stored and set only when it flips, so scrolling does not re-render the screen every frame.
-    private(set) var isAtNow = true
-    /// Reported by the view on every scroll frame: the timeline's scroll offset and visible height.
-    @ObservationIgnored var scrollOffset: CGFloat = 0 { didSet { updateIsAtNow() } }
-    @ObservationIgnored var viewportHeight: CGFloat = 0 { didSet { updateIsAtNow() } }
+    /// Bumped once, after a scroll request, when every card has been measured and the layout has settled: the view
+    /// scrolls again without animation, because the first scroll ran on estimated card sizes (D49).
+    private(set) var settleRequest = 0
+    /// A scroll request is waiting for the cards to be measured.
+    @ObservationIgnored private var awaitsMeasurement = false
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -84,10 +84,12 @@ final class ScheduleViewModel {
 
     var today: ServiceDay { ServiceDay(containing: clock.now) }
     var isToday: Bool { selectedDay == today }
-    /// The day strip, Today first, ending at the schedule's last service day. Today always shows.
+    /// The day strip, Today first, running to the schedule's last service day (every day of the GTFS calendar, up to
+    /// `maxDayCount`). Today always shows.
     var days: [ServiceDay] {
         let first = today
-        let later = (1..<Self.dayCount).map { first.adding(days: $0) }
+        let count = lastServiceDay == nil ? Self.dayCount : Self.maxDayCount
+        let later = (1..<count).map { first.adding(days: $0) }
         return [first] + later.filter { day in lastServiceDay.map { day <= $0 } ?? true }
     }
 
@@ -96,7 +98,7 @@ final class ScheduleViewModel {
         route.map { String(format: String(localized: "schedule.route_title"), $0.from.name, $0.to.name) }
     }
 
-    /// What fills the space under the freshness row (TT-115).
+    /// What fills the space under the day strip (TT-115).
     enum Content: Equatable {
         /// The first timetable for this route is loading: skeleton cards on the rail.
         case loading
@@ -124,15 +126,6 @@ final class ScheduleViewModel {
     /// "Open GO trip planner" on the No direct connection card.
     static let tripPlannerURL = URL(string: "https://www.gotransit.com/en/plan-your-trip")!
 
-    /// "Now", or "Today" while another day is selected.
-    var nowButtonTitle: String {
-        isToday ? String(localized: "button.now") : String(localized: "button.today")
-    }
-
-    var nowButtonAccessibilityLabel: String {
-        isToday ? String(localized: "button.now.label") : String(localized: "button.today.label")
-    }
-
     /// The next usable train on today's timeline: the first that is not cancelled, skipped or gone. None on another day.
     var nextDepartureId: TripKey? {
         guard isToday else { return nil }
@@ -145,31 +138,42 @@ final class ScheduleViewModel {
         return departures.indices.map { index in
             let departure = departures[index]
             let usableBelow = departures[(index + 1)...].contains { $0.isUsable }
-            return DepartureCard(departure, isNext: departure.id == next, nextUsableBelow: usableBelow, now: now, formatter: formatter)
+            return DepartureCard(
+                departure, isNext: departure.id == next, nextUsableBelow: usableBelow, isOffline: isOffline, now: now,
+                formatter: formatter
+            )
         }
     }
 
-    /// A gridline label hides near a pill (TT-111) and near the "Now" label.
+    /// A gridline label hides near the "Now" label.
     func showsLabel(_ gridline: TimelineLayout.Gridline) -> Bool {
-        guard gridline.showsLabel else { return false }
         guard let nowY = layout.nowY else { return true }
         return abs(gridline.y - nowY) > TTTimeline.pillLabelHideDistance
-    }
-
-    /// The "Now" label hides while a time pill sits beside it, as gridline labels do; the line and dot stay.
-    var showsNowLabel: Bool {
-        guard let nowY = layout.nowY else { return false }
-        // A delayed train's struck pill at its scheduled time counts too (TT-114 draws it).
-        let pills: [CGFloat] = layout.cards.flatMap { card in [card.markerY, card.scheduledMarkerY].compactMap { $0 } }
-        return !pills.contains { abs($0 - nowY) <= TTTimeline.pillLabelHideDistance }
     }
 
     /// The view reports each card's measured size; the layout is recomputed only when one moves by a point or more,
     /// so sub-point rounding can never start a measure and relayout loop.
     func setCardSize(_ size: TimelineCardSize, for id: TripKey) {
-        if let old = cardSizes[id], abs(old.height - size.height) < 1, abs(old.anchor - size.anchor) < 1 { return }
+        if let old = cardSizes[id], abs(old.height - size.height) < 1, abs(old.anchor - size.anchor) < 1 {
+            settleIfMeasured()
+            return
+        }
         cardSizes[id] = size
         relayout()
+        settleIfMeasured()
+    }
+
+    /// A scroll request, then a second one without animation once every card has its measured size (D49): the first
+    /// scroll ran before the cards were measured, so the Now line has moved since.
+    private func requestScroll() {
+        scrollRequest += 1
+        awaitsMeasurement = !departures.allSatisfy { cardSizes[$0.id] != nil }
+    }
+
+    private func settleIfMeasured() {
+        guard awaitsMeasurement, departures.allSatisfy({ cardSizes[$0.id] != nil }) else { return }
+        awaitsMeasurement = false
+        settleRequest += 1
     }
 
     /// Once a minute: the Now line moves, without animation, and "in N min" counts down.
@@ -192,6 +196,22 @@ final class ScheduleViewModel {
         }
     }
 
+
+    /// The status row above the timeline (D49): only while the timetable loads, offline, or showing stale data. Live and
+    /// timetable-only data say nothing there.
+    func statusRowMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
+        guard let mode = freshnessMode(formatter) else { return nil }
+        switch mode {
+        case .loading, .stale, .offline: return mode
+        case .live, .scheduledOnly: return nil
+        }
+    }
+
+    /// Offline: the cards keep the grey "Scheduled" badge instead of "On time" (D49).
+    private var isOffline: Bool {
+        if case .offline? = freshness { return true }
+        return false
+    }
 
     /// The freshness line (D14), with times from the one formatter. "Loading timetable" until the first load.
     func freshnessMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
@@ -259,7 +279,7 @@ final class ScheduleViewModel {
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
         await load()
-        scrollRequest += 1
+        requestScroll()
     }
 
     /// Pull to refresh. Cards keep their trip key (D9), so they keep their identity, and the scroll position stays.
@@ -279,9 +299,8 @@ final class ScheduleViewModel {
                     // The service day changed while the app stayed in memory: yesterday is no longer in the day strip,
                     // so the timeline moves to Today and the present, as a relaunch would (D30).
                     selectedDay = today
-                    updateIsAtNow()
                     await load()
-                    scrollRequest += 1
+                    requestScroll()
                 } else {
                     resolve()
                     if isToday { await load() }
@@ -295,19 +314,17 @@ final class ScheduleViewModel {
     func select(_ day: ServiceDay) async {
         guard day != selectedDay else { return }
         selectedDay = day
-        updateIsAtNow()
         await load()
-        scrollRequest += 1
+        requestScroll()
     }
 
-    /// The Now button: back to today and the present in one tap.
+    /// Tapping the Schedule tab while Schedule shows: back to today and the present in one tap (D49).
     func backToNow() async {
         if !isToday {
             selectedDay = today
-            updateIsAtNow()
             await load()
         }
-        scrollRequest += 1
+        requestScroll()
     }
 
     /// "Show Monday" on a day with no direct trains.
@@ -324,7 +341,7 @@ final class ScheduleViewModel {
         routeStore?.save(swapped)
         recents.record(swapped)
         await load()
-        scrollRequest += 1
+        requestScroll()
     }
 
     /// The route from the route form (TT-120), saved on device so the next launch opens it.
@@ -335,7 +352,7 @@ final class ScheduleViewModel {
         // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
         guard hasLoaded else { return }
         await load()
-        scrollRequest += 1
+        requestScroll()
     }
 
     private func load() async {
@@ -380,7 +397,7 @@ final class ScheduleViewModel {
         resolve()
     }
 
-    /// The statuses and the freshness row from the last load at the current clock.
+    /// The statuses and the status row from the last load at the current clock.
     private func resolve() {
         guard let loaded else {
             relayout()
@@ -414,15 +431,5 @@ final class ScheduleViewModel {
 
     private func relayout() {
         layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
-        updateIsAtNow()
-    }
-
-    private func updateIsAtNow() {
-        var value = false
-        if isToday {
-            let target = min(layout.initialScrollOffset, max(0, layout.height - viewportHeight))
-            value = abs(scrollOffset - target) <= Self.atNowTolerance
-        }
-        if value != isAtNow { isAtNow = value }
     }
 }

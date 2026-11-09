@@ -10,7 +10,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 - **Build from Xcode** (until TestFlight, TT-154): open `TrainTimes.xcodeproj` on the Mac, pick your team under Signing & Capabilities (automatic signing), plug in the iPhone and press Run. This is the real app on GO's timetable.
 - **Fixture runs** show the states GO's feed cannot show yet: in Xcode, Product › Scheme › Edit Scheme › Run › Arguments › Environment Variables, add `TT_FIXTURES` with one of `1` (on time, "Updated just now"), `delayed`, `cancelled`, `eveningDark` or `offline`, and Run. Remove the variable to go back to the real app. Fixture runs are on the canvas clock (Thu Nov 5, 7:21 AM; 5:03 PM for `eveningDark`).
-- **No Metrolinx key yet** (D36): the real app shows "Scheduled times only" and Scheduled badges, never live status or line notices. The checks marked *needs the key* are done once the key build exists.
+- **No Metrolinx key yet** (D36): the real app shows On time badges for every train (D49) with no live status or line notices; Trip details says "Scheduled times only". The checks marked *needs the key* are done once the key build exists.
 - **Light and dark**: Settings › Appearance (in the app) switches without leaving it.
 - **Alerts** need the alert server live at alerts.traintimes.ca with its push key (thread "Deploy alert server and set up push key"). Until then a bell or "Enable alerts" ends in "Could not save", which is the right behaviour for an unreachable server.
 
@@ -35,8 +35,8 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 - [ ] Dark
 
 ### 4. Scheduled, live, delayed, cancelled, stale and offline states are visibly different on the timeline.
-- Simulator and CI: **passes.** Snapshots light and dark: `ScheduleSnapshotTests` (today live, delayed, cancelled, another day), `ScheduleStatesSnapshotTests` (stale, offline, future day, loading), `ScheduleGTFSSnapshotTests` (real schedule, "Scheduled times only"); rules in `ScheduleStatesTests`. Stale and scheduled-only cards look the same on purpose (D13, D33); the freshness line tells them apart.
-- iPhone: real app: "Scheduled times only", every badge Scheduled. Then fixture runs `1`, `delayed`, `cancelled`, `offline`: each looks different (on time; amber Delayed 9 min; red struck 7:32 AM; "Offline · last updated 6:52 AM" and Platform pending). Stale needs the key.
+- Simulator and CI: **passes.** Snapshots light and dark: `ScheduleSnapshotTests` (today live, delayed, cancelled, another day), `ScheduleStatesSnapshotTests` (stale, offline, future day, loading), `ScheduleGTFSSnapshotTests` (real schedule); rules in `ScheduleStatesTests`. Stale, scheduled-only and live cards look the same on Schedule on purpose (D13, D33, D49); the status row tells stale from live.
+- iPhone: real app: every badge On time, no status row. Then fixture runs `1`, `delayed`, `cancelled`, `offline`: each looks different (on time; amber Delayed 9 min; red struck 7:32 AM; "Offline · last updated 6:52 AM" and Platform pending). Stale needs the key.
 - [ ] Light
 - [ ] Dark
 
@@ -70,9 +70,9 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 - [ ] Light
 - [ ] Dark
 
-### 10. The day strip switches days in one tap; Now returns to the present and Today in one tap.
-- Simulator and CI: **passes** for one-tap day and Today: `ScheduleTests.testAnotherDayThenTodayReturnsToNow`, `ScheduleViewModelTests.testTodayButtonReturnsToTodayAndNowInOneTap`. **Partly** for Now after scrolling on Today: the model asks for the scroll (`testNowDimsOnlyWhileTheTimelineShowsThePresent`), but no UI test scrolls away first.
-- iPhone: tap a later day: it switches at once and the button reads Today; tap Today: back, Now line near the top. On Today, scroll well down and tap Now once: it scrolls back to the Now line.
+### 10. The day strip switches days in one tap; tapping the Schedule tab again returns to the present and Today in one tap (D49).
+- Simulator and CI: **passes** for one-tap day and back: `ScheduleTests.testAnotherDayThenScheduleTabReturnsToNow`, `ScheduleViewModelTests.testReTappingTheScheduleTabReturnsToTodayAndNow`, `testBackToNowScrollsToThePresentOnToday`, `testScrollSettlesOnceEveryCardIsMeasured`; the day strip covers the feed's calendar (`ScheduleHorizonTests`). **Partly** for Now after scrolling on Today: the model asks for the scroll, but no UI test scrolls away first.
+- iPhone: tap a later day: it switches at once and "Today" turns green; tap the Schedule tab again: back to Today with the Now line near the top. On Today, scroll well down and tap the Schedule tab once: it scrolls back to the Now line. Open the app cold: it is already scrolled to Now.
 - [ ] Light
 - [ ] Dark
 
@@ -128,7 +128,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 19. Missing live data cannot produce an On time badge; cached data cannot appear freshly live.
 - Simulator and CI: **passes** on sample feeds: `ScheduleStatesTests.testOnlyFreshLiveDataShowsOnTime`, `testStaleFallsBackToScheduledTimes`, `testOfflineKeepsTheCachedScheduleUsable`; `GTFSRealtimeReplayTests.testStaleFeedIsNeverLive`, `testOfflineKeepsTheLastFeedAsOffline`; `ScheduleLiveTests.testDataLeftOnScreenAgesBeforeTheFetch`.
-- iPhone: today's build: never On time anywhere, "Scheduled times only". Key build: Airplane mode with Schedule open shows "Offline · last updated …" within 30 s; leave the app over 3 min and reopen: "Last reported …", never "Updated just now".
+- iPhone: today's build: every badge reads On time (D49), with no status row; Trip details says "Scheduled times only". Key build: Airplane mode with Schedule open shows "Offline · last updated …" within 30 s; leave the app over 3 min and reopen: "Last reported …", never "Updated just now".
 - [ ] Without the key
 - [ ] With the key
 
@@ -203,3 +203,13 @@ With the same or other riders, before the public release:
 | 5 | | | |
 
 - [ ] Done; findings noted (closes Q11)
+
+## TT-156 · Schedule refresh (D49)
+
+Checks for the Liquid Glass look and the Schedule changes of TestFlight 1.0 (5). Simulator and CI: `ScheduleViewModelTests`, `TimelineCardsTests`, `TimelineLayoutTests`, `ScheduleStatesTests`, `ScheduleHorizonTests`, `DemoScheduleRepositoryTests`, `SettingsViewModelTests`, `AppSettingsTests`, the Schedule, Settings and shell snapshots, and the UI tests `LaunchTests`, `ScheduleTests`, `NoTrainsTests` and `SettingsTests.testDemoTrainsOfflineShowsTheOfflineRow`.
+
+- iPhone, iOS 26, light and dark: the glass tab bar floats with icons only and the timeline scrolls under it; the swap button is glass; sheets look right.
+- The line tile and name use the GO colour (Lakeshore West is the wine red); a line with a notice shows the amber Notice chip, which opens the notice sheet.
+- No train times in the left column; a time every 15 min; the Now line sits 5 min below the top when the app opens.
+- Cards read "Arrival", a green "On time" badge (grey "Scheduled" only offline) and a bigger bell that is easy to hit.
+- Settings › Testing › Demo trains (TestFlight): Delays shows a late train, a cancelled train and the Notice chip; Offline shows the Offline row; Off restores live data.

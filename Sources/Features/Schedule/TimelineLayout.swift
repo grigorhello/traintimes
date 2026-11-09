@@ -28,11 +28,11 @@ struct TimelineInput: Hashable, Sendable {
 struct TimelineLayout: Hashable, Sendable {
     struct Card: Hashable, Sendable, Identifiable {
         let id: TripKey
-        /// The centre of the marker, its time pill and the connector: the expected departure, else the scheduled one.
+        /// The centre of the marker and the connector: the expected departure, else the scheduled one.
         let markerY: CGFloat
         let top: CGFloat
         let bottom: CGFloat
-        /// Delayed train only: the hollow marker and struck pill at the scheduled time.
+        /// Delayed train only: the hollow marker at the scheduled time.
         let scheduledMarkerY: CGFloat?
 
         /// The 4 pt bar from the scheduled marker down to the expected one; its length is the delay.
@@ -42,8 +42,6 @@ struct TimelineLayout: Hashable, Sendable {
     struct Gridline: Hashable, Sendable {
         let time: Date
         let y: CGFloat
-        /// False when a pill sits within 22 pt. The line itself stays.
-        let showsLabel: Bool
     }
 
     /// A gap over 30 min between two markers, folded to 30 min of rail.
@@ -72,13 +70,13 @@ struct TimelineLayout: Hashable, Sendable {
     /// The line after the last train of the service day.
     var endOfServiceY: CGFloat = 0
     var height: CGFloat = 0
-    /// Puts Now about 2 min below the top edge; 0 on another day, where the timeline starts at the first train.
+    /// Puts Now about 5 min below the top edge; 0 on another day, where the timeline starts at the first train.
     var initialScrollOffset: CGFloat = 0
 }
 
 extension TimelineLayout {
-    /// The time pill is 40 × 22 pt, centred on its marker.
-    private static let pillHeight: CGFloat = 22
+    /// The first card's marker keeps this much room above it, as its old time pill did (22 pt tall, centred on the marker).
+    private static let markerRoom: CGFloat = 22
     /// A fold's pill: one 13 pt footnote line with 3 pt above and below.
     private static let foldPillHeight: CGFloat = 22
 
@@ -180,10 +178,10 @@ extension TimelineLayout {
             return breakY[piece] + CGFloat(fraction) * lengths[piece]
         }
 
-        // Shift everything down so the first card and pill sit 16 pt below the top, and Now can sit 2 min below it.
+        // Shift everything down so the first card and marker sit 16 pt below the top, and Now can sit 5 min below it.
         let nowOffset = CGFloat(TTTimeline.nowOffsetFromTopMinutes) * ppm
         let firstCardTop = breakY[cardBreak[0]] - size(0).anchor
-        var top = min(firstCardTop, breakY[markerBreak[0]] - Self.pillHeight / 2) - gap
+        var top = min(firstCardTop, breakY[markerBreak[0]] - Self.markerRoom / 2) - gap
         if let now = input.now { top = min(top, rawY(minutes(now)) - nowOffset) }
         let contentTop = top
         func y(_ minute: Double) -> CGFloat { rawY(minute) - contentTop }
@@ -222,21 +220,18 @@ extension TimelineLayout {
 
         // Gridlines every 15 min of Toronto wall-clock time, from the top of the content to the end of service.
         // Toronto's UTC offset is whole hours, so 15-min steps from the reference date land on :00, :15, :30 and :45.
-        // None inside a fold's dashed part, where the rail is not to scale.
+        // None inside a fold's dashed part, where the rail is not to scale. Every line carries its time (D49).
         let lastBreakY = breakY[breakY.count - 1] - contentTop
         let startMinute = breaks[0] - Double(breakY[0] - contentTop) / Double(ppm)
         let endMinute = breaks[breaks.count - 1] + Double(endOfServiceY - lastBreakY) / Double(ppm)
         let step = Double(TTTimeline.gridlineEveryMinutes * 60)
         let start = origin.addingTimeInterval(startMinute * 60).timeIntervalSinceReferenceDate
-        let markerYs = markerBreak.map { breakY[$0] - contentTop }
         var time = Date(timeIntervalSinceReferenceDate: (start / step).rounded(.up) * step)
         while minutes(time) <= endMinute {
             let minute = minutes(time)
             let isFolded = foldPieces.contains { breaks[$0.piece] < minute && minute < breaks[$0.piece + 1] }
             if !isFolded {
-                let lineY = y(minute)
-                let nearPill = markerYs.contains { abs($0 - lineY) <= TTTimeline.pillLabelHideDistance }
-                gridlines.append(Gridline(time: time, y: lineY, showsLabel: !nearPill))
+                gridlines.append(Gridline(time: time, y: y(minute)))
             }
             time = time.addingTimeInterval(step)
         }

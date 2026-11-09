@@ -1,336 +1,372 @@
 {
- "v": 3,
- "attachments": {},
- "boards": {
-  "Alert-Setup-Repeat.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Alert setup · Repeat",
-   "w": 390,
-   "x": 1880,
-   "y": 1300
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Alert-Setup-Repeat.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Alert setup · Repeat",
+      "w": 390,
+      "x": 1880,
+      "y": 1300
+    },
+    "Alert-Setup.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Alert setup · This trip",
+      "w": 390,
+      "x": 1410,
+      "y": 1300
+    },
+    "Alerts-Empty.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Alerts · empty",
+      "w": 390,
+      "x": 470,
+      "y": 2600
+    },
+    "Alerts.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Alerts tab",
+      "w": 390,
+      "x": 0,
+      "y": 2600
+    },
+    "Artboard-e4qg.dc.html": {
+      "h": 600,
+      "page": "page-jluqlx",
+      "title": "Artboard 1",
+      "w": 800,
+      "x": 0,
+      "y": 0
+    },
+    "Brand-Lockup.dc.html": {
+      "h": 720,
+      "radius": 18,
+      "title": "Brand · lockup and wordmark",
+      "w": 880,
+      "x": 940,
+      "y": -1300
+    },
+    "Brand-Mark.dc.html": {
+      "h": 620,
+      "radius": 18,
+      "title": "Brand · mark and app icon",
+      "w": 880,
+      "x": 0,
+      "y": -1300
+    },
+    "Brand-Search.dc.html": {
+      "h": 844,
+      "radius": 44,
+      "title": "Brand · App Store search for “go train”",
+      "w": 390,
+      "x": 2350,
+      "y": -1300
+    },
+    "Brand-Store.dc.html": {
+      "h": 844,
+      "radius": 44,
+      "title": "Brand · App Store product page",
+      "w": 390,
+      "x": 1880,
+      "y": -1300
+    },
+    "Components.dc.html": {
+      "h": 2400,
+      "radius": 18,
+      "title": "Component sheet",
+      "w": 880,
+      "x": 1880,
+      "y": 2600
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · timeline (State and Theme in Tweaks)",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Notification-Preview.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Lock screen · delay notification",
+      "w": 390,
+      "x": 1410,
+      "y": 2600
+    },
+    "Permission-Prompt.dc.html": {
+      "h": 844,
+      "radius": 44,
+      "title": "Notification permission (after first Enable)",
+      "w": 390,
+      "x": 2350,
+      "y": 1300
+    },
+    "Route-Picker.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Route form · first use, and the route sheet (Rider in Tweaks)",
+      "w": 390,
+      "x": 0,
+      "y": 1300
+    },
+    "Schedule-Compact.dc.html": {
+      "h": 667,
+      "title": "Schedule · compact phone (iPhone SE)",
+      "w": 375,
+      "x": 4230,
+      "y": 0
+    },
+    "Schedule-Dark.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · dark, cancelled train, long gap",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Schedule-Delayed.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · delayed, alert on, line notice",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Schedule-LargeText.dc.html": {
+      "h": 844,
+      "radius": 44,
+      "title": "Schedule · large text (xxxLarge)",
+      "w": 390,
+      "x": 3760,
+      "y": 0
+    },
+    "Schedule-Loading.dc.html": {
+      "h": 844,
+      "radius": 44,
+      "title": "Schedule · first load",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "Schedule-NoTrains.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · future day, no direct trains",
+      "w": 390,
+      "x": 3290,
+      "y": 0
+    },
+    "Schedule-Offline.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · offline",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "Schedule-Scrolled.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · scrolled past Now (tap the Schedule tab to return to Now)",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "Schedule-Watched.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · watched train after departure",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "Settings.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Settings tab",
+      "w": 390,
+      "x": 940,
+      "y": 2600
+    },
+    "Station-Search.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Station search",
+      "w": 390,
+      "x": 470,
+      "y": 1300
+    },
+    "Trip-Details.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Trip details sheet",
+      "w": 390,
+      "x": 940,
+      "y": 1300
+    }
   },
-  "Alert-Setup.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Alert setup · This trip",
-   "w": 390,
-   "x": 1410,
-   "y": 1300
+  "createdOnFiles": {
+    "at": "2026-11-05T03:41:59Z",
+    "v": 1
   },
-  "Alerts-Empty.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Alerts · empty",
-   "w": 390,
-   "x": 470,
-   "y": 2600
+  "designSystems": [
+    {
+      "artifact": "https://claude.ai/code/artifact/fefd0b1c-3c6f-446d-9bf8-874bf1252452",
+      "copiedAt": "2026-11-05T03:41:59Z",
+      "namespace": "go-train-app",
+      "title": "GO Train App",
+      "version": "1793848529-2d5f"
+    }
+  ],
+  "launch": {
+    "view": "canvas"
   },
-  "Alerts.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Alerts tab",
-   "w": 390,
-   "x": 0,
-   "y": 2600
+  "noteOrder": [
+    "t-brand",
+    "s-brand",
+    "t-schedule",
+    "t-route",
+    "t-alerts",
+    "s-demo",
+    "s-timeline",
+    "s-sheets",
+    "s-notif",
+    "s-nov9"
+  ],
+  "notes": {
+    "s-brand": {
+      "fill": "blue",
+      "text": "Train Times · decided after the Nowline round was rejected for not saying train schedule\n\n• Name: Train Times. Home-screen label Train Times (11 characters). App Store title Train Times: GO train schedule (30 characters). Subtitle Today's GO trains and delays. GO appears only as a description, never as the brand.\n• Icon: a white train head on brand green #0C7B53 (dark: mint #6EE7B7 on #0B1F17). No letters, no clock, no badge. Never GO's olive green, never a G or GO letterform, never GO or Metrolinx marks.\n• Colour: brand green replaces indigo as the accent everywhere. On time is a green badge (Grigor, Nov 9: the common green / amber / red status colouring); delays amber, cancellations red. Alert On states use the accent.\n• Tagline: Your next GO train, at a glance.\n• Voice: every delay carries the time it was reported; a train keeps its name; state, never promise; one fact per sentence.\n• Description first line: Independent app, not affiliated with GO Transit or Metrolinx.\n• Website: traintimes.ca is registered (auto-renew on). traintimes.app optional. Nothing with go or gotrain in it. The site hosts the privacy page (/privacy), the data attribution page (/data), support@traintimes.ca and the store badge.\n• Still by hand: confirm the title in App Store Connect; optional 30-minute trademark check.",
+      "w": 340,
+      "x": 2820,
+      "y": -1300
+    },
+    "s-demo": {
+      "fill": "blue",
+      "text": "Demo control (outside the app UI): select the first Schedule artboard and open Tweaks. State switches normal / delayed / cancelled / offline. Theme switches light / dark on every artboard.\n\nAll times, platforms, train numbers and stops are illustrative fixtures, not GO schedules.",
+      "w": 300,
+      "x": 4685,
+      "y": 0
+    },
+    "s-notif": {
+      "fill": "blue",
+      "text": "A notification deep-links to Trip details for that exact trip and service date (trip key = service date + stable trip id, never departure time alone). Departure-delay alerts stop after departure; arrival information stays in-app on the watched-trip strip.",
+      "w": 300,
+      "x": 2840,
+      "y": 2600
+    },
+    "s-nov9": {
+      "fill": "green",
+      "text": "Nov 9 round (TestFlight 1.0 (4) feedback), approved by Grigor Nov 9 · TT-156, issue #69\n\n• Liquid Glass (iOS 26) on every screen: a floating glass tab bar with icons only (tram.fill Schedule, bell.fill Alerts, gearshape.fill Settings; VoiceOver still reads the names; the selected tab is a green icon on a soft glass lens), a glass swap button, content stays solid (cards, route card, day tiles), timeline and lists run under the bar with soft scroll-edge fades. Building it turns Liquid Glass on (reverses D25); iOS 17 to 25 keep the standard bars.\n• Line name first, big, in GO's line colour (sampled from gotransit.com); the line row under the card is gone. A line notice is an amber Notice chip beside the line name.\n• Day strip: a swipeable row of 60 x 48 pt date tiles bleeding to both screen edges, half a tile peeking, snapping to tiles, every day in the timetable; Today first; selected = solid green; Today turns green when another day is selected.\n• No Now row and no Now button. The status row shows only for offline, stale or loading. Now line visible about 5 min below the top; the app always opens there. Tapping the Schedule tab again scrolls back to Now.\n• Timeline left column: gridline times only, every 15 min (:00, :15, :30, :45), as before; no per-train times there (Grigor, Nov 9), because each card already carries its time.\n• Cards: Scheduled arrival is now Arrival, bigger; Scheduled is now On time in green, 15 pt; bigger bell.\n• Settings › Testing › Demo trains (TestFlight only): Delays or Offline on the real timetable.",
+      "w": 320,
+      "x": 5065,
+      "y": 0
+    },
+    "s-sheets": {
+      "fill": "blue",
+      "text": "Bell = one tap. Once permission exists, tapping a card's bell arms a This-trip alert immediately and shows a toast (Alert on for the 7:32 AM train · Repeat) for 5 s; tapping the bell again turns it off. The sheet opens only the first time (permission), from the toast's Repeat link, or from a filled bell held or tapped on the Alerts tab (Manage). A denied permission shows Notifications off with Open Settings; it never shows On.\n\nRoute card (Grigor, Nov 8): a hollow ring marks where you get on, a dotted line, a green pin where you get off; no From or To words and no arrows. Tapping either station on Schedule opens the route sheet, where Recent lists the last three routes opened, newest first, without the one on screen. No favourites in v1. Settings is the third tab. The tab bar is the iOS 26 glass capsule with icons only (Nov 9).\n\nFirst use: both rows empty, Show trains disabled; picking the starting station opens the destination search automatically. Add alert on the Alerts tab goes to Schedule.\n\nTrip identity never changes: the 7:32 AM train stays the 7:32 AM train when its estimate moves to 7:41 AM.",
+      "w": 320,
+      "x": 2820,
+      "y": 1300
+    },
+    "s-timeline": {
+      "fill": "blue",
+      "text": "Timeline rules (full detail in the requirements doc)\n\n• Day strip (Nov 9, option A): a swipeable row of 60 x 48 pt date tiles (weekday over date; the first says Today), 8 pt apart, bleeding to both screen edges with half of the sixth tile peeking under a soft fade, snapping to tiles, covering every day in the timetable (usually 2 to 4 weeks). Selected = solid green with white text; when another day is selected, Today turns green. Another day shows Scheduled times only and no Now line.\n• Header (Nov 9): the GO line first, a code tile in GO's own line colour plus the name in 26 pt bold, then the route card.\n• No Now button anywhere (Grigor, Nov 9). Back to Now is the standard iOS gesture: tapping the Schedule tab while Schedule is already showing scrolls the timeline back to the present. Today in the day strip returns from another day.\n• The next usable train's card shows minutes until departure (in 11 min) in accent beside its badge, updating each minute; its platform sits under the arrival. No other card shows a relative time.\n• Scale 7 pt per minute, gridline and label every 15 min (:00, :15, :30, :45), Now line in accent. The left column shows gridline times only, never a train's time (the card has it; Grigor, Nov 9). The app always opens scrolled to Now, with the Now line about 5 min below the top edge so the minutes just gone stay visible above it.\n• Every train gets a marker on the rail, no time next to it: a ring for a train, a solid 16 pt dot for the next usable train, a hollow amber ring for a slipped scheduled time, a red x for cancelled. Marker and connector share a colour.\n• A card anchors at its expected departure (scheduled when there is no estimate), joined to its marker by a 14 pt connector. Times: 34 pt next train, 32 pt others; Arrival label 15 pt, arrival time 20 pt; status badge 15 pt; card bell 26 pt glyph in a 48 pt target; no Departs label.\n• Status: a train with no reported delay or cancellation reads On time (green check), live or timetable only; Scheduled (grey) only while offline.\n• Delayed: hollow amber marker at the scheduled time, amber bar down to the expected marker, bar length = delay.\n• Cancelled: keeps its slot with an x marker and struck time; never the lead.\n• Cards never touch: minimum gap 16 pt; if two trains are closer at base scale the timeline zooms in for that segment only.\n• No gap labels between cards (the spacing says it); gaps over 30 min fold to a dashed 30-min segment with the real duration and next train.\n• Cancelled cards have no bell.\n• Express tag = the lightning bolt riders know from GO's trip planner (SF Symbol bolt.fill) plus the word. When a row carries more than one tag, the word is hidden and only the glyph stays (accessibility label still reads Express); if the tags still do not fit beside the status and platform, they wrap to a second line under them and the card grows (the minimum-gap rule keeps spacing). Shown on the 7:58 AM card of the first board and on the component sheet. Express is the only tag in v1; Bike coach and Quiet zone are placeholders for later.\n• A watched train that has departed stays as a compact strip above the timeline until arrival or dismissal.\n• A line notice is an amber Notice chip at the right end of the line row (Grigor, Nov 9); tapping it opens the notice sheet. The status row under the day strip appears only for offline, stale data or loading. Live or timetable only: no row.",
+      "w": 340,
+      "x": 4685,
+      "y": 440
+    },
+    "t-alerts": {
+      "kind": "title1",
+      "maxW": 2760,
+      "text": "Alerts, Settings, notifications and components",
+      "w": 240,
+      "x": 0,
+      "y": 2300
+    },
+    "t-brand": {
+      "kind": "title1",
+      "maxW": 2270,
+      "text": "Brand: Train Times",
+      "w": 240,
+      "x": 0,
+      "y": -1600
+    },
+    "t-route": {
+      "kind": "title1",
+      "maxW": 2740,
+      "text": "Route, trip details and alert setup",
+      "w": 240,
+      "x": 0,
+      "y": 1000
+    },
+    "t-schedule": {
+      "kind": "title1",
+      "maxW": 4605,
+      "text": "Schedule (timeline) and its states",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    }
   },
-  "Components.dc.html": {
-   "h": 1900,
-   "radius": 18,
-   "title": "Component sheet",
-   "w": 880,
-   "x": 1880,
-   "y": 2600
-  },
-  "Main.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · timeline (State and Theme in Tweaks)",
-   "w": 390,
-   "x": 0,
-   "y": 0
-  },
-  "Notification-Preview.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Lock screen · delay notification",
-   "w": 390,
-   "x": 1410,
-   "y": 2600
-  },
-  "Permission-Prompt.dc.html": {
-   "h": 844,
-   "radius": 44,
-   "title": "Notification permission (after first Enable)",
-   "w": 390,
-   "x": 2350,
-   "y": 1300
-  },
-  "Route-Picker.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Route form · first use, and the route sheet (Rider in Tweaks)",
-   "w": 390,
-   "x": 0,
-   "y": 1300
-  },
-  "Schedule-Compact.dc.html": {
-   "h": 667,
-   "title": "Schedule · compact phone (iPhone SE)",
-   "w": 375,
-   "x": 3760,
-   "y": 0
-  },
-  "Schedule-Dark.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · dark, cancelled train, long gap",
-   "w": 390,
-   "x": 940,
-   "y": 0
-  },
-  "Schedule-Delayed.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · delayed, alert on, line notice",
-   "w": 390,
-   "x": 470,
-   "y": 0
-  },
-  "Schedule-LargeText.dc.html": {
-   "h": 844,
-   "radius": 44,
-   "title": "Schedule · large text (xxxLarge)",
-   "w": 390,
-   "x": 3290,
-   "y": 0
-  },
-  "Schedule-Loading.dc.html": {
-   "h": 844,
-   "radius": 44,
-   "title": "Schedule · first load",
-   "w": 390,
-   "x": 2350,
-   "y": 0
-  },
-  "Schedule-NoTrains.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · future day, no direct trains",
-   "w": 390,
-   "x": 2820,
-   "y": 0
-  },
-  "Schedule-Offline.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · offline",
-   "w": 390,
-   "x": 1880,
-   "y": 0
-  },
-  "Schedule-Watched.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Schedule · watched train after departure",
-   "w": 390,
-   "x": 1410,
-   "y": 0
-  },
-  "Settings.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Settings tab",
-   "w": 390,
-   "x": 940,
-   "y": 2600
-  },
-  "Station-Search.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Station search",
-   "w": 390,
-   "x": 470,
-   "y": 1300
-  },
-  "Trip-Details.dc.html": {
-   "h": 844,
-   "is_interactive": true,
-   "radius": 44,
-   "title": "Trip details sheet",
-   "w": 390,
-   "x": 940,
-   "y": 1300
-  },
-  "Brand-Mark.dc.html": {
-   "x": 0,
-   "y": -1300,
-   "w": 880,
-   "h": 620,
-   "radius": 18,
-   "title": "Brand · mark and app icon"
-  },
-  "Brand-Lockup.dc.html": {
-   "x": 940,
-   "y": -1300,
-   "w": 880,
-   "h": 720,
-   "radius": 18,
-   "title": "Brand · lockup and wordmark"
-  },
-  "Brand-Store.dc.html": {
-   "x": 1880,
-   "y": -1300,
-   "w": 390,
-   "h": 844,
-   "radius": 44,
-   "title": "Brand · App Store product page"
-  },
-  "Brand-Search.dc.html": {
-   "x": 2350,
-   "y": -1300,
-   "w": 390,
-   "h": 844,
-   "radius": 44,
-   "title": "Brand · App Store search for “go train”"
-  }
- },
- "createdOnFiles": {
-  "at": "2026-11-05T03:41:59Z",
-  "v": 1
- },
- "designSystems": [
-  {
-   "artifact": "https://claude.ai/code/artifact/fefd0b1c-3c6f-446d-9bf8-874bf1252452",
-   "copiedAt": "2026-11-05T03:41:59Z",
-   "namespace": "go-train-app",
-   "title": "GO Train App",
-   "version": "1793848529-2d5f"
-  }
- ],
- "launch": {
-  "view": "canvas"
- },
- "noteOrder": [
-  "t-brand",
-  "s-brand",
-  "t-schedule",
-  "t-route",
-  "t-alerts",
-  "s-demo",
-  "s-timeline",
-  "s-sheets",
-  "s-notif"
- ],
- "notes": {
-  "s-demo": {
-   "fill": "blue",
-   "text": "Demo control (outside the app UI): select the first Schedule artboard and open Tweaks. State switches normal / delayed / cancelled / offline. Theme switches light / dark on every artboard.\n\nAll times, platforms, train numbers and stops are illustrative fixtures, not GO schedules.",
-   "w": 300,
-   "x": 4215,
-   "y": 0
-  },
-  "s-notif": {
-   "fill": "blue",
-   "text": "A notification deep-links to Trip details for that exact trip and service date (trip key = service date + stable trip id, never departure time alone). Departure-delay alerts stop after departure; arrival information stays in-app on the watched-trip strip.",
-   "w": 300,
-   "x": 2840,
-   "y": 2600
-  },
-  "s-sheets": {
-   "fill": "blue",
-   "text": "Bell = one tap. Once permission exists, tapping a card's bell arms a This-trip alert immediately and shows a toast (Alert on for the 7:32 AM train · Repeat) for 5 s; tapping the bell again turns it off. The sheet opens only the first time (permission), from the toast's Repeat link, or from a filled bell held or tapped on the Alerts tab (Manage). A denied permission shows Notifications off with Open Settings; it never shows On.\n\nRoute card (Grigor, Nov 8): a hollow ring marks where you get on, a dotted line, a green pin where you get off; no From or To words and no arrows. Tapping either station on Schedule opens the route sheet, where Recent lists the last three routes opened, newest first, without the one on screen. No favourites in v1. Settings is the third tab.\n\nFirst use: both rows empty, Show trains disabled; picking the starting station opens the destination search automatically. Add alert on the Alerts tab goes to Schedule.\n\nTrip identity never changes: the 7:32 AM train stays the 7:32 AM train when its estimate moves to 7:41 AM.",
-   "w": 320,
-   "x": 2820,
-   "y": 1300
-  },
-  "s-timeline": {
-   "fill": "blue",
-   "text": "Timeline rules (full detail in the requirements doc)\n\n• Day strip: seven service days always visible, Today first, 44 pt cells; scrolls sideways for later dates. Another day shows Scheduled times only and no Now line.\n• Now button scrolls back to the present and resets the day to Today; dimmed while already there. It reads Today while another day is selected.\n• The next usable train's card shows minutes until departure (in 11 min) in accent beside its badge, updating each minute; its platform sits under the arrival. No other card shows a relative time.\n• Scale 7 pt per minute, gridline every 15 min, Now line in accent, initial scroll puts Now about 2 min below the top edge.\n• Every train marker carries its minute as a pill: accent-soft for a train, solid accent for the next usable train, amber struck for a slipped scheduled time, red struck for cancelled. Marker, connector and pill share a colour. Gridline labels stay plain grey and hide within 22 pt of a pill.\n• A card anchors at its expected departure (scheduled when there is no estimate), joined to its marker by a 14 pt connector. Times: 34 pt next train, 32 pt others, arrival 17 pt, no Departs label.\n• Delayed: hollow amber marker at the scheduled time, amber bar down to the expected marker, bar length = delay.\n• Cancelled: keeps its slot with an x marker and struck time; never the lead.\n• Cards never touch: minimum gap 16 pt; if two trains are closer at base scale the timeline zooms in for that segment only.\n• No gap labels between cards (the spacing says it); gaps over 30 min fold to a dashed 30-min segment with the real duration and next train.\n• Cancelled cards have no bell.\n• Express tag = the lightning bolt riders know from GO's trip planner (SF Symbol bolt.fill) plus the word. When a row carries more than one tag, the word is hidden and only the glyph stays (accessibility label still reads Express); if the tags still do not fit beside the status and platform, they wrap to a second line under them and the card grows (the minimum-gap rule keeps spacing). Shown on the 7:58 AM card of the first board and on the component sheet. Express is the only tag in v1; Bike coach and Quiet zone are placeholders for later.\n• A watched train that has departed stays as a compact strip above the timeline until arrival or dismissal.\n• A line notice is a link in the freshness row; the full notice opens in a sheet.",
-   "w": 340,
-   "x": 4215,
-   "y": 440
-  },
-  "t-alerts": {
-   "kind": "title1",
-   "maxW": 2760,
-   "text": "Alerts, Settings, notifications and components",
-   "w": 240,
-   "x": 0,
-   "y": 2300
-  },
-  "t-route": {
-   "kind": "title1",
-   "maxW": 2740,
-   "text": "Route, trip details and alert setup",
-   "w": 240,
-   "x": 0,
-   "y": 1000
-  },
-  "t-schedule": {
-   "kind": "title1",
-   "maxW": 4135,
-   "text": "Schedule (timeline) and its states",
-   "w": 240,
-   "x": 0,
-   "y": -300
-  },
-  "t-brand": {
-   "kind": "title1",
-   "maxW": 2270,
-   "text": "Brand: Train Times",
-   "w": 240,
-   "x": 0,
-   "y": -1600
-  },
-  "s-brand": {
-   "fill": "blue",
-   "w": 340,
-   "x": 2820,
-   "y": -1300,
-   "text": "Train Times · decided after the Nowline round was rejected for not saying train schedule\n\n• Name: Train Times. Home-screen label Train Times (11 characters). App Store title Train Times: GO train schedule (30 characters). Subtitle Today's GO trains and delays. GO appears only as a description, never as the brand.\n• Icon: a white train head on brand green #0C7B53 (dark: mint #6EE7B7 on #0B1F17). No letters, no clock, no badge. Never GO's olive green, never a G or GO letterform, never GO or Metrolinx marks.\n• Colour: brand green replaces indigo as the accent everywhere. Because green is now the brand, On time is a neutral grey badge; only delays (amber) and cancellations (red) carry colour. Alert On states use the accent.\n• Tagline: Your next GO train, at a glance.\n• Voice: every delay carries the time it was reported; a train keeps its name; state, never promise; one fact per sentence.\n• Description first line: Independent app, not affiliated with GO Transit or Metrolinx.\n• Website: traintimes.ca is registered (auto-renew on). traintimes.app optional. Nothing with go or gotrain in it. The site hosts the privacy page (/privacy), the data attribution page (/data), support@traintimes.ca and the store badge.\n• Still by hand: confirm the title in App Store Connect; optional 30-minute trademark check."
-  }
- },
- "order": [
-  "Brand-Mark.dc.html",
-  "Brand-Lockup.dc.html",
-  "Brand-Store.dc.html",
-  "Brand-Search.dc.html",
-  "Main.dc.html",
-  "Schedule-Delayed.dc.html",
-  "Schedule-Dark.dc.html",
-  "Schedule-Watched.dc.html",
-  "Schedule-Offline.dc.html",
-  "Schedule-Loading.dc.html",
-  "Schedule-NoTrains.dc.html",
-  "Schedule-LargeText.dc.html",
-  "Schedule-Compact.dc.html",
-  "Route-Picker.dc.html",
-  "Station-Search.dc.html",
-  "Trip-Details.dc.html",
-  "Alert-Setup.dc.html",
-  "Alert-Setup-Repeat.dc.html",
-  "Permission-Prompt.dc.html",
-  "Alerts.dc.html",
-  "Alerts-Empty.dc.html",
-  "Settings.dc.html",
-  "Notification-Preview.dc.html",
-  "Components.dc.html"
- ],
- "pages": [],
- "title": "Train Times (GO train app) — iPhone v1"
+  "order": [
+    "Brand-Mark.dc.html",
+    "Brand-Lockup.dc.html",
+    "Brand-Store.dc.html",
+    "Brand-Search.dc.html",
+    "Main.dc.html",
+    "Schedule-Scrolled.dc.html",
+    "Schedule-Delayed.dc.html",
+    "Schedule-Dark.dc.html",
+    "Schedule-Watched.dc.html",
+    "Schedule-Offline.dc.html",
+    "Schedule-Loading.dc.html",
+    "Schedule-NoTrains.dc.html",
+    "Schedule-LargeText.dc.html",
+    "Schedule-Compact.dc.html",
+    "Route-Picker.dc.html",
+    "Station-Search.dc.html",
+    "Trip-Details.dc.html",
+    "Alert-Setup.dc.html",
+    "Alert-Setup-Repeat.dc.html",
+    "Permission-Prompt.dc.html",
+    "Alerts.dc.html",
+    "Alerts-Empty.dc.html",
+    "Settings.dc.html",
+    "Notification-Preview.dc.html",
+    "Components.dc.html",
+    "Artboard-e4qg.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Page 1"
+    },
+    {
+      "id": "page-jluqlx",
+      "name": "Page 2"
+    }
+  ],
+  "title": "Train Times (GO train app) — iPhone v1"
 }

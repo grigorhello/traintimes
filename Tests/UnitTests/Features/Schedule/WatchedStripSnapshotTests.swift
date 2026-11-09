@@ -4,7 +4,7 @@ import XCTest
 @testable import TrainTimes
 
 /// Schedule with a watched train kept after departure, against design/frames/schedule-watched.png (TT-144): the
-/// accent-soft strip under the freshness row, light and dark, at 7:28 AM as in the frame. A snapshot cannot scroll to Now,
+/// accent-soft strip under the day strip, light and dark, at 7:28 AM as in the frame. A snapshot cannot scroll to Now,
 /// so the timeline starts at its first train, the departed 7:05 AM; compare the header and the strip.
 final class WatchedStripSnapshotTests: XCTestCase {
     @MainActor func testWatchedLight() async throws { snap(try await .watchedFixture(), .light) }
@@ -24,6 +24,7 @@ final class WatchedStripSnapshotTests: XCTestCase {
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
+                precision: glassSnapshotPrecision,
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)

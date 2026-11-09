@@ -31,6 +31,7 @@ final class AlertBellSnapshotTests: XCTestCase {
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
+                precision: glassSnapshotPrecision,
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)

@@ -25,6 +25,8 @@ final class SettingsViewModel {
 
     let settings: AppSettings
     let appInfo: AppInfo
+    /// The Testing section (Demo trains) shows in TestFlight and Debug builds only (D49).
+    let showsTesting: Bool
     /// nil until the first read from the system; refreshed each time Settings appears or the app returns to the foreground.
     var permission: NotificationPermission?
     private let permissions: any NotificationPermissionProviding
@@ -32,9 +34,11 @@ final class SettingsViewModel {
     init(
         settings: AppSettings,
         permissions: any NotificationPermissionProviding = SystemNotificationPermission(),
-        appInfo: AppInfo = .main
+        appInfo: AppInfo = .main,
+        showsTesting: Bool = BuildChannel.showsTesting
     ) {
         self.settings = settings
+        self.showsTesting = showsTesting
         self.permissions = permissions
         self.appInfo = appInfo
     }
@@ -47,6 +51,11 @@ final class SettingsViewModel {
     var timeFormat: TimeFormat {
         get { settings.timeFormat }
         set { settings.timeFormat = newValue }
+    }
+
+    var demoTrains: DemoTrains {
+        get { settings.demoTrains }
+        set { settings.demoTrains = newValue }
     }
 
     /// "Version 1.0 (1) · Your next GO train, at a glance."

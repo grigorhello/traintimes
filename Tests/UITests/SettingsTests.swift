@@ -36,4 +36,23 @@ final class SettingsTests: XCTestCase {
         app.buttons["Device"].tap()
         XCTAssertTrue(app.buttons["System"].isSelected)
     }
+
+    /// Settings › Testing › Demo trains (D49), in Debug and TestFlight builds: Offline shows the cached timetable with the
+    /// Offline status row on Schedule, and the control reads Offline. Launched with the stored choice as an argument, so
+    /// nothing is left on the simulator for the next run.
+    @MainActor
+    func testDemoTrainsOfflineShowsTheOfflineRow() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "offline"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
+        let offline = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Offline · last updated")).firstMatch
+        XCTAssertTrue(offline.waitForExistence(timeout: 10))
+
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Offline"].isSelected)
+        XCTAssertFalse(app.buttons["Off"].firstMatch.isSelected)
+    }
 }

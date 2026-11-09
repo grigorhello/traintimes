@@ -1,17 +1,18 @@
 import SwiftUI
 
-/// Schedule tab (TT-112): the route card with the line under it (D48), 7-day strip and freshness row with the Now button,
-/// the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and cards
-/// (TT-113).
+/// Schedule tab (TT-112, D49): the line (code tile, name and a Notice chip) above the route card (D48), the day strip
+/// carousel, a status row only while loading, offline or stale, the watched-trip strip once a watched train has left
+/// (TT-144), then the to-scale timeline with its rail and cards (TT-113). The header is a top inset over one full-height
+/// scroll view, so the timeline scrolls under the glass tab bar at the bottom (D49). There is no Now button: tapping the
+/// Schedule tab again scrolls back to Now.
 struct ScheduleView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
     /// Tap the route card: the route sheet with Recent (D48).
     let onEditRoute: () -> Void
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
-    /// "Line notice" in the freshness row: the notice sheet (TT-132).
+    /// The Notice chip: the notice sheet (TT-132).
     var onOpenLineNotice: () -> Void = {}
     /// The one-tap bells and their toast (TT-141); nil shows outlined bells that do nothing.
     var bells: AlertBellModel?
@@ -21,53 +22,70 @@ struct ScheduleView: View {
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.openURL) private var openURL
+    /// The strip's leftmost tile, for scrolling it to a tile that is out of view.
+    @State private var stripPosition: Int?
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                routeHeader
-                    .padding(.horizontal, TTSpace.s5)
-                    .padding(.bottom, TTSpace.s3)
-                dayStrip
-                    .padding(.bottom, TTSpace.s2)
-                freshnessRow
-                    .padding(.horizontal, TTSpace.s5)
-                if let strip = viewModel.watchedStrip(formatter) {
-                    WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
-                        withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }
-                    }
-                    .id(strip.id)
-                    .transition(.opacity)
-                    .padding(.horizontal, TTSpace.s5)
-                    .padding(.top, TTSpace.s3 - TTSpace.s1 / 2)
-                }
+        timeline
+            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(TTColor.canvas)
+            .overlay(alignment: .bottom) { alertToast }
+            .animation(.easeOut(duration: 0.25), value: bells?.toast)
+            .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
+            // A light haptic when an alert turns on (TT-141).
+            .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
+            .toolbar(.hidden, for: .navigationBar)
+            .task { await viewModel.loadIfNeeded() }
+            .task { await viewModel.runClock() }
+            // Live status every 30 s, and at once on coming back to the foreground (TT-131).
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                await viewModel.pollLiveStatus()
             }
-            .padding(.top, TTSpace.s3)
-            timeline
-                .padding(.top, TTSpace.s3)
+    }
+
+    // MARK: Header
+
+    /// Everything above the timeline, on a canvas background that also covers the status bar, with a 16 pt fade under it.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s3) {
+            routeHeader
+                .padding(.horizontal, TTSpace.s5)
+            dayStrip
+            if let mode = viewModel.statusRowMode(formatter) {
+                FreshnessLine(mode: mode)
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, -TTSpace.s1)
+            }
+            if let strip = viewModel.watchedStrip(formatter) {
+                WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
+                    withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }
+                }
+                .id(strip.id)
+                .transition(.opacity)
+                .padding(.horizontal, TTSpace.s5)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TTColor.canvas)
-        .overlay(alignment: .bottom) { alertToast }
-        .animation(.easeOut(duration: 0.25), value: bells?.toast)
-        .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
-        // A light haptic when an alert turns on (TT-141).
-        .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
-        .toolbar(.hidden, for: .navigationBar)
-        .task { await viewModel.loadIfNeeded() }
-        .task { await viewModel.runClock() }
-        // Live status every 30 s, and at once on coming back to the foreground (TT-131).
-        .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
-            await viewModel.pollLiveStatus()
+        .padding(.top, TTSpace.s3)
+        .padding(.bottom, TTSpace.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TTColor.canvas.ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) {
+            LinearGradient(colors: [TTColor.canvas, TTColor.canvas.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: Self.edgeFade)
+                .offset(y: Self.edgeFade)
+                .allowsHitTesting(false)
         }
     }
 
-    // MARK: Route header
+    /// The canvas's `.edge-top`.
+    private static let edgeFade: CGFloat = 16
 
-    /// The route card, origin over destination (D48); tapping it opens the route sheet. The line sits under it.
+    /// The line first, then the route card (D49, D48); tapping the card opens the route sheet.
     private var routeHeader: some View {
         VStack(alignment: .leading, spacing: Self.lineRowGap) {
+            lineRow
             RouteCard(
                 from: viewModel.route?.from.name,
                 to: viewModel.route?.to.name,
@@ -76,133 +94,111 @@ struct ScheduleView: View {
             ) {
                 Task { await viewModel.swap() }
             }
-            if let line = viewModel.route?.line {
-                HStack(spacing: TTSpace.s2) {
-                    Circle()
-                        .fill(line.colorHex.flatMap { Color(lineHex: $0, on: colorScheme) } ?? TTColor.inkSecondary)
-                        .frame(width: Self.lineDot, height: Self.lineDot)
-                    Text(line.name)
-                        .font(TTFont.subhead)
-                        .foregroundStyle(TTColor.inkSecondary)
-                }
-                .frame(height: Self.lineRowHeight)
-                .padding(.leading, TTSpace.s1)
-            }
         }
     }
 
-    /// The canvas's line dot.
-    private static let lineDot: CGFloat = 10
-    /// The canvas's line row under the card: 6 pt below it, 24 pt tall.
-    private static let lineRowGap: CGFloat = 6
-    private static let lineRowHeight: CGFloat = 24
+    /// The GO line code tile and the line's name in 26 pt bold, with the amber Notice chip at the end of the row.
+    @ViewBuilder private var lineRow: some View {
+        if let line = viewModel.route?.line {
+            HStack(spacing: Self.lineRowGap) {
+                LineTile(line: line)
+                Text(verbatim: line.name)
+                    .font(TTFont.lineName)
+                    .tracking(-0.6)
+                    .foregroundStyle(TTColor.ink)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("schedule.line")
+                Spacer(minLength: 0)
+                if !viewModel.lineNotices.isEmpty {
+                    noticeChip
+                }
+            }
+            .frame(height: LineTile.size)
+            .padding(.leading, 2)
+        }
+    }
+
+    /// The canvas's 10 pt between the line row and the card, and between the tile and the name.
+    private static let lineRowGap: CGFloat = 10
+
+    /// "Notice" in amber: 30 pt tall, with a 44 pt target that takes only the chip's height in the row.
+    private var noticeChip: some View {
+        Button(action: onOpenLineNotice) {
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: TTSize.iconSM + 1, weight: .semibold))
+                Text("schedule.notice_chip")
+                    .font(TTFont.badgeLarge)
+                    .tracking(-0.2)
+            }
+            .foregroundStyle(TTColor.delayInk)
+            .padding(.leading, 10)
+            .padding(.trailing, TTSpace.s3)
+            .frame(height: 30)
+            .background(TTColor.delayFill, in: Capsule())
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle())
+        .padding(.vertical, -7)
+        .fixedSize()
+        .accessibilityLabel(Text("schedule.line_notice"))
+        .accessibilityIdentifier("schedule.lineNotice")
+    }
 
     // MARK: Day strip
 
-    /// Seven cells fill the width between the margins, Today first; the strip scrolls sideways for later dates.
+    /// A swipeable row of 60 × 48 pt tiles through every day of the schedule, Today first. It bleeds to both screen edges
+    /// under a 16 pt fade, so half of the sixth tile peeks, and snaps tile by tile (D49).
     private var dayStrip: some View {
-        GeometryReader { geometry in
-            let visible = CGFloat(7)
-            let width = (geometry.size.width - 2 * TTSpace.s5 - (visible - 1) * TTSpace.s1) / visible
-            ScrollViewReader { strip in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TTSpace.s1) {
-                        ForEach(Array(viewModel.days.enumerated()), id: \.offset) { index, day in
-                            DayCell(
-                                weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
-                                day: "\(day.day)",
-                                isSelected: day == viewModel.selectedDay
-                            ) {
-                                Task { await viewModel.select(day) }
-                            }
-                            .frame(width: width)
-                            .id(index)
-                            .accessibilityIdentifier("schedule.day.\(index)")
-                        }
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: TTSpace.s2) {
+                ForEach(Array(viewModel.days.enumerated()), id: \.offset) { index, day in
+                    DayCell(
+                        weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
+                        day: "\(day.day)",
+                        isSelected: day == viewModel.selectedDay,
+                        isToday: index == 0
+                    ) {
+                        Task { await viewModel.select(day) }
                     }
-                    // Room for the cell shadow inside the clipped strip.
-                    .padding(.vertical, Self.shadowRoom)
-                }
-                .padding(.horizontal, TTSpace.s5)
-                // Now/Today resets the strip to Today too, even when it was scrolled to a later date; "Show Monday"
-                // brings its day into view.
-                .onChange(of: viewModel.selectedDay) {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        if viewModel.isToday {
-                            strip.scrollTo(0, anchor: .leading)
-                        } else if let index = viewModel.days.firstIndex(of: viewModel.selectedDay) {
-                            strip.scrollTo(index)
-                        }
-                    }
+                    .id(index)
+                    .accessibilityIdentifier("schedule.day.\(index)")
                 }
             }
+            .scrollTargetLayout()
+            // Room for the tile shadow inside the clipped strip.
+            .padding(.vertical, Self.shadowRoom)
         }
-        .frame(height: TTSize.targetMin + 2 + 2 * Self.shadowRoom)
+        .contentMargins(.horizontal, TTSpace.s5, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $stripPosition)
+        .mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: Self.edgeFade)
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: Self.edgeFade)
+            }
+        }
+        // "Show Monday" and picking another day bring an out-of-view tile to the start; Today brings the strip back.
+        .onChange(of: viewModel.selectedDay) {
+            let index = viewModel.isToday ? 0 : (viewModel.days.firstIndex(of: viewModel.selectedDay) ?? 0)
+            let first = stripPosition ?? 0
+            guard index < first || index >= first + Self.fullTiles else { return }
+            withAnimation(.easeOut(duration: 0.3)) { stripPosition = index }
+        }
+        .frame(height: DayCell.size.height + 2 * Self.shadowRoom)
         .padding(.vertical, -Self.shadowRoom)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
     }
 
     private static let shadowRoom: CGFloat = 2
-
-    // MARK: Freshness row
-
-    private var freshnessRow: some View {
-        HStack(spacing: TTSpace.s2) {
-            if let mode = viewModel.freshnessMode(formatter) {
-                FreshnessLine(mode: mode)
-            }
-            if !viewModel.lineNotices.isEmpty {
-                lineNoticeLink
-            }
-            Spacer(minLength: 0)
-            Button {
-                Task { await viewModel.backToNow() }
-            } label: {
-                HStack(spacing: TTSpace.s1) {
-                    Image(systemName: viewModel.isToday ? "clock" : "calendar")
-                        .font(.system(size: TTSize.iconSM, weight: .semibold))
-                    Text(viewModel.nowButtonTitle)
-                        .font(TTFont.headline)
-                }
-                .foregroundStyle(viewModel.isAtNow ? TTColor.inkTertiary : TTColor.accent)
-                .padding(.leading, TTSpace.s2)
-                .frame(minHeight: TTSize.targetMin)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PressScaleStyle())
-            // A 44 pt target that takes only the text's height in the row, as on the canvas.
-            .padding(.vertical, -TTSpace.s3)
-            .accessibilityLabel(Text(viewModel.nowButtonAccessibilityLabel))
-            .accessibilityIdentifier("schedule.now")
-        }
-    }
-
-    /// "· Line notice" in amber after the freshness text, as in `schedule-delayed.png` (canvas `.notice-link`).
-    @ViewBuilder
-    private var lineNoticeLink: some View {
-        // A separator glyph, not copy.
-        Text(verbatim: "·")
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .accessibilityHidden(true)
-        Button(action: onOpenLineNotice) {
-            HStack(spacing: TTSpace.s1) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: TTSize.iconSM, weight: .semibold))
-                Text("schedule.line_notice")
-                    .font(TTFont.footnote.weight(.semibold))
-            }
-            .foregroundStyle(TTColor.delayInk)
-            .frame(minHeight: TTSize.targetMin)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressScaleStyle())
-        // A 44 pt target that takes only the text's height in the row, as the Now button does.
-        .padding(.vertical, -TTSpace.s3)
-        .fixedSize()
-        .accessibilityIdentifier("schedule.lineNotice")
-    }
+    /// Tiles that show whole at the start of the strip.
+    private static let fullTiles = 5
 
     // MARK: Timeline
 
@@ -211,7 +207,8 @@ struct ScheduleView: View {
     }
 
     /// The to-scale timeline (TT-111 layout, TT-113 drawing), its loading skeleton, or an empty state card (TT-115).
-    /// One scroll view holds them all, so a scroll request still lands when the content changes with it.
+    /// One scroll view holds them all, so a scroll request still lands when the content changes with it. It scrolls under
+    /// the tab bar, with the bottom edge softened by the system on iOS 26 and later.
     private var timeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -238,17 +235,8 @@ struct ScheduleView: View {
                         noConnection
                     }
                 }
-                .onGeometryChange(for: CGFloat.self) { geometry in
-                    -geometry.frame(in: .scrollView).minY
-                } action: { offset in
-                    viewModel.scrollOffset = offset
-                }
             }
-            .onGeometryChange(for: CGFloat.self) { geometry in
-                geometry.size.height
-            } action: { height in
-                viewModel.viewportHeight = height
-            }
+            .softBottomEdge()
             .refreshable { await viewModel.refresh() }
             .onChange(of: viewModel.scrollRequest) { previous, _ in
                 let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
@@ -257,6 +245,11 @@ struct ScheduleView: View {
                 } else {
                     withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(anchor, anchor: .top) }
                 }
+            }
+            // The cards are measured after the first scroll, which moves Now: scroll again, without animation (D49).
+            .onChange(of: viewModel.settleRequest) {
+                let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
+                proxy.scrollTo(anchor, anchor: .top)
             }
             .accessibilityIdentifier("schedule.timeline")
         }
@@ -345,7 +338,7 @@ struct ScheduleView: View {
                 .padding(.horizontal, TTSpace.s3)
         }
         .padding(.horizontal, TTSpace.s5)
-        .padding(.top, TTSpace.s3)
+        .padding(.top, TTSpace.s6)
     }
 
     /// "No direct connection" with "Open GO trip planner" (`components.png`).
@@ -366,5 +359,16 @@ struct ScheduleView: View {
 #Preview {
     NavigationStack {
         ScheduleView(viewModel: .fixtures(), onEditRoute: {})
+    }
+}
+
+extension View {
+    /// The system's soft fade where content scrolls under the floating tab bar (iOS 26 and later, D49).
+    @ViewBuilder fileprivate func softBottomEdge() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            self
+        }
     }
 }

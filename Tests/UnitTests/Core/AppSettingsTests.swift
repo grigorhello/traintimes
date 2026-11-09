@@ -12,6 +12,7 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(defaults: .ephemeral())
         XCTAssertEqual(settings.appearance, .system)
         XCTAssertEqual(settings.timeFormat, .device)
+        XCTAssertEqual(settings.demoTrains, .off)
     }
 
     func testChoicesAreStoredOnDevice() {
@@ -19,19 +20,23 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         settings.appearance = .dark
         settings.timeFormat = .twentyFourHour
+        settings.demoTrains = .delays
 
         let reopened = AppSettings(defaults: defaults)
         XCTAssertEqual(reopened.appearance, .dark)
         XCTAssertEqual(reopened.timeFormat, .twentyFourHour)
+        XCTAssertEqual(reopened.demoTrains, .delays)
     }
 
     func testUnknownStoredValuesFallBackToDefaults() {
         let defaults = UserDefaults.ephemeral()
         defaults.set("sepia", forKey: AppSettings.appearanceKey)
         defaults.set("36-hour", forKey: AppSettings.timeFormatKey)
+        defaults.set("everything", forKey: DemoTrains.key)
         let settings = AppSettings(defaults: defaults)
         XCTAssertEqual(settings.appearance, .system)
         XCTAssertEqual(settings.timeFormat, .device)
+        XCTAssertEqual(settings.demoTrains, .off)
     }
 
     func testFormatterFollowsTimeFormat() {

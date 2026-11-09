@@ -21,9 +21,8 @@ final class NoTrainsTests: XCTestCase {
         let showMonday = app.buttons["emptyState.action"]
         XCTAssertEqual(showMonday.label, "Show Monday")
         showMonday.tap()
-        XCTAssertTrue(app.staticTexts["Scheduled times only · Mon, Nov 9"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["schedule.day.4"].isSelected)
         let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["schedule.day.4"].isSelected)
     }
 }

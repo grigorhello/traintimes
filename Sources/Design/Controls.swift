@@ -1,27 +1,35 @@
 import SwiftUI
 
-/// One day in the 7-day strip: weekday over day number, 46 pt tall as on the canvas. Fills the width it is given.
+/// One day in the day strip (D49): a 60 × 48 pt tile, weekday over date. Selected is solid accent; Today, while another day
+/// is selected, turns accent with a semibold label. Solid surface, never glass.
 struct DayCell: View {
     @Environment(\.colorScheme) private var colorScheme
     let weekday: String
     let day: String
     var isSelected = false
+    /// Today's tile; it only shows when the tile is not the selected one.
+    var isToday = false
     let action: () -> Void
+
+    /// Canvas `.gday`.
+    static let size = CGSize(width: 60, height: 48)
+
+    private var showsToday: Bool { isToday && !isSelected }
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 0) {
+            VStack(spacing: 2) {
                 Text(weekday)
-                    .font(TTFont.footnote)
-                    .foregroundStyle(isSelected ? TTColor.onAccent : TTColor.inkSecondary)
+                    .font(showsToday ? TTFont.footnote.weight(.semibold) : TTFont.footnote)
+                    .foregroundStyle(isSelected ? TTColor.onAccent : showsToday ? TTColor.accent : TTColor.inkSecondary)
                 Text(day)
                     .font(TTFont.headline)
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? TTColor.onAccent : TTColor.ink)
+                    .foregroundStyle(isSelected ? TTColor.onAccent : showsToday ? TTColor.accent : TTColor.ink)
             }
-            .frame(minWidth: TTSize.dayCell, maxWidth: .infinity, minHeight: TTSize.targetMin + 2)
+            .frame(width: Self.size.width, height: Self.size.height)
             .background(isSelected ? TTColor.accent : TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.md))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(colorScheme == .dark || isSelected ? 0 : 0.06), radius: 1, x: 0, y: 1)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])

@@ -101,7 +101,7 @@ struct TripStop: Hashable, Sendable, Identifiable {
     var id: String { station.id }
 }
 
-/// A line-wide service notice (TT-132): shown as a link in the freshness row, never as a trip status.
+/// A line-wide service notice (TT-132): shown as the Notice chip under the line name, never as a trip status.
 struct LineNotice: Hashable, Sendable, Identifiable {
     /// The feed's notice id; dismissing hides this id until a notice with a new id arrives.
     let id: String

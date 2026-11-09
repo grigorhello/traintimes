@@ -40,6 +40,18 @@ struct SettingsView: View {
                 Card(padding: 0) { permissionRow }
                 footnote("settings.notifications_footnote")
 
+                if viewModel.showsTesting {
+                    header("settings.testing")
+                    Card(padding: 0) {
+                        segmentRow("settings.demo_trains", selection: $viewModel.demoTrains, options: [
+                            (DemoTrains.off, "settings.demo_trains.off"),
+                            (DemoTrains.delays, "settings.demo_trains.delays"),
+                            (DemoTrains.offline, "settings.demo_trains.offline"),
+                        ])
+                    }
+                    footnote("settings.demo_trains_footnote")
+                }
+
                 header("settings.data_privacy")
                 Card(padding: 0) {
                     VStack(spacing: 0) {

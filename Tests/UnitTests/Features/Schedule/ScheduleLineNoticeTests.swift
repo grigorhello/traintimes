@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-132: the "Line notice" link follows today's notices for the route's line; dismissing one hides it, after a
+/// TT-132: the Notice chip follows today's notices for the route's line; dismissing one hides it, after a
 /// relaunch too, until a notice with a new id arrives (D37). The feed is the replay of the Alerts samples
 /// (`LineNoticeReplayTests`).
 final class ScheduleLineNoticeTests: XCTestCase {

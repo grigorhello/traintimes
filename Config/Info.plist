@@ -6,7 +6,5 @@
 	<false/>
 	<key>MetrolinxAPIKey</key>
 	<string>$(METROLINX_API_KEY)</string>
-	<key>UIDesignRequiresCompatibility</key>
-	<true/>
 </dict>
 </plist>

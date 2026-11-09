@@ -24,9 +24,9 @@ a{color:inherit}a:hover{color:inherit}
 </helmet>
 <div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
 
-
   <div class="screen" style="padding-top: 12px">
-    <div style="display: flex; flex-direction: column; gap: 6px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h1 class="line-head"><span class="line-tile" style="background: #8B1A31">LW</span><span class="line-name">Lakeshore West</span></h1>
       <div class="card rcard">
         <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
         <div style="display: flex; flex-direction: column; min-width: 0">
@@ -34,81 +34,81 @@ a{color:inherit}a:hover{color:inherit}
           <div style="height: 1px; background: var(--hairline)"></div>
           <a class="rrow" href="Route-Picker.dc.html" aria-label="To Union Station GO. Change route"><span class="stn headline">Union Station GO</span></a>
         </div>
-        <button class="icon-btn filled" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
+        <button class="gbtn glass" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
       </div>
-      <div style="display: flex; align-items: center; padding-left: 4px; height: 24px"><span class="subhead" style="display: flex; align-items: center; gap: 8px; color: var(--ink-secondary)"><span style="width: 10px; height: 10px; border-radius: 9999px; background: var(--ink-secondary)" aria-hidden="true"></span>Lakeshore West</span></div>
     </div>
 
-    <div class="days" role="tablist" aria-label="Service day">
-      <button class="dayc sel" role="tab" aria-selected="true"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
-      <button class="dayc" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+        <div class="gdays" role="tablist" aria-label="Service day">
+      <button class="gday today sel" role="tab" aria-selected="true" aria-label="Today, Thursday, November 5"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Thursday, November 12"><span class="footnote">Thu</span><span class="headline tnum">12</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 13"><span class="footnote">Fri</span><span class="headline tnum">13</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 14"><span class="footnote">Sat</span><span class="headline tnum">14</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 15"><span class="footnote">Sun</span><span class="headline tnum">15</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 16"><span class="footnote">Mon</span><span class="headline tnum">16</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 17"><span class="footnote">Tue</span><span class="headline tnum">17</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 18"><span class="footnote">Wed</span><span class="headline tnum">18</span></button>
     </div>
 
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: -4px">
+    <div style="display: flex; align-items: center; margin-top: -4px">
       <span class="fresh footnote"><span class="ico sm i-offline" aria-hidden="true"></span>Offline · last updated 6:52 AM</span>
-      <button class="jump footnote" aria-label="Back to now, today"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button>
     </div>
 
     <div class="tl" role="list" aria-label="Departures, 7:21 AM onwards, scheduled times from the cached timetable">
+        <div class="edge-top" aria-hidden="true"></div>
       <div class="tl-rail" style="height: 100%" aria-hidden="true"></div>
-      <div class="tl-tick" style="top: 77px" aria-hidden="true"></div>
-      <div class="tl-tick" style="top: 182px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 173px" aria-hidden="true">7:45</span>
-      <div class="tl-tick" style="top: 287px" aria-hidden="true"></div>
-      <div class="tl-tick" style="top: 392px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 383px" aria-hidden="true">8:15</span>
-      <div class="tl-tick" style="top: 497px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 488px" aria-hidden="true">8:30</span>
-      <div class="tl-tick" style="top: 602px" aria-hidden="true"></div>
-      <div class="tl-now" style="top: 13px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 5px" aria-hidden="true">Now</span>
+      <div class="tl-tick" style="top: 99px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 90px" aria-hidden="true">7:30</span>
+      <div class="tl-tick" style="top: 204px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 195px" aria-hidden="true">7:45</span>
+      <div class="tl-tick" style="top: 309px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 300px" aria-hidden="true">8:00</span>
+      <div class="tl-tick" style="top: 414px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 405px" aria-hidden="true">8:15</span>
+      <div class="tl-tick" style="top: 519px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 510px" aria-hidden="true">8:30</span>
+      <div class="tl-tick" style="top: 624px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 615px" aria-hidden="true">8:45</span>
+      <div class="tl-now" style="top: 35px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 27px" aria-hidden="true">Now</span>
 
-      <span class="tl-pill lead footnote tnum" style="top: 80px" aria-hidden="true">7:32</span>
-      <span class="tl-mark lead" style="top: 83px" aria-hidden="true"></span>
-      <div class="tl-link lead" style="top: 90px" aria-hidden="true"></div>
-      <div class="dep lead" style="top: 56px" role="listitem">
-        <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, scheduled, scheduled arrival 8:12 AM"><span class="time-lead tnum time">7:32 AM</span></a>
-        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:12 AM</span><span class="footnote muted">Platform pending</span></div>
+      <span class="tl-mark lead" style="top: 105px" aria-hidden="true"></span>
+      <div class="tl-link lead" style="top: 112px" aria-hidden="true"></div>
+      <div class="dep lead" style="top: 78px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, scheduled, arrival 8:12 AM"><span class="time-lead tnum time">7:32 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:12 AM</span><span class="footnote muted">Platform pending</span></div>
         <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote soon tnum">in 11 min</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
       </div>
 
-
-      <span class="tl-pill footnote tnum" style="top: 262px" aria-hidden="true">7:58</span>
-      <span class="tl-mark" style="top: 267px" aria-hidden="true"></span>
-      <div class="tl-link" style="top: 272px" aria-hidden="true"></div>
-      <div class="dep" style="top: 240px" role="listitem">
-        <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, scheduled, scheduled arrival 8:38 AM"><span class="time-row tnum time">7:58 AM</span></a>
-        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+      <span class="tl-mark" style="top: 289px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 294px" aria-hidden="true"></div>
+      <div class="dep" style="top: 262px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, scheduled, arrival 8:38 AM"><span class="time-row tnum time">7:58 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
         <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
       </div>
 
-
-      <span class="tl-pill footnote tnum" style="top: 423px" aria-hidden="true">8:21</span>
-      <span class="tl-mark" style="top: 428px" aria-hidden="true"></span>
-      <div class="tl-link" style="top: 433px" aria-hidden="true"></div>
-      <div class="dep" style="top: 401px" role="listitem">
-        <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, scheduled, scheduled arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
-        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
+      <span class="tl-mark" style="top: 450px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 455px" aria-hidden="true"></div>
+      <div class="dep" style="top: 423px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, scheduled, arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
         <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
       </div>
 
-
-      <span class="tl-pill footnote tnum" style="top: 605px" aria-hidden="true">8:47</span>
-      <span class="tl-mark" style="top: 610px" aria-hidden="true"></span>
-      <div class="tl-link" style="top: 615px" aria-hidden="true"></div>
-      <div class="dep" style="top: 583px" role="listitem">
-        <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, scheduled, scheduled arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
-        <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
+      <span class="tl-mark" style="top: 632px" aria-hidden="true"></span>
+      <div class="tl-link" style="top: 637px" aria-hidden="true"></div>
+      <div class="dep" style="top: 605px" role="listitem">
+        <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, scheduled, arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
+        <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
         <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
       </div>
     </div>
   </div>
 
-  <nav class="tabs" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
-    <a class="sel" href="Main.dc.html" aria-current="page"><span class="ico i-list" aria-hidden="true"></span><span class="tab-label">Schedule</span></a>
-    <a href="Alerts.dc.html"><span class="ico i-bell" aria-hidden="true"></span><span class="tab-label">Alerts</span></a>
-    <a href="Settings.dc.html"><span class="ico i-gear" aria-hidden="true"></span><span class="tab-label">Settings</span></a>
+  <div class="edge-bottom" aria-hidden="true"></div>
+  <nav class="gtabs glass" aria-label="Tabs">
+    <a class="sel" href="Main.dc.html" aria-current="page" aria-label="Schedule"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 2.4h6.8M12 2.4v2.4" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round"></path><path fill-rule="evenodd" d="M8.4 4.8h7.2a3.6 3.6 0 0 1 3.6 3.6v7.4a3.4 3.4 0 0 1-3.4 3.4H8.2a3.4 3.4 0 0 1-3.4-3.4V8.4a3.6 3.6 0 0 1 3.6-3.6zM8 7.4a1 1 0 0 0-1 1v3.6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8.4a1 1 0 0 0-1-1zm.4 7.2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm7.2 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5z" style="fill: currentColor"></path><path d="M8.4 19.6l-2 2.6M15.6 19.6l2 2.6" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"></path></svg></a>
+    <a href="Alerts.dc.html" aria-label="Alerts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.3c-.85 0-1.5.66-1.5 1.5v.6C7.8 5.1 5.9 7.6 5.9 10.6v4.1l-1.7 2.3c-.4.55 0 1.3.66 1.3h14.28c.66 0 1.06-.75.66-1.3l-1.7-2.3v-4.1c0-3-1.9-5.5-4.6-6.2v-.6c0-.84-.65-1.5-1.5-1.5zM9.6 19.6a2.4 2.4 0 0 0 4.8 0z" style="fill: currentColor"></path></svg></a>
+    <a href="Settings.dc.html" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M9.90 3.56L10.25 0.94L13.75 0.94L14.10 3.56A8.7 8.7 0 0 1 16.48 4.54L18.58 2.94L21.06 5.42L19.46 7.52A8.7 8.7 0 0 1 20.44 9.90L23.06 10.25L23.06 13.75L20.44 14.10A8.7 8.7 0 0 1 19.46 16.48L21.06 18.58L18.58 21.06L16.48 19.46A8.7 8.7 0 0 1 14.10 20.44L13.75 23.06L10.25 23.06L9.90 20.44A8.7 8.7 0 0 1 7.52 19.46L5.42 21.06L2.94 18.58L4.54 16.48A8.7 8.7 0 0 1 3.56 14.10L0.94 13.75L0.94 10.25L3.56 9.90A8.7 8.7 0 0 1 4.54 7.52L2.94 5.42L5.42 2.94L7.52 4.54A8.7 8.7 0 0 1 9.90 3.56 ZM8.30 12 a3.7 3.7 0 1 0 7.40 0 a3.7 3.7 0 1 0 -7.40 0 Z" style="fill: currentColor; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round"></path></svg></a>
   </nav>
 </div>
 </x-dc>

@@ -14,7 +14,8 @@ struct ScheduleDependencies {
     static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> ScheduleDependencies {
         #if DEBUG
         if isFixtureRun(environment) {
-            return .fixtures(scenario: environment["TT_FIXTURES"].flatMap { FixtureScheduleRepository.Scenario(rawValue: $0) } ?? .normal)
+            let scenario = environment["TT_FIXTURES"].flatMap { FixtureScheduleRepository.Scenario(rawValue: $0) } ?? .normal
+            return fixtures(scenario: scenario).withDemoTrains()
         }
         #endif
         let key = GTFSRealtimeStore.apiKey()
@@ -23,7 +24,18 @@ struct ScheduleDependencies {
             live: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0) },
             alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
         )
-        return ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
+        let live = ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
+        return BuildChannel.showsTesting ? live.withDemoTrains() : live
+    }
+
+    /// The same schedule with Settings › Testing › Demo trains applied (D49), in TestFlight and Debug builds only; with the
+    /// setting off it changes nothing.
+    func withDemoTrains() -> ScheduleDependencies {
+        ScheduleDependencies(
+            repository: DemoScheduleRepository(base: repository, clock: clock, mode: { DemoTrains.stored }),
+            stations: stations,
+            clock: clock
+        )
     }
 
     /// Xcode previews, the unit test host and UI tests run on the fixtures (Debug builds only).

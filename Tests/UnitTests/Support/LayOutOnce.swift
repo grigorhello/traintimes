@@ -2,10 +2,9 @@ import SnapshotTesting
 import SwiftUI
 import UIKit
 
-/// Snapshots that draw the floating Liquid Glass tab bar (D49) let up to half a percent of pixels differ: the glass blurs
-/// and refracts what scrolls under it, and its edges are not pixel-stable between runs. A moved card, badge or label is
-/// still far over that.
-let glassSnapshotPrecision: Float = 0.995
+/// Snapshots that draw the floating Liquid Glass tab bar (D49) let 0.01% of pixels (about 310) differ: the bar's blur draws
+/// about 80 pixels a shade (up to 3/255) differently from one run to the next. A card moved by even 1 px changes thousands.
+let glassSnapshotPrecision: Float = 0.9999
 
 /// Lays `view` out once in an iPhone 17 Pro sized window and lets the main run loop turn, so what the view reports back to
 /// its view model (the timeline cards' measured sizes, TT-113) is already in the layout when a snapshot draws it.

@@ -343,9 +343,13 @@ struct DepartureCardView: View {
             }
             .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
             VStack(alignment: .leading, spacing: Self.tagRowGap) {
-                HStack(spacing: TTSpace.s2) {
-                    StatusBadge(status: card.status, isLarge: true)
-                    detail
+                // The spacer sits outside the spaced HStack: inside it, the 8 pt before the spacer would count toward the
+                // width this row needs and push a badge and platform that do fit onto the next layout.
+                HStack(spacing: 0) {
+                    HStack(spacing: TTSpace.s2) {
+                        StatusBadge(status: card.status, isLarge: true)
+                        detail
+                    }
                     Spacer(minLength: 0)
                 }
                 .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))

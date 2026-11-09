@@ -302,7 +302,9 @@ struct DepartureCardView: View {
                 .strikethrough(card.isCancelled)
                 .foregroundStyle(timeInk)
                 .lineLimit(1)
+                // "12:47 PM" may shrink a little across, never to fit the 38 pt row: a 34 pt line is taller than the row.
                 .minimumScaleFactor(Self.timeMinimumScale)
+                .fixedSize(horizontal: false, vertical: true)
             if !card.isCancelled {
                 ExpressBolt(isExpress: card.isExpress)
             }

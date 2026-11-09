@@ -23,6 +23,11 @@ final class AppSettings {
         didSet { defaults.set(timeFormat.rawValue, forKey: Self.timeFormatKey) }
     }
 
+    /// Settings › Testing › Demo trains (D49), shown in TestFlight and Debug builds only.
+    var demoTrains: DemoTrains {
+        didSet { defaults.set(demoTrains.rawValue, forKey: DemoTrains.key) }
+    }
+
     /// The one formatter (D17), following the Time format setting.
     var timeFormatter: TimeFormatter { TimeFormatter(format: timeFormat) }
 
@@ -32,5 +37,6 @@ final class AppSettings {
         self.defaults = defaults
         appearance = defaults.string(forKey: Self.appearanceKey).flatMap(Appearance.init(rawValue:)) ?? .system
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
+        demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
     }
 }

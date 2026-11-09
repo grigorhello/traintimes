@@ -12,7 +12,7 @@ struct LineNoticeRow: Identifiable, Equatable {
     let reported: String
 }
 
-/// The line notice sheet (TT-132), opened from "Line notice" in the freshness row: each notice in full with the time it
+/// The line notice sheet (TT-132), opened from the Notice chip beside the line name: each notice in full with the time it
 /// was reported, in the canvas's disruption banner (`components.png`), and its dismiss button. The sheet closes once no
 /// notice is left. The title bar follows Trip details.
 struct LineNoticeSheet: View {

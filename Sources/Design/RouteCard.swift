@@ -41,7 +41,7 @@ struct RouteCard: View {
                     .padding(.top, (Self.rowHeight - RouteMarkers.Size.regular.ring) / 2)
                     .frame(width: Self.markerColumn, height: 2 * Self.rowHeight, alignment: .top)
                 stations
-                IconButton(systemName: "arrow.up.arrow.down", label: "route.swap", isSelected: canSwap, action: onSwap)
+                GlassIconButton(systemName: "arrow.up.arrow.down", label: "route.swap", action: onSwap)
                     .disabled(!canSwap)
                     .accessibilityIdentifier(swapID)
             }

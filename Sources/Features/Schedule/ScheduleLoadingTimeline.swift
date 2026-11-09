@@ -1,22 +1,22 @@
 import SwiftUI
 
 /// The first timetable loading (TT-115, `schedule-loading.png`): the rail, gridlines and Now line stay, with three skeleton
-/// cards, grey pills and grey markers where the first trains will be. Same across geometry as `ScheduleTimeline`, and the
+/// cards and grey markers where the first trains will be. Same across geometry as `ScheduleTimeline`, and the
 /// skeleton sits where the canvas board puts it. Decoration only: the freshness line says "Loading timetable".
 struct ScheduleLoadingTimeline: View {
     let now: Date
     let formatter: any TimeFormatting
 
-    private static let labelColumn = TTTimeline.leftInset + TimePill.railSize.width
+    private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
     private static let railX = labelColumn + 10
     private static let railWidth: CGFloat = 2
     private static let markerSize: CGFloat = 12
     private static let nowDot: CGFloat = 10
     private static let cardX = railX + markerSize / 2 + TTTimeline.connectorLength
-    /// Now sits 2 min below the top edge, as on the loaded timeline.
+    /// Now sits 5 min below the top edge, as on the loaded timeline.
     private static let nowY = CGFloat(TTTimeline.nowOffsetFromTopMinutes) * TTTimeline.pointsPerMinute
     /// The canvas board's skeleton markers, and each skeleton card's top above its marker.
-    private static let markerYs: [CGFloat] = [91, 273, 434]
+    private static let markerYs: [CGFloat] = [112, 296, 457]
     private static let cardAnchor: CGFloat = 34
     private static let height: CGFloat = 560
 
@@ -52,10 +52,6 @@ struct ScheduleLoadingTimeline: View {
                     .padding(.leading, Self.cardX)
                     .padding(.trailing, TTSpace.s5)
                     .offset(y: y - Self.cardAnchor)
-                Capsule()
-                    .fill(TTColor.surfaceRaised)
-                    .frame(width: TimePill.railSize.width, height: TimePill.railSize.height)
-                    .centred(x: TTTimeline.leftInset + TimePill.railSize.width / 2, y: y)
                 Circle()
                     .fill(TTColor.surface)
                     .overlay(Circle().strokeBorder(TTColor.hairline, lineWidth: Self.railWidth))
@@ -85,9 +81,9 @@ struct ScheduleLoadingTimeline: View {
         }
     }
 
-    /// A gridline label hides near a pill or the "Now" label, as on the loaded timeline.
+    /// A gridline label hides near the "Now" label, as on the loaded timeline.
     private func showsLabel(at y: CGFloat) -> Bool {
-        !(Self.markerYs + [Self.nowY]).contains { abs($0 - y) <= TTTimeline.pillLabelHideDistance }
+        abs(Self.nowY - y) > TTTimeline.pillLabelHideDistance
     }
 
     @ViewBuilder private var nowLine: some View {

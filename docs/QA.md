@@ -70,9 +70,9 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 - [ ] Light
 - [ ] Dark
 
-### 10. The day strip switches days in one tap; Now returns to the present and Today in one tap.
-- Simulator and CI: **passes** for one-tap day and Today: `ScheduleTests.testAnotherDayThenTodayReturnsToNow`, `ScheduleViewModelTests.testTodayButtonReturnsToTodayAndNowInOneTap`. **Partly** for Now after scrolling on Today: the model asks for the scroll (`testNowDimsOnlyWhileTheTimelineShowsThePresent`), but no UI test scrolls away first.
-- iPhone: tap a later day: it switches at once and the button reads Today; tap Today: back, Now line near the top. On Today, scroll well down and tap Now once: it scrolls back to the Now line.
+### 10. The day strip switches days in one tap; tapping the Schedule tab again returns to the present and Today in one tap (D49).
+- Simulator and CI: **passes** for one-tap day and back: `ScheduleTests.testAnotherDayThenScheduleTabReturnsToNow`, `ScheduleViewModelTests.testReTappingTheScheduleTabReturnsToTodayAndNow`, `testBackToNowScrollsToThePresentOnToday`, `testScrollSettlesOnceEveryCardIsMeasured`; the day strip covers the feed's calendar (`ScheduleHorizonTests`). **Partly** for Now after scrolling on Today: the model asks for the scroll, but no UI test scrolls away first.
+- iPhone: tap a later day: it switches at once and "Today" turns green; tap the Schedule tab again: back to Today with the Now line near the top. On Today, scroll well down and tap the Schedule tab once: it scrolls back to the Now line. Open the app cold: it is already scrolled to Now.
 - [ ] Light
 - [ ] Dark
 
@@ -203,3 +203,13 @@ With the same or other riders, before the public release:
 | 5 | | | |
 
 - [ ] Done; findings noted (closes Q11)
+
+## TT-156 · Schedule refresh (D49)
+
+Checks for the Liquid Glass look and the Schedule changes of TestFlight 1.0 (5). Simulator and CI: `ScheduleViewModelTests`, `TimelineCardsTests`, `TimelineLayoutTests`, `ScheduleStatesTests`, `ScheduleHorizonTests`, `DemoScheduleRepositoryTests`, `SettingsViewModelTests`, `AppSettingsTests`, the Schedule, Settings and shell snapshots, and the UI tests `LaunchTests`, `ScheduleTests`, `NoTrainsTests` and `SettingsTests.testDemoTrainsOfflineShowsTheOfflineRow`.
+
+- iPhone, iOS 26, light and dark: the glass tab bar floats with icons only and the timeline scrolls under it; the swap button is glass; sheets look right.
+- The line tile and name use the GO colour (Lakeshore West is the wine red); a line with a notice shows the amber Notice chip, which opens the notice sheet.
+- No train times in the left column; a time every 15 min; the Now line sits 5 min below the top when the app opens.
+- Cards read "Arrival", a green "On time" badge (grey "Scheduled" only offline) and a bigger bell that is easy to hit.
+- Settings › Testing › Demo trains (TestFlight): Delays shows a late train, a cancelled train and the Notice chip; Offline shows the Offline row; Off restores live data.

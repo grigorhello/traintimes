@@ -12,17 +12,16 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.isNext), [true, false, false, false])
 
         let next = cards[0]
-        XCTAssertEqual(next.pillTime, "7:32")
         XCTAssertEqual(next.relativeTime, "in 11 min")
         XCTAssertEqual(next.status, .onTime)
-        XCTAssertEqual(next.arrivalLabel, "Scheduled arrival")
+        XCTAssertEqual(next.arrivalLabel, "Arrival")
         XCTAssertEqual(next.arrivalTime, "8:12 AM")
         XCTAssertEqual(next.platform, "Platform 2")
 
         XCTAssertNil(cards[1].relativeTime, "No other card shows a relative time")
         XCTAssertEqual(cards[1].platform, "Platform pending")
         XCTAssertEqual(cards[1].tags, [.express], "Only verified tags; the canvas's Bike coach is a placeholder")
-        XCTAssertEqual(cards[2].status, .scheduled, "No live data for this trip: Scheduled, never On time")
+        XCTAssertEqual(cards[2].status, .onTime, "No live data for this trip: the timetable is the promise, so On time (D49)")
     }
 
     func testNextTrainMovesOnOnceItsTimePasses() async throws {
@@ -65,10 +64,7 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(card.id.tripId, "LW-0732-20261105")
         XCTAssertTrue(card.isNext)
         XCTAssertEqual(card.time, "7:41 AM")
-        XCTAssertEqual(card.pillTime, "7:41")
-        XCTAssertEqual(card.pillStyle, .next)
         XCTAssertEqual(card.scheduledTime, "Scheduled 7:32 AM")
-        XCTAssertEqual(card.scheduledPillTime, "7:32")
         XCTAssertEqual(card.status, .delayed(minutes: 9))
         XCTAssertEqual(card.arrivalLabel, "Est. arrival")
         XCTAssertEqual(card.arrivalTime, "8:21 AM")
@@ -97,18 +93,18 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertNotNil(model.layout.cards.first?.delayBar)
     }
 
-    /// cancelledScenario: struck red pill, no bell, "Next usable below", and the next valid train leads.
+    /// cancelledScenario: struck red marker, no bell, "Next usable below", and the next valid train leads.
     func testCancelledCardKeepsItsSlotAndPointsBelow() async throws {
         let model = try await ScheduleViewModel.loadedFixture(.cancelled)
         let cards = model.cards(formatter)
         let cancelled = cards[0]
         XCTAssertTrue(cancelled.isCancelled)
         XCTAssertEqual(cancelled.time, "7:32 AM", "Keeps its scheduled slot")
-        XCTAssertEqual(cancelled.pillStyle, .cancelled)
+        XCTAssertFalse(cancelled.isNext)
         XCTAssertEqual(cancelled.note, "Next usable below")
         XCTAssertNil(cancelled.scheduledTime)
         XCTAssertNil(cancelled.relativeTime)
-        XCTAssertEqual(cards[1].pillStyle, .next)
+        XCTAssertTrue(cards[1].isNext)
         XCTAssertNil(cards[1].note)
         let place = try XCTUnwrap(model.layout.cards.first)
         let nowY = try XCTUnwrap(model.layout.nowY)
@@ -120,11 +116,12 @@ final class TimelineCardsTests: XCTestCase {
     func testCancelledTrainBetweenUsableTrains() async throws {
         let cards = try await ScheduleViewModel.loadedFixture(.eveningDark).cards(formatter)
         XCTAssertEqual(cards.map(\.time), ["5:10 PM", "5:28 PM", "5:52 PM", "6:40 PM"])
-        XCTAssertEqual(cards.map(\.pillStyle), [.next, .cancelled, .later, .later])
+        XCTAssertEqual(cards.map(\.isNext), [true, false, false, false])
+        XCTAssertEqual(cards.map(\.isCancelled), [false, true, false, false])
         XCTAssertEqual(cards[1].note, "Next usable below")
     }
 
-    func testAnotherDayHasNoNextTrainAndScheduledBadgesOnly() async throws {
+    func testAnotherDayHasNoNextTrainAndOnTimeBadgesOnly() async throws {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: TimelineCardsTests.self))
         let wednesday = repository.now.addingTimeInterval(-24 * 60 * 60)
         let model = ScheduleViewModel(route: repository.route, repository: repository, clock: FixedClock(now: wednesday))
@@ -133,13 +130,12 @@ final class TimelineCardsTests: XCTestCase {
         let cards = model.cards(formatter)
         XCTAssertEqual(cards.count, 4)
         XCTAssertNil(model.nextDepartureId)
-        XCTAssertTrue(cards.allSatisfy { !$0.isNext && $0.relativeTime == nil && $0.status == .scheduled })
+        XCTAssertTrue(cards.allSatisfy { !$0.isNext && $0.relativeTime == nil && $0.status == .onTime })
     }
 
     func testTimesFollowTheTimeFormat() async throws {
         let card = try await ScheduleViewModel.loadedFixture().cards(TimeFormatter(format: .twentyFourHour))[0]
         XCTAssertEqual(card.time, "07:32")
-        XCTAssertEqual(card.pillTime, "07:32")
         XCTAssertEqual(card.arrivalTime, "08:12")
     }
 
@@ -153,22 +149,24 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(card.bottom - card.top, 122, accuracy: 0.001)
     }
 
-    /// A gridline label hides near the "Now" label as well as near a pill; the line itself stays.
+    /// A gridline label hides near the "Now" label; the line itself stays (D49).
     func testGridlineLabelHidesNearNow() async throws {
         let model = try await ScheduleViewModel.loadedFixture(minutesLater: 25) // 7:46 AM
         let day = model.selectedDay
         let quarterTo = try XCTUnwrap(model.layout.gridlines.first { $0.time == day.date(hour: 7, minute: 45) })
-        XCTAssertTrue(quarterTo.showsLabel, "No pill near 7:45")
         XCTAssertFalse(model.showsLabel(quarterTo), "Now is 1 min below it")
         let quarterPast = try XCTUnwrap(model.layout.gridlines.first { $0.time == day.date(hour: 8, minute: 15) })
         XCTAssertTrue(model.showsLabel(quarterPast))
     }
 
-    /// The "Now" label never draws over a time pill; it is back once the pill is out of the way.
-    func testNowLabelHidesBesideAPill() async throws {
-        let model = try await ScheduleViewModel.loadedFixture(minutesLater: 10) // 7:31 AM, 1 min before 7:32
-        XCTAssertFalse(model.showsNowLabel)
-        let earlier = try await ScheduleViewModel.loadedFixture() // 7:21 AM
-        XCTAssertTrue(earlier.showsNowLabel)
+    /// The left column holds gridline times only, every 15 min, and no train times (D49).
+    func testGridlinesRunEveryFifteenMinutes() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        let day = model.selectedDay
+        let minutes = model.layout.gridlines.map { Calendar.current.dateComponents(in: goTimeZone, from: $0.time).minute }
+        XCTAssertTrue(minutes.allSatisfy { [0, 15, 30, 45].contains($0 ?? -1) })
+        let half = try XCTUnwrap(model.layout.gridlines.first { $0.time == day.date(hour: 8, minute: 30) })
+        let quarter = try XCTUnwrap(model.layout.gridlines.first { $0.time == day.date(hour: 8, minute: 45) })
+        XCTAssertEqual(quarter.y - half.y, 15 * TTTimeline.pointsPerMinute, accuracy: 0.001)
     }
 }

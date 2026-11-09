@@ -12,14 +12,20 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testOffDark() { snap(.off, .dark) }
     @MainActor func testNotAskedLight() { snap(.notAsked, .light) }
     @MainActor func testNotAskedDark() { snap(.notAsked, .dark) }
+    /// The Testing section of TestFlight and Debug builds, with Delays chosen (D49).
+    @MainActor func testTestingSectionLight() { snap(.allowed, .light, showsTesting: true) }
+    @MainActor func testTestingSectionDark() { snap(.allowed, .dark, showsTesting: true) }
 
     @MainActor
     private func snap(
-        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line
+        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, showsTesting: Bool = false,
+        testName: String = #function, line: UInt = #line
     ) {
         let settings = AppSettings(defaults: .ephemeral())
+        if showsTesting { settings.demoTrains = .delays }
         let model = SettingsViewModel(
-            settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "1")
+            settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "1"),
+            showsTesting: showsTesting
         )
         model.permission = permission
         assertSnapshot(

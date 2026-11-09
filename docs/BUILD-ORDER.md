@@ -78,3 +78,4 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | Order | Ticket | Issue | Priority | Pts | From |
 |---|---|---|---|---|---|
 | 32 | TT-155 · Route card, Settings tab and Recent routes | [#67](https://github.com/grigorhello/traintimes/issues/67) | P1 | 3 | TestFlight 1.0 (3), D48 |
+| 33 | TT-156 · Schedule refresh | [#69](https://github.com/grigorhello/traintimes/issues/69) | P1 | 8 | TestFlight 1.0 (4), D49 |

@@ -15,8 +15,8 @@
   --on-accent: #FFFFFF;
   --accent-soft: #DDF3E9;
   --focus-ring: #0C7B53;
-  --ontime-ink: #1F2937;
-  --ontime-fill: #E9ECF2;
+  --ontime-ink: #0C7B53;
+  --ontime-fill: #DDF3E9;
   --delay-ink: #92400E;
   --delay-fill: #FEF3C7;
   --cancel-ink: #B91C1C;
@@ -44,8 +44,8 @@
   --on-accent: #0B1F17;
   --accent-soft: #163A2C;
   --focus-ring: #6EE7B7;
-  --ontime-ink: #D1D5DB;
-  --ontime-fill: #2A3446;
+  --ontime-ink: #6EE7B7;
+  --ontime-fill: #163A2C;
   --delay-ink: #FDE68A;
   --delay-fill: #422D12;
   --cancel-ink: #FCA5A5;
@@ -95,7 +95,7 @@
 .dayc.sel .footnote { color: inherit; }
 .jump { appearance: none; border: 0; background: transparent; font: inherit; color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 13px 0 13px 8px; margin: -13px 0; cursor: pointer; }
 
-/* Timeline schedule: a calendar-style day view. Vertical scale 7px per minute, labels every 15 min. */
+/* Timeline schedule: a calendar-style day view. Vertical scale 7px per minute, gridline and label every 30 min. */
 .tl { position: relative; flex: 1; min-height: 0; overflow: hidden; margin: 0 -20px; }
 .tl-rail { position: absolute; left: 61px; top: 0; width: 2px; background: var(--hairline); }
 .tl-rail.dashed { background: none; width: 0; border-left: 2px dashed var(--control-border); }
@@ -104,10 +104,6 @@
 .tl-now { position: absolute; left: 62px; right: 20px; border-top: 2px solid var(--accent); z-index: 4; }
 .tl-now::before { content: ""; position: absolute; left: -6px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 .tl-nowlbl { color: var(--accent); font-weight: 600; }
-.tl-pill { position: absolute; left: 12px; width: 40px; text-align: center; line-height: 18px; padding: 2px 0; border-radius: 9999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; z-index: 3; }
-.tl-pill.lead { background: var(--accent); color: var(--on-accent); }
-.tl-pill.ghost { background: var(--delay-fill); color: var(--delay-ink); font-weight: 400; text-decoration: line-through; }
-.tl-pill.cancel { background: var(--cancel-fill); color: var(--cancel-ink); text-decoration: line-through; }
 .tl-mark { position: absolute; left: 56px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--accent); z-index: 3; }
 .tl-mark.lead { left: 54px; width: 16px; height: 16px; background: var(--accent); box-shadow: 0 0 0 3px var(--canvas); }
 .tl-mark.ghost { box-shadow: inset 0 0 0 2px var(--delay-ink); }
@@ -138,7 +134,7 @@
 .tag .ico { width: 13px; height: 13px; }
 .tag.icon-only { padding: 1px 6px; }
 .tag.icon-only .tag-text { display: none; }
-.toast { position: absolute; left: 20px; right: 20px; bottom: 88px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-sheet); padding: 10px 12px 10px 16px; display: flex; align-items: center; gap: 12px; z-index: 6; }
+.toast { position: absolute; left: 20px; right: 20px; bottom: 100px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-sheet); padding: 10px 12px 10px 16px; display: flex; align-items: center; gap: 12px; z-index: 6; }
 
 /* Compact phone (375 x 667): 6 pt per minute, both time sizes 32 pt */
 .cp .tl .dep .time-lead { font-size: 32px; line-height: 38px; }
@@ -154,7 +150,6 @@
 .lt .days { overflow: hidden; }
 .lt .dayc { height: 60px; min-width: 64px; flex: none; }
 .lt .tl-lbl { width: 66px; }
-.lt .tl-pill { width: 54px; line-height: 24px; padding: 2px 0; }
 .lt .tl-rail { left: 75px; }
 .lt .tl-tick, .lt .tl-now { left: 76px; }
 .lt .tl-mark { left: 70px; }
@@ -167,3 +162,53 @@
 .lt .tl .dep .time-row { font-size: 42px; line-height: 48px; }
 .lt .tl .dep .arr { grid-column: 1; grid-row: 2; text-align: left; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .lt .tl .dep .meta { grid-column: 1; grid-row: 3; }
+
+/* Schedule header (Grigor, Nov 9): the GO line first, in GO's own line colour, then the route card */
+.line-head { display: flex; align-items: center; gap: 10px; margin: 0; height: 32px; padding-left: 2px; min-width: 0; }
+.line-tile { flex: none; width: 32px; height: 32px; border-radius: 9px; color: #FFFFFF; font-size: 13px; line-height: 32px; font-weight: 700; letter-spacing: 0.4px; text-align: center; }
+.dark .line-tile { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+/* Line notice (Nov 9): an amber chip at the right end of the line row; opens the notice sheet */
+.line-head .notice-chip { margin-left: auto; flex: none; position: relative; display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px 0 10px; border-radius: 9999px; background: var(--delay-fill); color: var(--delay-ink); font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.2px; }
+.line-head .notice-chip::before { content: ""; position: absolute; left: 0; right: 0; top: -7px; bottom: -7px; }
+.line-head .notice-chip .ico { width: 16px; height: 16px; }
+.line-name { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.6px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Cards (Nov 9): Arrival label and time a step bigger, status badge 15 pt, bell 26 px glyph in a 48 px target */
+.tl .dep .arr .lbl { font-size: 15px; line-height: 20px; }
+.tl .dep .time-arrival { font-size: 20px; line-height: 24px; letter-spacing: -0.4px; }
+.tl .dep .badge { font-size: 15px; line-height: 20px; padding: 4px 11px 4px 9px; gap: 5px; }
+.tl .dep .badge .ico.sm { width: 16px; height: 16px; }
+.tl .dep .bell { width: 48px; height: 48px; margin: -12px -10px -12px auto; }
+.tl .dep .bell .ico { width: 26px; height: 26px; }
+
+.i-arrow-up { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M12 19V5M5.5 11.5 12 5l6.5 6.5'/%3E%3C/svg%3E"); }
+.i-arrow-down { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M12 5v14M5.5 12.5 12 19l6.5-6.5'/%3E%3C/svg%3E"); }
+
+/* Liquid Glass (Grigor approved Nov 9, TT-156). iOS 26 look for the whole app: a floating glass tab bar with icons only,
+   glass controls that float over content (swap button), solid content (cards, route card), soft scroll-edge fades.
+   Day strip = option A: a swipeable row of 60 x 48 date tiles bleeding to both screen edges, half a tile peeking. */
+.phone { position: relative; }
+.phone.light { --canvas-rgb: 246, 247, 251; --glass: rgba(255, 255, 255, 0.56); --glass-edge: rgba(255, 255, 255, 0.95); --glass-line: rgba(17, 24, 39, 0.09); --glass-shadow: 0 10px 30px rgba(17, 24, 39, 0.14), 0 1px 3px rgba(17, 24, 39, 0.08); --glass-sel: rgba(17, 24, 39, 0.07); --tab-ink: #1B2433; }
+.phone.dark { --canvas-rgb: 12, 17, 27; --glass: rgba(44, 52, 68, 0.52); --glass-edge: rgba(255, 255, 255, 0.20); --glass-line: rgba(0, 0, 0, 0.45); --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3); --glass-sel: rgba(255, 255, 255, 0.13); --tab-ink: #EEF2F8; }
+.glass { background: var(--glass); -webkit-backdrop-filter: blur(16px) saturate(185%); backdrop-filter: blur(16px) saturate(185%); box-shadow: inset 0 1px 0.5px var(--glass-edge), inset 0 0 0 0.5px var(--glass-edge), 0 0 0 0.5px var(--glass-line), var(--glass-shadow); }
+.phone .rcard { border-radius: 26px; padding: 0 10px 0 16px; }
+.gbtn { appearance: none; border: 0; width: 44px; height: 44px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); cursor: pointer; flex: none; padding: 0; }
+.phone.light .rcard .gbtn { --glass: rgba(237, 239, 245, 0.72); --glass-shadow: 0 2px 6px rgba(17, 24, 39, 0.10); }
+.phone.dark .rcard .gbtn { --glass: rgba(58, 68, 88, 0.6); --glass-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.gbtn[disabled] { color: var(--ink-tertiary); opacity: 0.55; cursor: default; }
+.gdays { display: flex; gap: 8px; padding: 2px 20px; margin: -2px -20px; flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; -webkit-mask-image: linear-gradient(90deg, transparent 0, black 16px, black calc(100% - 16px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, black 16px, black calc(100% - 16px), transparent 100%); }
+.gdays::-webkit-scrollbar { display: none; }
+.gday { appearance: none; border: 0; font: inherit; flex: none; width: 60px; height: 48px; gap: 2px; scroll-snap-align: start; border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: background-color 0.2s ease-out, color 0.2s ease-out; }
+.gday .footnote { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--ink-secondary); transition: color 0.2s ease-out; }
+.gday .headline { line-height: 22px; }
+.gday.sel { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.gday.sel .footnote { color: inherit; }
+.gday.today:not(.sel), .gday.today:not(.sel) .footnote { color: var(--accent); }
+.gday.today:not(.sel) .footnote { font-weight: 600; }
+.edge-top { position: absolute; left: 0; right: 0; top: 0; height: 16px; z-index: 5; background: linear-gradient(rgba(var(--canvas-rgb), 1), rgba(var(--canvas-rgb), 0)); pointer-events: none; }
+.edge-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 112px; z-index: 7; background: linear-gradient(rgba(var(--canvas-rgb), 0), rgba(var(--canvas-rgb), 0.5) 75%, rgba(var(--canvas-rgb), 0.62)); pointer-events: none; }
+.gtabs { position: absolute; left: 20px; right: 20px; bottom: 24px; height: 62px; border-radius: 9999px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 4px; box-sizing: border-box; z-index: 9; }
+.gtabs a { display: flex; align-items: center; justify-content: center; border-radius: 9999px; color: var(--tab-ink); }
+.gtabs a.sel { background: var(--glass-sel); color: var(--accent); }
+.gtabs svg { width: 27px; height: 27px; display: block; }
+.gtabs.static { position: relative; left: auto; right: auto; bottom: auto; width: 350px; }

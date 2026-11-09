@@ -32,8 +32,9 @@ final class AppRouterTests: XCTestCase {
         XCTAssertNil(router.presentedSheet)
     }
 
-    func testClassicBarsAreRequested() {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool, true)
+    /// D49 reverses D25: the app no longer opts out of Liquid Glass on iOS 26.
+    func testLiquidGlassIsNotOptedOut() {
+        XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility"))
     }
 }
 

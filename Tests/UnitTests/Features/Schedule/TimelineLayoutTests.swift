@@ -129,7 +129,7 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(fold.minutes, 350)
         XCTAssertEqual(fold.next, at(15, 50))
         let nowY = try XCTUnwrap(result.nowY)
-        XCTAssertEqual(nowY - result.initialScrollOffset, 14, accuracy: 0.001)
+        XCTAssertEqual(nowY - result.initialScrollOffset, 5 * 7, accuracy: 0.001)
         XCTAssertEqual(result.cards[0].markerY - nowY, 30 * 7, accuracy: 0.001, "The first train is on the first screen")
     }
 
@@ -155,22 +155,20 @@ final class TimelineLayoutTests: XCTestCase {
 
     // MARK: Gridline labels, Now and the ends
 
-    func testGridlineLabelHidesNearAPill() throws {
+    /// Every 15 min of wall-clock time gets a line, whatever the trains; the lines carry no train times (D49).
+    func testGridlinesRunEveryFifteenMinutes() throws {
         let result = layout([train("a", 7, 32), train("b", 7, 58)], now: at(7, 21))
         let half = try gridline(result, 7, 30)
         let quarter = try gridline(result, 7, 45)
-        let eight = try gridline(result, 8, 0)
-        XCTAssertFalse(half.showsLabel, "7:30 is 14 pt from the 7:32 pill; the line stays")
+        _ = try gridline(result, 8, 0)
         XCTAssertEqual(half.y, result.cards[0].markerY - 14, accuracy: 0.001)
-        XCTAssertTrue(quarter.showsLabel)
-        XCTAssertFalse(eight.showsLabel)
         XCTAssertEqual(quarter.y - half.y, 15 * 7, accuracy: 0.001)
     }
 
-    func testInitialScrollPutsNowTwoMinutesBelowTheTop() throws {
+    func testInitialScrollPutsNowFiveMinutesBelowTheTop() throws {
         let result = layout([train("a", 7, 32), train("b", 7, 58)], now: at(7, 40))
         let nowY = try XCTUnwrap(result.nowY)
-        XCTAssertEqual(nowY - result.initialScrollOffset, 14, accuracy: 0.001)
+        XCTAssertEqual(nowY - result.initialScrollOffset, 5 * 7, accuracy: 0.001, "Now sits 5 min below the top edge (D49)")
         XCTAssertEqual(nowY - result.cards[0].markerY, 8 * 7, accuracy: 0.001, "Earlier trains stay above, reachable by scrolling")
         XCTAssertEqual(result.endOfServiceY, result.cards[1].bottom + TTTimeline.minCardGap, accuracy: 0.001)
         XCTAssertGreaterThan(result.height, result.endOfServiceY)
@@ -190,7 +188,7 @@ final class TimelineLayoutTests: XCTestCase {
         let bar = try XCTUnwrap(result.cards[0].delayBar)
         XCTAssertEqual(bar.upperBound - bar.lowerBound, 9 * 6, accuracy: 0.001)
         XCTAssertEqual(try gridline(result, 7, 45).y - gridline(result, 7, 30).y, 15 * 6, accuracy: 0.001)
-        XCTAssertEqual(try XCTUnwrap(result.nowY) - result.initialScrollOffset, 2 * 6, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(result.nowY) - result.initialScrollOffset, 5 * 6, accuracy: 0.001)
     }
 
     // MARK: Determinism and identity

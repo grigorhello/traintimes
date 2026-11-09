@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The to-scale timeline (TT-113): rail, gridlines, Now line, markers, time pills and cards, placed by the TT-111 layout.
-/// Across, it follows the canvas `.tl` geometry: labels end at 52 pt, pills sit at 12 pt, the rail is centred on 62 pt and
-/// cards start at 82 pt. Everything but the cards is decoration and hidden from assistive tech.
+/// The to-scale timeline (TT-113): rail, gridlines, Now line, markers and cards, placed by the TT-111 layout. The left column
+/// holds the gridline times only, never a train's own time, which its card shows (D49). Across, it follows the canvas `.tl`
+/// geometry: labels end at 52 pt, the rail is centred on 62 pt and cards start at 82 pt. Everything but the cards is
+/// decoration and hidden from assistive tech.
 struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting
@@ -11,10 +12,8 @@ struct ScheduleTimeline: View {
     var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
     var onBell: (TripKey) -> Void = { _ in }
 
-    /// The right edge of the label column: the pill slot after its 12 pt inset.
-    private static let labelColumn = TTTimeline.leftInset + TimePill.railSize.width
-    /// The centre of the pill slot.
-    private static let pillX = TTTimeline.leftInset + TimePill.railSize.width / 2
+    /// The right edge of the label column.
+    private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
     private static let railX = labelColumn + 10
     private static let railWidth: CGFloat = 2
     private static let markerSize: CGFloat = 12
@@ -69,7 +68,7 @@ struct ScheduleTimeline: View {
 
     // MARK: Rail
 
-    /// A hairline every 15 min, under the cards, with its time in the label column unless a pill or Now sits close.
+    /// A hairline every 15 min, under the cards, with its time in the label column unless Now sits close.
     @ViewBuilder private func gridlines(_ layout: TimelineLayout) -> some View {
         ForEach(layout.gridlines, id: \.time) { gridline in
             Rectangle()
@@ -151,19 +150,14 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// Each train's time pill in the label column and its marker on the rail; a delayed train also keeps an amber struck
-    /// pill and a hollow amber marker at its scheduled time.
+    /// Each train's marker on the rail; a delayed train also keeps a hollow amber marker at its scheduled time.
     private func markers(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                if let scheduledY = place.scheduledMarkerY, let scheduledPill = card.scheduledPillTime {
-                    TimePill(time: scheduledPill, style: .slipped, isOnRail: true)
-                        .centred(x: Self.pillX, y: scheduledY)
+                if let scheduledY = place.scheduledMarkerY {
                     ring(TTColor.delayInk)
                         .centred(x: Self.railX, y: scheduledY)
                 }
-                TimePill(time: card.pillTime, style: card.pillStyle, isOnRail: true)
-                    .centred(x: Self.pillX, y: place.markerY)
                 marker(for: card)
                     .centred(x: Self.railX, y: place.markerY)
             }
@@ -211,10 +205,8 @@ struct ScheduleTimeline: View {
             .fill(TTColor.accent)
             .frame(width: Self.nowDot, height: Self.nowDot)
             .centred(x: Self.railX, y: y)
-        if viewModel.showsNowLabel {
-            label(Text("button.now"), at: y, weight: .semibold)
-                .foregroundStyle(TTColor.accent)
-        }
+        label(Text("button.now"), at: y, weight: .semibold)
+            .foregroundStyle(TTColor.accent)
     }
 
     /// Footnote text, right-aligned in the label column and centred on `y`.
@@ -230,6 +222,7 @@ struct ScheduleTimeline: View {
 
 /// One departure (TT-113): time, labelled arrival, status badge, platform or "in N min", tags and the bell. A delayed train
 /// shows "Scheduled 7:32 AM" under its expected time; a cancelled one has struck times, "Next usable below" and no bell (TT-114).
+/// D49: "Arrival" in 15 pt over a 20 pt time, a 15 pt status badge and a 26 pt bell in a 48 pt target.
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
@@ -244,10 +237,14 @@ struct DepartureCardView: View {
 
     /// The canvas card pads 14 pt, and 10 pt on the bell side; `Card` pads 16 pt.
     private static let inset = EdgeInsets(top: -2, leading: -2, bottom: -2, trailing: -6)
-    /// The bell's 44 pt target bleeds into the card padding, so the badge row stays one badge tall.
-    private static let bellBleed: CGFloat = 10
+    /// The bell's 48 pt target bleeds into the card padding (12 pt above and below, 10 pt at the end), so the badge row stays
+    /// one badge tall.
+    private static let bellTarget: CGFloat = 48
+    private static let bellGlyph: CGFloat = 26
+    private static let bellVerticalBleed: CGFloat = 12
+    private static let bellTrailingBleed: CGFloat = 10
     /// The bell's height in the badge row once it bleeds; the row is at least this tall, so the bell centres on it.
-    private static let bellRowHeight = TTSize.targetMin - 2 * bellBleed
+    private static let bellRowHeight = bellTarget - 2 * bellVerticalBleed
     /// Between the badge row and the wrapped tags.
     private static let tagRowGap: CGFloat = 6
     private static let timeMinimumScale: CGFloat = 0.85
@@ -303,14 +300,14 @@ struct DepartureCardView: View {
         }
     }
 
-    /// "Scheduled arrival" over the 17 pt time; the next train's platform goes under it.
+    /// "Arrival" over the 20 pt time; the next train's platform goes under it.
     private var arrival: some View {
         VStack(alignment: .trailing, spacing: TTSpace.s1 / 2) {
             Text(card.arrivalLabel)
-                .font(TTFont.footnote)
+                .font(TTFont.subhead)
                 .foregroundStyle(TTColor.inkSecondary)
             Text(card.arrivalTime)
-                .font(TTFont.timeArrival)
+                .font(TTFont.timeArrivalCard)
                 .monospacedDigit()
                 .strikethrough(card.isCancelled)
                 .foregroundStyle(card.isCancelled ? TTColor.inkTertiary : TTColor.ink)
@@ -339,7 +336,7 @@ struct DepartureCardView: View {
     private var badgeRows: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: TTSpace.s2) {
-                StatusBadge(status: card.status)
+                StatusBadge(status: card.status, isLarge: true)
                 detail
                 tags
                 Spacer(minLength: 0)
@@ -347,7 +344,7 @@ struct DepartureCardView: View {
             .modifier(BellRowHeight(minHeight: card.isCancelled ? nil : Self.bellRowHeight))
             VStack(alignment: .leading, spacing: Self.tagRowGap) {
                 HStack(spacing: TTSpace.s2) {
-                    StatusBadge(status: card.status)
+                    StatusBadge(status: card.status, isLarge: true)
                     detail
                     Spacer(minLength: 0)
                 }
@@ -404,11 +401,11 @@ struct DepartureCardView: View {
     /// The bell's place at the end of the badge row; its centre sets the guides the bell aligns on.
     private var bellSlot: some View {
         Color.clear
-            .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+            .frame(width: Self.bellTarget, height: Self.bellTarget)
             .alignmentGuide(HorizontalAlignment.bellSlot) { $0[HorizontalAlignment.center] }
             .alignmentGuide(VerticalAlignment.bellSlot) { $0[VerticalAlignment.center] }
-            .padding(.vertical, -Self.bellBleed)
-            .padding(.trailing, -Self.bellBleed)
+            .padding(.vertical, -Self.bellVerticalBleed)
+            .padding(.trailing, -Self.bellTrailingBleed)
             .accessibilityHidden(true)
     }
 
@@ -420,6 +417,7 @@ struct DepartureCardView: View {
             label: Text(verbatim: String(format: label, card.trainName)),
             action: onBell
         )
+        .sized(glyph: Self.bellGlyph, target: Self.bellTarget)
         .disabled(bell == .settingUp)
         .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
     }

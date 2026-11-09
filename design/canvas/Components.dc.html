@@ -17,7 +17,7 @@ a{color:inherit}a:hover{color:inherit}
 .sec h2{color:var(--ink-secondary)}
 </style>
 </helmet>
-<div class="phone {{themeClass}}" style="width: 880px; height: 1900px; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+<div class="phone {{themeClass}}" style="width: 880px; height: 2400px; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; gap: 24px; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
 
   <div style="display: flex; align-items: baseline; justify-content: space-between">
     <h1 class="route">GO Train App components</h1>
@@ -28,15 +28,30 @@ a{color:inherit}a:hover{color:inherit}
 
     <div style="display: flex; flex-direction: column; gap: 24px">
       <div class="sec">
-        <h2 class="footnote">Status badge · colour + word + icon</h2>
-        <div class="gt-row-x"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Stop skipped</span></div>
-        <div class="gt-row-x"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Last reported 7:29 AM</span><span class="badge sched"><span class="ico sm i-offline" aria-hidden="true"></span>Offline</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="footnote muted">icon only when a row carries more tags</span></div>
+        <h2 class="footnote">Line header · GO's own line colours, white code on the tile</h2>
+        <h3 class="line-head" style="max-width: 350px"><span class="line-tile" style="background: #8B1A31">LW</span><span class="line-name">Lakeshore West</span><a class="notice-chip" href="Trip-Details.dc.html" aria-label="Lakeshore West notice: delays of up to 15 minutes near Port Credit. Open notice"><span class="ico i-notice" aria-hidden="true"></span>Notice</a></h3>
+        <span class="footnote muted">Notice chip only while the line has a notice; tapping it opens the notice sheet</span>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px">
+          <div class="line-head"><span class="line-tile" style="background: #8B1A31">LW</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Lakeshore West</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #EA3624">LE</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Lakeshore East</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #E6853E">MI</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Milton</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #3A8346">KI</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Kitchener</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #4397C3">RH</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Richmond Hill</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #143664">BR</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Barrie</span></div>
+          <div class="line-head"><span class="line-tile" style="background: #724715">ST</span><span class="line-name" style="font-size: 17px; line-height: 22px; letter-spacing: -0.4px">Stouffville</span></div>
+        </div>
+        <span class="footnote muted tnum">LW #8B1A31 · LE #EA3624 · MI #E6853E · KI #3A8346 · RH #4397C3 · BR #143664 · ST #724715</span>
       </div>
 
       <div class="sec">
-        <h2 class="footnote">Freshness label</h2>
-        <span class="fresh footnote">Updated just now</span>
-        <span class="fresh footnote"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled times only</span>
+        <h2 class="footnote">Status badge · colour + word + icon (on cards 15 pt)</h2>
+        <div class="gt-row-x"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Stop skipped</span></div>
+        <div class="gt-row-x"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">offline only</span><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Last reported 7:29 AM</span><span class="badge sched"><span class="ico sm i-offline" aria-hidden="true"></span>Offline</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="footnote muted">icon only when a row carries more tags</span></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Status row · only offline, stale data or loading, otherwise no row</h2>
+        <span class="fresh footnote">Loading timetable</span>
         <span class="fresh footnote">Last reported 7:29 AM · showing scheduled times</span>
         <span class="fresh footnote"><span class="ico sm i-offline" aria-hidden="true"></span>Offline · last updated 6:52 AM</span>
       </div>
@@ -48,39 +63,82 @@ a{color:inherit}a:hover{color:inherit}
       </div>
 
       <div class="sec">
-        <h2 class="footnote">Icon buttons · 44pt target, 22pt glyph</h2>
-        <div class="gt-row-x"><button class="icon-btn" aria-label="Alert me"><span class="ico i-bell" aria-hidden="true"></span></button><button class="icon-btn on" aria-label="Alert on"><span class="ico i-bell-fill" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></button><button class="icon-btn filled" aria-label="Search"><span class="ico i-search" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Close"><span class="ico i-close" aria-hidden="true"></span></button></div>
+        <h2 class="footnote">Icon buttons · 44pt target, 22pt glyph; card bell 48pt target, 26pt glyph</h2>
+        <div class="gt-row-x"><button class="icon-btn" aria-label="Alert me"><span class="ico i-bell" aria-hidden="true"></span></button><button class="icon-btn on" aria-label="Alert on"><span class="ico i-bell-fill" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Settings"><span class="ico i-gear" aria-hidden="true"></span></button><button class="icon-btn filled" aria-label="Search"><span class="ico i-search" aria-hidden="true"></span></button><button class="icon-btn" aria-label="Close"><span class="ico i-close" aria-hidden="true"></span></button><button class="icon-btn" style="width: 48px; height: 48px" aria-label="Alert me, card bell"><span class="ico i-bell" style="width: 26px; height: 26px" aria-hidden="true"></span></button><button class="icon-btn on" style="width: 48px; height: 48px" aria-label="Alert on, card bell"><span class="ico i-bell-fill" style="width: 26px; height: 26px" aria-hidden="true"></span></button></div>
       </div>
 
       <div class="sec">
-        <h2 class="footnote">Day strip, Now button and alert day chips</h2>
-        <div class="days" role="tablist" aria-label="Service day" style="max-width: 350px"><button class="dayc sel" role="tab" aria-selected="true"><span class="footnote">Today</span><span class="headline tnum">5</span></button><button class="dayc" role="tab"><span class="footnote">Fri</span><span class="headline tnum">6</span></button><button class="dayc" role="tab"><span class="footnote">Sat</span><span class="headline tnum">7</span></button><button class="dayc" role="tab"><span class="footnote">Sun</span><span class="headline tnum">8</span></button><button class="dayc" role="tab"><span class="footnote">Mon</span><span class="headline tnum">9</span></button><button class="dayc" role="tab"><span class="footnote">Tue</span><span class="headline tnum">10</span></button><button class="dayc" role="tab"><span class="footnote">Wed</span><span class="headline tnum">11</span></button></div>
-        <div class="gt-row-x" style="gap: 16px"><button class="jump footnote" aria-label="Back to now, today" style="margin: 0; padding: 0"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button><button class="jump footnote" aria-label="Back to now, today" style="margin: 0; padding: 0; color: var(--ink-tertiary)"><span class="ico sm i-clock" aria-hidden="true"></span>Now</button><span class="footnote muted">(dimmed while already at now)</span></div>
+        <h2 class="footnote">Day strip (swipeable date tiles) and alert day chips</h2>
+        <div style="width: 390px; background: var(--canvas); border-radius: 18px; padding: 10px 0; overflow: hidden">
+          <div class="gdays" role="tablist" aria-label="Service day">
+            <button class="gday today sel" role="tab" aria-selected="true" aria-label="Today, Thursday, November 5"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Thursday, November 12"><span class="footnote">Thu</span><span class="headline tnum">12</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 13"><span class="footnote">Fri</span><span class="headline tnum">13</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 14"><span class="footnote">Sat</span><span class="headline tnum">14</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 15"><span class="footnote">Sun</span><span class="headline tnum">15</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 16"><span class="footnote">Mon</span><span class="headline tnum">16</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 17"><span class="footnote">Tue</span><span class="headline tnum">17</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 18"><span class="footnote">Wed</span><span class="headline tnum">18</span></button>
+          </div>
+        </div>
+        <div style="width: 390px; background: var(--canvas); border-radius: 18px; padding: 10px 0; overflow: hidden">
+          <div class="gdays" role="tablist" aria-label="Service day">
+            <button class="gday today" role="tab" aria-selected="false" aria-label="Today, Thursday, November 5"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+            <button class="gday sel" role="tab" aria-selected="true" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Thursday, November 12"><span class="footnote">Thu</span><span class="headline tnum">12</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 13"><span class="footnote">Fri</span><span class="headline tnum">13</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 14"><span class="footnote">Sat</span><span class="headline tnum">14</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 15"><span class="footnote">Sun</span><span class="headline tnum">15</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 16"><span class="footnote">Mon</span><span class="headline tnum">16</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 17"><span class="footnote">Tue</span><span class="headline tnum">17</span></button>
+            <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 18"><span class="footnote">Wed</span><span class="headline tnum">18</span></button>
+          </div>
+        </div>
+        <span class="footnote muted">60 x 48 pt tiles, 8 pt apart, bleeding to both screen edges so half of the next tile peeks; snaps to tiles. Top: Today selected. Bottom: Sunday selected, Today turns green.</span>
         <div class="gt-row-x" style="gap: 6px"><button class="day sel badge" aria-label="Monday">M</button><button class="day sel badge" aria-label="Tuesday">T</button><button class="day sel badge" aria-label="Wednesday">W</button><button class="day sel badge" aria-label="Thursday">T</button><button class="day sel badge" aria-label="Friday">F</button><button class="day badge" aria-label="Saturday">S</button><button class="day badge" aria-label="Sunday">S</button></div>
       </div>
 
       <div class="sec">
-        <h2 class="footnote">Timeline parts · pills, markers, connector, delay bar, fold</h2>
+        <h2 class="footnote">Glass tab bar (icons only) and glass swap button · iOS 26 Liquid Glass</h2>
+        <div style="width: 390px; background: var(--canvas); border-radius: 18px; padding: 14px 20px; overflow: hidden; box-sizing: border-box">
+          <nav class="gtabs glass static" aria-label="Tabs">
+            <a href="Main.dc.html" aria-label="Schedule"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 2.4h6.8M12 2.4v2.4" style="fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round"></path><path fill-rule="evenodd" d="M8.4 4.8h7.2a3.6 3.6 0 0 1 3.6 3.6v7.4a3.4 3.4 0 0 1-3.4 3.4H8.2a3.4 3.4 0 0 1-3.4-3.4V8.4a3.6 3.6 0 0 1 3.6-3.6zM8 7.4a1 1 0 0 0-1 1v3.6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8.4a1 1 0 0 0-1-1zm.4 7.2a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm7.2 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5z" style="fill: currentColor"></path><path d="M8.4 19.6l-2 2.6M15.6 19.6l2 2.6" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"></path></svg></a>
+            <a class="sel" href="Alerts.dc.html" aria-current="page" aria-label="Alerts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.3c-.85 0-1.5.66-1.5 1.5v.6C7.8 5.1 5.9 7.6 5.9 10.6v4.1l-1.7 2.3c-.4.55 0 1.3.66 1.3h14.28c.66 0 1.06-.75.66-1.3l-1.7-2.3v-4.1c0-3-1.9-5.5-4.6-6.2v-.6c0-.84-.65-1.5-1.5-1.5zM9.6 19.6a2.4 2.4 0 0 0 4.8 0z" style="fill: currentColor"></path></svg></a>
+            <a href="Settings.dc.html" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M9.90 3.56L10.25 0.94L13.75 0.94L14.10 3.56A8.7 8.7 0 0 1 16.48 4.54L18.58 2.94L21.06 5.42L19.46 7.52A8.7 8.7 0 0 1 20.44 9.90L23.06 10.25L23.06 13.75L20.44 14.10A8.7 8.7 0 0 1 19.46 16.48L21.06 18.58L18.58 21.06L16.48 19.46A8.7 8.7 0 0 1 14.10 20.44L13.75 23.06L10.25 23.06L9.90 20.44A8.7 8.7 0 0 1 7.52 19.46L5.42 21.06L2.94 18.58L4.54 16.48A8.7 8.7 0 0 1 3.56 14.10L0.94 13.75L0.94 10.25L3.56 9.90A8.7 8.7 0 0 1 4.54 7.52L2.94 5.42L5.42 2.94L7.52 4.54A8.7 8.7 0 0 1 9.90 3.56 ZM8.30 12 a3.7 3.7 0 1 0 7.40 0 a3.7 3.7 0 1 0 -7.40 0 Z" style="fill: currentColor; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round"></path></svg></a>
+          </nav>
+        </div>
+        <div class="gt-row-x" style="gap: 16px"><button class="gbtn glass" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button><button class="gbtn glass" aria-label="Swap direction" disabled><span class="ico i-swap" aria-hidden="true"></span></button><span class="footnote muted">glass only on controls that float over content; cards, the route card and the day tiles stay solid</span></div>
+      </div>
+
+      <div class="sec">
+        <h2 class="footnote">Timeline parts · gridline times, markers, connector, delay bar, fold</h2>
         <div class="tl" style="flex: none; height: 236px; margin: 0; background: var(--canvas); border-radius: 12px" aria-label="Timeline parts sample">
           <div class="tl-rail" style="height: 170px" aria-hidden="true"></div>
           <div class="tl-rail dashed" style="top: 170px; height: 66px" aria-hidden="true"></div>
           <div class="tl-tick" style="top: 56px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 47px" aria-hidden="true">7:45</span>
           <div class="tl-now" style="top: 13px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 5px" aria-hidden="true">Now</span>
-          <span class="tl-pill ghost footnote tnum" style="top: 21px" aria-hidden="true">7:32</span>
           <span class="tl-mark ghost" style="top: 26px" aria-hidden="true"></span>
           <div class="tl-delay" style="top: 32px; height: 46px" aria-hidden="true"></div>
-          <span class="tl-pill lead footnote tnum" style="top: 67px" aria-hidden="true">7:41</span>
           <span class="tl-mark lead" style="top: 70px" aria-hidden="true"></span>
           <div class="tl-link lead" style="top: 77px" aria-hidden="true"></div>
-          <span class="footnote muted" style="position: absolute; left: 88px; top: 69px">Next usable train: solid pill, 16 pt dot, accent connector; amber bar = 9 min slip from 7:32</span>
-          <span class="tl-pill footnote tnum" style="top: 109px" aria-hidden="true">7:58</span>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 69px">Next usable train: 16 pt dot, accent connector; amber bar = 9 min slip from 7:32</span>
           <span class="tl-mark" style="top: 114px" aria-hidden="true"></span>
           <div class="tl-link" style="top: 119px" aria-hidden="true"></div>
-          <span class="footnote muted" style="position: absolute; left: 88px; top: 111px">Later train: soft pill, 12 pt ring, connector</span>
-          <span class="tl-pill cancel footnote tnum" style="top: 143px" aria-hidden="true">8:05</span>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 111px">Later train: 12 pt ring, connector</span>
           <span class="tl-mark cancel" style="top: 146px" aria-hidden="true"><span class="ico i-cancel"></span></span>
           <div class="tl-link cancel" style="top: 153px" aria-hidden="true"></div>
-          <span class="footnote muted" style="position: absolute; left: 88px; top: 145px">Cancelled: red struck pill and x marker</span>
+          <span class="footnote muted" style="position: absolute; left: 88px; top: 145px">Cancelled: red x marker</span>
           <div class="tl-fold" style="top: 186px; justify-content: flex-start" aria-hidden="true"><span class="footnote tnum">No trains for 48 min · next 6:40 PM</span></div>
         </div>
       </div>
@@ -104,11 +162,11 @@ a{color:inherit}a:hover{color:inherit}
 
     <div style="display: flex; flex-direction: column; gap: 24px">
       <div class="sec">
-        <h2 class="footnote">Departure row · lead, delayed, cancelled, scheduled, last reported</h2>
+        <h2 class="footnote">Departure row · lead, delayed, cancelled, offline (Scheduled), last reported</h2>
         <div class="list">
           <div class="dep lead">
-            <div class="when"><span class="lbl footnote">Departs</span><span class="time-lead tnum time">7:32 AM</span></div>
-            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:12 AM</span></div>
+            <div class="when"><span class="time-lead tnum time">7:32 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:12 AM</span></div>
             <button class="icon-btn bell" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
             <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform 2</span></div>
           </div>
@@ -119,20 +177,20 @@ a{color:inherit}a:hover{color:inherit}
             <div class="meta"><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="footnote muted">Platform pending</span></div>
           </div>
           <div class="dep cancelled">
-            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">7:58 AM</span></div>
-            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+            <div class="when"><span class="time-row tnum time">7:58 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
             <button class="icon-btn bell" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
             <div class="meta"><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="footnote muted">Next usable train below</span></div>
           </div>
           <div class="dep">
-            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">8:21 AM</span></div>
-            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
+            <div class="when"><span class="time-row tnum time">8:21 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
             <button class="icon-btn bell" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
             <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span></div>
           </div>
           <div class="dep">
-            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">8:47 AM</span></div>
-            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
+            <div class="when"><span class="time-row tnum time">8:47 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
             <button class="icon-btn bell" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
             <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Last reported 7:29 AM</span><span class="footnote muted">Platform 2</span></div>
           </div>
@@ -143,8 +201,8 @@ a{color:inherit}a:hover{color:inherit}
         <h2 class="footnote">Crowded row · Express collapses to its icon first, then extra tags wrap to a second line</h2>
         <div class="list" style="width: 350px">
           <div class="dep">
-            <div class="when"><span class="lbl footnote">Departs</span><span class="time-row tnum time">7:58 AM</span></div>
-            <div class="arr"><span class="lbl footnote">Scheduled arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
+            <div class="when"><span class="time-row tnum time">7:58 AM</span></div>
+            <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
             <button class="icon-btn bell" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></button>
             <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote">Bike coach</span><span class="tag footnote">Quiet zone</span></div>
           </div>
@@ -181,7 +239,7 @@ a{color:inherit}a:hover{color:inherit}
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":880,"height":1900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":880,"height":2100}}'>
 class Component extends DCLogic {
   renderVals() {
     return { themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light' };

@@ -54,6 +54,8 @@ enum TripStatus: Hashable, Sendable {
 
 struct StatusBadge: View {
     let status: TripStatus
+    /// The timeline card's badge (TT-156, D49): 15 pt text and a 16 pt icon, a step up from the 13 pt badge elsewhere.
+    var isLarge = false
 
     var body: some View {
         Label {
@@ -61,10 +63,11 @@ struct StatusBadge: View {
         } icon: {
             Image(systemName: status.symbol)
         }
-        .labelStyle(BadgeLabelStyle())
-        .font(TTFont.badge)
+        .labelStyle(BadgeLabelStyle(spacing: isLarge ? 5 : TTSpace.s1))
+        .font(isLarge ? TTFont.badgeLarge : TTFont.badge)
         .foregroundStyle(status.ink)
-        .padding(.horizontal, TTSpace.s2)
+        .padding(.leading, isLarge ? 9 : TTSpace.s2)
+        .padding(.trailing, isLarge ? 11 : TTSpace.s2)
         .padding(.vertical, TTSpace.s1)
         .background(status.fill, in: Capsule())
     }
@@ -139,8 +142,10 @@ struct TimePill: View {
 }
 
 private struct BadgeLabelStyle: LabelStyle {
+    var spacing: CGFloat = TTSpace.s1
+
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: TTSpace.s1) {
+        HStack(spacing: spacing) {
             configuration.icon
             configuration.title
         }

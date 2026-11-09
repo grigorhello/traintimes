@@ -22,7 +22,7 @@ All station names, times, platforms, train numbers and stop lists shown on the c
 
 ## Navigation and shared rules
 
-The app has three bottom tabs, Schedule, Alerts and Settings, and nothing else at the top level (D48). Route editing, station search, trip details, alert setup and line notices open as native sheets (`.sheet`), so the timetable is always one dismiss away. There is no splash, tutorial, permission request or carousel before the first timetable.
+The app has three bottom tabs, Schedule, Alerts and Settings, and nothing else at the top level (D48). On iOS 26 and later the bar is a floating Liquid Glass capsule with icons only (a tram, a bell, a gear; the system draws the selection), and content scrolls under it with a soft fade (D49); earlier iOS keeps the opaque bar with the same icons. Tapping the Schedule tab while Schedule shows scrolls the timeline to Now and returns to Today, so there is no Now button anywhere (D49). Route editing, station search, trip details, alert setup and line notices open as native sheets (`.sheet`), so the timetable is always one dismiss away. There is no splash, tutorial, permission request or carousel before the first timetable.
 
 **Trip identity never changes.** A trip is keyed by service date plus the feed's stable trip id, never by departure time. In every label and notification the train is named by its scheduled origin departure: the 7:32 AM train stays "7:32 AM train" when its estimate moves to 7:41 AM. Do not create a new trip when an estimate moves.
 
@@ -40,44 +40,46 @@ The app has three bottom tabs, Schedule, Alerts and Settings, and nothing else a
 
 Missing or stale data must never produce an On time badge. Express is an outlined tag, not a status, and appears only when the feed verifies it. The tag shows the lightning bolt riders already know from GO's trip planner (SF Symbol bolt.fill) plus the word "Express"; when a row carries more than one tag, the word is hidden and only the glyph stays, with the accessibility label still reading Express. If the tags still do not fit beside the status badge and platform, they wrap to a second line under them and the card grows; the timeline's minimum-gap rule keeps spacing. Express is the only tag in version 1; Bike coach and Quiet zone on the canvas are placeholders showing the overflow behaviour.
 
-**Freshness** is one line that states the data mode: "Updated just now" or "Updated N min ago" (live), "Scheduled times only" (no live data), "Last reported 7:29 AM · showing scheduled times" (stale), "Offline · last updated 6:52 AM" (cached). Refresh on foreground, on pull to refresh, and on a periodic interval agreed with the data provider; a refresh keeps row identity and scroll position and updates the line quietly.
+**Freshness** is one line that states the data mode, shown on Schedule only when there is something to say (D49): "Loading timetable", "Last reported 7:29 AM · showing scheduled times" (stale), "Offline · last updated 6:52 AM" (cached). Live data and timetable-only data show no line. Trip details keeps the full set ("Updated just now", "Scheduled times only"). Refresh on foreground, on pull to refresh, and on a periodic interval agreed with the data provider; a refresh keeps row identity and scroll position and updates the line quietly.
 
-**Time and date.** Times follow the device 12/24-hour setting unless overridden in Settings, use America/Toronto, and respect daylight-saving changes. The service day is the GO service day: trips after midnight belong to the previous service day and sort after 11:59 PM. Every arrival is labelled "Scheduled arrival" or "Est. arrival"; an estimate is shown only when the feed supplies or reliably supports one.
+**Time and date.** Times follow the device 12/24-hour setting unless overridden in Settings, use America/Toronto, and respect daylight-saving changes. The service day is the GO service day: trips after midnight belong to the previous service day and sort after 11:59 PM. Every arrival is labelled "Arrival" on a Schedule card ("Scheduled arrival" on Trip details) or "Est. arrival"; an estimate is shown only when the feed supplies or reliably supports one.
 
 **Copy.** Sentence case everywhere, Canadian spelling (favourite, colour, cancelled), no exclamation marks, no emoji, no promises: write "Send updates as changes are reported", never "Never miss a train".
 
 ## Schedule screen (timeline)
 
-The Schedule tab is a vertical, to-scale timeline of today's direct trains for the saved route, with the next usable train emphasised and the current time marked. Top to bottom: route card with the line under it (no app name above it, D48); 7-day strip; freshness row with a Now button; optional watched-trip strip; the timeline; the tab bar. Three departures fit on a 390 pt phone at default text size in the normal state.
+The Schedule tab is a vertical, to-scale timeline of today's direct trains for the saved route, with the next usable train emphasised and the current time marked. Top to bottom: the line (code tile in the GO line colour, 26 pt bold name, amber Notice chip at the right end) above the route card (no app name above it, D48, D49); day strip; status row, only when loading, offline or stale; optional watched-trip strip; the timeline, which scrolls under the glass tab bar. Three departures fit on a 390 pt phone at default text size in the normal state.
 
-**Route card** (D48). A card drawn like a maps route box: a hollow ring for the origin, three dots, and an accent pin for the destination down the left; origin over destination in `headline`, one 48 pt row each split by a hairline, on one line (long names shrink a little rather than truncate); no "From"/"To" words and no chevrons. Tapping the stations opens the route sheet. Swap (`arrow.up.arrow.down`, filled) is a 44 pt button to the right of both rows; swap is explicit and never automatic. Under the card, the line name and a dot in the line colour from feed metadata (ink-secondary when none).
+**Route card** (D48). A card drawn like a maps route box: a hollow ring for the origin, three dots, and an accent pin for the destination down the left; origin over destination in `headline`, one 48 pt row each split by a hairline, on one line (long names shrink a little rather than truncate); no "From"/"To" words and no chevrons. Tapping the stations opens the route sheet. Swap (`arrow.up.arrow.down`) is a 44 pt Liquid Glass button (a raised surface before iOS 26) to the right of both rows; swap is explicit and never automatic.
 
-**Day strip.** Seven cells, Today first, each a 44 pt target showing the weekday above the day number. The selected day is solid accent with on-accent text; others are surface cards. The strip scrolls sideways for later dates within the published schedule horizon. Selecting any day other than today shows scheduled times only, hides the Now line, and starts the timeline at the first train of that service day.
+**Line row** (D49). Above the route card: a 32 pt rounded tile with the line's code (LW, LE, MI, KI, RH, BR, ST) in white on the GO line colour, then the line's name in 26 pt bold, ink. Colours follow GO's own, which riders already know: Lakeshore West #8B1A31, Lakeshore East #EA3624, Milton #E6853E, Kitchener #3A8346, Richmond Hill #4397C3, Barrie #143664, Stouffville #724715; a line outside the table uses ink-secondary. When a line-wide notice applies, an amber "Notice" chip (warning glyph and the word, 44 pt target) sits at the right end of the row and opens the notice in a sheet; the notice is dismissible per notice id and never changes a trip's status.
 
-**Freshness row.** Left: the freshness line (Navigation and shared rules). Right: a "Now" text button that scrolls the timeline to the present and resets the day strip to Today in one tap; it is dimmed (ink-tertiary) while the view is already there, and it reads "Today" while another day is selected. When a line-wide notice applies, "Line notice" appears in amber after the freshness text and opens the notice in a sheet; the notice is dismissible per notice id and never changes a trip's status. There is no separate depart-after filter; looking ahead is scrolling or picking a day.
+**Day strip** (D49). A horizontal carousel of 60 × 48 pt tiles with 12 pt radius, the weekday over the day number, with a 20 pt margin at the leading edge. The first tile reads "Today"; every day the schedule covers follows (the feed's calendar, 42 days at most; 14 when the schedule has no end), and five tiles show in full with the sixth peeking under a 16 pt fade so the strip clearly scrolls. The selected day is solid accent with on-accent text; others are surface tiles; while another day is selected, "Today" turns accent green so the way back is visible. Selecting any day other than today shows scheduled times only, hides the Now line, and starts the timeline at the first train of that service day. Selecting a tile that is out of view scrolls the strip to it. There is no depart-after filter; looking ahead is scrolling or picking a day.
+
+**Status row** (D49). One line under the day strip, only while the timetable loads, offline or stale (see Freshness). There is no row, and no Now button, while data is live or timetable-only. Tapping the Schedule tab again scrolls to Now and selects Today in one tap.
 
 **Timeline geometry.**
 
 | Element | Rule |
 | --- | --- |
-| Scale | 7 pt per minute at default text size; gridline every 15 min, labelled in grey footnote text on the left |
+| Scale | 7 pt per minute at default text size; gridline every 15 min, each labelled with its time in grey footnote text on the left |
 | Now line | 2 pt accent line across the timeline with a dot on the rail and a "Now" label; moves once a minute |
-| Initial scroll | Now sits about 2 min (14 pt) below the top edge; earlier trains are above and reachable by scrolling up |
+| Initial scroll | The app opens already scrolled so Now sits about 5 min (35 pt) below the top of the timeline, once the cards are measured; earlier trains are above and reachable by scrolling up |
 | Train marker | A dot on the rail at the train's expected departure (scheduled when no estimate): 12 pt ring for a train, 16 pt solid accent dot for the next usable train |
-| Time pill | Every marker has a 40 × 22 pt pill with its minute in the label column: accent-soft with accent text for a train, solid accent for the next usable train, amber struck for a slipped scheduled time, red struck for a cancelled train |
+| Left column | Gridline times and the Now label only (D49): train times are on the cards, so no train has a time pill in the column |
 | Connector | 14 pt, 2 pt horizontal line from marker to card in the marker's colour |
-| Gridline labels | Hidden when a pill sits within 22 pt; the gridline itself stays |
+| Gridline labels | Hidden within 22 pt of the Now label; the gridline itself stays |
 | Card anchor | The card's departure time line is vertically centred on its marker |
 | Minimum gap | Cards never touch: at least 16 pt between cards. If two trains are closer than that at base scale, the timeline zooms in for that segment only, and the gridlines in it follow the zoom |
 | Gap label | No labels between cards; the spacing itself conveys the gap. Only a fold carries a label |
 | Fold | A gap over 30 min collapses to a dashed 30-min segment with a pill stating the real gap and the next train ("No trains for 48 min · next 6:40 PM") |
 | Day end | The timeline continues to the last train of the service day, then an end-of-service line |
 
-**Delay rendering.** A delayed train keeps a hollow amber marker and an amber struck pill at its scheduled time; an amber 4 pt bar runs down the rail to the expected-time marker, so the bar's length is the delay. The card sits at the expected time, shows the expected time large with "Scheduled 7:32 AM" beneath, the Delayed N min badge, and "Est. arrival" only when the feed supports it.
+**Delay rendering.** A delayed train keeps a hollow amber marker at its scheduled time; an amber 4 pt bar runs down the rail to the expected-time marker, so the bar's length is the delay. The card sits at the expected time, shows the expected time large with "Scheduled 7:32 AM" beneath, the Delayed N min badge, and "Est. arrival" only when the feed supports it.
 
-**Cancellation rendering.** A cancelled train keeps its scheduled slot with a red x marker, a red struck pill, struck times in ink-tertiary, the Cancelled badge and the text "Next usable below"; it has no bell. It is never the lead and is excluded from usable-departure logic and gap labels.
+**Cancellation rendering.** A cancelled train keeps its scheduled slot with a red x marker, struck times in ink-tertiary, the Cancelled badge and the text "Next usable below"; it has no bell. It is never the lead and is excluded from usable-departure logic and gap labels.
 
-**Card contents.** Departure time (34 pt semibold for the next usable train, 32 pt for others, tabular numerals), labelled arrival block on the right ("Scheduled arrival" or "Est. arrival" over the 17 pt time), then a status badge, platform ("Platform 2" or "Platform pending"), an Express tag only when verified, and a 44 pt bell at the right end. There is no "Departs" label: the rail says it. The next usable train's card also shows minutes until departure in accent beside its badge ("in 11 min", "Departing" under 1 min), updating each minute, and carries its platform under the arrival time so the badge row stays on one line; no other card shows a relative time. Cards are 18 pt radius surface cards with the light-mode card shadow.
+**Card contents.** Departure time (34 pt semibold for the next usable train, 32 pt for others, tabular numerals), labelled arrival block on the right ("Arrival" or "Est. arrival" in 15 pt over the 20 pt time), then a status badge (15 pt), platform ("Platform 2" or "Platform pending"), an Express tag only when verified, and the bell at the right end (a 26 pt glyph in a 48 pt target). A train with no live status reads a green "On time" badge: the timetable is the promise, and the status row says when the data is stale; only while offline does the badge stay the grey "Scheduled" (D49). There is no "Departs" label: the rail says it. The next usable train's card also shows minutes until departure in accent beside its badge ("in 11 min", "Departing" under 1 min), updating each minute, and carries its platform under the arrival time so the badge row stays on one line; no other card shows a relative time. Cards are 18 pt radius surface cards with the light-mode card shadow.
 
 **Interactions.** Tap the card to open Trip details; tap the bell to arm an alert for that train in one tap (Alert setup and notification permission); a cancelled card has no bell. Pull to refresh keeps card identity and scroll position. Scrolling is continuous through the service day. A delayed train stays visible past its scheduled time until a reliable departure event or updated estimate shows it has left; the passage of time alone is not evidence of departure.
 
@@ -89,7 +91,7 @@ Every state below is visibly different from the others and keeps the timetable u
 
 | State | Trigger | What the rider sees | Canvas board |
 | --- | --- | --- | --- |
-| Loading first timetable | No cached schedule for this route yet | Route card, day strip and rail stay; freshness reads "Loading timetable"; three skeleton cards with grey pills, gently fading unless Reduce Motion is on | Schedule · first load |
+| Loading first timetable | No cached schedule for this route yet | Route card, day strip and rail stay; the status row reads "Loading timetable"; three skeleton cards, gently fading unless Reduce Motion is on | Schedule · first load |
 | Refreshing | Foreground, pull to refresh, periodic refresh | Existing timeline stays in place; freshness updates quietly; no spinner over content | Main |
 | Live on time | Fresh explicit evidence or fresh prediction under 3 min late | On time badge, platform when published | Main (State: normal) |
 | Delayed | Reported delay of 3 min or more | Expected time large, "Scheduled 7:32 AM" beneath, amber slip on the rail, Delayed N min badge, Est. arrival only when supported | Main (State: delayed), Schedule · delayed |
@@ -97,12 +99,12 @@ Every state below is visibly different from the others and keeps the timetable u
 | No live estimate | Trip has no live data | Scheduled badge; never infer On time | Main |
 | Stale live information | Live data older than 3 min (tune against the feed) | Freshness "Last reported 7:29 AM · showing scheduled times"; badges fall back to Scheduled; cards move back to scheduled positions | Component sheet (freshness variants) |
 | Offline | No connection | Cached schedule stays usable; freshness "Offline · last updated 6:52 AM" with wifi.slash; all badges Scheduled; platform pending; Now line still shown from device time | Main (State: offline), Schedule · offline |
-| Future day | Any day strip cell other than Today | Freshness "Scheduled times only · Sun, Nov 8"; no Now line; timeline starts at the first train of that service day; Scheduled badges only | Schedule · future day |
+| Future day | Any day strip cell other than Today | No status row; no Now line; timeline starts at the first train of that service day; On time badges only | Schedule · future day |
 | No direct trains that day | Zero direct services on the selected day | Empty card: "No direct trains on Sunday", one sentence, action "Show Monday" (next day with service); footnote pointing to the official GO trip planner | Schedule · future day |
 | No direct connection | Stations are not on a common direct service | Empty card: "No direct connection", one sentence, action "Open GO trip planner" | Component sheet |
 | Long gap | More than 30 min to the next train | Dashed rail segment with "No trains for 48 min · next 6:40 PM" | Schedule · dark |
 | Watched trip after departure | A train with an alert has departed | Compact accent-soft strip above the timeline: "7:05 AM to Union · Departed · Est. arrival 7:46 AM"; tap opens Trip details; stays until arrival plus 10 min or until swiped away | Schedule · watched train |
-| Line notice | A line-wide service notice applies to the route's line | "Line notice" link in amber in the freshness row; opens a sheet with the full notice; never changes a trip's status | Schedule · delayed |
+| Line notice | A line-wide service notice applies to the route's line | Amber "Notice" chip at the right end of the line row; opens a sheet with the full notice; never changes a trip's status | Schedule · delayed |
 | Compact phone | Screen height under 700 pt | Scale 6 pt per minute, both time sizes 32 pt; two full cards and the next card's time are visible | Schedule · compact phone |
 | Large text | Dynamic Type xxxLarge and up | Day strip scrolls (five cells visible), rail column widens, cards stack time / arrival / status, two cards visible; nothing truncates mid-time | Schedule · large text |
 
@@ -220,11 +222,12 @@ Settings is the third tab, under a large title "Settings" (D48), and contains on
 | Appearance | Time format | Segmented: Device, 12-hour, 24-hour | Default Device; every time in the app, in notifications and in VoiceOver follows it |
 | Notifications | Notification permission | State in words (Allowed, Off, Not asked yet) with an "Open Settings" text button when Off | Reflects `UNUserNotificationCenter` authorization status, refreshed on foreground |
 | Notifications | footnote | — | "Updates are sent as changes are reported during each watched trip. Delivery is best effort." |
+| Testing (TestFlight and Debug builds only, D49) | Demo trains | Segmented: Off, Delays, Offline | Default Off; "Delays" puts made-up live status on the route's real timetable (the next train 9 min late, the one after it cancelled, the rest on time, plus a line notice); "Offline" shows the cached timetable as if there were no connection. Schedule refreshes at once. The App Store build has no Testing section |
 | Data and privacy | Schedule and status data | Row with chevron | Opens the data attribution page required by the provider's terms (Metrolinx open data) |
 | Data and privacy | Privacy | Row with chevron | Opens the privacy page: no account; alert rules use an anonymous device token; what is stored on the server and for how long |
 | Data and privacy | Official GO service updates | Row with chevron | Opens the official GO service updates page in Safari |
 | Data and privacy | footnote | — | "Independent app, not affiliated with GO Transit or Metrolinx. Times may differ from station displays." |
-| About | Version | App icon at 36 pt, name "Train Times", footnote "Version 1.0 (1) · Your next GO train, at a glance." | Tapping five times reveals nothing; no hidden debug menu in release builds |
+| About | Version | App icon at 36 pt, name "Train Times", footnote "Version 1.0 (1) · Your next GO train, at a glance." | Tapping five times reveals nothing; no hidden debug menu (the Testing section above is a visible row in TestFlight builds only, never in the App Store build) |
 
 There is no login, subscription, payment, advertising, upgrade or rating prompt anywhere in Settings or elsewhere.
 
@@ -274,11 +277,11 @@ The app uses the system font, SF Symbols and the tokens in the [GO Train App des
 
 **Type.** System font only, weights 400 and 600, tabular numerals on every time (`.monospacedDigit()`). Sizes at default Dynamic Type: timeline lead time 34 pt, other card times 32 pt, arrival 17 pt semibold, route 22 pt semibold, large titles 34 pt semibold, body 17 pt, subhead 15 pt, footnote 13 pt (smallest allowed), badge 13 pt semibold, tab labels system size. Tracking −0.3 to −0.4 pt from 17 pt up.
 
-**Space and shape.** 4 pt scale; 20 pt screen margins; 14 pt card padding on the timeline; 18 pt card radius; pill buttons, chips and badges; 44 × 44 pt minimum hit area on every control including the bell, swap, the route card rows, day cells and the Now button. Light mode cards use a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only. Sheets carry the one real shadow.
+**Space and shape.** 4 pt scale; 20 pt screen margins; 14 pt card padding on the timeline; 18 pt card radius; pill buttons, chips and badges; 44 × 44 pt minimum hit area on every control including the bell (a 48 pt target), swap, the route card rows, day tiles and the Notice chip. On iOS 26 and later the tab bar, swap button and other system chrome use Liquid Glass (D49). Light mode cards use a 0 1 2 shadow at 6%; dark mode uses the canvas-to-surface step only. Sheets carry the one real shadow.
 
 **Dynamic Type.** Support to AX5. From xxxLarge: the day strip scrolls with five cells visible; the rail column widens so pills hold 19 pt digits; cards stack time, arrival and status in three rows; fewer cards fit and that is acceptable. Nothing critical clips or truncates mid-time; long station names wrap to two lines.
 
-**VoiceOver.** A card is one element: "7:32 AM to Union, delayed 9 minutes, expected 7:41 AM, estimated arrival 8:21 AM, platform 2". Its bell is a separate button: "Alert for 7:32 AM train" or "Alert on for 7:32 AM train". Gridlines, pills, markers, connectors, gap labels and the Now line are decorative and hidden from assistive tech; the timeline container announces "Departures, 7:21 AM onwards". The day strip is a tab list; the Now button announces "Back to now, today". Status badges read as text, never by colour alone.
+**VoiceOver.** A card is one element: "7:32 AM to Union, delayed 9 minutes, expected 7:41 AM, estimated arrival 8:21 AM, platform 2". Its bell is a separate button: "Alert for 7:32 AM train" or "Alert on for 7:32 AM train". Gridlines, pills, markers, connectors, gap labels and the Now line are decorative and hidden from assistive tech; the timeline container announces "Departures, 7:21 AM onwards". The day strip is a tab list; the Schedule tab announces its name and scrolls to Now when it is tapped again. Status badges read as text, never by colour alone.
 
 **Motion.** Transitions 0.2 to 0.3 s ease-out; sheets use native presentation; buttons scale to 0.97 on press; light haptic on saving a route or enabling an alert. The Now line moves once a minute with no animation. With Reduce Motion on, cross-fades replace movement and skeleton rows do not pulse. No countdowns, pulsing dots or flashing.
 
@@ -299,7 +302,9 @@ The build is accepted when every item below passes on a physical iPhone in light
 - [ ] Cards never touch; where trains are closer than the 16 pt gap allows, only that segment zooms.
 - [ ] Gaps of 20 min or more are labelled; gaps over 30 min fold with the real duration shown.
 - [ ] Three departures are visible on a 390 pt phone at default text size in the normal state; two on a compact phone.
-- [ ] The day strip switches days in one tap; Now returns to the present and Today in one tap.
+- [ ] The day strip switches days in one tap; tapping the Schedule tab again returns to the present and Today in one tap; the app opens scrolled to Now.
+- [ ] Light and dark on iOS 26: the glass tab bar, the swap button and the sheets read well over the timeline; the line tile uses the GO line colour; no train time sits in the left column and every 15 min has a time.
+- [ ] Settings › Testing › Demo trains: Delays shows a late train, a cancelled train and the Notice chip; Offline shows the Offline row and grey Scheduled badges; Off restores live data.
 - [ ] Enabling, repeating, pausing and deleting alerts is understandable without instructions.
 - [ ] A denied notification permission never looks like an active alert.
 - [ ] Long names, dark appearance and accessibility text sizes do not clip critical information.
@@ -327,8 +332,8 @@ Start with fixtures and a transport-data abstraction, then connect verified sour
 - [ ] Freshness threshold: 3 min is the proposed point where live data is demoted to "Last reported"; tune against observed feed update intervals.
 - [ ] Estimated arrival: confirm the feed provides a reliable destination estimate; until it does, destination arrival is always labelled Scheduled.
 - [ ] Express flag: confirm how express or limited-stop services are marked; show the tag only when verified.
-- [ ] Line notices: confirm the service-alert feed and how a notice is scoped to a line; it is shown as a link in the freshness row, never as a trip status.
-- [ ] Schedule horizon: the day strip assumes at least 7 days of published schedule; confirm the GTFS validity window and how far the strip may scroll.
+- [ ] Line notices: confirm the service-alert feed and how a notice is scoped to a line; it is shown as the Notice chip on the line row, never as a trip status.
+- [x] Schedule horizon: closed (D35, D49): the strip covers every day of the feed's calendar, 42 days at most.
 - [ ] Data attribution and independent-app wording: use the provider's current terms for the Settings page.
 - [ ] Server monitoring and APNs: a small service keyed by anonymous installation id; agree retention (proposed: rules deleted 24 h after their last service date, device tokens on uninstall or 30 days of inactivity).
 - [ ] Compact phones: two full departures plus the next time are accepted on 667 pt screens; confirm with a test on an iPhone SE.

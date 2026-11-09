@@ -50,6 +50,8 @@ final class DepartureCardTests: XCTestCase {
         XCTAssertFalse([TripStatus.scheduled, .lastReported(time: "7:29 AM"), .offline].contains(where: \.isLive))
         XCTAssertEqual(card(status: .scheduled).status, .scheduled, "No live data is never On time (D50)")
         XCTAssertEqual(card(status: .onTime).status, .onTime)
+        XCTAssertEqual(card(status: .stale(lastReported: day.date(hour: 7, minute: 20))).status, .scheduled, "The status row says Last reported")
+        XCTAssertEqual(card(status: .offline).status, .scheduled)
     }
 
     func testExpressFlagComesFromTheTrip() {

@@ -5,7 +5,7 @@ import XCTest
 
 /// TT-157: every card state on the Card states canvas, light and dark, at the timeline's card width (82 pt in from the
 /// left, 20 pt from the right). Page A: next on time, platform not published, departing, later on time, delayed with the
-/// alert on, later delayed. Page B: cancelled, stop skipped, no live data, last reported, 24-hour, the widest case.
+/// alert on, later delayed. Page B: cancelled, stop skipped, no live data, stale (Scheduled), 24-hour, the widest case.
 final class DepartureCardSnapshotTests: XCTestCase {
     @MainActor func testCardStatesALight() { snap(Self.pageA, .light) }
     @MainActor func testCardStatesADark() { snap(Self.pageA, .dark) }

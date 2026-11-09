@@ -42,7 +42,9 @@ struct DepartureCard: Hashable, Identifiable {
         let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
         arrivalTime = formatter.time(arrival)
         tripLength = formatter.tripLength(from: departure.departureTime, to: arrival)
-        status = TripStatus(departure.status, formatter: formatter)
+        // Ring = Scheduled (D50): stale and offline read Scheduled on the card; the status row says Last reported or Offline.
+        let resolved = TripStatus(departure.status, formatter: formatter)
+        status = resolved.isLive ? resolved : .scheduled
         relativeTime = isNext ? formatter.relative(until: departure.departureTime, now: now) : nil
         let value: String
         switch departure.trip.platform {

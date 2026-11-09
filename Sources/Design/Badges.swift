@@ -50,12 +50,19 @@ enum TripStatus: Hashable, Sendable {
         case .scheduled, .lastReported, .offline: TTColor.scheduledFill
         }
     }
+
+    /// Live information (TT-157, D50): a filled dot on the card's status line. Scheduled, stale and offline get a ring.
+    var isLive: Bool {
+        switch self {
+        case .onTime, .delayed, .cancelled, .stopSkipped: true
+        case .scheduled, .lastReported, .offline: false
+        }
+    }
 }
 
+/// The pill badge on Trip details (the timeline card uses `StatusLine`, D50).
 struct StatusBadge: View {
     let status: TripStatus
-    /// The timeline card's badge (TT-156, D49): 15 pt text and a 16 pt icon, a step up from the 13 pt badge elsewhere.
-    var isLarge = false
 
     var body: some View {
         Label {
@@ -63,38 +70,63 @@ struct StatusBadge: View {
         } icon: {
             Image(systemName: status.symbol)
         }
-        .labelStyle(BadgeLabelStyle(spacing: isLarge ? 5 : TTSpace.s1))
-        .font(isLarge ? TTFont.badgeLarge : TTFont.badge)
+        .labelStyle(BadgeLabelStyle())
+        .font(TTFont.badge)
         .foregroundStyle(status.ink)
         // A badge never wraps its text; the row around it wraps instead.
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.leading, isLarge ? 9 : TTSpace.s2)
-        .padding(.trailing, isLarge ? 11 : TTSpace.s2)
+        .padding(.horizontal, TTSpace.s2)
         .padding(.vertical, TTSpace.s1)
         .background(status.fill, in: Capsule())
     }
 }
 
-/// Express is a tag, not a status (D21). Icon only when a row carries more tags.
-struct ExpressTag: View {
-    var iconOnly = false
+/// The timeline card's status (TT-157, D50): a 10 pt dot and the word, 15 pt semibold, in the status colour. Filled for
+/// live information, a ring for Scheduled, Last reported and Offline. No pill, no icon.
+struct StatusLine: View {
+    let status: TripStatus
+
+    private static let dot: CGFloat = 10
+    private static let ringWidth: CGFloat = 2
+    private static let minimumScale: CGFloat = 0.85
 
     var body: some View {
-        Group {
-            if iconOnly {
-                Image(systemName: "bolt.fill")
-                    .accessibilityLabel(Text("tag.express"))
-            } else {
-                Label { Text("tag.express") } icon: { Image(systemName: "bolt.fill") }
-                    .labelStyle(BadgeLabelStyle())
+        HStack(spacing: TTSpace.s2) {
+            Group {
+                if status.isLive {
+                    Circle().fill(status.ink)
+                } else {
+                    Circle().strokeBorder(status.ink, lineWidth: Self.ringWidth)
+                }
             }
+            .frame(width: Self.dot, height: Self.dot)
+            .accessibilityHidden(true)
+            Text(status.text)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(Self.minimumScale)
         }
-        .font(TTFont.badge)
-        .foregroundStyle(TTColor.inkSecondary)
-        .padding(.horizontal, TTSpace.s2)
-        .padding(.vertical, TTSpace.s1)
-        .overlay(Capsule().strokeBorder(TTColor.controlBorder, lineWidth: 1))
+        .font(TTFont.badgeLarge)
+        .foregroundStyle(status.ink)
+    }
+}
+
+/// Express on the timeline card (TT-157, D50): a 16 pt bolt in an 18 pt box, accent when the stopping-pattern rule (D35)
+/// marks the train express, control-border with a slash when it does not, so every card keeps the same shape.
+struct ExpressBolt: View {
+    let isExpress: Bool
+
+    private static let glyph: CGFloat = 16
+    private static let box: CGFloat = 18
+
+    var body: some View {
+        Image(systemName: isExpress ? "bolt.fill" : "bolt.slash.fill")
+            .font(.system(size: Self.glyph, weight: .semibold))
+            .foregroundStyle(isExpress ? TTColor.accent : TTColor.controlBorder)
+            .frame(width: Self.box, height: Self.box)
+            .accessibilityLabel(Text("tag.express"))
+            .accessibilityHidden(!isExpress)
     }
 }
 

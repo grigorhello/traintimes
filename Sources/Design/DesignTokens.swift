@@ -49,8 +49,7 @@ enum TTSize {
 enum TTFont {
     static let timeLead   = Font.system(size: 34, weight: .semibold, design: .default)   // next train's time
     static let timeRow    = Font.system(size: 32, weight: .semibold)                      // other trains' time
-    static let timeArrival = Font.system(size: 17, weight: .semibold)
-    static let timeArrivalCard = Font.system(size: 20, weight: .semibold)                     // arrival time on a timeline card
+    static let timeArrival = Font.system(size: 17, weight: .semibold)                     // arrival times; also on timeline cards (D50)
     static let largeTitle = Font.system(size: 34, weight: .semibold)
     static let route      = Font.system(size: 22, weight: .semibold)                      // "Oakville to Union"
     static let navTitle   = Font.system(size: 17, weight: .semibold)
@@ -59,7 +58,7 @@ enum TTFont {
     static let subhead    = Font.system(size: 15, weight: .regular)
     static let footnote   = Font.system(size: 13, weight: .regular)
     static let badge      = Font.system(size: 13, weight: .semibold)
-    static let badgeLarge = Font.system(size: 15, weight: .semibold)                          // status badge on a timeline card
+    static let badgeLarge = Font.system(size: 15, weight: .semibold)                          // status line on a timeline card (D50)
     static let lineName   = Font.system(size: 26, weight: .bold)                              // the line above the route card
     static let lineCode   = Font.system(size: 13, weight: .bold)                              // the code in the line tile
     // Times use monospaced digits: .monospacedDigit() on every time label.

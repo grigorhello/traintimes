@@ -24,6 +24,19 @@ extension TimeFormatting {
         let full = time(date)
         return full.split(separator: " ").first.map(String.init) ?? full
     }
+
+    /// A trip's length on a timeline card (TT-157): "40 min" up to 99 min, then "1 h 45 min" ("2 h" on the hour).
+    func tripLength(from departure: Date, to arrival: Date) -> String {
+        let minutes = max(0, Int((arrival.timeIntervalSince(departure) / 60).rounded()))
+        if minutes < 100 {
+            return String(format: String(localized: "schedule.trip_minutes"), minutes)
+        }
+        let (hours, rest) = minutes.quotientAndRemainder(dividingBy: 60)
+        if rest == 0 {
+            return String(format: String(localized: "schedule.trip_hours"), hours)
+        }
+        return String(format: String(localized: "schedule.trip_hours_minutes"), hours, rest)
+    }
 }
 
 /// GO trains run on Toronto time, whatever time zone the phone is in (D17).

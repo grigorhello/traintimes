@@ -113,7 +113,7 @@ final class TripDetailsViewModel {
                 stops.last?.station.name ?? route.to.name
             ),
             lineAndDay: route.line.map { String(format: String(localized: "trip.line_day"), $0.name, day) } ?? day,
-            status: TripStatus(departure.status, isOffline: isOffline, formatter: formatter),
+            status: TripStatus(departure.status, formatter: formatter),
             scheduledDeparture: formatter.time(trip.scheduledDeparture),
             liveDeparture: departure.expectedDeparture.map { expected in
                 TripDetails.Fact(
@@ -142,12 +142,6 @@ final class TripDetailsViewModel {
                 ? (hasAlert ? String(localized: "button.manage_alert") : String(localized: "button.alert_me"))
                 : nil
         )
-    }
-
-    /// Offline keeps the grey "Scheduled" badge; without live status otherwise the badge reads "On time" (D49).
-    private var isOffline: Bool {
-        if case .offline? = freshness { return true }
-        return false
     }
 
     /// The freshness line beside the badge (D14), as on the timeline.

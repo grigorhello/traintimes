@@ -15,9 +15,15 @@ struct BadgesGallery: View {
                 StatusBadge(status: .lastReported(time: "7:29 AM"))
                 StatusBadge(status: .offline)
             }
-            HStack {
-                ExpressTag()
-                ExpressTag(iconOnly: true)
+            VStack(alignment: .leading, spacing: TTSpace.s2) {
+                StatusLine(status: .onTime)
+                StatusLine(status: .delayed(minutes: 9))
+                StatusLine(status: .cancelled)
+                StatusLine(status: .scheduled)
+            }
+            HStack(spacing: TTSpace.s3) {
+                ExpressBolt(isExpress: true)
+                ExpressBolt(isExpress: false)
             }
             HStack {
                 TimePill(time: "7:32", style: .slipped)

@@ -2,7 +2,7 @@ import XCTest
 @testable import TrainTimes
 
 /// TT-115: loading, stale, offline, future day, no direct trains and no direct connection. A train with no live status
-/// reads On time, and the status row says when the data is stale (D49); only offline keeps the grey Scheduled badge.
+/// reads Scheduled with a ring (D50), and the status row says when the data is stale or offline.
 @MainActor
 final class ScheduleStatesTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
@@ -24,7 +24,7 @@ final class ScheduleStatesTests: XCTestCase {
         let model = try await ScheduleViewModel.loadedFixture(minutesLater: 5)
         XCTAssertEqual(model.content, .timeline)
         XCTAssertEqual(model.freshnessMode(formatter), .stale(lastReported: "7:21 AM"))
-        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .onTime, count: 4))
+        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .scheduled, count: 4))
         XCTAssertEqual(model.statusRowMode(formatter), .stale(lastReported: "7:21 AM"))
         XCTAssertTrue(model.departures.allSatisfy { $0.expectedDeparture == nil }, "Cards move back to scheduled positions")
     }
@@ -34,9 +34,9 @@ final class ScheduleStatesTests: XCTestCase {
         XCTAssertEqual(model.content, .timeline)
         XCTAssertEqual(model.freshnessMode(formatter), .offline(lastUpdated: "6:52 AM"))
         let cards = model.cards(formatter)
-        XCTAssertEqual(cards.map(\.status), Array(repeating: .scheduled, count: 4), "Offline keeps the grey Scheduled badge")
+        XCTAssertEqual(cards.map(\.status), Array(repeating: .scheduled, count: 4), "Offline: Scheduled")
         XCTAssertEqual(model.statusRowMode(formatter), .offline(lastUpdated: "6:52 AM"))
-        XCTAssertEqual(Set(cards.map(\.platform)), ["Platform pending"])
+        XCTAssertEqual(Set(cards.map(\.platform)), ["Plat —"])
         XCTAssertNotNil(model.layout.nowY, "The Now line still follows the device clock")
         XCTAssertEqual(cards.first?.relativeTime, "in 11 min")
     }
@@ -45,7 +45,7 @@ final class ScheduleStatesTests: XCTestCase {
         let model = try await ScheduleViewModel.loadedFixture(dayIndex: 1)
         XCTAssertEqual(model.content, .timeline)
         XCTAssertEqual(model.freshnessMode(formatter), .scheduledOnly(day: "Fri, Nov 6"))
-        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .onTime, count: 4))
+        XCTAssertEqual(model.cards(formatter).map(\.status), Array(repeating: .scheduled, count: 4))
         XCTAssertNil(model.statusRowMode(formatter), "Timetable-only data says nothing in the status row")
         XCTAssertNil(model.layout.nowY)
         XCTAssertNil(model.nextDepartureId)
@@ -92,14 +92,14 @@ final class ScheduleStatesTests: XCTestCase {
         XCTAssertEqual(model.content, .noConnection)
     }
 
-    /// D13 still holds in the domain: only fresh live data for today resolves to On time. The cards' badge is a
-    /// presentation choice (D49) and reads On time without live data too, except offline.
+    /// D13: only fresh live data for today shows On time, in the domain and on the cards (D50).
     func testOnlyFreshLiveDataShowsOnTime() async throws {
         let stale = try await ScheduleViewModel.loadedFixture(minutesLater: 5)
         let offline = try await ScheduleViewModel.loadedFixture(.offline)
         let futureDay = try await ScheduleViewModel.loadedFixture(dayIndex: 1)
         for model in [stale, offline, futureDay] {
             XCTAssertFalse(model.departures.contains { $0.status == .onTime })
+            XCTAssertFalse(model.cards(formatter).contains { $0.status == .onTime })
         }
         let live = try await ScheduleViewModel.loadedFixture()
         XCTAssertTrue(live.departures.contains { $0.status == .onTime })

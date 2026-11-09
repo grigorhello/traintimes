@@ -92,15 +92,17 @@ final class ScheduleStatesTests: XCTestCase {
         XCTAssertEqual(model.content, .noConnection)
     }
 
-    /// Acceptance: no state ever shows an On time badge without fresh live data.
+    /// D13 still holds in the domain: only fresh live data for today resolves to On time. The cards' badge is a
+    /// presentation choice (D49) and reads On time without live data too, except offline.
     func testOnlyFreshLiveDataShowsOnTime() async throws {
         let stale = try await ScheduleViewModel.loadedFixture(minutesLater: 5)
         let offline = try await ScheduleViewModel.loadedFixture(.offline)
         let futureDay = try await ScheduleViewModel.loadedFixture(dayIndex: 1)
         for model in [stale, offline, futureDay] {
-            XCTAssertFalse(model.cards(formatter).contains { $0.status == .onTime })
+            XCTAssertFalse(model.departures.contains { $0.status == .onTime })
         }
         let live = try await ScheduleViewModel.loadedFixture()
+        XCTAssertTrue(live.departures.contains { $0.status == .onTime })
         XCTAssertTrue(live.cards(formatter).contains { $0.status == .onTime })
     }
 }

@@ -83,8 +83,9 @@ final class ScheduleViewModel {
         self.watchedTrips = watchedTrips
         let now = clock.now
         self.now = now
-        selectedDay = ServiceDay(calendarDayContaining: now)
-        knownToday = selectedDay
+        let day = ServiceDay(calendarDayContaining: now)
+        selectedDay = day
+        knownToday = day
         if let route { recents.record(route) }
     }
 

@@ -14,6 +14,7 @@ final class ScheduleScrollTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    @MainActor
     private func launch(mockTime: Int) -> XCUIApplication {
         let app = XCUIApplication.onFullDayFixture()
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.mockTime", "\(mockTime)"]
@@ -21,10 +22,12 @@ final class ScheduleScrollTests: XCTestCase {
         return app
     }
 
+    @MainActor
     private func card(_ app: XCUIApplication, _ time: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "schedule.card.LW-\(time)-20261105").firstMatch
     }
 
+    @MainActor
     private func waitUntilHittable(_ element: XCUIElement, _ message: String, timeout: TimeInterval = 15) {
         let done = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
         XCTAssertEqual(XCTWaiter().wait(for: [done], timeout: timeout), .completed, message)

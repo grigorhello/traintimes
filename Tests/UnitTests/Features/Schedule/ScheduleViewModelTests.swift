@@ -67,6 +67,24 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, scroll + 1, "The new day scrolls to Now")
     }
 
+    /// TT-158: when Mock time changes the clock, the timeline starts again on the new today and its present, as a relaunch would.
+    func testRestartMovesToTheNewTodayAndScrollsToNow() async throws {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleViewModelTests.self))
+        let clock = TestClock(now: repository.now)
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
+        await model.loadIfNeeded()
+        await model.select(model.days[3])
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 2 * 24 * 60)
+        await model.restart()
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: 2))
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.now, clock.now)
+        XCTAssertNotNil(model.layout.nowY)
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+    }
+
     /// On today the tab re-tap scrolls to the present again.
     func testBackToNowScrollsToThePresentOnToday() async throws {
         let model = try await ScheduleViewModel.loadedFixture()

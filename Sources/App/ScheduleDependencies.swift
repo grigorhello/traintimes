@@ -15,7 +15,7 @@ struct ScheduleDependencies {
         #if DEBUG
         if isFixtureRun(environment) {
             let scenario = environment["TT_FIXTURES"].flatMap { FixtureScheduleRepository.Scenario(rawValue: $0) } ?? .normal
-            return fixtures(scenario: scenario).withDemoTrains()
+            return fixtures(scenario: scenario).withTesting()
         }
         #endif
         let key = GTFSRealtimeStore.apiKey()
@@ -25,16 +25,20 @@ struct ScheduleDependencies {
             alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
         )
         let live = ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
-        return BuildChannel.showsTesting ? live.withDemoTrains() : live
+        return BuildChannel.showsTesting ? live.withTesting() : live
     }
 
-    /// The same schedule with Settings › Testing › Demo trains applied (D49), in TestFlight and Debug builds only; with the
-    /// setting off it changes nothing.
-    func withDemoTrains() -> ScheduleDependencies {
-        ScheduleDependencies(
-            repository: DemoScheduleRepository(base: repository, clock: clock, mode: { DemoTrains.stored }),
+    /// The same schedule with Settings › Testing applied, in TestFlight and Debug builds only: Demo trains (D49) and Mock
+    /// time (TT-158, D51). With both off it changes nothing. Every screen reads the returned clock, so Mock time reaches
+    /// Schedule, Trip details and Alerts alike.
+    func withTesting() -> ScheduleDependencies {
+        let mocked = MockTimeClock(base: clock)
+        return ScheduleDependencies(
+            repository: DemoScheduleRepository(
+                base: repository, clock: mocked, mode: { DemoTrains.stored }, isMockTime: { MockTime.stored != nil }
+            ),
             stations: stations,
-            clock: clock
+            clock: mocked
         )
     }
 

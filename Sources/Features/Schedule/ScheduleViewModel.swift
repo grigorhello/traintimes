@@ -321,6 +321,15 @@ final class ScheduleViewModel {
         requestScroll()
     }
 
+    /// The clock jumped (Mock time changed in Settings, TT-158): back to today and the present, as a relaunch would.
+    func restart() async {
+        selectedDay = today
+        now = clock.now
+        guard hasLoaded else { return }
+        await load()
+        requestScroll()
+    }
+
     /// "Show Monday" on a day with no direct trains.
     func showNextDayWithTrains() async {
         guard let nextDayWithTrains else { return }

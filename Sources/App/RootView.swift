@@ -50,7 +50,7 @@ struct RootView: View {
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
         // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
-        _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions))
+        _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock))
         _routeForm = State(
             initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, recents: schedule.recents)
         )
@@ -156,6 +156,8 @@ struct RootView: View {
         .environment(\.timeFormatter, settings.timeFormatter)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
+        // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
+        .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
         // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
         // review and notifications may have arrived (TT-143).

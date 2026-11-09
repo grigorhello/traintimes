@@ -28,6 +28,11 @@ final class AppSettings {
         didSet { defaults.set(demoTrains.rawValue, forKey: DemoTrains.key) }
     }
 
+    /// Settings › Testing › Mock time (TT-158, D51), shown in TestFlight and Debug builds only; nil is the real time.
+    var mockTime: MockTimeSetting? {
+        didSet { MockTime.write(mockTime, to: defaults) }
+    }
+
     /// The one formatter (D17), following the Time format setting.
     var timeFormatter: TimeFormatter { TimeFormatter(format: timeFormat) }
 
@@ -38,5 +43,6 @@ final class AppSettings {
         appearance = defaults.string(forKey: Self.appearanceKey).flatMap(Appearance.init(rawValue:)) ?? .system
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
+        mockTime = MockTime.read(from: defaults)
     }
 }

@@ -55,6 +55,19 @@ final class DemoScheduleRepositoryTests: XCTestCase {
         XCTAssertEqual(live.updates[trips[1].key.tripId]?.isCancelled, true)
     }
 
+    /// TT-158: live status belongs to the real clock, so with Mock time on and Demo trains off there is none; Demo trains
+    /// still works on the mocked clock.
+    func testMockTimeLeavesNoRealLiveStatus() async throws {
+        let base = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let clock = FixedClock(now: base.now)
+        let mocked = DemoScheduleRepository(base: base, clock: clock, mode: { .off }, isMockTime: { true })
+        let live = try await mocked.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertEqual(live, .empty)
+        let delays = DemoScheduleRepository(base: base, clock: clock, mode: { .delays }, isMockTime: { true })
+        let delayed = try await delays.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertFalse(delayed.updates.isEmpty)
+    }
+
     func testDelaysAddsALineNotice() async throws {
         let (repository, base) = try demo(.delays)
         let notices = try await repository.lineNotices(for: try XCTUnwrap(base.route.line))

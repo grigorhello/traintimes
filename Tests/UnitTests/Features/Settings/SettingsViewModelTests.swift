@@ -56,6 +56,33 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(makeModel().showsTesting, "The App Store build has no Testing section")
     }
 
+    /// TT-158: Mock time starts from the app's current time, keeps the picker's value, and Use real time clears it.
+    func testMockTimeStartsFromTheClockAndPresetsKeepThePickersDate() throws {
+        // 7:21 AM in Toronto on Thu Nov 5 2026 (EST).
+        let now = Date(timeIntervalSince1970: 1_793_881_260)
+        let settings = AppSettings(defaults: .ephemeral())
+        let model = SettingsViewModel(
+            settings: settings, permissions: FakeNotificationPermission(.allowed), appInfo: AppInfo(version: "1.0", build: "1"),
+            showsTesting: true, clock: FixedClock(now: now)
+        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        XCTAssertFalse(model.isMockTimeOn)
+        model.isMockTimeOn = true
+        XCTAssertTrue(model.isMockTimeOn)
+        XCTAssertEqual(settings.mockTime?.start, now)
+
+        for (preset, time) in [(MockTimePreset.early, "5:00 AM"), (.late, "11:45 PM"), (.dayChange, "11:58 PM")] {
+            model.chooseMockTime(preset)
+            XCTAssertEqual(TimeFormatter(format: .twelveHour).time(model.mockTimeStart), time)
+            XCTAssertEqual(calendar.component(.day, from: model.mockTimeStart), 5, "Still the picker's date")
+        }
+
+        model.useRealTime()
+        XCTAssertFalse(model.isMockTimeOn)
+        XCTAssertNil(settings.mockTime)
+    }
+
     func testVersionLine() {
         XCTAssertEqual(makeModel().versionLine, "Version 1.0 (1) · Your next GO train, at a glance.")
     }

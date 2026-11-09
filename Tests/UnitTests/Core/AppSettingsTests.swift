@@ -13,6 +13,17 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.appearance, .system)
         XCTAssertEqual(settings.timeFormat, .device)
         XCTAssertEqual(settings.demoTrains, .off)
+        XCTAssertNil(settings.mockTime, "Real time unless Mock time is on (TT-158)")
+    }
+
+    func testMockTimeIsStoredOnDevice() {
+        let defaults = UserDefaults.ephemeral()
+        let setting = MockTimeSetting(start: evening, setAt: Date(timeIntervalSince1970: 1_000_000_000))
+        AppSettings(defaults: defaults).mockTime = setting
+        XCTAssertEqual(AppSettings(defaults: defaults).mockTime, setting)
+        let settings = AppSettings(defaults: defaults)
+        settings.mockTime = nil
+        XCTAssertNil(AppSettings(defaults: defaults).mockTime)
     }
 
     func testChoicesAreStoredOnDevice() {

@@ -45,7 +45,7 @@ final class TripDetailsViewModelTests: XCTestCase {
     func testNoEstimateShowsOnlyScheduledValues() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0821-20261105")
         let details = try XCTUnwrap(model.details(formatter))
-        XCTAssertEqual(details.status, .onTime, "No live status: On time, as on the card (D49)")
+        XCTAssertEqual(details.status, .scheduled, "No live status: Scheduled, as on the card (D50)")
         XCTAssertNil(details.liveDeparture)
         XCTAssertNil(details.estimatedArrival)
         XCTAssertEqual(details.scheduledArrival, "9:01 AM")
@@ -55,11 +55,11 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.stops.last?.time, "9:01 AM")
     }
 
-    /// Stale live data drops every estimate (D13): the badge falls back to On time (D49) and the stops show scheduled times.
+    /// Stale live data drops every estimate (D13): the badge falls back to Scheduled (D50) and the stops show scheduled times.
     func testStaleDataShowsNoEstimates() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(.delayed, minutesLater: 5)
         let details = try XCTUnwrap(model.details(formatter))
-        XCTAssertEqual(details.status, .onTime)
+        XCTAssertEqual(details.status, .scheduled)
         XCTAssertNil(details.liveDeparture)
         XCTAssertNil(details.estimatedArrival)
         XCTAssertEqual(details.stopsHeader, "Scheduled")

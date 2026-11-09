@@ -14,14 +14,18 @@ final class TimelineCardsTests: XCTestCase {
         let next = cards[0]
         XCTAssertEqual(next.relativeTime, "in 11 min")
         XCTAssertEqual(next.status, .onTime)
-        XCTAssertEqual(next.arrivalLabel, "Arrival")
         XCTAssertEqual(next.arrivalTime, "8:12 AM")
-        XCTAssertEqual(next.platform, "Platform 2")
+        XCTAssertEqual(next.tripLength, "40 min")
+        XCTAssertEqual(next.platform, "Plat 2")
+        XCTAssertEqual(next.platformValue, "2")
+        XCTAssertTrue(next.hasPlatform)
+        XCTAssertFalse(next.isExpress)
 
         XCTAssertNil(cards[1].relativeTime, "No other card shows a relative time")
-        XCTAssertEqual(cards[1].platform, "Platform pending")
-        XCTAssertEqual(cards[1].tags, [.express], "Only verified tags; the canvas's Bike coach is a placeholder")
-        XCTAssertEqual(cards[2].status, .onTime, "No live data for this trip: the timetable is the promise, so On time (D49)")
+        XCTAssertEqual(cards[1].platform, "Plat —", "The slot holds a dash until GO publishes the platform")
+        XCTAssertFalse(cards[1].hasPlatform)
+        XCTAssertTrue(cards[1].isExpress, "Express from the stopping-pattern rule (D35)")
+        XCTAssertEqual(cards[2].status, .scheduled, "No live data for this trip: Scheduled, never On time (D50)")
     }
 
     func testNextTrainMovesOnOnceItsTimePasses() async throws {
@@ -63,11 +67,11 @@ final class TimelineCardsTests: XCTestCase {
         let card = try XCTUnwrap(model.cards(formatter).first)
         XCTAssertEqual(card.id.tripId, "LW-0732-20261105")
         XCTAssertTrue(card.isNext)
-        XCTAssertEqual(card.time, "7:41 AM")
-        XCTAssertEqual(card.scheduledTime, "Scheduled 7:32 AM")
+        XCTAssertEqual(card.time, "7:41 AM", "Only the expected time; the scheduled one is in Trip details (D50)")
         XCTAssertEqual(card.status, .delayed(minutes: 9))
-        XCTAssertEqual(card.arrivalLabel, "Est. arrival")
+        XCTAssertTrue(card.isDelayed)
         XCTAssertEqual(card.arrivalTime, "8:21 AM")
+        XCTAssertEqual(card.tripLength, "40 min", "Arrival minus departure of the shown times")
         XCTAssertEqual(card.relativeTime, "in 20 min")
         XCTAssertFalse(card.isCancelled)
 
@@ -76,7 +80,7 @@ final class TimelineCardsTests: XCTestCase {
         let nowY = try XCTUnwrap(model.layout.nowY)
         XCTAssertEqual(bar.upperBound - bar.lowerBound, 9 * TTTimeline.pointsPerMinute, accuracy: 0.001)
         XCTAssertEqual(place.markerY - nowY, 20 * TTTimeline.pointsPerMinute, accuracy: 0.001)
-        XCTAssertNil(model.cards(formatter)[1].scheduledTime, "On-time trains have no slip")
+        XCTAssertFalse(model.cards(formatter)[1].isDelayed)
     }
 
     /// The clock passing the scheduled time is not evidence of departure: the delayed train stays the lead.
@@ -102,7 +106,6 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(cancelled.time, "7:32 AM", "Keeps its scheduled slot")
         XCTAssertFalse(cancelled.isNext)
         XCTAssertEqual(cancelled.note, "Next usable below")
-        XCTAssertNil(cancelled.scheduledTime)
         XCTAssertNil(cancelled.relativeTime)
         XCTAssertTrue(cards[1].isNext)
         XCTAssertNil(cards[1].note)
@@ -121,7 +124,7 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(cards[1].note, "Next usable below")
     }
 
-    func testAnotherDayHasNoNextTrainAndOnTimeBadgesOnly() async throws {
+    func testAnotherDayHasNoNextTrainAndScheduledOnly() async throws {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: TimelineCardsTests.self))
         let wednesday = repository.now.addingTimeInterval(-24 * 60 * 60)
         let model = ScheduleViewModel(route: repository.route, repository: repository, clock: FixedClock(now: wednesday))
@@ -130,7 +133,7 @@ final class TimelineCardsTests: XCTestCase {
         let cards = model.cards(formatter)
         XCTAssertEqual(cards.count, 4)
         XCTAssertNil(model.nextDepartureId)
-        XCTAssertTrue(cards.allSatisfy { !$0.isNext && $0.relativeTime == nil && $0.status == .onTime })
+        XCTAssertTrue(cards.allSatisfy { !$0.isNext && $0.relativeTime == nil && $0.status == .scheduled })
     }
 
     func testTimesFollowTheTimeFormat() async throws {

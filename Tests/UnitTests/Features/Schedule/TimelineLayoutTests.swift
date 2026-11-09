@@ -69,7 +69,9 @@ final class TimelineLayoutTests: XCTestCase {
         let trips = try await repo.trips(for: repo.route, on: repo.serviceDay)
         let live = try await repo.liveStatus(for: repo.route, on: repo.serviceDay)
         let departures = Departure.resolve(trips, live: live, freshness: Freshness(live, now: repo.now), isToday: true)
-        let result = layout(departures, now: repo.now)
+        // Short cards, so no card stretches the rail before the pill (testFoldPillClearsATallCardAbove covers that).
+        let short = TimelineCardSize(height: 98, anchor: 33)
+        let result = layout(departures, now: repo.now, sizes: Dictionary(uniqueKeysWithValues: departures.map { ($0.id, short) }))
 
         XCTAssertEqual(result.folds.count, 1)
         let fold = try XCTUnwrap(result.folds.first)

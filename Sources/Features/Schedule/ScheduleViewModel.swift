@@ -139,7 +139,7 @@ final class ScheduleViewModel {
             let departure = departures[index]
             let usableBelow = departures[(index + 1)...].contains { $0.isUsable }
             return DepartureCard(
-                departure, isNext: departure.id == next, nextUsableBelow: usableBelow, isOffline: isOffline, now: now,
+                departure, isNext: departure.id == next, nextUsableBelow: usableBelow, now: now,
                 formatter: formatter
             )
         }
@@ -205,12 +205,6 @@ final class ScheduleViewModel {
         case .loading, .stale, .offline: return mode
         case .live, .scheduledOnly: return nil
         }
-    }
-
-    /// Offline: the cards keep the grey "Scheduled" badge instead of "On time" (D49).
-    private var isOffline: Bool {
-        if case .offline? = freshness { return true }
-        return false
     }
 
     /// The freshness line (D14), with times from the one formatter. "Loading timetable" until the first load.

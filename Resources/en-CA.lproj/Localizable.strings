@@ -39,9 +39,13 @@
 "schedule.scheduled_arrival" = "Scheduled arrival";
 "schedule.arrival" = "Arrival";
 "schedule.est_arrival" = "Est. arrival";
-"schedule.scheduled_time" = "Scheduled %@";
 "schedule.platform" = "Platform %@";
 "schedule.platform_pending" = "Platform pending";
+"schedule.platform_short" = "Plat %@";
+"schedule.platform_placeholder" = "—";
+"schedule.trip_minutes" = "%d min";
+"schedule.trip_hours" = "%d h";
+"schedule.trip_hours_minutes" = "%d h %d min";
 "schedule.in_minutes" = "in %d min";
 "schedule.departing" = "Departing";
 "schedule.minutes_ago" = "%d min";

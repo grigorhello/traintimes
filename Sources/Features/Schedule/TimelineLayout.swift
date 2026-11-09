@@ -7,8 +7,8 @@ struct TimelineCardSize: Hashable, Sendable {
     /// From the card's top to the centre of its departure time line, which is centred on the marker.
     var anchor: CGFloat
 
-    /// A card with one badge row, as on the canvas: 14 pt padding, a 38 pt time line, then the badge row.
-    static let standard = TimelineCardSize(height: 98, anchor: 33)
+    /// Every card (D50): 14 pt padding, a 38 pt time row, a 20 pt and a 24 pt row 4 pt apart, 14 pt padding.
+    static let standard = TimelineCardSize(height: 118, anchor: 33)
 }
 
 /// Everything the timeline layout reads. The same input always gives the same layout.

@@ -173,8 +173,9 @@ final class ScheduleViewModel {
         settleIfMeasured()
     }
 
-    /// A scroll request, then a second one without animation once every card has its measured size (D49): the first
-    /// scroll ran before the cards were measured, so the Now line has moved since.
+    /// A scroll request, then another once every card has its measured size (D49): the first scroll ran before the cards
+    /// were measured, so the Now line has moved since. The view makes the launch's second scroll without animation and
+    /// later ones with.
     private func requestScroll() {
         scrollRequest += 1
         awaitsMeasurement = !departures.allSatisfy { cardSizes[$0.id] != nil }

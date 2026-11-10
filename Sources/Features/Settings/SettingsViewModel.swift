@@ -84,12 +84,13 @@ final class SettingsViewModel {
         return calendar.isDate(a, equalTo: b, toGranularity: .minute)
     }
 
-    /// A quick choice: the picker's date at the preset's time.
+    /// A quick choice: the picker's date at the preset's time. Always a fresh choice, even for the minute already set, so
+    /// "Just before midnight" can be tapped again to run the day change again.
     func chooseMockTime(_ preset: MockTimePreset) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = goTimeZone
         let moment = calendar.date(bySettingHour: preset.hour, minute: preset.minute, second: 0, of: mockTimeStart)
-        mockTimeStart = moment ?? mockTimeStart
+        settings.mockTime = MockTimeSetting(start: moment ?? mockTimeStart, setAt: Date())
     }
 
     /// "Use real time".

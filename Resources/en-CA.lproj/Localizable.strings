@@ -40,6 +40,7 @@
 "schedule.arrival" = "Arrival";
 "schedule.est_arrival" = "Est. arrival";
 "schedule.platform" = "Platform %@";
+"schedule.platform_pending" = "Platform pending";
 "schedule.platform_short" = "Plat %@";
 "schedule.platform_label" = "Plat";
 "schedule.platform_placeholder" = "—";

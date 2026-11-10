@@ -249,7 +249,7 @@ struct ScheduleView: View {
                     withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(anchor, anchor: .top) }
                 }
             }
-            // The cards are measured after the first scroll, which moves Now: scroll again, without animation (D49).
+            // The cards are measured after the first scroll, which moves Now: scroll again (D49).
             .onChange(of: viewModel.settleRequest) {
                 settle(proxy)
             }

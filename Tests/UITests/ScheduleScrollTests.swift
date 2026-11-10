@@ -17,7 +17,8 @@ final class ScheduleScrollTests: XCTestCase {
     @MainActor
     private func launch(mockTime: Int) -> XCUIApplication {
         let app = XCUIApplication.onFullDayFixture()
-        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.mockTime", "\(mockTime)"]
+        // Mock time set by hand on this simulator would leave a "set at" moment that skews the clock: zero it.
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.mockTime", "\(mockTime)", "-settings.mockTimeSetAt", "0"]
         app.launch()
         return app
     }

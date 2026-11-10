@@ -126,6 +126,21 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, scroll, "No scroll: the rider did not move")
     }
 
+    /// TT-159: a rider left on a later day while the app sat in memory for days: when that day is already past it is no
+    /// longer in the strip, so they land on Today (the old D30 behaviour).
+    func testADayThatHasDroppedOutOfTheStripMovesToToday() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        await model.select(thursday.adding(days: 2))
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 2 * 24 * 60 + 3)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: 3))
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+    }
+
     /// TT-159: the day that has just become Today, if the rider was already looking at it, turns into Today with Now.
     func testMidnightOnTomorrowsTimelineMakesItToday() async throws {
         let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))

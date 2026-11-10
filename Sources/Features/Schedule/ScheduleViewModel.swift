@@ -42,10 +42,11 @@ final class ScheduleViewModel {
     /// A refresh never bumps it, so pull to refresh keeps the scroll position.
     private(set) var scrollRequest = 0
     /// Bumped once, after a scroll request, when every card has been measured and the layout has settled: the view
-    /// scrolls again without animation, because the first scroll ran on estimated card sizes (D49).
+    /// scrolls again (without animation on the launch's request, animated after it), because the first scroll ran on
+    /// estimated card sizes (D49).
     private(set) var settleRequest = 0
-    /// Bumped twice, a moment after a scroll request: the view scrolls again without animation, in case the first scroll
-    /// ran before the content was laid out, as when the timeline had just replaced the loading skeleton (TT-159, D52).
+    /// Bumped twice, a moment after a scroll request: the view scrolls again (as `settleRequest` does), in case the first
+    /// scroll ran before the content was laid out, as when the timeline had just replaced the loading skeleton (TT-159, D52).
     private(set) var rescrollRequest = 0
     /// A scroll request is waiting for the cards to be measured.
     @ObservationIgnored private var awaitsMeasurement = false
@@ -218,13 +219,13 @@ final class ScheduleViewModel {
         }
     }
 
-    /// Midnight passed while the screen stayed open (TT-159, D52): a rider looking at Today, or at the day that has just
-    /// become Today, moves to the new Today from its top (Now is the first thing on it), as a relaunch would, and the strip
-    /// selects it. A rider browsing another day stays there; the strip only shifts by one.
+    /// The day changed while the screen stayed open (TT-159, D52): a rider looking at Today, at the day that has just become
+    /// Today, or at a day that has dropped out of the strip, moves to the new Today from its top (Now is the first thing on
+    /// it), as a relaunch would, and the strip selects it. A rider browsing a later day stays there; the strip only shifts.
     func rollOverIfNeeded() async {
         let current = today
         guard current != knownToday else { return }
-        let followsToday = selectedDay == knownToday || selectedDay == current
+        let followsToday = selectedDay <= current
         knownToday = current
         now = clock.now
         guard followsToday else {

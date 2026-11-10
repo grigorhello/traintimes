@@ -53,6 +53,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.demoTrains, .off)
         model.demoTrains = .offline
         XCTAssertEqual(settings.demoTrains, .offline)
+        model.demoTrains = .awaitingPlatform
+        XCTAssertEqual(settings.demoTrains, .awaitingPlatform)
         XCTAssertFalse(makeModel().showsTesting, "The App Store build has no Testing section")
     }
 

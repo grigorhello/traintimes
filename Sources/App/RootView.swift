@@ -3,14 +3,14 @@ import SwiftUI
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
 /// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
-/// records them and lists them in its station picker (D48, D53). Applies the Appearance setting and puts the one time formatter in the
+/// records them and lists them in its station picker (D48, D54). Applies the Appearance setting and puts the one time formatter in the
 /// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
     @State private var settings: AppSettings
     @State private var settingsModel: SettingsViewModel
-    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D53).
+    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D54).
     @State private var routeForm: RouteFormViewModel
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?

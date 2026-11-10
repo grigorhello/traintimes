@@ -3,7 +3,7 @@ import Observation
 
 /// The routes the rider opened last, newest first, kept on device (D48). Each direction is its own entry, and opening a
 /// route again moves it to the top. The station picker lists them under "Recent" on Schedule, leaving out the route on
-/// screen, and their stations make up Your stations (D53). The last route is also stored on its own (`RouteStoring`) so a
+/// screen, and their stations make up Your stations (D54). The last route is also stored on its own (`RouteStoring`) so a
 /// relaunch opens it. Nothing is sent to a server (D5).
 ///
 /// One instance is shared by Schedule, which records each route it shows, and the station picker.

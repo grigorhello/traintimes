@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// A station row of the route card while it is the search field (TT-161, D53). It looks like the row: the typed text in
+/// A station row of the route card while it is the search field (TT-161, D54). It looks like the row: the typed text in
 /// headline, an accent cursor, and nothing else, no capsule and no search glyph. It takes the keyboard as soon as it is on
 /// screen. On Schedule the current station stays in the row as a hint, in the same headline but ink-tertiary, and the first
 /// keystroke replaces it: nothing is selected, so no selection handles (Grigor, 2026-11-10).

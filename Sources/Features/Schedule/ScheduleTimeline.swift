@@ -36,13 +36,15 @@ struct ScheduleTimeline: View {
                 rail(layout)
                 delayBars(cards, places)
                 connectors(cards, places)
+                // The Now line runs behind the cards; its dot and label stay on the rail, above the markers.
+                if let nowY = layout.nowY { nowRule(at: nowY) }
             }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
             cardViews(cards, places)
             Group {
                 markers(cards, places)
-                if let nowY = layout.nowY { nowLine(at: nowY) }
+                if let nowY = layout.nowY { nowMarker(at: nowY) }
             }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
@@ -193,14 +195,18 @@ struct ScheduleTimeline: View {
             .frame(width: Self.markerSize, height: Self.markerSize)
     }
 
-    /// 2 pt accent line across the timeline with a dot on the rail and "Now" in the label column.
-    @ViewBuilder private func nowLine(at y: CGFloat) -> some View {
+    /// The 2 pt accent line across the timeline, under the cards (a dot on the rail and "Now" in the label column mark it).
+    private func nowRule(at y: CGFloat) -> some View {
         Rectangle()
             .fill(TTColor.accent)
             .frame(height: Self.railWidth)
             .padding(.leading, Self.railX)
             .padding(.trailing, TTSpace.s5)
             .centred(y: y)
+    }
+
+    /// The Now dot on the rail and the "Now" label.
+    @ViewBuilder private func nowMarker(at y: CGFloat) -> some View {
         Circle()
             .fill(TTColor.accent)
             .frame(width: Self.nowDot, height: Self.nowDot)

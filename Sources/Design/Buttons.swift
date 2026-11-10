@@ -15,7 +15,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// "Show trains" on the route form (TT-161, D53): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
+/// "Show trains" on the route form (TT-161, D54): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
 /// it. Disabled is the same grey pill as `.ttPrimary`.
 struct GlassPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

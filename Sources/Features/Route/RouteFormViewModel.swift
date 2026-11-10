@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The model behind the inline station picker (TT-161, D53): From and To, swap, and "Show trains" once both are set and
+/// The model behind the inline station picker (TT-161, D54): From and To, swap, and "Show trains" once both are set and
 /// different. The first screen on first launch uses it, and Schedule makes one each time the rider taps a station in its
 /// route card. Tapping a station row makes it the search field and unfolds suggestions under the card: Recent routes
 /// (Schedule only, before typing), Your stations, then All stations, filtered by `query`.

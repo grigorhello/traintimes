@@ -50,7 +50,7 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertNil(route)
     }
 
-    /// Schedule (D53): the picker opens over the route on screen, and one pick completes the route and applies at once.
+    /// Schedule (D54): the picker opens over the route on screen, and one pick completes the route and applies at once.
     func testSchedulePickAppliesAtOnce() async throws {
         let model = try await model(Route(from: oakville, to: union, line: nil))
         XCTAssertTrue(model.appliesAtOnce)
@@ -107,7 +107,7 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(route?.line?.name, "Lakeshore West", "The line serves both directions")
     }
 
-    /// D48, D53: Recent lists the routes opened last, newest first, without the route on screen; Schedule only, and
+    /// D48, D54: Recent lists the routes opened last, newest first, without the route on screen; Schedule only, and
     /// gone once the rider types.
     func testRecentIsScheduleOnlyAndHidesWhileTyping() async throws {
         let there = Route(from: oakville, to: union, line: nil)

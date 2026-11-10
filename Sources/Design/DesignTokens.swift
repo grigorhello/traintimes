@@ -64,8 +64,8 @@ enum TTFont {
     static let badgeLarge = Font.system(size: 15, weight: .semibold)                          // status line on a timeline card (D50)
     static let lineName   = Font.system(size: 26, weight: .bold)                              // the line above the route card
     static let lineCode   = Font.system(size: 13, weight: .bold)                              // the code in the line tile
-    static let lineCodeSmall = Font.system(size: 10, weight: .bold)                           // the code in the picker's 26 pt line tile (D53)
-    static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D53)
+    static let lineCodeSmall = Font.system(size: 10, weight: .bold)                           // the code in the picker's 26 pt line tile (D54)
+    static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D54)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }
 

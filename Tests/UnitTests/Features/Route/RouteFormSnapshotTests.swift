@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The inline station picker (TT-161, D53, D54) against design/frames/route-picker.png, route-pick-from.png,
+/// The inline station picker (TT-161, D54) against design/frames/route-picker.png, route-pick-from.png,
 /// route-pick-to.png and schedule-pick.png, light and dark: first use closed, picking From with nothing typed, picking To
 /// with "un" typed, and Schedule changing the destination in place (Recent, Your stations with the greyed row). The
 /// keyboard is not drawn; a safe area of its height stands in for it, so the panel ends where it does on the simulator.

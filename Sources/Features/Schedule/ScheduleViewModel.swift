@@ -11,6 +11,8 @@ final class ScheduleViewModel {
     static let dayCount = 14
     /// Today plus 41 days at most; the strip covers every day to the schedule's last service day (Q6, D35, D49).
     static let maxDayCount = 42
+    /// Days before Today the strip also shows, to its left (TT-160, D53).
+    static let pastDayCount = 7
     /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
     static let livePollInterval: Duration = .seconds(30)
     /// The watched-trip strip stays this long after the train's arrival (TT-144).
@@ -55,7 +57,7 @@ final class ScheduleViewModel {
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
-    /// Each route shown is recorded first (D48); the station picker lists the others under Recent (D53).
+    /// Each route shown is recorded first (D48); the station picker lists the others under Recent (D54).
     let recents: RecentRoutes
     private let dismissedNotices: DismissedNotices
     /// The trips with an alert, for the watched-trip strip (TT-144).
@@ -101,6 +103,17 @@ final class ScheduleViewModel {
         let count = lastServiceDay == nil ? Self.dayCount : Self.maxDayCount
         let later = (1..<count).map { first.adding(days: $0) }
         return [first] + later.filter { day in lastServiceDay.map { day <= $0 } ?? true }
+    }
+    /// The previous 7 days, oldest first: the strip shows them to the left of Today (TT-160, D53).
+    var pastDays: [ServiceDay] {
+        let first = today
+        return (1...Self.pastDayCount).reversed().map { first.adding(days: -$0) }
+    }
+    /// Everything the strip shows: `pastDays`, then `days`.
+    var stripDays: [ServiceDay] { pastDays + days }
+    /// A day's place in the strip counted from Today: 0 is Today, 1 tomorrow, -1 yesterday. Nil for a day the strip lacks.
+    func stripIndex(of day: ServiceDay) -> Int? {
+        stripDays.firstIndex(of: day).map { $0 - Self.pastDayCount }
     }
 
     /// "Oakville to Union".
@@ -220,13 +233,16 @@ final class ScheduleViewModel {
         }
     }
 
-    /// The day changed while the screen stayed open (TT-159, D52): a rider looking at Today, at the day that has just become
-    /// Today, or at a day that has dropped out of the strip, moves to the new Today from its top (Now is the first thing on
-    /// it), as a relaunch would, and the strip selects it. A rider browsing a later day stays there; the strip only shifts.
+    /// The day changed while the screen stayed open (TT-159, D52, D53): a rider looking at Today, at a later day that has
+    /// become Today or past since they chose it, or at a day that has dropped out of the strip, moves to the new Today from
+    /// its top (Now is the first thing on it), as a relaunch would, and the strip selects it. A rider browsing a later day,
+    /// or a past day they chose on purpose, stays there; the strip only shifts.
     func rollOverIfNeeded() async {
         let current = today
         guard current != knownToday else { return }
-        let followsToday = selectedDay <= current
+        let previous = knownToday
+        let followsToday = (previous <= selectedDay && selectedDay <= current)
+            || selectedDay < current.adding(days: -Self.pastDayCount)
         knownToday = current
         now = clock.now
         guard followsToday else {

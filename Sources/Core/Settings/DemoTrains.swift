@@ -7,6 +7,9 @@ enum DemoTrains: String, CaseIterable, Sendable {
     case delays
     /// The cached timetable as if there were no connection.
     case offline
+    /// The next train leaves in 8 min and its platform is not posted yet, on a feed that posts platforms: the card's
+    /// pulsing placeholder (TT-162, D55).
+    case awaitingPlatform
 
     static let key = "settings.demoTrains"
 

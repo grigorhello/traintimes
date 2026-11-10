@@ -32,6 +32,29 @@ final class ScheduleTests: XCTestCase {
         XCTAssertFalse(sunday.isSelected)
     }
 
+    /// TT-162: Demo trains › Platform has the next train leave in 8 min with no platform posted. Its card shows the pill,
+    /// which the card's one accessibility element reads as "Platform pending"; the later cards keep the dash.
+    @MainActor
+    func testAwaitingPlatformShowsThePillOnTheNextCardOnly() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "awaitingPlatform"]
+        app.launch()
+
+        func card(_ tripId: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: "schedule.card.\(tripId)").firstMatch
+        }
+        let next = card("LW-0732-20261105")
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        XCTAssertTrue(next.label.contains("in 8 min"), next.label)
+        XCTAssertTrue(next.label.contains("Platform pending"), next.label)
+        XCTAssertFalse(next.label.contains("Plat —"), next.label)
+
+        let later = card("LW-0758-20261105")
+        XCTAssertTrue(later.waitForExistence(timeout: 5))
+        XCTAssertTrue(later.label.contains("Plat —"), later.label)
+        XCTAssertFalse(later.label.contains("Platform pending"), later.label)
+    }
+
     /// TT-160: the strip opens at Today, the past week is a swipe to the right, and yesterday opens like any other day.
     @MainActor
     func testStripOpensAtTodayAndYesterdayIsASwipeAway() {

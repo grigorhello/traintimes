@@ -118,7 +118,7 @@ struct SettingsNotificationsPage: View {
         case .notAsked: TTColor.surfaceRaised
         }
         return Image(systemName: "bell.fill")
-            .font(.system(size: TTSize.iconMD))
+            .font(.system(size: TTSize.iconSM))
             .foregroundStyle(ink)
             .settingsBellSwing(trigger: swings)
             .frame(width: TTSize.targetMin, height: TTSize.targetMin)

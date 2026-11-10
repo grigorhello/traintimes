@@ -26,7 +26,8 @@ final class TripDetailsSnapshotTests: XCTestCase {
         let view = TripDetailsView(viewModel: model, startsAtEnd: startsAtEnd)
             .environment(\.timeFormatter, TimeFormatter(format: .twelveHour))
         layOutOnce(view)
-        assertSnapshot(
+        // The whole failure message on one line, so the CI log shows how far the image is from the reference.
+        let failure = verifySnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
@@ -35,8 +36,12 @@ final class TripDetailsSnapshotTests: XCTestCase {
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
             ),
+            file: #filePath,
             testName: testName,
             line: line
         )
+        if let failure {
+            XCTFail(failure.replacingOccurrences(of: "\n", with: " | "), line: line)
+        }
     }
 }

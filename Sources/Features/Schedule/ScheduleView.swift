@@ -26,6 +26,11 @@ struct ScheduleView: View {
     @State private var stripPosition: Int?
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
+    /// The latest ask to scroll the timeline, carried out by `ScrollOffsetSetter`.
+    @State private var scrollOrder = ScrollOrder()
+    #if DEBUG
+    @State private var scrollTrace = ""
+    #endif
 
     var body: some View {
         timeline
@@ -33,6 +38,15 @@ struct ScheduleView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
             .overlay(alignment: .bottom) { alertToast }
+            #if DEBUG
+            .overlay(alignment: .topLeading) {
+                Color.clear.frame(width: 2, height: 2)
+                    .accessibilityElement()
+                    .accessibilityLabel(scrollTrace)
+                    .accessibilityIdentifier("schedule.scrollTrace")
+                    .allowsHitTesting(false)
+            }
+            #endif
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
             // A light haptic when an alert turns on (TT-141).
@@ -204,76 +218,70 @@ struct ScheduleView: View {
 
     // MARK: Timeline
 
-    private enum TimelineAnchor: Hashable {
-        case top, now
-    }
-
     /// The to-scale timeline (TT-111 layout, TT-113 drawing), its loading skeleton, or an empty state card (TT-115).
     /// One scroll view holds them all, so a scroll request still lands when the content changes with it. It scrolls under
     /// the tab bar, with the bottom edge softened by the system on iOS 26 and later.
     private var timeline: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                Group {
-                    switch viewModel.content {
-                    case .loading:
-                        ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
-                    case .timeline:
-                        ZStack(alignment: .top) {
-                            ScheduleTimeline(
-                                viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
-                            )
-                            Color.clear
-                                .frame(height: 1)
-                                .id(TimelineAnchor.top)
-                            Color.clear
-                                .frame(height: 1)
-                                .id(TimelineAnchor.now)
-                                .padding(.top, viewModel.layout.initialScrollOffset)
-                        }
-                    case .noTrains(let title, let message, let showDay):
-                        noTrains(title: title, message: message, showDay: showDay)
-                    case .noConnection:
-                        noConnection
-                    }
+        ScrollView {
+            Group {
+                switch viewModel.content {
+                case .loading:
+                    ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
+                case .timeline:
+                    ScheduleTimeline(
+                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
+                    )
+                    .background(
+                        ScrollOffsetSetter(
+                            offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder, report: scrollReport
+                        )
+                    )
+                case .noTrains(let title, let message, let showDay):
+                    noTrains(title: title, message: message, showDay: showDay)
+                case .noConnection:
+                    noConnection
                 }
             }
-            .softBottomEdge()
-            .refreshable { await viewModel.refresh() }
-            .onChange(of: viewModel.scrollRequest) { previous, _ in
-                riderScrolled = false
-                let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
-                if previous == 0 {
-                    proxy.scrollTo(anchor, anchor: .top)
-                } else {
-                    withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(anchor, anchor: .top) }
-                }
-            }
-            // The cards are measured after the first scroll, which moves Now: scroll again (D49).
-            .onChange(of: viewModel.settleRequest) {
-                settle(proxy)
-            }
-            // And again a moment after the request, when the content was not laid out yet at the first scroll (D52).
-            .onChange(of: viewModel.rescrollRequest) {
-                settle(proxy)
-            }
-            .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
-                if !riderScrolled { riderScrolled = true }
-            })
-            .accessibilityIdentifier("schedule.timeline")
         }
+        .softBottomEdge()
+        .refreshable { await viewModel.refresh() }
+        .onChange(of: viewModel.scrollRequest) { previous, _ in
+            riderScrolled = false
+            scroll(animated: previous != 0)
+        }
+        // The cards are measured after the first scroll, which moves Now: scroll again (D49).
+        .onChange(of: viewModel.settleRequest) {
+            settle()
+        }
+        // And again a moment after the request, when the content was not laid out yet at the first scroll (D52).
+        .onChange(of: viewModel.rescrollRequest) {
+            settle()
+        }
+        .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
+            if !riderScrolled { riderScrolled = true }
+        })
+        .accessibilityIdentifier("schedule.timeline")
+    }
+
+    /// Today shows Now near the top, another day its first train: `ScrollOffsetSetter` moves the scroll view there.
+    private func scroll(animated: Bool) {
+        scrollOrder = ScrollOrder(token: scrollOrder.token + 1, animated: animated)
     }
 
     /// A scroll to the present again, unless the rider has taken over the scrolling. Without animation on the first request
     /// (the launch); later ones animate, as the request did, so the second scroll only steers the first.
-    private func settle(_ proxy: ScrollViewProxy) {
+    private func settle() {
         guard !riderScrolled else { return }
-        let anchor: TimelineAnchor = viewModel.isToday ? .now : .top
-        if viewModel.scrollRequest <= 1 {
-            proxy.scrollTo(anchor, anchor: .top)
-        } else {
-            withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo(anchor, anchor: .top) }
-        }
+        scroll(animated: viewModel.scrollRequest > 1)
+    }
+
+    /// What the last scroll did, for the UI tests' failure messages (Debug builds only).
+    private var scrollReport: (@MainActor (String) -> Void)? {
+        #if DEBUG
+        return { scrollTrace = $0 }
+        #else
+        return nil
+        #endif
     }
 
     // MARK: Alerts

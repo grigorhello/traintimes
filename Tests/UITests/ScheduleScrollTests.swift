@@ -43,7 +43,8 @@ final class ScheduleScrollTests: XCTestCase {
             element.exists ? "\(element.frame) hittable=\(element.isHittable)" : "missing"
         }
         let cards = ["0524", "1724", "1754", "2324"].map { "\($0) \(frame(card(app, $0)))" }.joined(separator: "; ")
-        return "app \(app.frame); route card \(frame(app.buttons["schedule.route"])); \(cards)"
+        let trace = app.descendants(matching: .any).matching(identifier: "schedule.scrollTrace").firstMatch
+        return "app \(app.frame); route card \(frame(app.buttons["schedule.route"])); \(cards); scroll: \(trace.exists ? trace.label : "no trace")"
     }
 
     /// 5:47 PM: the 5:54 PM train is the next one and sits near the top; the 5:24 AM train, hours gone, is off screen.

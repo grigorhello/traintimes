@@ -49,13 +49,15 @@ struct SettingsNotificationsPage: View {
         }
     }
 
-    private var statusDetail: LocalizedStringKey {
+    /// While off, the sentence the Alerts tab's card says too: "Your 2 alerts are saved, but they can't reach you." (TT-169).
+    private var statusDetail: Text {
         switch state {
-        case .allowed: "settings.notifications.status_on_detail"
+        case .allowed: Text("settings.notifications.status_on_detail")
         case .off:
-            viewModel.alertCount == 0
-                ? "settings.notifications.status_off_detail_empty" : "settings.notifications.status_off_detail"
-        case .notAsked: "settings.notifications.status_ask_detail"
+            viewModel.switchedOnCount == 0
+                ? Text("settings.notifications.status_off_detail_empty")
+                : Text(verbatim: AlertsViewModel.offDetail(count: viewModel.switchedOnCount))
+        case .notAsked: Text("settings.notifications.status_ask_detail")
         }
     }
 
@@ -65,7 +67,7 @@ struct SettingsNotificationsPage: View {
                 badge
                 VStack(alignment: .leading, spacing: 2) {
                     Text(statusTitle).font(TTFont.headline).foregroundStyle(TTColor.ink)
-                    Text(statusDetail)
+                    statusDetail
                         .font(TTFont.footnote)
                         .foregroundStyle(TTColor.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)

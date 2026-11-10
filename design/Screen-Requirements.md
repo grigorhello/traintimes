@@ -155,11 +155,11 @@ Once notification permission exists, tapping a card's bell arms a This-trip aler
 | Setting up | "Setting up" with a clock, ink-secondary | Sheet, Alerts row | None; resolves within seconds |
 | On | "On" with a checkmark, ontime-ink; bell filled in accent on the card | Card bell, Alerts row | Switch to pause |
 | Paused | "Paused", ink-secondary | Alerts row | Switch to resume |
-| Notifications off | "Notifications off · Open Settings", cancel-ink; in the sheet an explanatory red panel | Sheet, Alerts row, Settings | Open Settings (deep link to the app's notification settings) |
+| Notifications off | In the sheet an explanatory red panel; on the Alerts tab the row reads "Not delivering" with a crossed bell, ink-secondary, under the notifications-off card (D58) | Sheet, Alerts tab, Settings | Turn on in iOS Settings (deep link to the app's notification settings) |
 | Review needed | "Review needed · usual train has changed", delay-ink | Alerts row, push notification | Opens Alert setup to pick the new departure |
 | Could not save | "Could not save · Try again", cancel-ink | Sheet, Alerts row | Retry; the rule is kept locally until it saves |
 
-**Denied permission.** Schedules stay fully usable. The rule is saved but shown as Notifications off, with the sentence "The alert is saved, but updates cannot be delivered until notifications are allowed in Settings." and an Open Settings button. A denied permission never looks like an active alert.
+**Denied permission.** Schedules stay fully usable. The rule is saved but shown as Notifications off, with the sentence "The alert is saved, but updates cannot be delivered until notifications are allowed in Settings." and an Open Settings button. A denied permission never looks like an active alert. On the Alerts tab the warning is the notifications-off card and the red tab dot below (D58); the sheet keeps its own red panel and Open Settings button.
 
 **Duplicates.** Enabling the same trip or the same repeating train twice updates the existing rule; repeated taps on Enable alerts send one request. A This-trip rule and a Repeat rule for the same train are allowed and listed separately.
 
@@ -169,7 +169,9 @@ The Alerts tab lists every rule with its true state first, then what has been se
 
 **Header.** Large title "Alerts" with an "Add alert" text button that switches to the Schedule tab and shows the hint "Tap the bell on a train" for 5 s.
 
-**My alerts.** One row per rule, newest first within each state order: Review needed and Could not save at the top, then Setting up, On, Paused, Notifications off. Each row shows the train and direction in `headline` with tabular time ("7:32 AM · Oakville to Union"), the days or date in `footnote` ("Mon to Fri", "Today only"), and the state in words with its icon (see the table in the previous section). Rows in On, Paused or Setting up have a switch at the right that pauses or resumes the rule; rows needing action show a chevron and open Alert setup. Swipe left on any row to delete, with an undo toast for 5 s. A morning train and a return train are separate rows.
+**My alerts.** One row per rule, newest first within each state order: Review needed and Could not save at the top, then Setting up, On and Not delivering together, then Paused. Each row shows the train and direction in `headline` with tabular time ("7:32 AM · Oakville to Union"), the days or date in `footnote` ("Mon to Fri", "Today only"), and the state in words with its icon (see the table in the previous section). Rows in On, Not delivering, Paused or Setting up have a switch at the right that pauses or resumes the rule; rows needing action (Review needed, Could not save) show a chevron and open Alert setup. Swipe left on any row to delete, with an undo toast for 5 s. A morning train and a return train are separate rows.
+
+**Notifications off (D58, alerts-off.png).** While iOS notifications are denied and at least one alert is switched on (paused alerts do not count, and a permission never asked is not "off"), one card sits above "My alerts", not dismissible: the Notifications page's off card with a crossed-bell badge (cancel-ink on cancel-fill, 44 pt), "Notifications are off", "Your 2 alerts are saved, but they can't reach you." (one alert: "Your alert is saved, but it can't reach you."; the number is the alerts switched on) and the primary button "Turn on in iOS Settings", which opens the app's notification settings. Rows that are on read "Not delivering" in ink-secondary with a small crossed bell instead of a red line each; "Paused" is unchanged; switches, swipe to delete and "Add alert" keep working. The permission is read again on every foreground. When the rider returns with notifications allowed (alerts-off-fixed.png) the card folds away on a spring, the rows read "On", the tab dot goes and the toast "Notifications are on" shows for 2.5 s. Never a pop-up, a repeated prompt or anything on Schedule.
 
 **Recent updates.** The train-specific messages delivered in the last 7 days, newest first: title ("7:32 AM train delayed 9 min"), body ("Oakville to Union. Now expected 7:41 AM, as reported at 7:14 AM."), timestamp ("Today, 7:29 AM"). Tapping a row opens Trip details for that trip and service date. Icons follow status colour (delay, cancel, on time).
 
@@ -177,7 +179,7 @@ The Alerts tab lists every rule with its true state first, then what has been se
 
 **Empty state.** With no rules: a card with a bell icon, "No alerts yet", "Tap the bell on a train to get updates about delays and cancellations." and a primary "Add alert" button; beneath it the footnote "Updates are sent as changes are reported, from 1 hour before the scheduled departure." Recent updates and Line notices are hidden when empty.
 
-**Badge.** The Alerts tab icon shows no numeric badge; a rule needing review turns the tab icon's dot on (accent) until the rider opens the tab.
+**Badge.** The Alerts tab icon shows no numeric badge; a rule needing review turns the tab icon's dot on (accent) until the rider opens the tab. While the notifications-off card shows, the dot is red instead (9 pt, cancel-ink, 2 pt ring in the bar colour; it wins over the accent dot), on the Schedule and Settings tabs only: it is hidden while Alerts is open, and visiting Alerts does not clear it, only allowing notifications or switching every alert off does.
 
 ## Notification rules and copy
 

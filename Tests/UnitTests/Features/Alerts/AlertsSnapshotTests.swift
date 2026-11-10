@@ -4,8 +4,9 @@ import XCTest
 @testable import TrainTimes
 
 /// The Alerts tab against design/frames/alerts.png, light and dark, and every rule state: Review needed, Could not save,
-/// Setting up, On and Paused, then Notifications off with notifications turned off. The empty state (alerts-empty.png) is
-/// `AppShellSnapshotTests.testAlertsTab…`. Drawn in the host app's key window, in the tab view, as on the simulator.
+/// Setting up, On and Paused, then notifications turned off (alerts-off.png, TT-169): the card on top and Not delivering on the
+/// rows that are on. The empty state (alerts-empty.png) is `AppShellSnapshotTests.testAlertsTab…`. Drawn in the host app's
+/// key window, in the tab view, as on the simulator; the card's bell does not shake.
 final class AlertsSnapshotTests: XCTestCase {
     @MainActor func testAlertsLight() async throws { snap(try await frame(), .light) }
     @MainActor func testAlertsDark() async throws { snap(try await frame(), .dark) }
@@ -17,7 +18,7 @@ final class AlertsSnapshotTests: XCTestCase {
     /// alerts.png: three rules, the two recent updates and the Lakeshore West notice. The rule needing review is listed
     /// first, as the requirements order rows (D44).
     @MainActor
-    private func frame() async throws -> RootView {
+    private func frame() async throws -> some View {
         let rules = await AlertsFixtures.rules(
             FakeAlertServer(), on: [AlertsFixtures.evening, AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington]
         )
@@ -43,16 +44,19 @@ final class AlertsSnapshotTests: XCTestCase {
         await save.value
     }
 
+    /// alerts-off.png: two rules on and one paused, notifications denied, then the two updates and the notice.
     @MainActor
-    private func notificationsOff() async throws -> RootView {
-        let rules = await AlertsFixtures.rules(FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning, AlertsFixtures.today])
-        return try await root(rules, updates: AlertsFixtures.updates([]))
+    private func notificationsOff() async throws -> some View {
+        let rules = await AlertsFixtures.rules(
+            FakeAlertServer(), permission: .off, on: [AlertsFixtures.evening, AlertsFixtures.morning, AlertsFixtures.today]
+        )
+        return try await root(rules, updates: AlertsFixtures.updates(), schedule: ScheduleViewModel.loadedFixture(.delayed))
     }
 
     @MainActor
     private func root(
         _ rules: AlertRules, updates: AlertUpdates, schedule: ScheduleViewModel? = nil
-    ) async throws -> RootView {
+    ) async throws -> some View {
         let router = AppRouter()
         router.selectedTab = .alerts
         var loaded = schedule
@@ -61,6 +65,9 @@ final class AlertsSnapshotTests: XCTestCase {
             router: router, schedule: loaded, settings: AppSettings(defaults: .ephemeral()), bells: AlertBellModel(rules: rules),
             alertUpdates: updates
         )
+        // The card's glass button and bell swing are drawn settled: dark glass differs from one run to the next (TT-163).
+        .environment(\.rendersGlass, false)
+        .environment(\.playsSettingsMotion, false)
     }
 
     @MainActor

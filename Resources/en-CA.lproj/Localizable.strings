@@ -112,7 +112,7 @@
 "alert.state.on" = "On";
 "alert.state.paused" = "Paused";
 "alert.state.review" = "Review needed · usual train has changed";
-"alert.state.off" = "Notifications off · Open Settings";
+"alert.state.not_delivering" = "Not delivering";
 "alert.state.setting_up" = "Setting up";
 "alert.state.could_not_save" = "Could not save · Try again";
 "alert.toast_off" = "Alert off";
@@ -130,6 +130,9 @@
 "alerts.today_only" = "Today only";
 "alerts.no_train_today" = "%@ · No matching train today";
 "alerts.deleted" = "Alert deleted";
+"alerts.off.detail" = "Your alert is saved, but it can't reach you.";
+"alerts.off.detail_plural" = "Your %d alerts are saved, but they can't reach you.";
+"alerts.notifications_on" = "Notifications are on";
 "alerts.notice.summary" = "%@, as reported at %@.";
 "alerts.time.today" = "Today, %@";
 "alerts.time.yesterday" = "Yesterday, %@";
@@ -188,7 +191,6 @@
 "settings.notifications.sounds" = "Sounds and banners";
 "settings.notifications.ios_settings" = "iOS Settings";
 "settings.notifications.status_off" = "Notifications are off";
-"settings.notifications.status_off_detail" = "Your alerts are saved but cannot reach you.";
 "settings.notifications.status_off_detail_empty" = "Alerts you set cannot reach you until you turn them on.";
 "settings.notifications.turn_on_ios" = "Turn on in iOS Settings";
 "settings.notifications.status_ask" = "Not turned on yet";

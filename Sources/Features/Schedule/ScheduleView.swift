@@ -28,9 +28,6 @@ struct ScheduleView: View {
     @State private var riderScrolled = false
     /// The latest ask to scroll the timeline, carried out by `ScrollOffsetSetter`.
     @State private var scrollOrder = ScrollOrder()
-    #if DEBUG
-    @State private var scrollTrace = ""
-    #endif
 
     var body: some View {
         timeline
@@ -38,15 +35,6 @@ struct ScheduleView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
             .overlay(alignment: .bottom) { alertToast }
-            #if DEBUG
-            .overlay(alignment: .topLeading) {
-                Color.clear.frame(width: 2, height: 2)
-                    .accessibilityElement()
-                    .accessibilityLabel(scrollTrace)
-                    .accessibilityIdentifier("schedule.scrollTrace")
-                    .allowsHitTesting(false)
-            }
-            #endif
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
             // A light haptic when an alert turns on (TT-141).
@@ -232,9 +220,7 @@ struct ScheduleView: View {
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
                     )
                     .background(
-                        ScrollOffsetSetter(
-                            offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder, report: scrollReport
-                        )
+                        ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
                     )
                 case .noTrains(let title, let message, let showDay):
                     noTrains(title: title, message: message, showDay: showDay)
@@ -273,15 +259,6 @@ struct ScheduleView: View {
     private func settle() {
         guard !riderScrolled else { return }
         scroll(animated: viewModel.scrollRequest > 1)
-    }
-
-    /// What the last scroll did, for the UI tests' failure messages (Debug builds only).
-    private var scrollReport: (@MainActor (String) -> Void)? {
-        #if DEBUG
-        return { scrollTrace = $0 }
-        #else
-        return nil
-        #endif
     }
 
     // MARK: Alerts

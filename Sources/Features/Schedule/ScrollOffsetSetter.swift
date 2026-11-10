@@ -9,14 +9,12 @@ struct ScrollOrder: Equatable {
 
 /// Moves the vertical scroll view it sits in to an offset, straight on the `UIScrollView` (TT-159, D52). `ScrollViewProxy.scrollTo`
 /// stayed at the top of a timeline as long as a real day's (opening at 5:24 AM at 5:47 PM, on CI and on a device), so Now is
-/// placed by setting the offset itself, which can be checked: `report` says what was set and where the scroll view ended up.
-/// Put it in the scroll view's content, as a background.
+/// placed by setting the offset itself. Put it in the scroll view's content, as a background.
 struct ScrollOffsetSetter: UIViewRepresentable {
     /// Points of content to scroll past, from the top of the timeline; 0 shows its start. Read when the move happens, so
     /// it is the layout of that moment.
     let offset: CGFloat
     let order: ScrollOrder
-    var report: (@MainActor (String) -> Void)?
 
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
@@ -30,7 +28,6 @@ struct ScrollOffsetSetter: UIViewRepresentable {
     func updateUIView(_ view: UIView, context: Context) {
         let coordinator = context.coordinator
         coordinator.offset = offset
-        coordinator.report = report
         guard order.token != coordinator.token else { return }
         coordinator.token = order.token
         guard order.token > 0 else { return }
@@ -45,22 +42,16 @@ struct ScrollOffsetSetter: UIViewRepresentable {
     final class Coordinator {
         var offset: CGFloat = 0
         var token = 0
-        var report: (@MainActor (String) -> Void)?
-        private var moves = 0
 
+        /// The content's top sits at `-adjustedContentInset.top`, under the header; `offset` points further down puts that
+        /// point of the timeline at the top of the visible area, and the end of the content stops it.
         func move(from view: UIView, animated: Bool) {
-            moves += 1
-            guard let scrollView = view.enclosingScrollView else {
-                report?("move \(moves): no scroll view above the setter")
-                return
-            }
+            guard let scrollView = view.enclosingScrollView else { return }
             let inset = scrollView.adjustedContentInset
             let top = -inset.top
             let bottom = max(top, scrollView.contentSize.height - scrollView.bounds.height + inset.bottom)
             let y = min(max(top, top + offset), bottom)
             scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: y), animated: animated)
-            report?("move \(moves) animated=\(animated): offset \(Int(offset)) top \(Int(top)) bottom \(Int(bottom)) -> y \(Int(y)); "
-                + "content \(Int(scrollView.contentSize.height)) in \(Int(scrollView.bounds.height)); now at \(Int(scrollView.contentOffset.y))")
         }
     }
 }

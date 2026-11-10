@@ -211,7 +211,19 @@ struct ScheduleView: View {
             .fill(.regularMaterial)
             .overlay(TTColor.veil)
             .contentShape(Rectangle())
+            // The header above the card is plain canvas, so a veil that starts square at the card's bottom edge left a hard
+            // tonal line in the side margins (light mode). Its first points ease in instead, as the approved frame does.
+            .mask {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: Self.veilRamp)
+                    Color.black
+                }
+            }
     }
+
+    /// How far the veil takes to reach full strength below the card's bottom edge.
+    private static let veilRamp: CGFloat = 40
 
     /// A pick that completed the route: show it, which saves it and adds it to Recent.
     private func apply(_ picker: RouteFormViewModel) {

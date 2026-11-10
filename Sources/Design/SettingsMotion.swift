@@ -33,10 +33,12 @@ private struct BumpValues {
 
 /// A one-shot spring played each time `trigger` changes: the view starts at `from` (and `turn` degrees) after `delay` and
 /// springs to rest. At rest, and before the first trigger, it is drawn as it is.
-private struct Bump<Trigger: Hashable>: ViewModifier {
+private struct Bump: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsSettingsMotion) private var playsMotion
-    let trigger: Trigger
+    /// Type-erased by the callers: a generic modifier makes the Sendable keyframe closures capture its metatype, which Swift 6
+    /// rejects.
+    let trigger: AnyHashable
     let from: Double
     let turn: Double
     let response: Double
@@ -50,7 +52,7 @@ private struct Bump<Trigger: Hashable>: ViewModifier {
         let spring = Spring(response: self.response, dampingRatio: self.damping)
         let turnSpring = Spring(response: 0.50, dampingRatio: 0.58)
         return content.keyframeAnimator(
-            initialValue: BumpValues(), trigger: plays ? AnyHashable(trigger) : AnyHashable(0)
+            initialValue: BumpValues(), trigger: plays ? trigger : AnyHashable(0)
         ) { view, values in
             view.scaleEffect(values.scale).rotationEffect(.degrees(values.degrees))
         } keyframes: { _ in
@@ -70,15 +72,15 @@ private struct Bump<Trigger: Hashable>: ViewModifier {
 
 /// The bell swinging once on a Notifications page that has just opened or just been allowed: 16°, -13°, 8°, -4°, 0 over
 /// 700 ms, from 200 ms, hanging from a point near its top.
-private struct BellSwing<Trigger: Hashable>: ViewModifier {
+private struct BellSwing: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsSettingsMotion) private var playsMotion
-    let trigger: Trigger
+    let trigger: AnyHashable
 
     func body(content: Content) -> some View {
         let plays = playsMotion && !reduceMotion
         content.keyframeAnimator(
-            initialValue: BumpValues(), trigger: plays ? AnyHashable(trigger) : AnyHashable(0)
+            initialValue: BumpValues(), trigger: plays ? trigger : AnyHashable(0)
         ) { view, values in
             view.rotationEffect(.degrees(values.degrees), anchor: UnitPoint(x: 0.5, y: 0.1))
         } keyframes: { _ in
@@ -120,7 +122,11 @@ extension View {
     func settingsBump(
         trigger: some Hashable, from: Double, turn: Double = 0, response: Double, damping: Double, delay: Double = 0
     ) -> some View {
-        modifier(Bump(trigger: trigger, from: from, turn: turn, response: response, damping: damping, delay: delay))
+        modifier(
+            Bump(
+                trigger: AnyHashable(trigger), from: from, turn: turn, response: response, damping: damping, delay: delay
+            )
+        )
     }
 
     /// The chosen switch symbol or label pressing in: 0.80 to 1, `spring(0.40, 0.50)`; `turns` adds the Appearance symbol's
@@ -135,7 +141,7 @@ extension View {
     }
 
     func settingsBellSwing(trigger: some Hashable) -> some View {
-        modifier(BellSwing(trigger: trigger))
+        modifier(BellSwing(trigger: AnyHashable(trigger)))
     }
 
     /// A card of a pushed page rising in, `order` places after the first.

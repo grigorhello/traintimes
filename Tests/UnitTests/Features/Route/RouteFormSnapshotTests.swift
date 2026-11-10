@@ -3,18 +3,25 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Route form against design/frames/route-picker.png, light and dark: first use in the Schedule tab (drawn in the key
-/// window so the tab bar renders), then the form as the route sheet with a route chosen, with identical stations, and with
-/// three recent routes (canvas Route-Picker, rider "returning", D48).
+/// The inline station picker (TT-161, D54) against design/frames/route-picker.png, route-pick-from.png,
+/// route-pick-to.png and schedule-pick.png, light and dark: first use closed, picking From with nothing typed, picking To
+/// with "un" typed, and Schedule changing the destination in place (Recent, Your stations with the greyed row). The
+/// keyboard is not drawn; a safe area of its height stands in for it, so the panel ends where it does on the simulator.
+/// The entrance animation is off, so every row is in place, and the layer render cannot blur what is behind the veil: those
+/// references show the veil's tint only. They stay layer renders: drawing the key window would let the field take the
+/// keyboard.
 final class RouteFormSnapshotTests: XCTestCase {
+    /// The software keyboard on iPhone 17 Pro, portrait.
+    private static let keyboardHeight: CGFloat = 291
+
     @MainActor func testFirstUseLight() { snapFirstUse(.light) }
     @MainActor func testFirstUseDark() { snapFirstUse(.dark) }
-    @MainActor func testChosenLight() throws { snap(try form(), .light) }
-    @MainActor func testChosenDark() throws { snap(try form(), .dark) }
-    @MainActor func testSameStationLight() throws { snap(try form(sameStation: true), .light) }
-    @MainActor func testSameStationDark() throws { snap(try form(sameStation: true), .dark) }
-    @MainActor func testRecentLight() throws { snap(try form(recent: true), .light) }
-    @MainActor func testRecentDark() throws { snap(try form(recent: true), .dark) }
+    @MainActor func testPickingFromLight() async throws { snap(try await pickingFrom(), .light) }
+    @MainActor func testPickingFromDark() async throws { snap(try await pickingFrom(), .dark) }
+    @MainActor func testPickingToLight() async throws { snap(try await pickingTo(), .light) }
+    @MainActor func testPickingToDark() async throws { snap(try await pickingTo(), .dark) }
+    @MainActor func testSchedulePickingLight() async throws { snap(try await schedulePicking(), .light) }
+    @MainActor func testSchedulePickingDark() async throws { snap(try await schedulePicking(), .dark) }
 
     /// No saved route and fresh settings, so nothing an earlier run stored leaks in.
     @MainActor
@@ -38,34 +45,68 @@ final class RouteFormSnapshotTests: XCTestCase {
         )
     }
 
-    /// `recent` records the canvas's routes, so Recent lists Union to Oakville, Burlington to Union and Clarkson to Union
-    /// under the route on screen.
+    /// First use, tapped the starting station: the placeholder, every station in the panel.
     @MainActor
-    private func form(sameStation: Bool = false, recent: Bool = false) throws -> RouteFormView {
+    private func pickingFrom() async throws -> some View {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let model = RouteFormViewModel(route: nil, repository: repository)
+        await model.loadStations()
+        model.open(.from)
+        return form(model)
+    }
+
+    /// First use, Oakville GO chosen and "un" typed for the destination.
+    @MainActor
+    private func pickingTo() async throws -> some View {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let model = RouteFormViewModel(route: nil, repository: repository)
+        await model.loadStations()
+        model.open(.from)
+        model.pick(try XCTUnwrap(model.stations.first { $0.id == "OA" }))
+        model.query = "un"
+        return form(model)
+    }
+
+    @MainActor
+    private func form(_ model: RouteFormViewModel) -> some View {
+        RouteFormView(viewModel: model, onShowTrains: { _ in })
+            .environment(\.animatesPickerEntrance, false)
+            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.keyboardHeight) }
+    }
+
+    /// Schedule on Oakville to Union with the destination tapped, and the canvas's recent routes: Union to Oakville,
+    /// Burlington to Union and Clarkson to Union under the route on screen.
+    @MainActor
+    private func schedulePicking() async throws -> some View {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
         let route = repository.route
         let recents = RecentRoutes(defaults: .ephemeral())
-        if recent {
-            [
-                Route(from: Station(id: "CL", name: "Clarkson GO"), to: route.to, line: route.line),
-                Route(from: Station(id: "BU", name: "Burlington GO"), to: route.to, line: route.line),
-                Route(from: route.to, to: route.from, line: route.line),
-                route,
-            ].forEach { recents.record($0) }
-        }
-        // Station search cannot pick the other field's station (TT-121), so identical stations come from the route.
-        let model = RouteFormViewModel(
-            route: sameStation ? Route(from: route.from, to: route.from, line: nil) : route, repository: repository,
-            recents: recents
+        [
+            Route(from: Station(id: "CL", name: "Clarkson GO"), to: route.to, line: route.line),
+            Route(from: Station(id: "BU", name: "Burlington GO"), to: route.to, line: route.line),
+            Route(from: route.to, to: route.from, line: route.line),
+        ].forEach { recents.record($0) }
+        let schedule = ScheduleViewModel(
+            route: route, repository: repository, clock: FixedClock(now: repository.now), recents: recents
         )
-        return RouteFormView(viewModel: model, onShowTrains: { _ in })
+        await schedule.loadIfNeeded()
+        let picker = RouteFormViewModel(route: route, repository: repository, recents: recents)
+        await picker.loadStations()
+        picker.open(.to)
+        let view = ScheduleView(viewModel: schedule, stations: repository, picker: picker)
+            .environment(\.animatesPickerEntrance, false)
+            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.keyboardHeight) }
+        layOutOnce(view)
+        return view
     }
 
     @MainActor
     private func snap(_ view: some View, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         assertSnapshot(
             of: view,
-            as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: style)),
+            as: .image(
+                perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: style)
+            ),
             testName: testName,
             line: line
         )

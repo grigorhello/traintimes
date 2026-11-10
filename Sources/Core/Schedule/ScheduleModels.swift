@@ -3,7 +3,7 @@ import Foundation
 struct Station: Hashable, Sendable, Identifiable {
     let id: String
     let name: String
-    /// The lines that serve the station, for its line context in station search (TT-121). Empty where unknown, as for
+    /// The lines that serve the station, for its line context in the station picker (TT-121). Empty where unknown, as for
     /// the saved route.
     var lines: [String] = []
 

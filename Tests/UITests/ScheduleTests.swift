@@ -13,7 +13,7 @@ final class ScheduleTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
-        XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 10))
         let today = app.buttons["schedule.day.0"]
         let sunday = app.buttons["schedule.day.3"]
         XCTAssertTrue(today.isSelected)

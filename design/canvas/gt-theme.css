@@ -212,3 +212,149 @@
 .gtabs a.sel { background: var(--glass-sel); color: var(--accent); }
 .gtabs svg { width: 27px; height: 27px; display: block; }
 .gtabs.static { position: relative; left: auto; right: auto; bottom: auto; width: 350px; }
+
+/* Amenities (Grigor, Nov 9, TT-157): icons only, no words. Accent = this train has it; grey with a slash = it does not,
+   so every card shows the same icons in the same order (Express, Bikes). Accessible is 1 on every GO train, so it stays
+   off the card and shows in Trip details with the words. Cancelled cards show none, as they show no bell. */
+.i-bolt { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13.5 1.5 4 14h6.2l-1.7 8.5L20 9.5h-6.2z'/%3E%3C/svg%3E"); }
+.i-bike { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='5.5' cy='17.2' r='3.6'/%3E%3Ccircle cx='18.5' cy='17.2' r='3.6'/%3E%3Cpath d='M12 17.2v-3.4l-3.1-3.1 4.1-3 2.1 3.1h2.4'/%3E%3C/g%3E%3Ccircle cx='15.2' cy='4.4' r='1.5'/%3E%3C/svg%3E"); }
+.i-wheel { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='10.8' cy='3.8' r='2'/%3E%3Cg fill='none' stroke='black' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.8 7.6v6.2h6.2l2.8 4.8'/%3E%3Cpath d='M7 11.35a5.6 5.6 0 1 0 7.65 7.65'/%3E%3C/g%3E%3C/svg%3E"); }
+.am { position: relative; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex: none; --amen-bg: var(--surface); }
+.am .ico { width: 100%; height: 100%; }
+.am.off { color: var(--control-border); }
+.am.off::after { content: ""; position: absolute; left: calc(50% - 0.9px); top: -16%; height: 132%; width: 1.8px; border-radius: 1px; background: currentColor; box-shadow: 0 0 0 1.1px var(--amen-bg); transform: rotate(-45deg); }
+.amen { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.amen.lg { gap: 12px; }
+.amen.lg .am { width: 28px; height: 28px; }
+.amen.lg .am.off::after { width: 2.4px; left: calc(50% - 1.2px); box-shadow: 0 0 0 1.6px var(--amen-bg); }
+.on-canvas .am { --amen-bg: var(--canvas); }
+.tl .dep .meta .amen { margin-left: 2px; }
+/* A delayed next train's row is full (badge, in N min, bell), so its icons wrap under the badge row and the card grows */
+.tl .dep .amen.wrap { grid-column: 1 / 3; grid-row: 3; margin-top: 2px; }
+.lt .am { width: 24px; height: 24px; }
+/* Trip details: the same icons with their words, one line under the line and date */
+.amen-words { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.amen-words .aw { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); white-space: nowrap; }
+.amen-words .aw.off { color: var(--ink-secondary); }
+
+/* Departure card (Nov 9, TT-157, approved by Grigor 20:57): three fixed rows 38 / 20 / 24, card 118 pt in every state.
+   Row 1 time + Express bolt + bell; row 2 countdown · platform and trip length; row 3 dot status and Arrival time. */
+.kb { position: relative; width: 288px; box-sizing: border-box; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-card);
+  padding: 14px 10px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 38px 20px 24px; row-gap: 4px; column-gap: 8px;
+  align-items: center; color: var(--ink); font-family: var(--font-system); text-decoration: none; }
+.kb .t { grid-column: 1 / 3; grid-row: 1; display: flex; align-items: baseline; gap: 8px; min-width: 0; padding-right: 46px; box-sizing: border-box; }
+.kb .bell { position: relative; z-index: 1; }
+.kb .time { font-size: 32px; line-height: 38px; font-weight: 600; letter-spacing: -0.4px; white-space: nowrap; color: var(--ink); }
+.kb.lead .time { font-size: 34px; }
+.kb .was { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; color: var(--ink-tertiary); text-decoration: line-through; text-decoration-thickness: 1.5px; white-space: nowrap; }
+.kb .t .am { align-self: center; }
+.kb .bell { grid-column: 2; grid-row: 1; justify-self: end; align-self: center; width: 48px; height: 48px; margin-right: -10px; }
+.kb .bell .ico { width: 26px; height: 26px; }
+.kb .p { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 6px; font-size: 15px; line-height: 20px; letter-spacing: -0.2px; color: var(--ink-secondary); white-space: nowrap; min-width: 0; }
+.kb .al { grid-column: 2; grid-row: 2; justify-self: end; font-size: 13px; line-height: 18px; letter-spacing: -0.1px; color: var(--ink-secondary); white-space: nowrap; }
+.kb .p .soon { color: var(--ink); font-weight: 600; }
+.kb .p .note { color: var(--ink-secondary); }
+.kb .s { grid-column: 1; grid-row: 3; display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 20px; letter-spacing: -0.2px; font-weight: 600; white-space: nowrap; min-width: 0; }
+.kb .ar { grid-column: 2; grid-row: 3; justify-self: end; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.4px; color: var(--ink); white-space: nowrap; }
+.kb .sep { color: var(--ink-tertiary); font-weight: 400; }
+.kb .s .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+.kb .s.ring .dot { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+.kb .s.ontime { color: var(--ontime-ink); }
+.kb .s.delay { color: var(--delay-ink); }
+.kb .s.cancel { color: var(--cancel-ink); }
+.kb .s.sched { color: var(--scheduled-ink); }
+.kb .s .soon { color: var(--ink); }
+.kb .s .note { color: var(--ink-secondary); font-weight: 400; }
+.kb.delayed .time, .kb.delayed .ar { color: var(--delay-ink); }
+.kb.cancelled .time, .kb.cancelled .ar { color: var(--ink-tertiary); text-decoration: line-through; text-decoration-thickness: 2px; }
+.kb.cancelled .p, .kb.cancelled .al { color: var(--ink-tertiary); }
+.tl .kb { position: absolute; left: 82px; right: 20px; width: auto; z-index: 2; }
+
+/* Round 5: trip length. Option 1 after the platform (.p .dur); option 2 after the arrival time (.ar .dur); option 3 on the status row (.s .dur) */
+.kb .p .dur { color: var(--ink-secondary); }
+.kb .ar .dur { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; color: var(--ink-secondary); margin-left: 4px; }
+.kb .s .dur { color: var(--ink-secondary); font-weight: 400; }
+.kb.cancelled .ar .dur { text-decoration: none; display: inline-block; }
+
+/* Round 6: trip length on row 1, after the Express bolt */
+.kb .t .dur { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; color: var(--ink-secondary); white-space: nowrap; margin-left: -2px; }
+.kb .t { padding-right: 40px; }
+
+/* Round 6: unknown platform = em dash placeholder in ink-tertiary */
+.kb .p .ph { color: var(--ink-tertiary); }
+
+/* Round 7 (Grigor 19:57): travel time off row 1. Option 1 (B sheets): trip length in the row-2 label slot,
+   arrow marks the arrival time. Options 2–4 on the Travel time board. */
+.kb .ar .arw { color: var(--ink-tertiary); font-weight: 400; letter-spacing: 0; margin-right: 3px; }
+.kb.cancelled .ar .arw { text-decoration: none; display: inline-block; }
+.kb.delayed .ar .arw { color: var(--ink-tertiary); }
+.kb .al.ic { display: inline-flex; align-items: center; gap: 4px; }
+.kb .al.ic .ico { width: 13px; height: 13px; color: var(--ink-tertiary); }
+.kb .al.at { font-size: 15px; line-height: 20px; letter-spacing: -0.2px; }
+.kb .al.at b { color: var(--ink); font-weight: 600; margin-left: 4px; }
+.kb.delayed .al.at b { color: var(--delay-ink); }
+.kb .ar.sm { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; color: var(--ink-secondary); }
+
+/* Round 8 (Grigor 20:49): a word, not an arrow, before the arrival time. "Arr" (short) on the B sheets; full "Arrival" compared on the board. */
+.kb .ar .arl { font-size: 13px; line-height: 18px; font-weight: 400; letter-spacing: -0.1px; color: var(--ink-secondary); margin-right: 4px; }
+.kb.cancelled .ar .arl { text-decoration: none; display: inline-block; color: var(--ink-tertiary); }
+.kb .al .trl { color: var(--ink-tertiary); }
+/* Round 8b (Grigor 20:55): platform number semibold in ink, like the countdown; the word "Plat" and the dash stay light */
+.kb .p .pn { color: var(--ink); font-weight: 600; }
+
+/* The card opens Trip details: the time link stretches over the card; the bell stays its own target. */
+.kb .when { color: inherit; text-decoration: none; }
+.kb .when::after { content: ""; position: absolute; inset: 0; border-radius: 18px; }
+.kb .skel { display: inline-block; }
+
+/* Inline station picker (Grigor, Nov 10): the tapped station row keeps its look, shows a cursor, and the suggestions unfold under
+   the route card as a Liquid Glass panel, ending above the keyboard. One component for first use, the Schedule route card
+   (in place) and the route sheet. The separate Station search page is gone. */
+.rrow.active { gap: 0; }
+.pk-line { display: flex; align-items: center; flex: 1; min-width: 0; min-height: 48px; color: var(--ink); cursor: text; }
+.pk-line .pk-in { all: unset; flex: 1; min-width: 0; font: inherit; letter-spacing: inherit; color: var(--ink); white-space: nowrap; overflow: hidden; }
+.pk-line .pk-in::placeholder { color: var(--ink-tertiary); }
+.pk-line .pk-in.typed { flex: none; }
+.pk-line .pk-sel { flex: none; background: var(--accent-soft); border-radius: 3px; padding: 1px 1px; margin-left: -1px; white-space: nowrap; }
+.pk-line .caret { width: 2px; height: 22px; border-radius: 1px; background: var(--accent); flex: none; margin: 0 1px; animation: pk-blink 1.1s steps(1) infinite; }
+@keyframes pk-blink { 50% { opacity: 0; } }
+.gbtn.x { color: var(--ink); }
+/* Panel: glass, 8 pt under the card, the card's radius; groups of 56 pt rows split by soft hairlines; a fade where it scrolls */
+.pk-panel { position: absolute; left: 20px; right: 20px; border-radius: 26px; overflow: hidden; display: flex; flex-direction: column; z-index: 8; color: var(--ink); }
+.phone.light .pk-panel { --glass: rgba(255, 255, 255, 0.78); --pk-line: rgba(17, 24, 39, 0.09); }
+.phone.dark .pk-panel { --glass: rgba(34, 43, 59, 0.80); --pk-line: rgba(255, 255, 255, 0.10); }
+.pk-scroll { flex: 1; min-height: 0; overflow: hidden; }
+.pk-panel.fit .pk-scroll { padding-bottom: 6px; }
+.pk-h { padding: 12px 16px 4px; color: var(--ink-secondary); }
+.pk-row { position: relative; display: flex; align-items: center; gap: 12px; padding: 8px 16px; min-height: 56px; box-sizing: border-box; color: var(--ink); }
+.pk-row + .pk-row::before { content: ""; position: absolute; left: 16px; right: 0; top: 0; border-top: 1px solid var(--pk-line); }
+.pk-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pk-row .txt > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-row .footnote { color: var(--ink-secondary); }
+.pk-row .ico { color: var(--ink-tertiary); }
+.pk-row.skip, .pk-row.skip .footnote, .pk-row.skip .ico { color: var(--ink-tertiary); }
+.pk-row.route .txt > span { font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.2px; }
+.pk-row.route .mini { align-self: flex-start; padding-top: 5px; }
+.pk-row .tile { flex: none; width: 26px; height: 26px; border-radius: 7px; color: #FFFFFF; font-size: 10px; line-height: 26px; font-weight: 700; letter-spacing: 0.3px; text-align: center; }
+.dark .pk-row .tile { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+/* Dimmed timetable behind the panel on Schedule; tapping it cancels */
+.pk-scrim { position: absolute; left: 0; right: 0; bottom: 0; background: var(--scrim); z-index: 7; }
+/* Show trains as a tinted glass capsule (iOS 26 glassProminent); disabled stays the flat raised surface */
+.btn-primary.glassy { box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.45), inset 0 -1px 0.5px rgba(0, 0, 0, 0.10), 0 8px 22px rgba(12, 123, 83, 0.28), 0 1px 2px rgba(17, 24, 39, 0.10); }
+.phone.dark .btn-primary.glassy { box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.55), 0 8px 22px rgba(110, 231, 183, 0.22), 0 1px 2px rgba(0, 0, 0, 0.3); }
+.phone .btn-primary.glassy[disabled] { box-shadow: none; }
+/* Route sheet (if kept): an iOS 26 glass sheet over the dimmed timetable; its cards stay solid */
+.gsheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 38px 38px 0 0; padding: 10px 20px 0; display: flex; flex-direction: column; gap: 16px; z-index: 8; box-sizing: border-box; }
+.phone.light .gsheet { --glass: rgba(246, 247, 251, 0.88); }
+.phone.dark .gsheet { --glass: rgba(12, 17, 27, 0.88); }
+/* System keyboard, drawn to show where the panel ends; not part of the design */
+.kbd { position: absolute; left: 0; right: 0; bottom: 0; height: 272px; z-index: 10; padding: 10px 3px 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; font-family: var(--font-system); }
+.phone.light .kbd { background: #D1D4DA; --key: #FFFFFF; --key-dim: #ADB3BC; --key-ink: #111827; --key-shadow: #8A8F98; }
+.phone.dark .kbd { background: #2B2B2D; --key: #6B6B6E; --key-dim: #47474A; --key-ink: #FFFFFF; --key-shadow: #0A0A0A; }
+.kbd .kr { display: flex; justify-content: center; gap: 6px; }
+.kbd .k { width: 33px; height: 42px; border-radius: 6px; background: var(--key); color: var(--key-ink); box-shadow: 0 1px 0 var(--key-shadow); font-size: 22px; line-height: 42px; text-align: center; font-weight: 400; display: inline-flex; align-items: center; justify-content: center; }
+.kbd .k.fn { background: var(--key-dim); font-size: 15px; }
+.kbd .k.fn svg { width: 20px; height: 20px; display: block; }
+.kbd .k.w42 { width: 42px; } .kbd .k.w88 { width: 88px; }
+.kbd .k.space { flex: 1; max-width: 182px; font-size: 16px; }
+.kbd .k.go { background: var(--accent); color: var(--on-accent); font-size: 16px; }

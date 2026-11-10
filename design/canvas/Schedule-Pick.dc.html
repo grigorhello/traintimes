@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schedule, changing the destination in place</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.rcard{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:0 8px 0 16px}
+.mk{display:flex;flex-direction:column;align-items:center;padding-top:18px;height:97px;box-sizing:border-box}
+.mk .ring{width:12px;height:12px;border-radius:9999px;box-shadow:inset 0 0 0 2.5px var(--ink-secondary);flex:none}
+.mk .pt{width:3px;height:3px;border-radius:9999px;background:var(--ink-tertiary);margin-top:6px;flex:none}
+.mk .pin{width:20px;height:20px;margin-top:6px;color:var(--accent);flex:none;display:block}
+.rrow{display:flex;align-items:center;gap:8px;min-height:48px}
+.rrow .stn{flex:1;min-width:0}
+.mini{align-self:flex-start;display:flex;flex-direction:column;align-items:center;width:14px;padding-top:6px;flex:none}
+.mini .ring{width:10px;height:10px;border-radius:9999px;box-shadow:inset 0 0 0 2px var(--ink-secondary)}
+.mini .pt{width:2px;height:2px;border-radius:9999px;background:var(--ink-tertiary);margin-top:3px}
+.mini .pin{width:14px;height:14px;margin-top:3px;color:var(--accent);display:block}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; padding-top: 54px; display: flex; flex-direction: column; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+
+<div class="screen" style="padding-top: 12px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <h1 class="line-head"><span class="line-tile" style="background: #8B1A31">LW</span><span class="line-name">Lakeshore West</span></h1>
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <a class="rrow" href="Schedule-Pick.dc.html" aria-label="From Oakville GO. Change station"><span class="stn headline">Oakville GO</span></a>
+          <div style="height: 1px; background: var(--hairline)"></div>
+          <div class="rrow active"><div class="pk-line headline"><span class="pk-sel">Union Station GO</span></div></div>
+        </div>
+        <a class="gbtn glass x" href="Main.dc.html" aria-label="Cancel"><span class="ico i-close" aria-hidden="true"></span></a>
+      </div>
+    </div>
+
+        <div class="gdays" role="tablist" aria-label="Service day">
+      <button class="gday today sel" role="tab" aria-selected="true" aria-label="Today, Thursday, November 5"><span class="footnote">Today</span><span class="headline tnum">5</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 6"><span class="footnote">Fri</span><span class="headline tnum">6</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 7"><span class="footnote">Sat</span><span class="headline tnum">7</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 8"><span class="footnote">Sun</span><span class="headline tnum">8</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 9"><span class="footnote">Mon</span><span class="headline tnum">9</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 10"><span class="footnote">Tue</span><span class="headline tnum">10</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 11"><span class="footnote">Wed</span><span class="headline tnum">11</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Thursday, November 12"><span class="footnote">Thu</span><span class="headline tnum">12</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Friday, November 13"><span class="footnote">Fri</span><span class="headline tnum">13</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Saturday, November 14"><span class="footnote">Sat</span><span class="headline tnum">14</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Sunday, November 15"><span class="footnote">Sun</span><span class="headline tnum">15</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Monday, November 16"><span class="footnote">Mon</span><span class="headline tnum">16</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Tuesday, November 17"><span class="footnote">Tue</span><span class="headline tnum">17</span></button>
+      <button class="gday" role="tab" aria-selected="false" aria-label="Wednesday, November 18"><span class="footnote">Wed</span><span class="headline tnum">18</span></button>
+    </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0">
+      <div class="tl" role="list" aria-label="Departures, 7:21 AM onwards">
+        <div class="edge-top" aria-hidden="true"></div>
+        <div class="tl-rail" style="height: 100%" aria-hidden="true"></div>
+        <div class="tl-tick" style="top: 99px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 90px" aria-hidden="true">7:30</span>
+        <div class="tl-tick" style="top: 204px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 195px" aria-hidden="true">7:45</span>
+        <div class="tl-tick" style="top: 309px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 300px" aria-hidden="true">8:00</span>
+        <div class="tl-tick" style="top: 414px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 405px" aria-hidden="true">8:15</span>
+        <div class="tl-tick" style="top: 519px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 510px" aria-hidden="true">8:30</span>
+        <div class="tl-tick" style="top: 624px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 615px" aria-hidden="true">8:45</span>
+        <div class="tl-now" style="top: 35px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 27px" aria-hidden="true">Now</span>
+
+        <span class="tl-mark lead" style="top: 105px" aria-hidden="true"></span>
+        <div class="tl-link lead" style="top: 112px" aria-hidden="true"></div>
+        <div class="kb lead" style="top: 78px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, on time, arrival 8:12 AM, platform 2, not express, no bikes"><span class="time tnum">7:32 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span class="soon">in 11 min</span><span class="sep">·</span><span>Plat <span class="pn tnum">2</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:12 AM</span>
+        </div>
+
+        <span class="tl-mark" style="top: 289px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 294px" aria-hidden="true"></div>
+        <div class="kb" style="top: 262px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, arrival 8:38 AM, platform pending, express, no bikes"><span class="time tnum">7:58 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:38 AM</span>
+        </div>
+
+        <span class="tl-mark" style="top: 450px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 455px" aria-hidden="true"></div>
+        <div class="kb" style="top: 423px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express, bikes allowed"><span class="time tnum">8:21 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:01 AM</span>
+        </div>
+
+        <span class="tl-mark" style="top: 632px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 637px" aria-hidden="true"></div>
+        <div class="kb" style="top: 605px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM, not express, bikes allowed"><span class="time tnum">8:47 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:27 AM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pk-scrim" style="top: 213px" aria-hidden="true"></div>
+  <div class="pk-panel glass" style="top: 213px; bottom: 280px">
+    <div class="pk-scroll">
+      <h2 class="pk-h footnote">Recent</h2>
+      <a class="pk-row route" href="Schedule-Dark.dc.html" aria-label="Union Station GO to Oakville GO, Lakeshore West"><span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span><span class="txt"><span>Union Station GO</span><span>Oakville GO</span></span><span class="tile" style="background: #8B1A31" aria-hidden="true">LW</span></a>
+      <a class="pk-row route" href="Main.dc.html" aria-label="Burlington GO to Union Station GO, Lakeshore West"><span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span><span class="txt"><span>Burlington GO</span><span>Union Station GO</span></span><span class="tile" style="background: #8B1A31" aria-hidden="true">LW</span></a>
+      <a class="pk-row route" href="Main.dc.html" aria-label="Clarkson GO to Union Station GO, Lakeshore West"><span class="mini" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></span><span class="txt"><span>Clarkson GO</span><span>Union Station GO</span></span><span class="tile" style="background: #8B1A31" aria-hidden="true">LW</span></a>
+      <h2 class="pk-h footnote">Your stations</h2>
+      <div class="pk-row skip" aria-disabled="true" aria-label="Oakville GO, Lakeshore West, same as From, not available"><span class="txt"><span class="headline">Oakville GO</span><span class="footnote">Lakeshore West · Same as From</span></span><span class="ico sm i-clock" aria-hidden="true"></span></div>
+      <a class="pk-row" href="Main.dc.html" aria-label="Burlington GO, Lakeshore West, recent"><span class="txt"><span class="headline">Burlington GO</span><span class="footnote">Lakeshore West</span></span><span class="ico sm i-clock" aria-hidden="true"></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Clarkson GO, Lakeshore West, recent"><span class="txt"><span class="headline">Clarkson GO</span><span class="footnote">Lakeshore West</span></span><span class="ico sm i-clock" aria-hidden="true"></span></a>
+      <h2 class="pk-h footnote">All stations</h2>
+      <a class="pk-row" href="Main.dc.html" aria-label="Acton GO, Kitchener"><span class="txt"><span class="headline">Acton GO</span><span class="footnote">Kitchener</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Agincourt GO, Stouffville"><span class="txt"><span class="headline">Agincourt GO</span><span class="footnote">Stouffville</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Ajax GO, Lakeshore East"><span class="txt"><span class="headline">Ajax GO</span><span class="footnote">Lakeshore East</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Aldershot GO, Lakeshore West"><span class="txt"><span class="headline">Aldershot GO</span><span class="footnote">Lakeshore West</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Allandale Waterfront GO, Barrie"><span class="txt"><span class="headline">Allandale Waterfront GO</span><span class="footnote">Barrie</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Appleby GO, Lakeshore West"><span class="txt"><span class="headline">Appleby GO</span><span class="footnote">Lakeshore West</span></span></a>
+    </div>
+  </div>
+
+  <div class="kbd" role="img" aria-label="Keyboard">
+    <div class="kr"><span class="k">Q</span><span class="k">W</span><span class="k">E</span><span class="k">R</span><span class="k">T</span><span class="k">Y</span><span class="k">U</span><span class="k">I</span><span class="k">O</span><span class="k">P</span></div>
+    <div class="kr"><span class="k">A</span><span class="k">S</span><span class="k">D</span><span class="k">F</span><span class="k">G</span><span class="k">H</span><span class="k">J</span><span class="k">K</span><span class="k">L</span></div>
+    <div class="kr"><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 4.5 12H9v7h6v-7h4.5z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path></svg></span><span class="k">Z</span><span class="k">X</span><span class="k">C</span><span class="k">V</span><span class="k">B</span><span class="k">N</span><span class="k">M</span><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-6-6z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path><path d="m12 10 5 4m0-4-5 4" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"></path></svg></span></div>
+    <div class="kr"><span class="k fn w88">123</span><span class="k space">space</span><span class="k go w88">search</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rider = this.props.rider ?? 'first use';
+    return {
+      themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light',
+      isFirstUse: rider === 'first use',
+      isReady: rider === 'both chosen'
+    };
+  }
+}
+</script>
+</body>
+</html>

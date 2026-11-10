@@ -99,7 +99,8 @@
 "route.recent" = "Recent";
 "stations.yours" = "Your stations";
 "stations.all" = "All stations";
-"stations.search" = "Search stations";
+"stations.results" = "Stations";
+"stations.none" = "No stations match";
 "stations.all_lines" = "All lines";
 "stations.same_as_to" = "%@ · Same as To";
 "stations.same_as_from" = "%@ · Same as From";

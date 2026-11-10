@@ -1,7 +1,7 @@
 import Foundation
 
-/// The stations a route can join: the GTFS feed's in the app (TT-130), fixtures in previews and tests. Station search
-/// (TT-121) reads the same list.
+/// The stations a route can join: the GTFS feed's in the app (TT-130), fixtures in previews and tests. The station picker
+/// (TT-121, D54) reads the same list.
 protocol StationRepository: Sendable {
     /// Every station, alphabetically.
     func stations() async throws -> [Station]

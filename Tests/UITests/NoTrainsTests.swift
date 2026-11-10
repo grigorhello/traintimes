@@ -13,7 +13,7 @@ final class NoTrainsTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
-        XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 10))
         app.buttons["schedule.day.3"].tap()
         let title = app.staticTexts.matching(NSPredicate(format: "label == %@", "No direct trains on Sunday")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 5))

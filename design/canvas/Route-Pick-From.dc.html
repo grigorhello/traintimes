@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Route form, picking the starting station</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.rcard{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:0 8px 0 16px}
+.mk{display:flex;flex-direction:column;align-items:center;padding-top:18px;height:97px;box-sizing:border-box}
+.mk .ring{width:12px;height:12px;border-radius:9999px;box-shadow:inset 0 0 0 2.5px var(--ink-secondary);flex:none}
+.mk .pt{width:3px;height:3px;border-radius:9999px;background:var(--ink-tertiary);margin-top:6px;flex:none}
+.mk .pin{width:20px;height:20px;margin-top:6px;color:var(--accent);flex:none;display:block}
+.rrow{display:flex;align-items:center;gap:8px;min-height:48px}
+.rrow .stn{flex:1;min-width:0}
+.mini{align-self:flex-start;display:flex;flex-direction:column;align-items:center;width:14px;padding-top:6px;flex:none}
+.mini .ring{width:10px;height:10px;border-radius:9999px;box-shadow:inset 0 0 0 2px var(--ink-secondary)}
+.mini .pt{width:2px;height:2px;border-radius:9999px;background:var(--ink-tertiary);margin-top:3px}
+.mini .pin{width:14px;height:14px;margin-top:3px;color:var(--accent);display:block}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+  <div style="position: absolute; inset: 0; padding-top: 54px; display: flex; flex-direction: column">
+    <div class="screen" style="gap: 16px; padding-top: 24px">
+      <h1 class="large-title">Choose a route</h1>
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <div class="rrow active"><label class="pk-line body" for="q-from"><span class="caret" aria-hidden="true"></span><input class="pk-in" id="q-from" type="search" placeholder="Choose starting station" value="" aria-label="Choose starting station"></label></div>
+          <div style="height: 1px; background: var(--hairline)"></div>
+          <a class="rrow" href="Route-Pick-To.dc.html" aria-label="Choose destination"><span class="stn body skip">Choose destination</span></a>
+        </div>
+        <a class="gbtn glass x" href="Route-Picker.dc.html" aria-label="Cancel"><span class="ico i-close" aria-hidden="true"></span></a>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="pk-panel glass" style="top: 240px; bottom: 284px">
+    <div class="pk-scroll">
+      <h2 class="pk-h footnote">All stations</h2>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Acton GO, Kitchener"><span class="txt"><span class="headline">Acton GO</span><span class="footnote">Kitchener</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Agincourt GO, Stouffville"><span class="txt"><span class="headline">Agincourt GO</span><span class="footnote">Stouffville</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Ajax GO, Lakeshore East"><span class="txt"><span class="headline">Ajax GO</span><span class="footnote">Lakeshore East</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Aldershot GO, Lakeshore West"><span class="txt"><span class="headline">Aldershot GO</span><span class="footnote">Lakeshore West</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Allandale Waterfront GO, Barrie"><span class="txt"><span class="headline">Allandale Waterfront GO</span><span class="footnote">Barrie</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Appleby GO, Lakeshore West"><span class="txt"><span class="headline">Appleby GO</span><span class="footnote">Lakeshore West</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Aurora GO, Barrie"><span class="txt"><span class="headline">Aurora GO</span><span class="footnote">Barrie</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Bloor GO, Kitchener"><span class="txt"><span class="headline">Bloor GO</span><span class="footnote">Kitchener</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Bradford GO, Barrie"><span class="txt"><span class="headline">Bradford GO</span><span class="footnote">Barrie</span></span></a>
+      <a class="pk-row" href="Route-Pick-To.dc.html" aria-label="Bramalea GO, Kitchener"><span class="txt"><span class="headline">Bramalea GO</span><span class="footnote">Kitchener</span></span></a>
+    </div>
+  </div>
+
+  <div class="kbd" role="img" aria-label="Keyboard">
+    <div class="kr"><span class="k">Q</span><span class="k">W</span><span class="k">E</span><span class="k">R</span><span class="k">T</span><span class="k">Y</span><span class="k">U</span><span class="k">I</span><span class="k">O</span><span class="k">P</span></div>
+    <div class="kr"><span class="k">A</span><span class="k">S</span><span class="k">D</span><span class="k">F</span><span class="k">G</span><span class="k">H</span><span class="k">J</span><span class="k">K</span><span class="k">L</span></div>
+    <div class="kr"><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 4.5 12H9v7h6v-7h4.5z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path></svg></span><span class="k">Z</span><span class="k">X</span><span class="k">C</span><span class="k">V</span><span class="k">B</span><span class="k">N</span><span class="k">M</span><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-6-6z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path><path d="m12 10 5 4m0-4-5 4" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"></path></svg></span></div>
+    <div class="kr"><span class="k fn w88">123</span><span class="k space">space</span><span class="k go w88">search</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rider = this.props.rider ?? 'first use';
+    return {
+      themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light',
+      isFirstUse: rider === 'first use',
+      isReady: rider === 'both chosen'
+    };
+  }
+}
+</script>
+</body>
+</html>

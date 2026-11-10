@@ -15,6 +15,42 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// "Show trains" on the route form (TT-161, D54): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
+/// it. Disabled is the same grey pill as `.ttPrimary`.
+struct GlassPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        StyledLabel(configuration: configuration)
+    }
+
+    private struct StyledLabel: View {
+        @Environment(\.isEnabled) private var isEnabled
+        let configuration: ButtonStyleConfiguration
+
+        var body: some View {
+            if #available(iOS 26, *), isEnabled {
+                configuration.label
+                    .font(TTFont.headline)
+                    .foregroundStyle(TTColor.onAccent)
+                    .padding(.horizontal, TTSpace.s5)
+                    .frame(minHeight: TTSize.targetMin + TTSpace.s1)
+                    .glassEffect(.regular.tint(TTColor.accent).interactive(), in: Capsule())
+                    .contentShape(Capsule())
+            } else {
+                configuration.label
+                    .font(TTFont.headline)
+                    .foregroundStyle(isEnabled ? TTColor.onAccent : TTColor.inkSecondary)
+                    .padding(.horizontal, TTSpace.s5)
+                    .frame(minHeight: TTSize.targetMin + TTSpace.s1)
+                    .background(
+                        isEnabled ? (configuration.isPressed ? TTColor.accentPressed : TTColor.accent) : TTColor.surfaceRaised,
+                        in: Capsule()
+                    )
+                    .pressScale(configuration.isPressed)
+            }
+        }
+    }
+}
+
 /// Outlined pill.
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -43,6 +79,7 @@ struct TextButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle { static var ttPrimary: Self { .init() } }
+extension ButtonStyle where Self == GlassPrimaryButtonStyle { static var ttGlassPrimary: Self { .init() } }
 extension ButtonStyle where Self == SecondaryButtonStyle { static var ttSecondary: Self { .init() } }
 extension ButtonStyle where Self == TextButtonStyle { static var ttText: Self { .init() } }
 
@@ -93,7 +130,7 @@ struct IconButton: View {
 }
 
 /// A round control floating over content, 44 pt (D49): Liquid Glass on iOS 26 and later, a raised surface before it.
-/// Accent glyph unless `tint` says otherwise (the Trip details close button is ink); dimmed when disabled.
+/// Accent glyph unless `tint` says otherwise (ink for the picker's X and the Trip details close button); dimmed when disabled.
 struct GlassIconButton: View {
     @Environment(\.isEnabled) private var isEnabled
     let systemName: String
@@ -152,6 +189,76 @@ extension View {
     /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.
     func ttGlass(tint: Color, in shape: some Shape) -> some View {
         modifier(GlassBackground(tint: tint, shape: shape))
+    }
+}
+
+extension View {
+    /// The surface of the station picker's suggestions (TT-161, D54): the route card's own surface continued below it, flat
+    /// at the top where it meets the card and rounded at the bottom. One soft shadow wraps the card and the panel together
+    /// (`StackShadow`). The content is clipped to the same shape first, so rows keep the rounded corners.
+    func ttAttachedPanel(cornerRadius: CGFloat) -> some View {
+        modifier(AttachedPanelSurface(cornerRadius: cornerRadius))
+    }
+}
+
+private struct AttachedPanelSurface: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: 0, bottomLeadingRadius: cornerRadius, bottomTrailingRadius: cornerRadius, topTrailingRadius: 0
+        )
+        content
+            .clipShape(shape)
+            .background(TTColor.surface, in: shape)
+            .background { StackShadow(cornerRadius: cornerRadius) }
+    }
+}
+
+/// The shadow of the whole stack, the route card above and the panel below it: canvas `0 16 22`, the ink at 14 % in light
+/// and black at 55 % in dark. The card is drawn under the panel's layer, so the shadow is cast by the stack's outline and
+/// then cut away inside it (an even-odd mask), leaving only what falls outside the card and the panel.
+private struct StackShadow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let cornerRadius: CGFloat
+
+    /// How far the card reaches above the panel's top edge: two 48 pt rows, less the 1 pt the panel overlaps the card by.
+    private static let cardReach = 2 * RouteCard.rowHeight - 1
+    /// The mask is this much larger than the panel on every side, which is room for the blur and the 16 pt drop.
+    private static let margin: CGFloat = 96
+
+    var body: some View {
+        let colour = colorScheme == .dark ? Color.black.opacity(0.55) : TTColor.ink.opacity(0.14)
+        // Half a point inside the cut-out, so the antialiased edge of the fill never shows outside the stack.
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(.black)
+            .padding(EdgeInsets(top: -Self.cardReach + 0.5, leading: 0.5, bottom: 0.5, trailing: 0.5))
+            .shadow(color: colour, radius: 22, x: 0, y: 16)
+            .mask {
+                Outside(cornerRadius: cornerRadius, reach: Self.cardReach, margin: Self.margin)
+                    .fill(.black, style: FillStyle(eoFill: true))
+                    .padding(-Self.margin)
+            }
+            .allowsHitTesting(false)
+    }
+
+    /// Everything inside the rectangle `margin` past the panel on every side, except the stack's outline (the panel plus the
+    /// card above it, `reach` tall, with one point more of room along the top).
+    private struct Outside: Shape {
+        let cornerRadius: CGFloat
+        let reach: CGFloat
+        let margin: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.addRect(rect)
+            let stack = CGRect(
+                x: rect.minX + margin, y: rect.minY + margin - reach - 1,
+                width: rect.width - 2 * margin, height: rect.height - 2 * margin + reach + 1
+            )
+            path.addPath(Path(roundedRect: stack, cornerRadius: cornerRadius, style: .continuous))
+            return path
+        }
     }
 }
 

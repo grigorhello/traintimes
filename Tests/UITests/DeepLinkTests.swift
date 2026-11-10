@@ -27,7 +27,7 @@ final class DeepLinkTests: XCTestCase {
         // Closing the sheet shows the next trains on that route.
         app.buttons["trip.close"].tap()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0758-20261105").firstMatch.exists)
     }
 

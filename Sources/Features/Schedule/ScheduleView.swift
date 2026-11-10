@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// Schedule tab (TT-112, D49): the line (code tile, name and a Notice chip) above the route card (D48), the day strip
-/// carousel, a status row only while loading, offline or stale, the watched-trip strip once a watched train has left
-/// (TT-144), then the to-scale timeline with its rail and cards (TT-113). The header is a top inset over one full-height
-/// scroll view, so the timeline scrolls under the glass tab bar at the bottom (D49). There is no Now button: tapping the
-/// Schedule tab again scrolls back to Now.
+/// Schedule tab (TT-112, D49): the line (code tile, name and a Notice chip) above the route card (D48; a tap on a station
+/// opens the picker under the card, in place, D54), the day strip carousel, a status row only while loading, offline or
+/// stale, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and
+/// cards (TT-113). The header is a top inset over one full-height scroll view, so the timeline scrolls under the glass
+/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now.
 struct ScheduleView: View {
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
-    /// Tap the route card: the route sheet with Recent (D48).
-    let onEditRoute: () -> Void
+    /// The stations the picker lists (TT-161).
+    let stations: any StationRepository
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
     /// The Notice chip: the notice sheet (TT-132).
@@ -25,6 +25,28 @@ struct ScheduleView: View {
     /// The strip's leftmost tile, as its id (0 is Today), for scrolling it to a tile that is out of view. Nil until the
     /// strip has scrolled; it opens on `openingTile`, at Today after the past week.
     @State private var stripPosition: Int?
+    /// The station picker, made each time a station row is tapped; open while `isPickingStation` (TT-161, D54).
+    @State private var picker: RouteFormViewModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// `picker` opens Schedule with the picker already made, for previews and snapshots.
+    init(
+        viewModel: ScheduleViewModel,
+        stations: any StationRepository,
+        onOpenTrip: @escaping (TripKey) -> Void = { _ in },
+        onOpenLineNotice: @escaping () -> Void = {},
+        bells: AlertBellModel? = nil,
+        onAlertSetup: @escaping (AlertSetupRequest) -> Void = { _ in },
+        picker: RouteFormViewModel? = nil
+    ) {
+        self.viewModel = viewModel
+        self.stations = stations
+        self.onOpenTrip = onOpenTrip
+        self.onOpenLineNotice = onOpenLineNotice
+        self.bells = bells
+        self.onAlertSetup = onAlertSetup
+        _picker = State(initialValue: picker)
+    }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
     /// The latest ask to scroll the timeline, carried out by `ScrollOffsetSetter`.
@@ -35,6 +57,7 @@ struct ScheduleView: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
+            .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { alertToast }
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
@@ -55,9 +78,13 @@ struct ScheduleView: View {
     /// Everything above the timeline, on a canvas background that also covers the status bar, with a 16 pt fade under it.
     private var header: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
-            routeHeader
+            routeBlock(picking: picking)
                 .padding(.horizontal, TTSpace.s5)
+            // The day strip fades out under the veil while picking (it is not tappable) and back on close.
             dayStrip
+                .opacity(isPicking ? 0 : 1)
+                .allowsHitTesting(!isPicking)
+                .animation(isPicking ? .easeOut(duration: 0.22) : .easeIn(duration: 0.20), value: isPicking)
             if let mode = viewModel.statusRowMode(formatter) {
                 FreshnessLine(mode: mode)
                     .padding(.horizontal, TTSpace.s5)
@@ -87,18 +114,120 @@ struct ScheduleView: View {
     /// The canvas's `.edge-top`.
     private static let edgeFade: CGFloat = 16
 
-    /// The line first, then the route card (D49, D48); tapping the card opens the route sheet.
-    private var routeHeader: some View {
+    /// The line first, then the route card (D49, D48); tapping a station opens the picker for it (D54).
+    private func routeBlock(picking: RouteCard.Picking?) -> some View {
         VStack(alignment: .leading, spacing: Self.lineRowGap) {
             lineRow
             RouteCard(
                 from: viewModel.route?.from.name,
                 to: viewModel.route?.to.name,
-                tap: .card(label: viewModel.routeTitle ?? "", id: "schedule.route", action: onEditRoute),
+                fromID: "schedule.from",
+                toID: "schedule.to",
+                onTap: { openPicker($0) },
+                picking: picking,
                 swapID: "schedule.swap"
             ) {
                 Task { await viewModel.swap() }
             }
+        }
+    }
+
+    // MARK: Station picker
+
+    /// A tap on a station row: the picker opens for that field, or moves to it while open.
+    private func openPicker(_ stop: RouteCard.Stop) {
+        let field: RouteFormViewModel.Field = stop == .from ? .from : .to
+        if let picker, picker.isPickingStation {
+            picker.open(field)
+            return
+        }
+        let model = RouteFormViewModel(route: viewModel.route, repository: stations, recents: viewModel.recents)
+        model.open(field)
+        picker = model
+        Task { await model.loadStations() }
+    }
+
+    /// The tapped row as the search field, with the current station as a grey hint, and the X in the swap button's place.
+    private var picking: RouteCard.Picking? {
+        guard let picker, picker.isPickingStation else { return nil }
+        return RouteCard.Picking(
+            stop: picker.pickingField == .from ? .from : .to,
+            query: picker.query,
+            current: picker.pickingStationName,
+            cancelID: "schedule.cancel",
+            onQuery: { picker.query = $0 },
+            onSubmit: { if picker.pickFirstMatch() { apply(picker) } },
+            onCancel: { picker.closeStations() }
+        )
+    }
+
+    private var isPicking: Bool { picker?.isPickingStation ?? false }
+
+    /// The list is revealed from the card's bottom edge, and the card squares off its bottom corners to meet it; the day
+    /// strip and timeline recede under a frosted veil (no dark scrim). A tap on the veil, the X or a swipe down on the list
+    /// cancels; a pick applies at once. The layer stays in place so that the veil and the list can play their exit.
+    private var pickerLayer: some View {
+        VStack(spacing: 0) {
+            // An unseen copy of the line row and the card, as tall as they are in the header, so the veil and the list
+            // start right under the card whatever the line row holds.
+            routeBlock(picking: nil)
+                .padding(.horizontal, TTSpace.s5)
+                .padding(.top, TTSpace.s3)
+                .hidden()
+                .allowsHitTesting(false)
+            ZStack(alignment: .top) {
+                if let picker, picker.isPickingStation {
+                    veil
+                        .onTapGesture { picker.closeStations() }
+                        .accessibilityHidden(true)
+                        .transition(.pickerVeil)
+                }
+                // The panel is the only child of its own container, so the reveal measures the panel and nothing else.
+                ZStack(alignment: .top) {
+                    if let picker, picker.isPickingStation {
+                        StationPickerPanel(
+                            viewModel: picker,
+                            onPick: { if picker.pick($0) { apply(picker) } },
+                            onPickRoute: { route in
+                                picker.choose(route)
+                                Task { await viewModel.show(route) }
+                            },
+                            onCancel: { picker.closeStations() }
+                        )
+                        .transition(.pickerPanel(reduceMotion: reduceMotion))
+                    }
+                }
+                .padding(.horizontal, TTSpace.s5)
+            }
+        }
+        // Closed, the layer is only its hidden copy, and every touch goes through to the screen.
+        .allowsHitTesting(isPicking)
+    }
+
+    /// The timeline and day strip behind the picker, frosted instead of dimmed (Grigor, 2026-11-10: the dark scrim looked
+    /// wrong): `.regularMaterial` under the `Veil` tint. It starts at the card's bottom edge and takes the taps that cancel.
+    private var veil: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .overlay(TTColor.veil)
+            // The header above the card is plain canvas, so a veil that starts square at the card's bottom edge left a hard
+            // tonal line in the side margins (light mode). Its first points fade back to canvas instead, as the approved
+            // frame eases the tone. A colour gradient, not a mask: a mask drops the material (and the layer render's tint).
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [TTColor.canvas, TTColor.canvas.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: Self.veilRamp)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(Rectangle())
+    }
+
+    /// How far the veil takes to reach full strength below the card's bottom edge.
+    private static let veilRamp: CGFloat = 40
+
+    /// A pick that completed the route: show it, which saves it and adds it to Recent.
+    private func apply(_ picker: RouteFormViewModel) {
+        Task {
+            if let route = await picker.route() { await viewModel.show(route) }
         }
     }
 
@@ -396,7 +525,7 @@ struct ScheduleView: View {
 
 #Preview {
     NavigationStack {
-        ScheduleView(viewModel: .fixtures(), onEditRoute: {})
+        ScheduleView(viewModel: .fixtures(), stations: ScheduleDependencies.fixtures().stations)
     }
 }
 

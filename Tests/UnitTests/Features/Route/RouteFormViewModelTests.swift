@@ -50,24 +50,52 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertNil(route)
     }
 
-    /// From the Schedule header the form opens prefilled, and changing From closes the list since To is set.
-    func testPrefilledFormClosesTheListAfterOnePick() async throws {
+    /// Schedule (D54): the picker opens over the route on screen, and one pick completes the route and applies at once.
+    func testSchedulePickAppliesAtOnce() async throws {
         let model = try await model(Route(from: oakville, to: union, line: nil))
+        XCTAssertTrue(model.appliesAtOnce)
         XCTAssertTrue(model.canShowTrains)
         model.open(.from)
-        model.pick(Station(id: "BU", name: "Burlington GO"))
+        XCTAssertEqual(model.pickingStationName, "Oakville GO", "The current station shows selected")
+        XCTAssertTrue(model.pick(Station(id: "BU", name: "Burlington GO")), "The caller shows the route now")
         XCTAssertFalse(model.isPickingStation)
         XCTAssertEqual(model.from?.id, "BU")
+        let route = await model.route()
+        XCTAssertEqual(route?.from.id, "BU")
+        XCTAssertEqual(route?.to, union)
     }
 
+    /// First use waits for "Show trains": no pick applies a route, even the one that completes it.
+    func testFirstUsePickNeverAppliesAtOnce() async throws {
+        let model = try await model()
+        XCTAssertFalse(model.appliesAtOnce)
+        model.open(.from)
+        XCTAssertFalse(model.pick(oakville))
+        XCTAssertFalse(model.pick(union))
+        XCTAssertTrue(model.canShowTrains)
+    }
+
+    /// Cancel (the X, the scrim, a swipe down) changes nothing and clears what was typed.
     func testCancelLeavesTheFormUnchanged() async throws {
         let model = try await model(Route(from: oakville, to: union, line: nil))
         model.open(.to)
         model.query = "ac"
         model.closeStations()
         XCTAssertFalse(model.isPickingStation)
+        XCTAssertEqual(model.query, "")
         XCTAssertEqual(model.from, oakville)
         XCTAssertEqual(model.to, union)
+    }
+
+    /// A Recent row applies both of its stations.
+    func testChoosingARecentRouteAppliesBothStations() async throws {
+        let back = Route(from: union, to: oakville, line: nil)
+        let model = try await model(Route(from: oakville, to: union, line: nil), recent: [back])
+        model.open(.to)
+        model.choose(back)
+        XCTAssertFalse(model.isPickingStation)
+        XCTAssertEqual(model.from, union)
+        XCTAssertEqual(model.to, oakville)
     }
 
     func testSwapReversesTheStations() async throws {
@@ -79,17 +107,22 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(route?.line?.name, "Lakeshore West", "The line serves both directions")
     }
 
-    /// D48: Recent lists the routes opened last, newest first, without the route the sheet opened with.
-    func testRecentLeavesOutTheRouteOnScreen() async throws {
+    /// D48, D54: Recent lists the routes opened last, newest first, without the route on screen; Schedule only, and
+    /// gone once the rider types.
+    func testRecentIsScheduleOnlyAndHidesWhileTyping() async throws {
         let there = Route(from: oakville, to: union, line: nil)
         let back = Route(from: union, to: oakville, line: nil)
         let burlington = Route(from: Station(id: "BU", name: "Burlington GO"), to: union, line: nil)
         let model = try await model(there, recent: [burlington, back, there])
-        XCTAssertEqual(model.recentRoutes, [back, burlington])
-        XCTAssertEqual(model.title(model.recentRoutes[0]), "Union Station GO to Oakville GO")
+        model.open(.to)
+        XCTAssertEqual(model.suggestedRoutes, [back, burlington])
+        XCTAssertEqual(model.title(model.suggestedRoutes[0]), "Union Station GO to Oakville GO")
+        model.query = "bur"
+        XCTAssertEqual(model.suggestedRoutes, [])
 
-        let firstUse = try await self.model()
-        XCTAssertTrue(firstUse.recentRoutes.isEmpty, "First use shows the footnote")
+        let firstUse = try await self.model(recent: [burlington, back, there])
+        firstUse.open(.from)
+        XCTAssertTrue(firstUse.suggestedRoutes.isEmpty, "First use has no Recent group")
     }
 
     /// A pair with no direct service still makes a route, with no line (Schedule then shows No direct connection).
@@ -122,7 +155,7 @@ final class RouteFormViewModelTests: XCTestCase {
         let row = try XCTUnwrap(model.allStations.first { $0.id == "UN" })
         XCTAssertTrue(row.isDisabled)
         XCTAssertEqual(row.detail, "All lines · Same as To")
-        model.pick(union)
+        XCTAssertFalse(model.pick(union))
         XCTAssertEqual(model.from, oakville, "Picking the To station for From does nothing")
         XCTAssertTrue(model.isPickingStation)
 
@@ -171,6 +204,59 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.yourStations.map(\.station.name), ["Union Station GO"])
     }
 
+    /// The active field's own station is not listed: picking it again would change nothing.
+    func testOwnStationIsNotListed() async throws {
+        let model = try await model(Route(from: oakville, to: union, line: nil))
+        model.open(.to)
+        XCTAssertNil(model.allStations.first { $0.id == "UN" })
+        XCTAssertNotNil(model.allStations.first { $0.id == "OA" }, "The other field's station is listed, greyed")
+        model.open(.from)
+        XCTAssertNil(model.allStations.first { $0.id == "OA" })
+        XCTAssertNotNil(model.allStations.first { $0.id == "UN" })
+    }
+
+    /// Typing matches the start of a word: "st" finds Union Station GO, "nion" finds nothing.
+    func testTypingMatchesWordPrefixes() async throws {
+        let model = try await model()
+        model.open(.from)
+        model.query = "st"
+        XCTAssertTrue(model.allStations.contains { $0.id == "UN" })
+        model.query = "union st"
+        XCTAssertEqual(model.allStations.map(\.station.name), ["Union Station GO"])
+        model.query = "nion"
+        XCTAssertEqual(model.allStations, [])
+        model.query = "UNI"
+        XCTAssertTrue(model.allStations.contains { $0.id == "UN" })
+    }
+
+    /// No match: one "No stations match" row in the panel, never before the stations have loaded.
+    func testNoMatch() async throws {
+        let model = try await model()
+        model.open(.from)
+        XCTAssertFalse(model.hasNoMatch)
+        model.query = "zzz"
+        XCTAssertTrue(model.hasNoMatch)
+
+        let notLoaded = RouteFormViewModel(
+            route: nil, repository: try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        )
+        notLoaded.open(.from)
+        notLoaded.query = "zzz"
+        XCTAssertFalse(notLoaded.hasNoMatch, "Still loading")
+    }
+
+    /// The Return key picks the first station the typed text finds; with nothing typed it does nothing.
+    func testReturnPicksTheFirstMatch() async throws {
+        let model = try await model()
+        model.open(.from)
+        XCTAssertFalse(model.pickFirstMatch())
+        XCTAssertNil(model.from)
+        model.query = "oak"
+        model.pickFirstMatch()
+        XCTAssertEqual(model.from, oakville)
+        XCTAssertEqual(model.pickingField, .to, "Focus moves on to the destination")
+    }
+
     /// Each time the search opens, or moves on from From to To, it starts empty.
     func testSearchClearsOnOpenAndPick() async throws {
         let model = try await model()
@@ -180,6 +266,8 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.query, "")
         model.query = "uni"
         model.closeStations()
+        XCTAssertEqual(model.query, "")
+        model.query = "uni"
         model.open(.to)
         XCTAssertEqual(model.query, "")
     }

@@ -1,16 +1,17 @@
 import Foundation
 import Observation
 
-/// The route form (TT-120): From and To, swap, and "Show trains" once both are set and different, then the routes opened
-/// last (D48). It is the first screen on first launch and the route sheet from the Schedule route card.
-/// Station search (TT-121) picks for one field at a time: Your stations, then All stations, filtered by `query`.
+/// The model behind the inline station picker (TT-161, D54): From and To, swap, and "Show trains" once both are set and
+/// different. The first screen on first launch uses it, and Schedule makes one each time the rider taps a station in its
+/// route card. Tapping a station row makes it the search field and unfolds suggestions under the card: Recent routes
+/// (Schedule only, before typing), Your stations, then All stations, filtered by `query`.
 @Observable @MainActor
 final class RouteFormViewModel {
     enum Field: String {
         case from, to
     }
 
-    /// One row of the station search.
+    /// One station row of the suggestions.
     struct StationRow: Identifiable, Equatable {
         let station: Station
         /// Line context in `footnote` ("Lakeshore West", "All lines"), plus "Same as To" or "Same as From" when greyed.
@@ -30,20 +31,20 @@ final class RouteFormViewModel {
     private(set) var to: Station?
     private(set) var stations: [Station] = []
     private(set) var isPickingStation = false
-    /// The field the station list picks for. Kept after the list closes, so its title does not change on the way out.
+    /// The field the picker picks for. Kept after the picker folds, so the card does not change on the way out.
     private(set) var pickingField: Field = .from
-    /// The station search text; cleared each time the search opens or moves on to another field.
+    /// The typed search text; cleared each time the picker opens, moves on to another field or folds.
     var query = ""
 
     /// The routes opened last, shared with Schedule, which records them (D48).
     let recents: RecentRoutes
 
     private let repository: any StationRepository
-    /// The route the sheet opened with, left out of Recent since it is on screen.
+    /// The route on screen when the picker opens from Schedule, left out of Recent; nil on first use.
     private let current: Route?
 
-    /// `route` prefills the form when it opens from the Schedule route card; nil on first use. `recents` are the routes
-    /// opened last: the Recent list under the form, and their stations make up Your stations.
+    /// `route` is the route on screen when the picker opens from the Schedule route card; nil on first use. `recents` are
+    /// the routes opened last: the Recent group, and their stations make up Your stations.
     init(route: Route?, repository: any StationRepository, recents: RecentRoutes = RecentRoutes(defaults: nil)) {
         from = route?.from
         to = route?.to
@@ -55,6 +56,9 @@ final class RouteFormViewModel {
     private var recentStationIds: Set<String> {
         Set(recents.routes.flatMap { [$0.from.id, $0.to.id] })
     }
+
+    /// Schedule applies a pick at once, over the route on screen; first use waits for "Show trains".
+    var appliesAtOnce: Bool { current != nil }
 
     /// Identical stations are rejected inline.
     var isSameStation: Bool { from != nil && from?.id == to?.id }
@@ -76,6 +80,22 @@ final class RouteFormViewModel {
         return rows(list)
     }
 
+    /// The station the active field holds, shown selected when the picker opens so typing replaces it; nil while empty.
+    var pickingStationName: String? {
+        (pickingField == .from ? from : to)?.name
+    }
+
+    /// The Recent group: up to three routes, newest first, without the one on screen. Schedule only, and only before the
+    /// rider types.
+    var suggestedRoutes: [Route] {
+        appliesAtOnce && trimmedQuery.isEmpty ? recents.routes(excluding: current) : []
+    }
+
+    /// Nothing in the picker matches the typed text.
+    var hasNoMatch: Bool {
+        !stations.isEmpty && suggestedRoutes.isEmpty && yourStations.isEmpty && allStations.isEmpty
+    }
+
     func loadStations() async {
         guard stations.isEmpty else { return }
         stations = (try? await repository.stations()) ?? []
@@ -87,38 +107,52 @@ final class RouteFormViewModel {
         isPickingStation = true
     }
 
+    /// Cancel: the X, a tap on the scrim or a swipe down. The stations stay as they were.
     func closeStations() {
         isPickingStation = false
+        query = ""
     }
 
-    /// Picking From while To is empty moves the list straight on to To, so the first route takes two picks and one tap.
-    /// The other field's station cannot be picked.
-    func pick(_ station: Station) {
-        guard !isTaken(station) else { return }
+    /// Picking From while To is empty moves the picker straight on to To, so the first route takes two picks and one tap.
+    /// The other field's station cannot be picked. Returns true when the form applies picks at once (Schedule) and this
+    /// pick completed the route, so the caller shows `route()` now.
+    @discardableResult
+    func pick(_ station: Station) -> Bool {
+        guard !isTaken(station) else { return false }
         query = ""
         switch pickingField {
         case .from:
             from = station
             if to == nil {
                 pickingField = .to
-            } else {
-                isPickingStation = false
+                return false
             }
         case .to:
             to = station
-            isPickingStation = false
         }
+        isPickingStation = false
+        return appliesAtOnce && canShowTrains
+    }
+
+    /// A Recent row applies both of its stations at once (Schedule).
+    func choose(_ route: Route) {
+        from = route.from
+        to = route.to
+        closeStations()
+    }
+
+    /// The Return key picks the first station the typed text finds.
+    @discardableResult
+    func pickFirstMatch() -> Bool {
+        guard !trimmedQuery.isEmpty,
+              let row = (yourStations + allStations).first(where: { !$0.isDisabled }) else { return false }
+        return pick(row.station)
     }
 
     /// Swap is explicit, never automatic.
     func swap() {
         (from, to) = (to, from)
     }
-
-    // MARK: Recent
-
-    /// Up to three routes opened last, newest first, without the one on screen.
-    var recentRoutes: [Route] { recents.routes(excluding: current) }
 
     /// "Oakville to Union", read for a Recent row.
     func title(_ route: Route) -> String {
@@ -131,19 +165,42 @@ final class RouteFormViewModel {
         return (try? await repository.route(from: from, to: to)) ?? Route(from: from, to: to, line: nil)
     }
 
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The name, or the name from any word on, starts with `prefix`: "oak" and "uni" find Oakville GO and Union Station GO,
+    /// "st" finds Union Station GO too.
+    private static func matches(_ name: String, prefix: String) -> Bool {
+        var start = name.startIndex
+        while start < name.endIndex {
+            let rest = name[start...]
+            if rest.range(of: prefix, options: [.anchored, .caseInsensitive, .diacriticInsensitive]) != nil { return true }
+            guard let separator = rest.firstIndex(where: { $0 == " " || $0 == "-" }) else { return false }
+            start = name.index(after: separator)
+        }
+        return false
+    }
+
     /// The station already chosen for the other field.
     private func isTaken(_ station: Station) -> Bool {
         station.id == (pickingField == .from ? to : from)?.id
     }
 
-    /// Filters by `query` (case and accent insensitive, anywhere in the name) and builds each row's footnote.
+    /// The station the active field holds now; it is not listed, since picking it again would change nothing.
+    private var ownStationId: String? {
+        (pickingField == .from ? from : to)?.id
+    }
+
+    /// Filters by the typed text (a word prefix, case and accent insensitive) and builds each row's footnote.
     private func rows(_ list: [Station]) -> [StationRow] {
-        let text = query.trimmingCharacters(in: .whitespaces)
+        let text = trimmedQuery
         let allLines = Set(stations.flatMap(\.lines))
         let sameAsKey: String.LocalizationValue = pickingField == .from ? "stations.same_as_to" : "stations.same_as_from"
         let sameAs = String(localized: sameAsKey)
         return list
-            .filter { text.isEmpty || $0.name.localizedStandardContains(text) }
+            .filter { $0.id != ownStationId }
+            .filter { text.isEmpty || Self.matches($0.name, prefix: text) }
             .map { station in
                 let lines = allLines.count > 1 && Set(station.lines) == allLines
                     ? String(localized: "stations.all_lines")

@@ -58,7 +58,7 @@ struct ButtonsGallery: View {
                 IconButton(systemName: "bell.fill", label: "button.add_alert") {}
                 IconButton(systemName: "arrow.up.arrow.down", label: "route.choose") {}
                 IconButton(systemName: "gearshape", label: "nav.settings") {}
-                IconButton(systemName: "magnifyingglass", label: "stations.search", isSelected: true) {}
+                IconButton(systemName: "magnifyingglass", label: "stations.results", isSelected: true) {}
             }
             IconButton(systemName: "xmark", label: "button.now") {}
         }

@@ -3,14 +3,14 @@ import SwiftUI
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
 /// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
-/// records them, and the route sheet (D48). Applies the Appearance setting and puts the one time formatter in the
+/// records them and lists them in its station picker (D48, D54). Applies the Appearance setting and puts the one time formatter in the
 /// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
     @State private var settings: AppSettings
     @State private var settingsModel: SettingsViewModel
-    /// The first-use form, replaced by a prefilled one each time the route sheet opens.
+    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D54).
     @State private var routeForm: RouteFormViewModel
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
@@ -52,7 +52,7 @@ struct RootView: View {
         // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
         _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock))
         _routeForm = State(
-            initialValue: RouteFormViewModel(route: schedule.route, repository: dependencies.stations, recents: schedule.recents)
+            initialValue: RouteFormViewModel(route: nil, repository: dependencies.stations, recents: schedule.recents)
         )
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
@@ -75,11 +75,11 @@ struct RootView: View {
         TabView(selection: tabSelection) {
             NavigationStack {
                 if schedule.route == nil {
-                    RouteFormView(viewModel: routeForm, isFirstUse: true, onShowTrains: { show($0) })
+                    RouteFormView(viewModel: routeForm, onShowTrains: { show($0) })
                 } else {
                     ScheduleView(
                         viewModel: schedule,
-                        onEditRoute: { editRoute() },
+                        stations: stations,
                         onOpenTrip: { openTrip($0) },
                         onOpenLineNotice: { router.present(.lineNotices) },
                         bells: bells,
@@ -125,9 +125,6 @@ struct RootView: View {
         }
         .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
-            case .routeEdit:
-                RouteFormView(viewModel: routeForm, onShowTrains: { show($0) })
-                    .presentationDragIndicator(.visible)
             case .tripDetails:
                 if let tripDetails {
                     // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
@@ -141,8 +138,6 @@ struct RootView: View {
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
-            default:
-                SheetPlaceholder(sheet: sheet)
             }
         }
         // A tapped notification, also one that launched the app before this view appeared (TT-144).
@@ -213,12 +208,6 @@ struct RootView: View {
         openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: .thisTrip))
     }
 
-    /// The prefilled route sheet, with the recent routes (D48).
-    private func editRoute() {
-        routeForm = RouteFormViewModel(route: schedule.route, repository: stations, recents: schedule.recents)
-        router.present(.routeEdit)
-    }
-
     private func openTrip(_ key: TripKey, on route: Route? = nil) {
         guard let route = route ?? schedule.route else { return }
         tripDetails = TripDetailsViewModel(
@@ -244,22 +233,9 @@ struct RootView: View {
         }
     }
 
+    /// "Show trains" on first use.
     private func show(_ route: Route) {
-        router.dismissSheet()
         Task { await schedule.show(route) }
-    }
-}
-
-/// Stand-in for a sheet with no screen of its own yet (station search opens from the route form, TT-121).
-private struct SheetPlaceholder: View {
-    let sheet: AppSheet
-
-    var body: some View {
-        TTColor.canvas
-            .ignoresSafeArea()
-            .accessibilityElement()
-            .accessibilityIdentifier("sheet.\(sheet.rawValue)")
-            .presentationDragIndicator(.visible)
     }
 }
 

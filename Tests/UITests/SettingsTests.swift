@@ -46,7 +46,7 @@ final class SettingsTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "offline"]
         app.launch()
 
-        XCTAssertTrue(app.buttons["schedule.route"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 10))
         let offline = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Offline · last updated")).firstMatch
         XCTAssertTrue(offline.waitForExistence(timeout: 10))
 

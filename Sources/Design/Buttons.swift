@@ -116,24 +116,42 @@ struct GlassIconButton: View {
     }
 }
 
-extension View {
-    /// Liquid Glass in `shape` on iOS 26 and later; a raised surface on earlier systems (D49). Only for controls that
-    /// float over content: cards and tiles stay solid.
-    @ViewBuilder func ttGlass(in shape: some Shape) -> some View {
-        if #available(iOS 26, *) {
-            glassEffect(.regular.interactive(), in: shape)
+extension EnvironmentValues {
+    /// Off in the Trip details snapshot tests: dark Liquid Glass is drawn differently from one run to the next (the glass
+    /// adapts to what is behind it, 5% of the image in one run), so the snapshots draw the fallback surface instead.
+    @Entry var rendersGlass: Bool = true
+}
+
+/// `ttGlass`: the glass, or its solid fallback before iOS 26 and when `rendersGlass` is off.
+private struct GlassBackground<S: Shape>: ViewModifier {
+    @Environment(\.rendersGlass) private var rendersGlass
+    let tint: Color?
+    let shape: S
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *), rendersGlass {
+            content.glassEffect(glass, in: shape)
         } else {
-            background(TTColor.surfaceRaised, in: shape)
+            content.background(tint ?? TTColor.surfaceRaised, in: shape)
         }
     }
 
+    @available(iOS 26, *)
+    private var glass: Glass {
+        if let tint { Glass.regular.tint(tint).interactive() } else { Glass.regular.interactive() }
+    }
+}
+
+extension View {
+    /// Liquid Glass in `shape` on iOS 26 and later; a raised surface on earlier systems (D49). Only for controls that
+    /// float over content: cards and tiles stay solid.
+    func ttGlass(in shape: some Shape) -> some View {
+        modifier(GlassBackground(tint: nil, shape: shape))
+    }
+
     /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.
-    @ViewBuilder func ttGlass(tint: Color, in shape: some Shape) -> some View {
-        if #available(iOS 26, *) {
-            glassEffect(.regular.tint(tint).interactive(), in: shape)
-        } else {
-            background(tint, in: shape)
-        }
+    func ttGlass(tint: Color, in shape: some Shape) -> some View {
+        modifier(GlassBackground(tint: tint, shape: shape))
     }
 }
 

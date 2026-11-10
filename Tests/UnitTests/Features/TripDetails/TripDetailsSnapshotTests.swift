@@ -25,6 +25,9 @@ final class TripDetailsSnapshotTests: XCTestCase {
     ) {
         let view = TripDetailsView(viewModel: model, startsAtEnd: startsAtEnd)
             .environment(\.timeFormatter, TimeFormatter(format: .twelveHour))
+            // Dark glass drew 5% of the image differently from one run to the next (CI, TT-163); the close button and the
+            // alert capsule are drawn as their solid fallbacks here, and the real glass is checked on the simulator.
+            .environment(\.rendersGlass, false)
         layOutOnce(view)
         // The whole failure message on one line, so the CI log shows how far the image is from the reference.
         let failure = verifySnapshot(

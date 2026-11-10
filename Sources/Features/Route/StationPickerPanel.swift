@@ -41,6 +41,8 @@ struct StationPickerPanel: View {
     @State private var staggerEnded = false
     /// Counts picks, for the selection haptic.
     @State private var picks = 0
+    /// The picked row, which keeps its press tint for 120 ms before the list closes; taps meanwhile are ignored.
+    @State private var heldRow: String?
     @Environment(\.animatesPickerEntrance) private var animatesEntrance
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -134,8 +136,8 @@ struct StationPickerPanel: View {
         }
         .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // The rows ride down 10 pt as one block, on a bouncier spring than the clip that reveals them.
-        .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -10)
+        // The rows ride down 24 pt as one block, on a bouncier spring than the clip that reveals them.
+        .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -PickerMotion.rideDistance)
         .animation(PickerMotion.ride, value: settled)
     }
 
@@ -200,8 +202,7 @@ struct StationPickerPanel: View {
     /// reason.
     private func stationRow(_ row: RouteFormViewModel.StationRow, id: String, glyph: Glyph) -> some View {
         Button {
-            picks += 1
-            onPick(row.station)
+            commit(id) { onPick(row.station) }
         } label: {
             HStack(spacing: TTSpace.s3) {
                 glyphView(glyph, isDisabled: row.isDisabled)
@@ -222,7 +223,7 @@ struct StationPickerPanel: View {
             .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PanelRowStyle())
+        .buttonStyle(PanelRowStyle(isHeld: heldRow == id))
         .disabled(row.isDisabled)
         .accessibilityIdentifier(id)
     }
@@ -230,9 +231,9 @@ struct StationPickerPanel: View {
     /// Mini markers in the glyph column, origin over destination at 15 pt semibold, the line's code tile at the right; a tap
     /// shows that route.
     private func routeRow(_ route: Route) -> some View {
-        Button {
-            picks += 1
-            onPickRoute(route)
+        let id = "route.recent.\(route.from.id)-\(route.to.id)"
+        return Button {
+            commit(id) { onPickRoute(route) }
         } label: {
             HStack(alignment: .top, spacing: TTSpace.s3) {
                 RouteMarkers(size: .mini)
@@ -256,19 +257,35 @@ struct StationPickerPanel: View {
             .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PanelRowStyle())
+        .buttonStyle(PanelRowStyle(isHeld: heldRow == id))
         .accessibilityLabel(Text(verbatim: viewModel.title(route)))
-        .accessibilityIdentifier("route.recent.\(route.from.id)-\(route.to.id)")
+        .accessibilityIdentifier(id)
+    }
+
+    /// A pick: the selection haptic now, the press tint held for 120 ms, then the pick (which closes the list). A second
+    /// tap in between, or a cancel, does nothing.
+    private func commit(_ id: String, _ pick: @escaping @MainActor () -> Void) {
+        guard heldRow == nil else { return }
+        picks += 1
+        heldRow = id
+        Task { @MainActor in
+            try? await Task.sleep(for: PickerMotion.pickHold)
+            defer { heldRow = nil }
+            if viewModel.isPickingStation { pick() }
+        }
     }
 }
 
 private extension View {
-    /// A header or row falling in from 12 pt above, after the ones above it. Once the panel has settled, rows that appear
-    /// later (while typing) are already in place; the first keystroke makes the rest snap. Reduce Motion: a 200 ms fade.
+    /// A header or row falling in after the ones above it: opacity 0 to 1 in 140 ms, and from 28 pt above at 92 % size
+    /// (about the centre, never one axis) on a bouncy spring. Once the panel has settled, rows that appear later (while
+    /// typing) are already in place; the first keystroke makes the rest snap. Reduce Motion: a 200 ms fade, no movement.
     func fallsIn(order: Int, revealed: Bool, snaps: Bool, reduceMotion: Bool) -> some View {
         opacity(revealed ? 1 : 0)
-            .offset(y: revealed || reduceMotion ? 0 : -12)
-            .animation(snaps ? nil : reduceMotion ? .easeOut(duration: 0.2) : PickerMotion.row(order: order), value: revealed)
+            .animation(snaps ? nil : reduceMotion ? .easeOut(duration: 0.2) : PickerMotion.rowFade(order: order), value: revealed)
+            .scaleEffect(revealed || reduceMotion ? 1 : 0.92)
+            .offset(y: revealed || reduceMotion ? 0 : -28)
+            .animation(snaps || reduceMotion ? nil : PickerMotion.rowFall(order: order), value: revealed)
     }
 }
 
@@ -276,11 +293,14 @@ private extension View {
 /// frame (the plain style would dim a disabled row further).
 private struct PanelRowStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
+    /// The row was picked and keeps its tint for the 120 ms before the list closes.
+    var isHeld = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                configuration.isPressed ? (colorScheme == .dark ? Color.white.opacity(0.08) : TTColor.ink.opacity(0.06)) : .clear
+                configuration.isPressed || isHeld
+                    ? (colorScheme == .dark ? Color.white.opacity(0.08) : TTColor.ink.opacity(0.06)) : .clear
             )
     }
 }

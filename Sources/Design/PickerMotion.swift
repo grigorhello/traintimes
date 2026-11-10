@@ -1,26 +1,38 @@
 import SwiftUI
 
-/// How the station picker moves (TT-161, D54; the Picker-Spec board on the canvas has the tables). Everything starts on the
-/// tap: the list is revealed by a clip growing down from the card's bottom edge, its content rides down a little behind it,
-/// its rows fall in one after another, the veil and day strip fade, and the swap button turns into the X. Closing is
-/// quicker and has no stagger.
+/// How the station picker moves (TT-161, D54, revised as "Lively": Grigor, 2026-11-10; the Picker-Bounce-Spec board on the
+/// canvas has the tables). Everything starts on the tap: the list is revealed by a calm clip growing down from the card's
+/// bottom edge, its content rides down behind it on a bouncy spring, its rows fall in one after another with a little
+/// bounce, the veil and day strip fade, and the swap button turns into the X. The bounce is on transforms only; the clip
+/// barely overshoots. Closing is quicker and has no stagger.
 enum PickerMotion {
-    /// The list's clip growing down from the card's bottom edge: at rest by about 450 ms, never overshooting into the
-    /// keyboard gap.
-    static var reveal: Animation { .spring(response: 0.42, dampingFraction: 0.90) }
-    /// The rows as one block riding down 10 pt inside the clip, which gives the landing its weight.
-    static var ride: Animation { .spring(response: 0.45, dampingFraction: 0.76) }
+    /// The list's clip growing down from the card's bottom edge: about 1 % over (5 pt of 450), inside the keyboard gap.
+    static var reveal: Animation { .spring(response: 0.46, dampingFraction: 0.82) }
+    /// The rows as one block riding down 24 pt inside the clip, which gives the landing its weight.
+    static var ride: Animation { .spring(response: 0.50, dampingFraction: 0.60) }
+    /// How far the block rides.
+    static let rideDistance: CGFloat = 24
     /// Closing, for everything but the veil and the buttons: ease-in, 220 ms.
     static var close: Animation { .timingCurve(0.4, 0, 0.7, 0.3, duration: 0.22) }
     /// Every height change while the picker is open (typing, switching fields): critically damped, no bounce.
     static var height: Animation { .spring(response: 0.28, dampingFraction: 1.0) }
+    /// The swap button and the X leaving: 120 ms ease-in.
+    static var buttonOut: Animation { .easeIn(duration: 0.12) }
+    /// The X and the swap button arriving, 40 ms after the other left.
+    static var buttonIn: Animation { .spring(response: 0.42, dampingFraction: 0.55).delay(0.04) }
+    /// The press tint stays on a picked row this long before the list closes.
+    static let pickHold: Duration = .milliseconds(120)
     /// The animation for a state change into (`opening`) or out of the picker.
     static func animation(opening: Bool) -> Animation { opening ? reveal : close }
 
-    /// A header or row falling into place, one after another in list order; a header shares its group's first row's slot
-    /// and the stagger stops at the ninth.
-    static func row(order: Int) -> Animation {
-        .spring(response: 0.32, dampingFraction: 0.86).delay(0.040 + 0.018 * Double(min(order, 8)))
+    /// A header or row's delay in the fall: 30 ms plus 24 ms a place, the stagger stopping at the ninth. A header shares its
+    /// group's first row's place.
+    private static func delay(order: Int) -> Double { 0.030 + 0.024 * Double(min(order, 8)) }
+    /// The row's opacity: 0 to 1 in 140 ms, ease-out.
+    static func rowFade(order: Int) -> Animation { .easeOut(duration: 0.14).delay(delay(order: order)) }
+    /// The row's fall (y -28 to 0, scale 0.92 to 1), with a bounce.
+    static func rowFall(order: Int) -> Animation {
+        .spring(response: 0.44, dampingFraction: 0.56).delay(delay(order: order))
     }
 }
 
@@ -57,9 +69,12 @@ private struct PanelReveal: ViewModifier, Animatable {
     }
 }
 
-/// The X coming in: it turns from -90° to 0 while it scales from 0.6 to 1.
-private struct TurnIn: ViewModifier, Animatable {
+/// A button turning and scaling into or out of its place: at rest at 1, away at `degrees` and half size, fading in the
+/// first half. The X arrives from -135° and leaves to -90°; the swap button arrives from +90° and leaves to +90°.
+private struct Turn: ViewModifier, Animatable {
+    /// 0 is away, 1 is at rest; the spring may overshoot.
     var progress: Double
+    let degrees: Double
 
     // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
     nonisolated var animatableData: Double {
@@ -69,9 +84,9 @@ private struct TurnIn: ViewModifier, Animatable {
 
     func body(content: Content) -> some View {
         content
-            .rotationEffect(.degrees(-90 * (1 - progress)))
-            .scaleEffect(0.6 + 0.4 * progress)
-            .opacity(min(1, progress * 2))
+            .rotationEffect(.degrees(degrees * (1 - progress)))
+            .scaleEffect(0.5 + 0.5 * progress)
+            .opacity(min(1, max(0, progress * 2)))
     }
 }
 
@@ -97,20 +112,24 @@ extension AnyTransition {
         )
     }
 
-    /// The X taking the swap button's place: the swap scales to 0.6 and fades over 140 ms, then the X comes in 40 ms later.
+    /// The X taking the swap button's place: the swap button turns to +90° at half size and fades over 120 ms, then the X
+    /// comes in 40 ms later from -135° on a bouncy spring. Closing, the X leaves to -90° the same way.
     static var pickerCancelButton: AnyTransition {
         .asymmetric(
-            insertion: .modifier(active: TurnIn(progress: 0), identity: TurnIn(progress: 1))
-                .animation(.spring(response: 0.30, dampingFraction: 0.80).delay(0.04)),
-            removal: .scale(scale: 0.6).combined(with: .opacity).animation(.easeIn(duration: 0.14))
+            insertion: .modifier(active: Turn(progress: 0, degrees: -135), identity: Turn(progress: 1, degrees: -135))
+                .animation(PickerMotion.buttonIn),
+            removal: .modifier(active: Turn(progress: 0, degrees: -90), identity: Turn(progress: 1, degrees: -90))
+                .animation(PickerMotion.buttonOut)
         )
     }
 
-    /// The swap button coming back when the picker closes: the X scales out first, then the swap comes in 40 ms later.
+    /// The swap button in the card: it arrives from +90° at half size (40 ms after the X has left) and leaves to +90°.
     static var pickerSwapButton: AnyTransition {
         .asymmetric(
-            insertion: .scale(scale: 0.6).combined(with: .opacity).animation(.spring(response: 0.30, dampingFraction: 0.80).delay(0.04)),
-            removal: .scale(scale: 0.6).combined(with: .opacity).animation(.easeIn(duration: 0.14))
+            insertion: .modifier(active: Turn(progress: 0, degrees: 90), identity: Turn(progress: 1, degrees: 90))
+                .animation(PickerMotion.buttonIn),
+            removal: .modifier(active: Turn(progress: 0, degrees: 90), identity: Turn(progress: 1, degrees: 90))
+                .animation(PickerMotion.buttonOut)
         )
     }
 }

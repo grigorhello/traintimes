@@ -167,13 +167,28 @@ extension View {
 
 extension View {
     /// The surface of the station picker's suggestions panel (TT-161, D53): Liquid Glass on iOS 26 and later, a material
-    /// before it. The content is clipped to the same shape first, so rows and hairlines keep the rounded corners.
-    @ViewBuilder func ttGlassPanel(cornerRadius: CGFloat) -> some View {
+    /// before it, both under the canvas's `--glass` tint so the rows stay legible over the timeline. The content is clipped
+    /// to the same shape first, so rows and hairlines keep the rounded corners.
+    func ttGlassPanel(cornerRadius: CGFloat) -> some View {
+        modifier(GlassPanelSurface(cornerRadius: cornerRadius))
+    }
+}
+
+private struct GlassPanelSurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    let cornerRadius: CGFloat
+
+    /// Canvas `.pk-panel`: `--glass` is white at 78% in light and #222B3B at 80% in dark.
+    private var tint: Color {
+        colorScheme == .dark ? TTColor.surfaceRaised.opacity(0.80) : TTColor.surface.opacity(0.78)
+    }
+
+    @ViewBuilder func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)
         if #available(iOS 26, *) {
-            clipShape(shape).glassEffect(.regular, in: shape)
+            content.clipShape(shape).background(tint, in: shape).glassEffect(.regular, in: shape)
         } else {
-            clipShape(shape).background(.regularMaterial, in: shape)
+            content.clipShape(shape).background(tint, in: shape).background(.regularMaterial, in: shape)
         }
     }
 }

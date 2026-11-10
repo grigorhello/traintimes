@@ -15,8 +15,8 @@ struct Card<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.lg))
-            // A strip over the rounded bottom corners squares them off.
-            .overlay(alignment: .bottom) {
+            // A strip behind the content (not over it, which clipped the route pin) squares off the rounded bottom corners.
+            .background(alignment: .bottom) {
                 Rectangle().fill(TTColor.surface).frame(height: TTRadius.lg).opacity(joinsBelow ? 1 : 0).allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(colorScheme == .dark || joinsBelow ? 0 : 0.06), radius: 1, x: 0, y: 1)

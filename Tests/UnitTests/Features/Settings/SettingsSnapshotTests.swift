@@ -37,16 +37,16 @@ final class SettingsSnapshotTests: XCTestCase {
             showsTesting: showsTesting
         )
         model.permission = permission
-        assertSnapshot(
-            of: SettingsView(viewModel: model),
-            as: .image(
-                drawHierarchyInKeyWindow: true,
-                perceptualPrecision: 0.98,
-                layout: .device(config: .iPhone17Pro),
-                traits: UITraitCollection(userInterfaceStyle: style)
-            ),
-            testName: testName,
-            line: line
+        let image = Snapshotting<SettingsView, UIImage>.image(
+            drawHierarchyInKeyWindow: true,
+            // The compact date picker lays out its pills a moment after it appears and anti-aliases them slightly differently
+            // from run to run, so the Mock time snapshots wait a moment and tolerate 1% of pixels (TT-159).
+            precision: mockTime ? 0.99 : 1,
+            perceptualPrecision: 0.98,
+            layout: .device(config: .iPhone17Pro),
+            traits: UITraitCollection(userInterfaceStyle: style)
         )
+        let strategy: Snapshotting<SettingsView, UIImage> = mockTime ? .wait(for: 0.5, on: image) : image
+        assertSnapshot(of: SettingsView(viewModel: model), as: strategy, testName: testName, line: line)
     }
 }

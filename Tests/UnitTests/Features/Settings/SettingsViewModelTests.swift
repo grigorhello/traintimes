@@ -57,7 +57,7 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     /// TT-158: Mock time starts from the app's current time, keeps the picker's value, and Use real time clears it.
-    func testMockTimeStartsFromTheClockAndPresetsKeepThePickersDate() throws {
+    func testMockTimeStartsFromTheClockAndPresetsKeepThePickersDate() async throws {
         // 7:21 AM in Toronto on Thu Nov 5 2026 (EST).
         let now = Date(timeIntervalSince1970: 1_793_881_260)
         let settings = AppSettings(defaults: .ephemeral())
@@ -77,6 +77,18 @@ final class SettingsViewModelTests: XCTestCase {
             XCTAssertEqual(TimeFormatter(format: .twelveHour).time(model.mockTimeStart), time)
             XCTAssertEqual(calendar.component(.day, from: model.mockTimeStart), 5, "Still the picker's date")
         }
+
+        // Tapping the preset again is a new choice that starts the clock again, though the minute is the same.
+        let first = try XCTUnwrap(settings.mockTime)
+        try await Task.sleep(for: .milliseconds(20))
+        model.chooseMockTime(.dayChange)
+        XCTAssertEqual(settings.mockTime?.start, first.start)
+        XCTAssertGreaterThan(try XCTUnwrap(settings.mockTime).setAt, first.setAt)
+
+        // The picker handing back the minute it was given is not a choice.
+        let beforeEcho = try XCTUnwrap(settings.mockTime)
+        model.mockTimeStart = beforeEcho.start
+        XCTAssertEqual(settings.mockTime, beforeEcho)
 
         model.useRealTime()
         XCTAssertFalse(model.isMockTimeOn)

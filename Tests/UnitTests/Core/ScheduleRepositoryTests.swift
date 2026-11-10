@@ -24,12 +24,26 @@ final class ScheduleRepositoryTests: XCTestCase {
     // MARK: Every scenario loads
 
     func testEveryScenarioLoads() async throws {
-        for scenario in FixtureScheduleRepository.Scenario.allCases {
+        for scenario in FixtureScheduleRepository.Scenario.allCases where scenario != .fullDay {
             let repo = try repository(scenario)
             let trips = try await repo.trips(for: repo.route, on: repo.serviceDay)
             XCTAssertEqual(trips.count, 4, "\(scenario)")
             XCTAssertEqual(repo.serviceDay, day)
         }
+    }
+
+    /// TT-159: the full-day scenario runs a train every 30 min from 5:24 AM to 11:24 PM, on the fixture day and the days after.
+    func testFullDayScenarioRunsAllDay() async throws {
+        let repo = try repository(.fullDay)
+        let trips = try await repo.trips(for: repo.route, on: repo.serviceDay)
+        XCTAssertEqual(trips.count, 37)
+        XCTAssertEqual(trips.first?.scheduledDeparture, at(5, 24))
+        XCTAssertEqual(trips.last?.scheduledDeparture, at(23, 24))
+        XCTAssertEqual(trips.last?.scheduledArrival, at(23, 59))
+        XCTAssertEqual(trips.first?.key.tripId, "LW-0524-20261105")
+        let later = try await repo.trips(for: repo.route, on: day.adding(days: 1))
+        XCTAssertEqual(later.count, 37)
+        XCTAssertEqual(later.first?.scheduledDeparture, day.adding(days: 1).date(hour: 5, minute: 24))
     }
 
     func testNormalScenario() async throws {

@@ -239,7 +239,8 @@ struct RootView: View {
             // The sheet first; the timeline behind it follows without holding it up.
             openTrip(key, on: route)
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
-            if schedule.selectedDay != key.serviceDay { await schedule.select(key.serviceDay) }
+            // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
+            if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }
         }
     }
 

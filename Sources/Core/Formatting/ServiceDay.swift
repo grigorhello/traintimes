@@ -27,6 +27,13 @@ struct ServiceDay: Hashable, Comparable, Sendable, CustomStringConvertible {
         self.init(year: local.year!, month: local.month!, day: local.day!)
     }
 
+    /// The calendar day a moment falls on in Toronto, with no 3:00 AM cutoff: Schedule's Today (TT-159, D52). A trip after
+    /// midnight still belongs to the service day it started on; only the screen's idea of "today" turns over at midnight.
+    init(calendarDayContaining date: Date) {
+        let local = Self.calendar.dateComponents([.year, .month, .day], from: date)
+        self.init(year: local.year!, month: local.month!, day: local.day!)
+    }
+
     /// Wall-clock minutes since the start of this moment's service day: 23:59 is 1439, 00:40 the next morning is 1480.
     /// Sort trips by this, never by raw clock time.
     static func minutesIntoServiceDay(_ date: Date) -> Int {

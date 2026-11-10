@@ -126,8 +126,8 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, scroll, "No scroll: the rider did not move")
     }
 
-    /// TT-159: a rider left on a later day while the app sat in memory for days: when that day is already past it is no
-    /// longer in the strip, so they land on Today (the old D30 behaviour).
+    /// TT-159: a rider left on a later day while the app sat in memory for days: when that day has become past since they
+    /// chose it, they land on Today (the old D30 behaviour). A past day they chose on purpose stays (TT-160).
     func testADayThatHasDroppedOutOfTheStripMovesToToday() async throws {
         let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
         await model.loadIfNeeded()
@@ -156,6 +156,68 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.selectedDay, friday)
         XCTAssertTrue(model.isToday)
         XCTAssertNotNil(model.layout.nowY, "Reloaded as Today, with the Now line")
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+    }
+
+    /// TT-160: the strip's previous week, oldest first, across a month boundary, with ids counted from Today.
+    func testThePastWeekPrecedesToday() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        let wednesday = ServiceDay(year: 2026, month: 11, day: 4)
+        XCTAssertEqual(model.pastDays.count, 7)
+        XCTAssertEqual(model.pastDays.first, ServiceDay(year: 2026, month: 10, day: 29))
+        XCTAssertEqual(model.pastDays.last, wednesday)
+        XCTAssertEqual(model.days.first, thursday, "days stays Today and later")
+        XCTAssertEqual(model.stripDays.count, 7 + model.days.count)
+        XCTAssertEqual(model.stripDays[7], thursday)
+        XCTAssertEqual(model.stripIndex(of: thursday), 0)
+        XCTAssertEqual(model.stripIndex(of: wednesday), -1)
+        XCTAssertEqual(model.stripIndex(of: model.pastDays[0]), -7)
+        XCTAssertEqual(model.stripIndex(of: ServiceDay(year: 2026, month: 11, day: 8)), 3)
+        XCTAssertNil(model.stripIndex(of: ServiceDay(year: 2026, month: 10, day: 28)), "Eight days back is not in the strip")
+    }
+
+    /// TT-160: a past day opens like any other day: scheduled times only, no Now line, from its first train.
+    func testSelectingAPastDayShowsItFromTheTopWithoutTheNowLine() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        let scroll = model.scrollRequest
+        await model.select(thursday.adding(days: -1))
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: -1))
+        XCTAssertFalse(model.isToday)
+        XCTAssertNil(model.layout.nowY)
+        XCTAssertEqual(model.layout.initialScrollOffset, 0)
+        XCTAssertEqual(model.freshnessMode(formatter), .scheduledOnly(day: "Wed, Nov 4"))
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+        XCTAssertEqual(model.stripIndex(of: model.selectedDay), -1)
+    }
+
+    /// TT-160: a past day the rider chose stays selected at midnight; the strip shifts by one.
+    func testMidnightLeavesARiderOnAPastDayWhereTheyAre() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        let tuesday = thursday.adding(days: -2)
+        await model.select(tuesday)
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 3)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, tuesday)
+        XCTAssertFalse(model.isToday)
+        XCTAssertEqual(model.stripIndex(of: tuesday), -3)
+        XCTAssertEqual(model.scrollRequest, scroll, "No scroll: the rider did not move")
+    }
+
+    /// TT-160: a past day that falls out of the strip's week at midnight moves the rider to the new Today.
+    func testAPastDayThatLeavesTheStripMovesToToday() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        await model.select(model.pastDays[0])
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 3)
+        await model.rollOverIfNeeded()
+        let friday = thursday.adding(days: 1)
+        XCTAssertEqual(model.selectedDay, friday)
+        XCTAssertTrue(model.isToday)
         XCTAssertEqual(model.scrollRequest, scroll + 1)
     }
 

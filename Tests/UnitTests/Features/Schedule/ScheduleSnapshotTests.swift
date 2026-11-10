@@ -12,6 +12,9 @@ final class ScheduleSnapshotTests: XCTestCase {
     @MainActor func testTodayDark() async throws { snap(try await .loadedFixture(), .dark) }
     @MainActor func testAnotherDayLight() async throws { snap(try await .loadedFixture(dayIndex: 3), .light) }
     @MainActor func testAnotherDayDark() async throws { snap(try await .loadedFixture(dayIndex: 3), .dark) }
+    // TT-160: a past day selected (Wed 4), with the strip scrolled to show it.
+    @MainActor func testPastDayLight() async throws { snap(try await .loadedFixture(dayIndex: -1), .light) }
+    @MainActor func testPastDayDark() async throws { snap(try await .loadedFixture(dayIndex: -1), .dark) }
     // TT-114: design/frames/schedule-timeline-delayed.png, schedule-timeline-cancelled.png and schedule-dark.png. The
     // delayed scenario also has the Lakeshore West line notice, so its Notice chip matches schedule-delayed.png (TT-132).
     @MainActor func testDelayedLight() async throws { snap(try await .loadedFixture(.delayed), .light) }

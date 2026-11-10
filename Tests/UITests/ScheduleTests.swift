@@ -32,6 +32,31 @@ final class ScheduleTests: XCTestCase {
         XCTAssertFalse(sunday.isSelected)
     }
 
+    /// TT-160: the strip opens at Today, the past week is a swipe to the right, and yesterday opens like any other day.
+    @MainActor
+    func testStripOpensAtTodayAndYesterdayIsASwipeAway() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.launch()
+
+        let today = app.buttons["schedule.day.0"]
+        let yesterday = app.buttons["schedule.day.-1"]
+        XCTAssertTrue(today.waitForExistence(timeout: 10))
+        XCTAssertTrue(today.isHittable, "The strip opens with Today first")
+        XCTAssertFalse(yesterday.exists && yesterday.isHittable, "The past week is out of view to the left")
+
+        today.swipeRight()
+        XCTAssertTrue(yesterday.waitForExistence(timeout: 5))
+        yesterday.tap()
+        XCTAssertTrue(yesterday.isSelected)
+        XCTAssertFalse(today.isSelected)
+
+        app.tabBars.buttons["Schedule"].tap()
+        let back = expectation(for: NSPredicate(format: "isSelected == true && isHittable == true"), evaluatedWith: today)
+        XCTAssertEqual(XCTWaiter().wait(for: [back], timeout: 5), .completed, "The tab re-tap returns to Today, with the strip")
+        XCTAssertFalse(yesterday.isSelected)
+    }
+
     /// Tapping a card opens Trip details for that train (TT-113, TT-118); Close returns to the timetable.
     @MainActor
     func testTapCardOpensTripDetails() {

@@ -22,8 +22,9 @@ struct ScheduleView: View {
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.openURL) private var openURL
-    /// The strip's leftmost tile, for scrolling it to a tile that is out of view.
-    @State private var stripPosition: Int?
+    /// The strip's leftmost tile, as its id (0 is Today), for scrolling it to a tile that is out of view. The strip opens at
+    /// Today, after the past week.
+    @State private var stripPosition: Int? = 0
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
     /// The latest ask to scroll the timeline, carried out by `ScrollOffsetSetter`.
@@ -153,12 +154,15 @@ struct ScheduleView: View {
 
     // MARK: Day strip
 
-    /// A swipeable row of 60 × 48 pt tiles through every day of the schedule, Today first. It bleeds to both screen edges
-    /// under a 16 pt fade, so half of the sixth tile peeks, and snaps tile by tile (D49).
+    /// A swipeable row of 60 × 48 pt tiles: the previous 7 days, Today and every day of the schedule after it (D49, D53). It
+    /// opens with Today first, so the past week is a swipe to the right. It bleeds to both screen edges under a 16 pt fade,
+    /// so half of the sixth tile peeks, and snaps tile by tile. A tile's id is its place counted from Today: 0 is Today, -1
+    /// yesterday.
     private var dayStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: TTSpace.s2) {
-                ForEach(Array(viewModel.days.enumerated()), id: \.offset) { index, day in
+                ForEach(Array(viewModel.stripDays.enumerated()), id: \.offset) { position, day in
+                    let index = position - ScheduleViewModel.pastDayCount
                     DayCell(
                         weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
                         day: "\(day.day)",
@@ -188,16 +192,29 @@ struct ScheduleView: View {
             }
         }
         // "Show Monday" and picking another day bring an out-of-view tile to the start; Today brings the strip back.
-        .onChange(of: viewModel.selectedDay) {
-            let index = viewModel.isToday ? 0 : (viewModel.days.firstIndex(of: viewModel.selectedDay) ?? 0)
-            let first = stripPosition ?? 0
-            guard index < first || index >= first + Self.fullTiles else { return }
-            withAnimation(.easeOut(duration: 0.3)) { stripPosition = index }
+        .onChange(of: viewModel.selectedDay) { showSelectedDay(animated: true) }
+        .onAppear { showSelectedDay(animated: false) }
+        // Tapping the Schedule tab again returns to Today and Now: the strip comes back to Today too, though Today was selected.
+        .onChange(of: viewModel.scrollRequest) {
+            guard viewModel.isToday, stripPosition != 0 else { return }
+            withAnimation(.easeOut(duration: 0.3)) { stripPosition = 0 }
         }
         .frame(height: DayCell.size.height + 2 * Self.shadowRoom)
         .padding(.vertical, -Self.shadowRoom)
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
+    }
+
+    /// Brings the selected day's tile into the strip's five whole tiles when it is not in them.
+    private func showSelectedDay(animated: Bool) {
+        let index = viewModel.stripIndex(of: viewModel.selectedDay) ?? 0
+        let first = stripPosition ?? 0
+        guard index < first || index >= first + Self.fullTiles else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.3)) { stripPosition = index }
+        } else {
+            stripPosition = index
+        }
     }
 
     private static let shadowRoom: CGFloat = 2

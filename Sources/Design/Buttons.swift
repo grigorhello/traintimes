@@ -138,6 +138,8 @@ struct GlassIconButton: View {
     let systemName: String
     let label: LocalizedStringKey
     var tint: Color = TTColor.accent
+    /// The glyph turned by this many degrees inside the button (the swap arrows, TT-165).
+    var glyphDegrees = 0.0
     let action: () -> Void
 
     var body: some View {
@@ -146,6 +148,7 @@ struct GlassIconButton: View {
                 .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
                 .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
                 .opacity(isEnabled ? 1 : 0.55)
+                .rotationEffect(.degrees(glyphDegrees))
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .ttGlass(in: Circle())
                 .contentShape(Circle())

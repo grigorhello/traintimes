@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The first screen on first launch (TT-120, D48, D52), against the canvas frames Route form · first use and picking the
+/// The first screen on first launch (TT-120, D48, D53), against the canvas frames Route form · first use and picking the
 /// starting station / the destination: a large title, the route card, "Show trains" and a footnote. Tapping a station row
 /// makes it the search field and unfolds the suggestions under the card, with no sheet; "Show trains" and the footnote
 /// step aside while it is open. After the first route, Schedule picks in place with the same card and panel.

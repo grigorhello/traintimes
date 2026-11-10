@@ -5,7 +5,7 @@ final class RecentRoutesTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// D48, D52: the station picker lists the other direction under Recent after a swap; tapping it opens that route, and
+    /// D48, D53: the station picker lists the other direction under Recent after a swap; tapping it opens that route, and
     /// a relaunch restores the last route and the recent routes.
     @MainActor
     func testRecentRouteOpensFromTheStationPickerAndSurvivesRelaunch() {

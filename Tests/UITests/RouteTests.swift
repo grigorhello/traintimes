@@ -14,7 +14,7 @@ final class RouteTests: XCTestCase {
         app.launchArguments += LaunchArguments.freshInstall
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["route.title"].waitForExistence(timeout: 10))
+        require(app.staticTexts["route.title"], "staticTexts[route.title]", in: app)
         XCTAssertFalse(app.alerts.firstMatch.exists)
         let showTrains = app.buttons["route.showTrains"]
         XCTAssertFalse(showTrains.isEnabled)
@@ -22,35 +22,35 @@ final class RouteTests: XCTestCase {
         // The row becomes the field, the X takes the swap button's place, and Show trains steps aside.
         app.buttons["route.from"].tap()
         let from = app.textFields["route.from"]
-        XCTAssertTrue(from.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["stations.panel"].waitForExistence(timeout: 5))
+        require(from, "from", in: app)
+        require(panel(app), "stations.panel", in: app)
         XCTAssertFalse(app.buttons["route.swap"].exists)
-        XCTAssertTrue(showTrains.waitForNonExistence(timeout: 5))
+        requireGone(showTrains, "route.showTrains", in: app)
         app.buttons["route.cancel"].tap()
-        XCTAssertTrue(app.buttons["route.from"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["stations.panel"].waitForNonExistence(timeout: 5))
-        XCTAssertTrue(showTrains.waitForExistence(timeout: 5))
+        require(app.buttons["route.from"], "buttons[route.from]", in: app)
+        requireGone(panel(app), "stations.panel", in: app)
+        require(showTrains, "showTrains", in: app)
 
         // Typing "oak" finds Oakville GO in the panel.
         app.buttons["route.from"].tap()
-        XCTAssertTrue(from.waitForExistence(timeout: 5))
+        require(from, "from", in: app)
         from.tap()
         from.typeText("oak")
         let oakville = app.buttons["station.OA"]
-        XCTAssertTrue(oakville.waitForExistence(timeout: 5))
+        require(oakville, "oakville", in: app)
         oakville.tap()
         // Picking From moves straight on to To, with Union Station GO suggested first.
-        XCTAssertTrue(app.textFields["route.to"].waitForExistence(timeout: 5))
+        require(app.textFields["route.to"], "textFields[route.to]", in: app)
         let union = app.buttons["station.UN"]
-        XCTAssertTrue(union.waitForExistence(timeout: 5))
+        require(union, "union", in: app)
         union.tap()
 
-        XCTAssertTrue(showTrains.waitForExistence(timeout: 5))
+        require(showTrains, "showTrains", in: app)
         wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: showTrains)], timeout: 5)
         showTrains.tap()
 
         let schedule = scheduleStations(app)
-        XCTAssertTrue(schedule.from.waitForExistence(timeout: 5))
+        require(schedule.from, "schedule.from", in: app)
         XCTAssertEqual(schedule.from.value as? String, "Oakville GO")
         XCTAssertEqual(schedule.to.value as? String, "Union Station GO")
         XCTAssertFalse(app.alerts.firstMatch.exists)
@@ -58,7 +58,7 @@ final class RouteTests: XCTestCase {
         app.terminate()
         app.launchArguments = []
         app.launch()
-        XCTAssertTrue(schedule.from.waitForExistence(timeout: 10))
+        require(schedule.from, "schedule.from", in: app)
         XCTAssertEqual(schedule.from.value as? String, "Oakville GO")
         XCTAssertEqual(schedule.to.value as? String, "Union Station GO")
     }
@@ -72,33 +72,58 @@ final class RouteTests: XCTestCase {
         app.launch()
 
         let schedule = scheduleStations(app)
-        XCTAssertTrue(schedule.to.waitForExistence(timeout: 10))
+        require(schedule.to, "schedule.to", in: app)
         XCTAssertEqual(schedule.to.value as? String, "Union")
 
         schedule.to.tap()
         let field = app.textFields["schedule.to"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["stations.panel"].waitForExistence(timeout: 5))
+        require(field, "field", in: app)
+        require(panel(app), "stations.panel", in: app)
         XCTAssertFalse(app.buttons["schedule.swap"].exists)
 
         // The X cancels and nothing changes.
         app.buttons["schedule.cancel"].tap()
-        XCTAssertTrue(schedule.to.waitForExistence(timeout: 5))
+        require(schedule.to, "schedule.to", in: app)
         XCTAssertEqual(schedule.to.value as? String, "Union")
-        XCTAssertTrue(app.buttons["schedule.swap"].waitForExistence(timeout: 5))
+        require(app.buttons["schedule.swap"], "buttons[schedule.swap]", in: app)
 
         schedule.to.tap()
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        require(field, "field", in: app)
         field.tap()
         field.typeText("bur")
         let burlington = app.buttons["station.BU"]
-        XCTAssertTrue(burlington.waitForExistence(timeout: 5))
+        require(burlington, "burlington", in: app)
         burlington.tap()
 
-        XCTAssertTrue(schedule.to.waitForExistence(timeout: 5))
+        require(schedule.to, "schedule.to", in: app)
         wait(for: [expectation(for: NSPredicate(format: "value == %@", "Burlington GO"), evaluatedWith: schedule.to)], timeout: 5)
         XCTAssertEqual(schedule.from.value as? String, "Oakville")
-        XCTAssertTrue(app.otherElements["stations.panel"].waitForNonExistence(timeout: 5))
+        requireGone(panel(app), "stations.panel", in: app)
+    }
+
+    /// Waits for `element`; on a miss fails with what is on screen, so a red CI log says what the picker looked like.
+    @MainActor
+    private func require(
+        _ element: XCUIElement, _ what: String, in app: XCUIApplication, timeout: TimeInterval = 8,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard !element.waitForExistence(timeout: timeout) else { return }
+        XCTFail("\(what) is missing. On screen:\n\(app.debugDescription.prefix(7000))", file: file, line: line)
+    }
+
+    @MainActor
+    private func requireGone(
+        _ element: XCUIElement, _ what: String, in app: XCUIApplication, timeout: TimeInterval = 8,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard !element.waitForNonExistence(timeout: timeout) else { return }
+        XCTFail("\(what) is still there. On screen:\n\(app.debugDescription.prefix(7000))", file: file, line: line)
+    }
+
+    /// The suggestions panel, found whatever element type it is exposed as.
+    @MainActor
+    private func panel(_ app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "stations.panel").firstMatch
     }
 
     @MainActor

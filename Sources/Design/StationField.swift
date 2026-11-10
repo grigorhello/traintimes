@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// A station row of the route card while it is the search field (TT-161, D52). It looks like the row: the typed text in
+/// A station row of the route card while it is the search field (TT-161, D53). It looks like the row: the typed text in
 /// headline, the placeholder in body ink-tertiary, an accent cursor, and nothing else, no capsule and no search glyph. It
 /// takes the keyboard as soon as it is on screen. On Schedule the current station shows selected, so typing replaces it.
 struct StationField: UIViewRepresentable {

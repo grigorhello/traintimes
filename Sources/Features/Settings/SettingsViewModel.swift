@@ -71,15 +71,26 @@ final class SettingsViewModel {
     /// The moment the app pretends it is, at the moment it was chosen; the picker's value. Toronto time, as Schedule reads it.
     var mockTimeStart: Date {
         get { settings.mockTime?.start ?? clock.now }
-        set { settings.mockTime = MockTimeSetting(start: newValue, setAt: Date()) }
+        set {
+            // The picker can hand back the value it was given, or the same minute; neither is a choice.
+            if let current = settings.mockTime?.start, Self.sameMinute(current, newValue) { return }
+            settings.mockTime = MockTimeSetting(start: newValue, setAt: Date())
+        }
     }
 
-    /// A quick choice: the picker's date at the preset's time.
+    private static func sameMinute(_ a: Date, _ b: Date) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        return calendar.isDate(a, equalTo: b, toGranularity: .minute)
+    }
+
+    /// A quick choice: the picker's date at the preset's time. Always a fresh choice, even for the minute already set, so
+    /// "Just before midnight" can be tapped again to run the day change again.
     func chooseMockTime(_ preset: MockTimePreset) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = goTimeZone
         let moment = calendar.date(bySettingHour: preset.hour, minute: preset.minute, second: 0, of: mockTimeStart)
-        mockTimeStart = moment ?? mockTimeStart
+        settings.mockTime = MockTimeSetting(start: moment ?? mockTimeStart, setAt: Date())
     }
 
     /// "Use real time".

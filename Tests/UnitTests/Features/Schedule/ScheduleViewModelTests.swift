@@ -67,6 +67,109 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(model.scrollRequest, scroll + 1, "The new day scrolls to Now")
     }
 
+    private func fixtureModel(at now: Date) throws -> (model: ScheduleViewModel, clock: TestClock) {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleViewModelTests.self))
+        let clock = TestClock(now: now)
+        return (ScheduleViewModel(route: repository.route, repository: repository, clock: clock), clock)
+    }
+
+    /// TT-159, D52: the screen turns to the next day at midnight, not at the 3:00 AM service-day cutoff. A rider on Today
+    /// moves to the new Today, which scrolls to Now at its top, and the strip's first tile is that day.
+    func testTheDayTurnsAtMidnightAndTheNewDayStartsFromTheTop() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.selectedDay, thursday)
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 3)
+        await model.rollOverIfNeeded()
+        let friday = thursday.adding(days: 1)
+        XCTAssertEqual(model.selectedDay, friday)
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.days.first, friday)
+        XCTAssertEqual(model.departures.count, 4)
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+        XCTAssertNotNil(model.layout.nowY)
+        XCTAssertEqual(model.layout.initialScrollOffset, 0, accuracy: 0.5, "Now is the first thing on the new day: from the top")
+
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.scrollRequest, scroll + 1, "The same midnight is acted on once")
+    }
+
+    /// TT-159: the app opened at 12:01 AM shows the actual day, selected in the strip, though GO still counts the minute
+    /// as the previous service day.
+    func testOpeningTheAppJustAfterMidnightShowsTheActualDay() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 0, minute: 1))
+        let friday = thursday.adding(days: 1)
+        XCTAssertEqual(ServiceDay(containing: clock.now), thursday, "GO's service day runs to 3:00 AM")
+        XCTAssertEqual(model.selectedDay, friday)
+        await model.loadIfNeeded()
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.days.first, friday)
+        XCTAssertEqual(model.departures.count, 4)
+        XCTAssertEqual(model.layout.initialScrollOffset, 0, accuracy: 0.5)
+    }
+
+    /// TT-159: a rider browsing another day stays there at midnight; only the strip shifts by one.
+    func testMidnightLeavesARiderBrowsingAnotherDayWhereTheyAre() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        let saturday = thursday.adding(days: 2)
+        await model.select(saturday)
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 3)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, saturday)
+        XCTAssertFalse(model.isToday)
+        XCTAssertEqual(model.days.first, thursday.adding(days: 1))
+        XCTAssertEqual(model.scrollRequest, scroll, "No scroll: the rider did not move")
+    }
+
+    /// TT-159: a rider left on a later day while the app sat in memory for days: when that day is already past it is no
+    /// longer in the strip, so they land on Today (the old D30 behaviour).
+    func testADayThatHasDroppedOutOfTheStripMovesToToday() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        await model.select(thursday.adding(days: 2))
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 2 * 24 * 60 + 3)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: 3))
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+    }
+
+    /// TT-159: the day that has just become Today, if the rider was already looking at it, turns into Today with Now.
+    func testMidnightOnTomorrowsTimelineMakesItToday() async throws {
+        let (model, clock) = try fixtureModel(at: thursday.date(hour: 23, minute: 58))
+        await model.loadIfNeeded()
+        let friday = thursday.adding(days: 1)
+        await model.select(friday)
+        XCTAssertFalse(model.isToday)
+        XCTAssertNil(model.layout.nowY)
+        let scroll = model.scrollRequest
+
+        clock.advance(minutes: 3)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, friday)
+        XCTAssertTrue(model.isToday)
+        XCTAssertNotNil(model.layout.nowY, "Reloaded as Today, with the Now line")
+        XCTAssertEqual(model.scrollRequest, scroll + 1)
+    }
+
+    /// TT-159: a scroll request is followed by two rescrolls, so a first scroll that ran before the content was laid out
+    /// still lands.
+    func testAScrollRequestIsFollowedByTwoRescrolls() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.rescrollRequest, 0)
+        for _ in 0..<300 where model.rescrollRequest < 2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.rescrollRequest, 2)
+    }
+
     /// TT-158: when Mock time changes the clock, the timeline starts again on the new today and its present, as a relaunch would.
     func testRestartMovesToTheNewTodayAndScrollsToNow() async throws {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleViewModelTests.self))

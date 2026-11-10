@@ -30,7 +30,12 @@ final class AppSettings {
 
     /// Settings › Testing › Mock time (TT-158, D51), shown in TestFlight and Debug builds only; nil is the real time.
     var mockTime: MockTimeSetting? {
-        didSet { MockTime.write(mockTime, to: defaults) }
+        // Written only when it differs from what is stored, so reading it at launch (a launch argument, the stored value)
+        // never writes it back: a UI test's Mock time must not stay on the simulator for the next test.
+        didSet {
+            guard mockTime != MockTime.read(from: defaults) else { return }
+            MockTime.write(mockTime, to: defaults)
+        }
     }
 
     /// The one formatter (D17), following the Time format setting.

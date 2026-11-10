@@ -3,14 +3,14 @@ import SwiftUI
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
 /// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
-/// records them and lists them in its station picker (D48, D52). Applies the Appearance setting and puts the one time formatter in the
+/// records them and lists them in its station picker (D48, D53). Applies the Appearance setting and puts the one time formatter in the
 /// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
     @State private var settings: AppSettings
     @State private var settingsModel: SettingsViewModel
-    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D52).
+    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D53).
     @State private var routeForm: RouteFormViewModel
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
@@ -228,7 +228,8 @@ struct RootView: View {
             // The sheet first; the timeline behind it follows without holding it up.
             openTrip(key, on: route)
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
-            if schedule.selectedDay != key.serviceDay { await schedule.select(key.serviceDay) }
+            // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
+            if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }
         }
     }
 

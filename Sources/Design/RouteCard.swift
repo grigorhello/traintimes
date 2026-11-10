@@ -3,7 +3,7 @@ import SwiftUI
 /// The route card (D48), drawn like a maps route box: a ring for the origin, dots, a pin for the destination, the two
 /// stations split by a hairline, and the swap button to the right. No "From"/"To" words: the markers say which is which.
 /// Schedule shows it as its header and the route form uses it for its fields. A tap on a station row makes that row the
-/// search field and the swap button turns into the X that cancels (TT-161, D52).
+/// search field and the swap button turns into the X that cancels (TT-161, D53).
 struct RouteCard: View {
     enum Stop {
         case from, to

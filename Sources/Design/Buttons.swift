@@ -15,7 +15,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// "Show trains" on the route form (TT-161, D52): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
+/// "Show trains" on the route form (TT-161, D53): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
 /// it. Disabled is the same grey pill as `.ttPrimary`.
 struct GlassPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -166,7 +166,7 @@ extension View {
 }
 
 extension View {
-    /// The surface of the station picker's suggestions panel (TT-161, D52): Liquid Glass on iOS 26 and later, a material
+    /// The surface of the station picker's suggestions panel (TT-161, D53): Liquid Glass on iOS 26 and later, a material
     /// before it. The content is clipped to the same shape first, so rows and hairlines keep the rounded corners.
     @ViewBuilder func ttGlassPanel(cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)

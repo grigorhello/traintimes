@@ -124,7 +124,8 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.testing"].tap()
         let mockTime = app.switches["settings.mockTime"]
         XCTAssertTrue(mockTime.waitForExistence(timeout: 5))
-        mockTime.tap()
+        // The switch is labelled, so its element spans the row: tap at the trailing edge, where the switch is.
+        mockTime.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
         let dayChange = app.buttons["settings.mockTime.dayChange"]
         XCTAssertTrue(dayChange.waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["settings.mockTime.picker"].exists)

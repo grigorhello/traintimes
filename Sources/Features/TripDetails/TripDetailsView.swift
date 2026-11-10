@@ -18,7 +18,6 @@ struct TripDetailsView: View {
     private static let headerTop: CGFloat = 30
     private static let headerHeight: CGFloat = 44
     private static let lineGap: CGFloat = 10
-    private static let cardRadius: CGFloat = 26
     private static let stationRow: CGFloat = 56
     private static let metaRow: CGFloat = 28
     private static let statusRow: CGFloat = 44
@@ -137,7 +136,7 @@ struct TripDetailsView: View {
             .frame(height: Self.statusRow)
         }
         .padding(.horizontal, TTSpace.s4)
-        .sheetCard(radius: Self.cardRadius)
+        .ttSheetCard()
     }
 
     /// The ring centred on the first row, the three dots beside the meta row, the pin centred on the second row.
@@ -169,7 +168,7 @@ struct TripDetailsView: View {
                 .font(TTFont.headline)
                 .foregroundStyle(TTColor.ink)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(time.value)
@@ -217,8 +216,9 @@ struct TripDetailsView: View {
                     .foregroundStyle(details.isCancelled ? TTColor.inkTertiary : TTColor.accent)
                 }
             }
+            // A long run of facts (a three-digit countdown, a platform, Express) shrinks before it clips or pushes the trip length.
             .lineLimit(1)
-            .fixedSize()
+            .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
             Text(details.tripLength)
                 .font(TTFont.footnote)
@@ -226,6 +226,7 @@ struct TripDetailsView: View {
                 .foregroundStyle(TTColor.inkSecondary)
                 .lineLimit(1)
                 .fixedSize()
+                .layoutPriority(1)
         }
         .frame(height: Self.metaRow)
     }
@@ -267,13 +268,13 @@ struct TripDetailsView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(details.stops.enumerated()), id: \.element.id) { index, stop in
-                    stopRow(stop, isFirst: index == 0, isStruck: details.isCancelled)
+                    stopRow(stop, isFirst: index == 0, isStruck: details.isTrainCancelled)
                 }
             }
             .background(alignment: .topLeading) { rail(stops: details.stops.count) }
             .padding(.horizontal, TTSpace.s4)
             .padding(.vertical, 6)
-            .sheetCard(radius: Self.cardRadius)
+            .ttSheetCard()
             .padding(.top, 6)
 
             Text(details.footnote)
@@ -304,7 +305,7 @@ struct TripDetailsView: View {
                 .frame(width: Self.markerColumn, height: Self.stopRow)
             Text(verbatim: stop.name)
                 .font(font)
-                .foregroundStyle(isDimmed ? TTColor.inkTertiary : TTColor.ink)
+                .foregroundStyle(stop.isSkipped ? TTColor.inkTertiary : TTColor.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             Spacer(minLength: TTSpace.s2)
@@ -375,25 +376,6 @@ struct TripDetailsView: View {
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
     }
-}
-
-/// The sheet's cards (TT-163): a surface in a large radius; the Card shadow in light, a 0.5 pt white 8 % inner edge in dark.
-private struct SheetCard: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-    let radius: CGFloat
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius)
-        content
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TTColor.surface, in: shape)
-            .overlay(shape.strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0), lineWidth: 0.5))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)
-    }
-}
-
-private extension View {
-    func sheetCard(radius: CGFloat) -> some View { modifier(SheetCard(radius: radius)) }
 }
 
 #Preview {

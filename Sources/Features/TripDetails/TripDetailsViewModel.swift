@@ -42,8 +42,10 @@ struct TripDetails: Hashable {
     let status: TripStatus
     /// The status row's right side: how fresh the data is, or the service day for a timetable only.
     let freshnessText: String?
-    /// Cancelled or stop skipped: struck times and no alert button.
+    /// Cancelled or stop skipped: struck journey times and no alert button.
     let isCancelled: Bool
+    /// Cancelled itself (not only a skipped stop): every stop time is struck and the footnote says so.
+    let isTrainCancelled: Bool
     /// "7 stops": every stop, both ends included.
     let stopCount: String
     /// "Expected" when every stop has a live time, otherwise "Scheduled".
@@ -114,6 +116,9 @@ final class TripDetailsViewModel {
         let trip = departure.trip
         let isLive = hasLiveStops
         let isCancelled = !departure.isUsable
+        let isTrainCancelled: Bool = if case .cancelled = departure.status { true } else { false }
+        // A late departure carries both times (the spec): each shows its expected value in delay-ink, the scheduled one struck.
+        let isDelayed = departure.expectedDeparture.map { $0.timeIntervalSince(trip.scheduledDeparture) >= 60 } ?? false
         let platformValue: String
         let hasPlatform: Bool
         switch trip.platform {
@@ -132,8 +137,8 @@ final class TripDetailsViewModel {
             title: String(format: String(localized: "trip.title"), formatter.time(trip.scheduledDeparture)),
             origin: stops.first?.station.name ?? route.from.name,
             destination: stops.last?.station.name ?? route.to.name,
-            departure: Self.time(departure.expectedDeparture, scheduled: trip.scheduledDeparture, formatter),
-            arrival: Self.time(departure.expectedArrival, scheduled: trip.scheduledArrival, formatter),
+            departure: Self.time(departure.expectedDeparture, scheduled: trip.scheduledDeparture, isDelayed: isDelayed, formatter),
+            arrival: Self.time(departure.expectedArrival, scheduled: trip.scheduledArrival, isDelayed: isDelayed, formatter),
             countdown: departure.id == nextDepartureId ? formatter.relative(until: departure.departureTime, now: now) : nil,
             platform: String(format: String(localized: "schedule.platform"), platformValue),
             platformValue: platformValue,
@@ -143,6 +148,7 @@ final class TripDetailsViewModel {
             status: status,
             freshnessText: freshnessText(formatter),
             isCancelled: isCancelled,
+            isTrainCancelled: isTrainCancelled,
             stopCount: String(format: String(localized: "trip.stops_count"), stops.count),
             stopsHeader: isLive ? String(localized: "trip.stops_expected") : String(localized: "trip.stops_scheduled"),
             stops: stops.enumerated().map { index, stop in
@@ -161,14 +167,16 @@ final class TripDetailsViewModel {
         )
     }
 
-    /// The expected time in full when the feed has one, with the scheduled time to strike under it when it runs a minute
-    /// or more late; the scheduled time alone otherwise. Never a guess.
-    private static func time(_ expected: Date?, scheduled: Date, _ formatter: some TimeFormatting) -> TripDetails.Time {
+    /// The expected time when the feed has one, in delay-ink with the scheduled time to strike under it while the train's
+    /// departure runs a minute or more late (the strike is left out when both read the same minute); the scheduled time
+    /// alone otherwise. Never a guess.
+    private static func time(
+        _ expected: Date?, scheduled: Date, isDelayed: Bool, _ formatter: some TimeFormatting
+    ) -> TripDetails.Time {
         guard let expected else { return TripDetails.Time(value: formatter.time(scheduled)) }
-        let isLate = expected.timeIntervalSince(scheduled) >= 60
-        return TripDetails.Time(
-            value: formatter.time(expected), scheduled: isLate ? formatter.time(scheduled) : nil, isLate: isLate
-        )
+        let value = formatter.time(expected)
+        let struck = formatter.time(scheduled)
+        return TripDetails.Time(value: value, scheduled: isDelayed && struck != value ? struck : nil, isLate: isDelayed)
     }
 
     private func footnote(for departure: Departure, isLive: Bool, _ formatter: some TimeFormatting) -> String {

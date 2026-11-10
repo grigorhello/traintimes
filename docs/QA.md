@@ -10,7 +10,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 - **Build from Xcode** (until TestFlight, TT-154): open `TrainTimes.xcodeproj` on the Mac, pick your team under Signing & Capabilities (automatic signing), plug in the iPhone and press Run. This is the real app on GO's timetable.
 - **Fixture runs** show the states GO's feed cannot show yet: in Xcode, Product › Scheme › Edit Scheme › Run › Arguments › Environment Variables, add `TT_FIXTURES` with one of `1` (on time, "Updated just now"), `delayed`, `cancelled`, `eveningDark` or `offline`, and Run. Remove the variable to go back to the real app. Fixture runs are on the canvas clock (Thu Nov 5, 7:21 AM; 5:03 PM for `eveningDark`).
-- **No Metrolinx key yet** (D36): the real app shows On time badges for every train (D49) with no live status or line notices; Trip details says "Scheduled times only". The checks marked *needs the key* are done once the key build exists.
+- **No Metrolinx key yet** (D36): the real app shows On time badges for every train (D49) with no live status or line notices; Trip details shows the service day ("Thu, Nov 5") in its status row (D56). The checks marked *needs the key* are done once the key build exists.
 - **Light and dark**: Settings › Appearance (in the app) switches without leaving it.
 - **Alerts** need the alert server live at alerts.traintimes.ca with its push key (thread "Deploy alert server and set up push key"). Until then a bell or "Enable alerts" ends in "Could not save", which is the right behaviour for an unreachable server.
 
@@ -128,7 +128,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 19. Missing live data cannot produce an On time badge; cached data cannot appear freshly live.
 - Simulator and CI: **passes** on sample feeds: `ScheduleStatesTests.testOnlyFreshLiveDataShowsOnTime`, `testStaleFallsBackToScheduledTimes`, `testOfflineKeepsTheCachedScheduleUsable`; `GTFSRealtimeReplayTests.testStaleFeedIsNeverLive`, `testOfflineKeepsTheLastFeedAsOffline`; `ScheduleLiveTests.testDataLeftOnScreenAgesBeforeTheFetch`.
-- iPhone: today's build: every badge reads On time (D49), with no status row; Trip details says "Scheduled times only". Key build: Airplane mode with Schedule open shows "Offline · last updated …" within 30 s; leave the app over 3 min and reopen: "Last reported …", never "Updated just now".
+- iPhone: today's build: every badge reads On time (D49), with no status row; Trip details shows the service day ("Thu, Nov 5") in its status row (D56). Key build: Airplane mode with Schedule open shows "Offline · last updated …" within 30 s; leave the app over 3 min and reopen: "Last reported …", never "Updated just now".
 - [ ] Without the key
 - [ ] With the key
 

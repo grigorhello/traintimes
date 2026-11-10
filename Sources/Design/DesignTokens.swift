@@ -35,7 +35,7 @@ enum TTSpace {
 }
 
 enum TTRadius {
-    static let sm: CGFloat = 8, md: CGFloat = 12, lg: CGFloat = 18, sheet: CGFloat = 28
+    static let sm: CGFloat = 8, md: CGFloat = 12, lg: CGFloat = 18, xl: CGFloat = 26, sheet: CGFloat = 28
 }
 
 enum TTSize {

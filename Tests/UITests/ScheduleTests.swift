@@ -82,7 +82,7 @@ final class ScheduleTests: XCTestCase {
         XCTAssertFalse(yesterday.isSelected)
     }
 
-    /// Tapping a card opens Trip details for that train (TT-113, TT-118); Close returns to the timetable.
+    /// Tapping a card opens Trip details for that train (TT-113, TT-118, TT-163); Close returns to the timetable.
     @MainActor
     func testTapCardOpensTripDetails() {
         let app = XCUIApplication.onFixtures()
@@ -94,8 +94,15 @@ final class ScheduleTests: XCTestCase {
         card.tap()
         let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["trip.alert"].exists)
+        let last = app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch
+        XCTAssertTrue(last.waitForExistence(timeout: 5))
+        let alert = app.buttons["trip.alert"]
+        XCTAssertTrue(alert.exists)
+
+        // The whole list is reachable: scroll to the last stop, which then sits above the floating button (TT-163).
+        if !last.isHittable { sheet.swipeUp() }
+        XCTAssertTrue(last.isHittable)
+        XCTAssertLessThanOrEqual(last.frame.maxY, alert.frame.minY)
 
         app.buttons["trip.close"].tap()
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))

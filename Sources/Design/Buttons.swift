@@ -93,18 +93,19 @@ struct IconButton: View {
 }
 
 /// A round control floating over content, 44 pt (D49): Liquid Glass on iOS 26 and later, a raised surface before it.
-/// Accent glyph; dimmed when disabled.
+/// Accent glyph unless `tint` says otherwise (the Trip details close button is ink); dimmed when disabled.
 struct GlassIconButton: View {
     @Environment(\.isEnabled) private var isEnabled
     let systemName: String
     let label: LocalizedStringKey
+    var tint: Color = TTColor.accent
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
-                .foregroundStyle(isEnabled ? TTColor.accent : TTColor.inkTertiary)
+                .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
                 .opacity(isEnabled ? 1 : 0.55)
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .ttGlass(in: Circle())
@@ -123,6 +124,15 @@ extension View {
             glassEffect(.regular.interactive(), in: shape)
         } else {
             background(TTColor.surfaceRaised, in: shape)
+        }
+    }
+
+    /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.
+    @ViewBuilder func ttGlass(tint: Color, in shape: some Shape) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else {
+            background(tint, in: shape)
         }
     }
 }

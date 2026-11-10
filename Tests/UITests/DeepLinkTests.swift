@@ -17,9 +17,11 @@ final class DeepLinkTests: XCTestCase {
 
         let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 10))
-        let title = app.staticTexts.matching(NSPredicate(format: "label == %@", "7:58 AM train")).firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Lakeshore West · Thu, Nov 5"].exists)
+        // The line names the sheet; the train's name is the sheet's label; the timetable-only row shows the service day.
+        XCTAssertTrue(app.staticTexts["trip.title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["trip.title"].label, "Lakeshore West")
+        XCTAssertEqual(sheet.label, "7:58 AM train")
+        XCTAssertTrue(app.staticTexts["Thu, Nov 5"].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch.waitForExistence(timeout: 5))
 
         // Closing the sheet shows the next trains on that route.

@@ -126,23 +126,17 @@ On first launch the app opens directly to a compact route form, and the first va
 
 ## Trip details sheet
 
-Tapping a card opens a sheet for that trip and service date; it shows every nullable field explicitly and never fills a missing value with a guess.
+Tapping a card opens a sheet for that trip and service date; it shows every nullable field explicitly and never fills a missing value with a guess (D56). It is one scroll view on the canvas ground, large detent, under a pinned header.
 
-Top to bottom: grabber; sheet title with the trip identity ("7:32 AM train") and a close button; full origin and destination names in `route` style ("Oakville GO to Union Station GO") with line and date beneath ("Lakeshore West · Thu, Nov 5"); the status badge beside the freshness line; a two-column facts card; the stop list; the primary button.
+**Header.** The line's code tile and its name in the Schedule header's style (26 pt bold), and a glass close button (44 pt, ink glyph) flush with the right margin. No line, no tile and no name. There is no title, route sentence or date line; the sheet's accessibility label stays the train's name ("7:32 AM train", D9).
 
-| Fact | Shown as | When missing |
-| --- | --- | --- |
-| Scheduled departure | 7:32 AM | Always present |
-| Expected departure | 7:41 AM in delay-ink when later than scheduled | Omit the cell; the badge reads Scheduled (D50) |
-| Scheduled arrival | 8:12 AM | Always present |
-| Est. arrival | 8:21 AM | Omit the cell; only the scheduled arrival remains, labelled Scheduled |
-| Platform | Platform 2 | "Platform pending" |
+**Journey card.** Two 56 pt station rows with a 28 pt meta row between them, on the route card's markers (ring, three dots, pin): each station in `headline`, its time right-aligned at 22 pt semibold (first and last stop names, else the route's). Delayed (the live expected departure is 1 min or more after the scheduled one): both times are the expected ones in delay-ink with the scheduled time struck under each; no live estimate: scheduled times in ink and nothing under them; cancelled or stop skipped: both times struck in ink-tertiary. The meta row reads "in 20 min" (only on the next usable train today, as its card), "Platform 2" or "Platform —" (the dash in ink-tertiary), and "Express" with the accent bolt only on express trains; the trip length ("40 min") is on the right. A 44 pt status row under a hairline holds the card's status line (dot or ring and word: no live data reads Scheduled, D50) and, on the right, "Updated just now", "Last reported 7:29 AM", "Offline · last updated 6:52 AM", or the service day ("Thu, Nov 5") for a timetable only.
 
-**Stop list.** All stops between and including origin and destination, in order, with one time per stop. The column header says "Expected" when live times are available for the trip, otherwise "Scheduled". Origin and destination use `headline` and a filled accent marker; intermediate stops use `body` and a ring. Skipped stops show a red x and struck time. A footnote states the arrival basis, for example "Arrival times are estimates from the live feed. Scheduled arrival 8:12 AM."
+**Stop list.** A header row with "7 stops" (every stop, both ends included) and "Expected" when every stop has a live time, otherwise "Scheduled"; then a card of 44 pt rows on one rail: a ring at the origin, dots between, the accent pin at the destination, the ends in `headline`, the rest in `body`, one tabular time per stop. A skipped stop shows a cross in cancel-ink and its struck time; on a cancelled trip every time is struck. A footnote under the card states the arrival basis ("Arrival times are estimates from the live feed. Scheduled arrival 8:12 AM.", "Arrival times are scheduled." or "This train is cancelled. Times are the timetable's.").
 
-**Primary button.** "Alert me" when no rule covers this trip; "Manage alert" when one does. Both open Alert setup prefilled for this trip.
+**Alert button.** "Alert me" when no rule covers this trip, "Manage alert" when one does: a 52 pt capsule floating 24 pt above the sheet's bottom edge, tinted Liquid Glass on iOS 26 and later, the solid accent capsule before it. Both open Alert setup prefilled for this trip. The content scrolls under it behind a soft fade and ends 92 pt above the bottom, so the last stop and the footnote are reachable. The button is hidden after departure and on a cancelled train.
 
-**After departure.** A trip with an alert remains openable from the watched-trip strip and from Alerts › Recent updates until arrival plus 10 min; the sheet then shows "Departed 7:43 AM" in place of the expected departure, keeps the estimated arrival updating, and hides the alert button. Trips without an alert are not retained after departure.
+**After departure.** A trip with an alert remains openable from the watched-trip strip and from Alerts › Recent updates until arrival plus 10 min; the sheet then shows the actual departure time, the status "Departed", keeps the estimated arrival updating, and hides the alert button. Trips without an alert are not retained after departure.
 
 The sheet refreshes with the schedule and is dismissed by swipe or the close button; it never blocks the timetable behind it from updating.
 

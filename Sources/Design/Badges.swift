@@ -10,6 +10,8 @@ enum TripStatus: Hashable, Sendable {
     /// `time` is already formatted by the one time formatter.
     case lastReported(time: String)
     case offline
+    /// Trip details after the train has left (TT-163): a display state of the sheet, not a domain status (D12).
+    case departed
 
     var text: String {
         switch self {
@@ -20,6 +22,7 @@ enum TripStatus: Hashable, Sendable {
         case .scheduled: String(localized: "status.scheduled")
         case .lastReported(let time): String(format: String(localized: "status.last_reported"), time)
         case .offline: String(localized: "status.offline")
+        case .departed: String(localized: "trip.departed")
         }
     }
 
@@ -30,6 +33,7 @@ enum TripStatus: Hashable, Sendable {
         case .cancelled, .stopSkipped: "xmark.circle.fill"
         case .scheduled, .lastReported: "clock"
         case .offline: "wifi.slash"
+        case .departed: "checkmark.circle"
         }
     }
 
@@ -39,6 +43,7 @@ enum TripStatus: Hashable, Sendable {
         case .delayed: TTColor.delayInk
         case .cancelled, .stopSkipped: TTColor.cancelInk
         case .scheduled, .lastReported, .offline: TTColor.scheduledInk
+        case .departed: TTColor.inkSecondary
         }
     }
 
@@ -47,20 +52,20 @@ enum TripStatus: Hashable, Sendable {
         case .onTime: TTColor.ontimeFill
         case .delayed: TTColor.delayFill
         case .cancelled, .stopSkipped: TTColor.cancelFill
-        case .scheduled, .lastReported, .offline: TTColor.scheduledFill
+        case .scheduled, .lastReported, .offline, .departed: TTColor.scheduledFill
         }
     }
 
     /// Live information (TT-157, D50): a filled dot on the card's status line. Scheduled, stale and offline get a ring.
     var isLive: Bool {
         switch self {
-        case .onTime, .delayed, .cancelled, .stopSkipped: true
+        case .onTime, .delayed, .cancelled, .stopSkipped, .departed: true
         case .scheduled, .lastReported, .offline: false
         }
     }
 }
 
-/// The pill badge on Trip details (the timeline card uses `StatusLine`, D50).
+/// The pill badge, in the component gallery only since TT-163 (the timeline card and Trip details use `StatusLine`, D50).
 struct StatusBadge: View {
     let status: TripStatus
 

@@ -23,9 +23,11 @@ final class TabBarDotSnapshotTests: XCTestCase {
 private struct BellDots: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    private let dots: [TabBarStyle.Dot?] = [nil, .accent, .warning]
+
     var body: some View {
         HStack(spacing: 36) {
-            ForEach([nil, TabBarStyle.Dot.accent, .warning], id: \.self) { dot in
+            ForEach(dots, id: \.self) { dot in
                 TabBarStyle.icon("bell.fill", label: "Alerts", isSelected: false, dot: dot, colorScheme: colorScheme)
                     .scaleEffect(3)
                     .frame(width: 80, height: 80)

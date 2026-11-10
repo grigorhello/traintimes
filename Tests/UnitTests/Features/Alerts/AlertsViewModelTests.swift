@@ -296,7 +296,7 @@ final class AlertsViewModelTests: XCTestCase {
         await rules.save(AlertsFixtures.morning)
         let model = AlertsViewModel(
             rules: rules, updates: await AlertsFixtures.updates([]), notices: FakeLineNotices([]), clock: FixedClock(now: AlertsFixtures.now),
-            notificationsOnDelay: .milliseconds(10), notificationsOnDuration: .milliseconds(300)
+            notificationsOnDelay: .milliseconds(10), notificationsOnDuration: .seconds(1)
         )
         XCTAssertTrue(model.warnsNotificationsOff)
 

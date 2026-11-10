@@ -43,6 +43,7 @@ struct ScheduleLoadingTimeline: View {
                 .fill(TTColor.hairline)
                 .frame(width: Self.railWidth, height: Self.height)
                 .offset(x: Self.railX - Self.railWidth / 2)
+            nowRule
             ForEach(Array(Self.markerYs.enumerated()), id: \.offset) { index, y in
                 Rectangle()
                     .fill(TTColor.hairline)
@@ -58,7 +59,7 @@ struct ScheduleLoadingTimeline: View {
                     .frame(width: Self.markerSize, height: Self.markerSize)
                     .centred(x: Self.railX, y: y)
             }
-            nowLine
+            nowMarker
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: Self.height, alignment: .top)
@@ -86,13 +87,17 @@ struct ScheduleLoadingTimeline: View {
         abs(Self.nowY - y) > TTTimeline.pillLabelHideDistance
     }
 
-    @ViewBuilder private var nowLine: some View {
+    /// The Now rule runs under the skeleton cards; the dot and label stay above them.
+    private var nowRule: some View {
         Rectangle()
             .fill(TTColor.accent)
             .frame(height: Self.railWidth)
             .padding(.leading, Self.railX)
             .padding(.trailing, TTSpace.s5)
             .centred(y: Self.nowY)
+    }
+
+    @ViewBuilder private var nowMarker: some View {
         Circle()
             .fill(TTColor.accent)
             .frame(width: Self.nowDot, height: Self.nowDot)

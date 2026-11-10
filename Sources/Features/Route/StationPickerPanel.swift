@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// The scroll view's coordinate space name; file scope, so the `onGeometryChange` closure (Sendable) can read it.
+private let stationPickerScrollSpace = "stationPicker"
+
 /// The suggestions under the route card while a station row is the search field (TT-161, D52), against the canvas frames
 /// Route form · picking the starting station / the destination and Schedule · changing a station in place. A glass panel
 /// that is as tall as its rows, up to the space above the keyboard, and scrolls past that. Groups, in order: Recent
@@ -17,7 +20,6 @@ struct StationPickerPanel: View {
     /// Canvas `.pk-row`: 56 pt rows, 16 pt in from the panel's edges.
     private static let rowHeight: CGFloat = 56
     private static let inset = TTSpace.s4
-    private static let scrollSpace = "stationPicker"
     /// A swipe down this far, mostly vertical, cancels.
     private static let cancelDistance: CGFloat = 60
 
@@ -29,11 +31,11 @@ struct StationPickerPanel: View {
             content
             ScrollView {
                 content
-                    .onGeometryChange(for: Bool.self) { $0.frame(in: .named(Self.scrollSpace)).minY >= -1 } action: {
+                    .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
                         isAtTop = $0
                     }
             }
-            .coordinateSpace(.named(Self.scrollSpace))
+            .coordinateSpace(.named(stationPickerScrollSpace))
             // Scrolling the list keeps the keyboard, so the panel does not resize under the rider's finger.
             .scrollDismissesKeyboard(.never)
         }

@@ -51,7 +51,7 @@ final class ScheduleViewModel {
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
-    /// Each route shown is recorded first (D48); the route sheet lists the others under Recent.
+    /// Each route shown is recorded first (D48); the station picker lists the others under Recent (D52).
     let recents: RecentRoutes
     private let dismissedNotices: DismissedNotices
     /// The trips with an alert, for the watched-trip strip (TT-144).

@@ -6,7 +6,7 @@ enum AppTab: Hashable {
 
 /// Everything that opens as a native `.sheet`, so the timetable is always one dismiss away.
 enum AppSheet: String, Identifiable {
-    case routeEdit, stationSearch, tripDetails, alertSetup, lineNotices
+    case tripDetails, alertSetup, lineNotices
     var id: String { rawValue }
 }
 

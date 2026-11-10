@@ -83,3 +83,4 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 35 | TT-158 · Settings › Testing: mock time | [#73](https://github.com/grigorhello/traintimes/issues/73) | P1 | 3 | Grigor, 2026-11-09, D51 |
 | 36 | TT-159 · Schedule opens at Now and rolls over at midnight | [#74](https://github.com/grigorhello/traintimes/issues/74) | P0 | 3 | Grigor, 2026-11-09 |
 | 37 | TT-160 · Day strip shows the previous 7 days | [#75](https://github.com/grigorhello/traintimes/issues/75) | P2 | 2 | Grigor, 2026-11-09 |
+| 38 | TT-161 · Inline station picker and glass route form | [#78](https://github.com/grigorhello/traintimes/issues/78) | P1 | 5 | Grigor, 2026-11-10, D52 |

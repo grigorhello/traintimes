@@ -8,7 +8,7 @@
       "radius": 44,
       "title": "Alert setup · Repeat",
       "w": 390,
-      "x": 1880,
+      "x": 3290,
       "y": 1300
     },
     "Alert-Setup.dc.html": {
@@ -17,7 +17,7 @@
       "radius": 44,
       "title": "Alert setup · This trip",
       "w": 390,
-      "x": 1410,
+      "x": 2820,
       "y": 1300
     },
     "Alerts-Empty.dc.html": {
@@ -79,7 +79,7 @@
       "y": -1300
     },
     "Components.dc.html": {
-      "h": 2400,
+      "h": 2800,
       "radius": 18,
       "title": "Component sheet",
       "w": 880,
@@ -109,14 +109,14 @@
       "radius": 44,
       "title": "Notification permission (after first Enable)",
       "w": 390,
-      "x": 2350,
+      "x": 3760,
       "y": 1300
     },
     "Route-Picker.dc.html": {
       "h": 844,
       "is_interactive": true,
       "radius": 44,
-      "title": "Route form · first use, and the route sheet (Rider in Tweaks)",
+      "title": "Route form · first use (Rider in Tweaks: empty, both chosen)",
       "w": 390,
       "x": 0,
       "y": 1300
@@ -207,22 +207,49 @@
       "x": 940,
       "y": 2600
     },
-    "Station-Search.dc.html": {
-      "h": 844,
-      "is_interactive": true,
-      "radius": 44,
-      "title": "Station search",
-      "w": 390,
-      "x": 470,
-      "y": 1300
-    },
     "Trip-Details.dc.html": {
       "h": 844,
       "is_interactive": true,
       "radius": 44,
       "title": "Trip details sheet",
       "w": 390,
+      "x": 2350,
+      "y": 1300
+    },
+    "Route-Pick-From.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Route form · picking the starting station (inline picker, nothing typed)",
+      "w": 390,
+      "x": 470,
+      "y": 1300
+    },
+    "Route-Pick-To.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Route form · picking the destination, “un” typed",
+      "w": 390,
       "x": 940,
+      "y": 1300
+    },
+    "Schedule-Pick.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Schedule · changing a station in place (Recent, Your stations, All stations)",
+      "w": 390,
+      "x": 1410,
+      "y": 1300
+    },
+    "Route-Sheet.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "radius": 44,
+      "title": "Route sheet · only if kept (glass sheet over the timetable)",
+      "w": 390,
+      "x": 1880,
       "y": 1300
     }
   },
@@ -252,7 +279,9 @@
     "s-timeline",
     "s-sheets",
     "s-notif",
-    "s-nov9"
+    "s-nov9",
+    "s-amen",
+    "s-pick"
   ],
   "notes": {
     "s-brand": {
@@ -278,7 +307,7 @@
     },
     "s-nov9": {
       "fill": "green",
-      "text": "Nov 9 round (TestFlight 1.0 (4) feedback), approved by Grigor Nov 9 · TT-156, issue #69\n\n• Liquid Glass (iOS 26) on every screen: a floating glass tab bar with icons only (tram.fill Schedule, bell.fill Alerts, gearshape.fill Settings; VoiceOver still reads the names; the selected tab is a green icon on a soft glass lens), a glass swap button, content stays solid (cards, route card, day tiles), timeline and lists run under the bar with soft scroll-edge fades. Building it turns Liquid Glass on (reverses D25); iOS 17 to 25 keep the standard bars.\n• Line name first, big, in GO's line colour (sampled from gotransit.com); the line row under the card is gone. A line notice is an amber Notice chip beside the line name.\n• Day strip: a swipeable row of 60 x 48 pt date tiles bleeding to both screen edges, half a tile peeking, snapping to tiles, every day in the timetable; Today first; selected = solid green; Today turns green when another day is selected.\n• No Now row and no Now button. The status row shows only for offline, stale or loading. Now line visible about 5 min below the top; the app always opens there. Tapping the Schedule tab again scrolls back to Now.\n• Timeline left column: gridline times only, every 15 min (:00, :15, :30, :45), as before; no per-train times there (Grigor, Nov 9), because each card already carries its time.\n• Cards: Scheduled arrival is now Arrival, bigger; Scheduled is now On time in green, 15 pt; bigger bell.\n• Settings › Testing › Demo trains (TestFlight only): Delays or Offline on the real timetable.",
+      "text": "Nov 9 round (TestFlight 1.0 (4) feedback), approved by Grigor Nov 9 · TT-156, issue #69\n\n• Liquid Glass (iOS 26) on every screen: a floating glass tab bar with icons only (tram.fill Schedule, bell.fill Alerts, gearshape.fill Settings; VoiceOver still reads the names; the selected tab is a green icon on a soft glass lens), a glass swap button, content stays solid (cards, route card, day tiles), timeline and lists run under the bar with soft scroll-edge fades. Building it turns Liquid Glass on (reverses D25); iOS 17 to 25 keep the standard bars.\n• Line name first, big, in GO's line colour (sampled from gotransit.com); the line row under the card is gone. A line notice is an amber Notice chip beside the line name.\n• Day strip: a swipeable row of 60 x 48 pt date tiles bleeding to both screen edges, half a tile peeking, snapping to tiles, every day in the timetable; Today first; selected = solid green; Today turns green when another day is selected.\n• No Now row and no Now button. The status row shows only for offline, stale or loading. Now line visible about 5 min below the top; the app always opens there. Tapping the Schedule tab again scrolls back to Now.\n• Timeline left column: gridline times only, every 15 min (:00, :15, :30, :45), as before; no per-train times there (Grigor, Nov 9), because each card already carries its time.\n• Cards: redesigned again on Nov 9 evening (TT-157, see the green note to the right).\n• Settings › Testing › Demo trains (TestFlight only): Delays or Offline on the real timetable.",
       "w": 320,
       "x": 5065,
       "y": 0
@@ -287,12 +316,12 @@
       "fill": "blue",
       "text": "Bell = one tap. Once permission exists, tapping a card's bell arms a This-trip alert immediately and shows a toast (Alert on for the 7:32 AM train · Repeat) for 5 s; tapping the bell again turns it off. The sheet opens only the first time (permission), from the toast's Repeat link, or from a filled bell held or tapped on the Alerts tab (Manage). A denied permission shows Notifications off with Open Settings; it never shows On.\n\nRoute card (Grigor, Nov 8): a hollow ring marks where you get on, a dotted line, a green pin where you get off; no From or To words and no arrows. Tapping either station on Schedule opens the route sheet, where Recent lists the last three routes opened, newest first, without the one on screen. No favourites in v1. Settings is the third tab. The tab bar is the iOS 26 glass capsule with icons only (Nov 9).\n\nFirst use: both rows empty, Show trains disabled; picking the starting station opens the destination search automatically. Add alert on the Alerts tab goes to Schedule.\n\nTrip identity never changes: the 7:32 AM train stays the 7:32 AM train when its estimate moves to 7:41 AM.",
       "w": 320,
-      "x": 2820,
+      "x": 4230,
       "y": 1300
     },
     "s-timeline": {
       "fill": "blue",
-      "text": "Timeline rules (full detail in the requirements doc)\n\n• Day strip (Nov 9, option A): a swipeable row of 60 x 48 pt date tiles (weekday over date; the first says Today), 8 pt apart, bleeding to both screen edges with half of the sixth tile peeking under a soft fade, snapping to tiles, covering every day in the timetable (usually 2 to 4 weeks). Selected = solid green with white text; when another day is selected, Today turns green. Another day shows Scheduled times only and no Now line.\n• Header (Nov 9): the GO line first, a code tile in GO's own line colour plus the name in 26 pt bold, then the route card.\n• No Now button anywhere (Grigor, Nov 9). Back to Now is the standard iOS gesture: tapping the Schedule tab while Schedule is already showing scrolls the timeline back to the present. Today in the day strip returns from another day.\n• The next usable train's card shows minutes until departure (in 11 min) in accent beside its badge, updating each minute; its platform sits under the arrival. No other card shows a relative time.\n• Scale 7 pt per minute, gridline and label every 15 min (:00, :15, :30, :45), Now line in accent. The left column shows gridline times only, never a train's time (the card has it; Grigor, Nov 9). The app always opens scrolled to Now, with the Now line about 5 min below the top edge so the minutes just gone stay visible above it.\n• Every train gets a marker on the rail, no time next to it: a ring for a train, a solid 16 pt dot for the next usable train, a hollow amber ring for a slipped scheduled time, a red x for cancelled. Marker and connector share a colour.\n• A card anchors at its expected departure (scheduled when there is no estimate), joined to its marker by a 14 pt connector. Times: 34 pt next train, 32 pt others; Arrival label 15 pt, arrival time 20 pt; status badge 15 pt; card bell 26 pt glyph in a 48 pt target; no Departs label.\n• Status: a train with no reported delay or cancellation reads On time (green check), live or timetable only; Scheduled (grey) only while offline.\n• Delayed: hollow amber marker at the scheduled time, amber bar down to the expected marker, bar length = delay.\n• Cancelled: keeps its slot with an x marker and struck time; never the lead.\n• Cards never touch: minimum gap 16 pt; if two trains are closer at base scale the timeline zooms in for that segment only.\n• No gap labels between cards (the spacing says it); gaps over 30 min fold to a dashed 30-min segment with the real duration and next train.\n• Cancelled cards have no bell.\n• Express tag = the lightning bolt riders know from GO's trip planner (SF Symbol bolt.fill) plus the word. When a row carries more than one tag, the word is hidden and only the glyph stays (accessibility label still reads Express); if the tags still do not fit beside the status and platform, they wrap to a second line under them and the card grows (the minimum-gap rule keeps spacing). Shown on the 7:58 AM card of the first board and on the component sheet. Express is the only tag in v1; Bike coach and Quiet zone are placeholders for later.\n• A watched train that has departed stays as a compact strip above the timeline until arrival or dismissal.\n• A line notice is an amber Notice chip at the right end of the line row (Grigor, Nov 9); tapping it opens the notice sheet. The status row under the day strip appears only for offline, stale data or loading. Live or timetable only: no row.",
+      "text": "Timeline rules (full detail in the requirements doc)\n\n• Day strip (Nov 9, option A): a swipeable row of 60 x 48 pt date tiles (weekday over date; the first says Today), 8 pt apart, bleeding to both screen edges with half of the sixth tile peeking under a soft fade, snapping to tiles, covering every day in the timetable (usually 2 to 4 weeks). Selected = solid green with white text; when another day is selected, Today turns green. Another day shows Scheduled times only and no Now line.\n• Header (Nov 9): the GO line first, a code tile in GO's own line colour plus the name in 26 pt bold, then the route card.\n• No Now button anywhere (Grigor, Nov 9). Back to Now is the standard iOS gesture: tapping the Schedule tab while Schedule is already showing scrolls the timeline back to the present. Today in the day strip returns from another day.\n• The next usable train's card shows minutes until departure (in 11 min, ink semibold) first on its second row, updating each minute, then the platform. No other card shows a relative time.\n• Scale 7 pt per minute, gridline and label every 15 min (:00, :15, :30, :45), Now line in accent. The left column shows gridline times only, never a train's time (the card has it; Grigor, Nov 9). The app always opens scrolled to Now, with the Now line about 5 min below the top edge so the minutes just gone stay visible above it.\n• Every train gets a marker on the rail, no time next to it: a ring for a train, a solid 16 pt dot for the next usable train, a hollow amber ring for a slipped scheduled time, a red x for cancelled. Marker and connector share a colour.\n• A card anchors at its expected departure (scheduled when there is no estimate), joined to its marker by a 14 pt connector. Card (Nov 9, TT-157, approved): three fixed rows, 118 pt in every state. Row 1: time 34 pt on the next train, 32 pt otherwise, the Express bolt right after it, bell 26 pt glyph in a 48 pt target flush right. Row 2: \"in 11 min · Plat 2\" (platform number semibold; \"Plat —\" until GO publishes it, about 10 min before departure); trip length 13 pt grey on the right. Row 3: dot + status word 15 pt semibold left; \"Arrival\" 13 pt grey + 17 pt time right. Full detail on the Card states canvas.\n• Status: a dot and the word, no pill. Filled dot = live information (On time green, Delayed N min amber, Cancelled and Stop skipped red). Ring = Scheduled (grey): no live data for the train, another day, offline or stale; the status row above the timeline says why.\n• Delayed: hollow amber marker at the scheduled time, amber bar down to the expected marker, bar length = delay.\n• Delayed card: expected departure and arrival in amber, no struck time on the card (Trip details keeps Scheduled 7:32 AM).\n• Cancelled: keeps its slot with an x marker; both times struck in grey, no bell, no bolt, \"Next usable below\" in the platform slot; never the lead.\n• Cards never touch: minimum gap 16 pt; if two trains are closer at base scale the timeline zooms in for that segment only.\n• No gap labels between cards (the spacing says it); gaps over 30 min fold to a dashed 30-min segment with the real duration and next train.\n• Cancelled cards have no bell.\n• Amenities (Grigor, Nov 9, TT-157, approved): Express is the only amenity on a card, a bolt right after the departure time, green when express and grey with a slash when not (from the stopping pattern, D35). Bikes (bikes_allowed) and Accessible (wheelchair_accessible) are words in Trip details only. Not in the feed, so never shown: Quiet Zone, Wi-Fi, washrooms.\n• A watched train that has departed stays as a compact strip above the timeline until arrival or dismissal.\n• A line notice is an amber Notice chip at the right end of the line row (Grigor, Nov 9); tapping it opens the notice sheet. The status row under the day strip appears only for offline, stale data or loading. Live or timetable only: no row.",
       "w": 340,
       "x": 4685,
       "y": 440
@@ -315,7 +344,7 @@
     },
     "t-route": {
       "kind": "title1",
-      "maxW": 2740,
+      "maxW": 4920,
       "text": "Route, trip details and alert setup",
       "w": 240,
       "x": 0,
@@ -328,6 +357,20 @@
       "w": 240,
       "x": 0,
       "y": -300
+    },
+    "s-amen": {
+      "fill": "green",
+      "w": 320,
+      "x": 5425,
+      "y": 0,
+      "text": "Card redesign (Grigor, Nov 9, approved 20:57) · TT-157\n\nEvery Schedule frame and the component sheet now carry the approved card from the Card states canvas (https://claude.ai/artifact/1NMQUpX2ozD7wo2orSekxv):\n\n• Three fixed rows, 118 pt in every state, so nothing moves between states.\n• Row 1: departure time, Express bolt (the only amenity on the card), bell.\n• Row 2: \"in 11 min · Plat 2\" left (number semibold, em dash until published, \"Next usable below\" when cancelled); trip length \"40 min\" right.\n• Row 3: dot + status word left (filled = live, ring = Scheduled); \"Arrival 8:38 AM\" right.\n• Delayed: amber time and arrival, no struck time on the card. Cancelled: struck grey times, no bell, no bolt.\n• Bikes and Accessible: words in Trip details only.\n\nImplementation ticket: TT-157 (issue linked from the Notion card)."
+    },
+    "s-pick": {
+      "fill": "green",
+      "w": 340,
+      "x": 4590,
+      "y": 1300,
+      "text": "Inline station picker (Grigor, Nov 10, approved 00:31 UTC) · TT-161, issue #78 · replaces the Station search page\n\n• Tap a station row in the route card: the row stays as it is and shows a cursor (keyboard up; the placeholder or the station name is the field), the swap button turns into a glass X (cancel), and the suggestions unfold directly under the card as a Liquid Glass panel, 8 pt below it, the card's 26 pt radius, ending above the keyboard. No sheet, no second screen. Same component in all three places.\n• Before typing the panel lists: Recent (routes, on Schedule only; a tap applies the whole route), Your stations (stations from the recent routes, clock glyph) and All stations A to Z. Choosing To: Union Station GO suggested first. The other field's station is greyed with \"Same as From\" or \"Same as To\" and cannot be picked; the active field's own station is not listed. Typing filters by word prefix; results keep the same rows.\n• First use: picking the starting station fills its row and moves straight to the destination field (the panel stays open, now listing To). Show trains and the footnote are hidden while a field is active; both rows filled enables Show trains.\n• Schedule: tapping a station opens the picker in place, the station name pre-filled and selected so typing replaces it; the timetable dims behind. Picking applies at once (route saved, timeline reloads, Recent updated). Cancel: the X, a tap on the dimmed timetable, or swiping the panel down.\n• Route sheet: not built; Schedule picks in place and Recent moved into the panel (Grigor's working answer, Nov 10). The glass frame at the left stays only until he confirms.\n• Glass: the panel, the sheet background, X/swap, the tab bar, and Show trains as a tinted glass capsule (glassProminent). Cards, fields and rows stay solid, as on Schedule (Nov 9 rule).\n• Motion: panel unfolds from under the card 0.3 s spring; picking folds it the same way."
     }
   },
   "order": [
@@ -346,7 +389,10 @@
     "Schedule-LargeText.dc.html",
     "Schedule-Compact.dc.html",
     "Route-Picker.dc.html",
-    "Station-Search.dc.html",
+    "Route-Pick-From.dc.html",
+    "Route-Pick-To.dc.html",
+    "Schedule-Pick.dc.html",
+    "Route-Sheet.dc.html",
     "Trip-Details.dc.html",
     "Alert-Setup.dc.html",
     "Alert-Setup-Repeat.dc.html",

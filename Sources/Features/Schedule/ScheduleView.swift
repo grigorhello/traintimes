@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// Schedule tab (TT-112, D49): the line (code tile, name and a Notice chip) above the route card (D48), the day strip
-/// carousel, a status row only while loading, offline or stale, the watched-trip strip once a watched train has left
-/// (TT-144), then the to-scale timeline with its rail and cards (TT-113). The header is a top inset over one full-height
-/// scroll view, so the timeline scrolls under the glass tab bar at the bottom (D49). There is no Now button: tapping the
-/// Schedule tab again scrolls back to Now.
+/// Schedule tab (TT-112, D49): the line (code tile, name and a Notice chip) above the route card (D48; a tap on a station
+/// opens the picker under the card, in place, D52), the day strip carousel, a status row only while loading, offline or
+/// stale, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and
+/// cards (TT-113). The header is a top inset over one full-height scroll view, so the timeline scrolls under the glass
+/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now.
 struct ScheduleView: View {
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
-    /// Tap the route card: the route sheet with Recent (D48).
-    let onEditRoute: () -> Void
+    /// The stations the picker lists (TT-161).
+    let stations: any StationRepository
     /// Tap a card: Trip details (TT-118).
     var onOpenTrip: (TripKey) -> Void = { _ in }
     /// The Notice chip: the notice sheet (TT-132).
@@ -24,12 +24,35 @@ struct ScheduleView: View {
     @Environment(\.openURL) private var openURL
     /// The strip's leftmost tile, for scrolling it to a tile that is out of view.
     @State private var stripPosition: Int?
+    /// The station picker, made each time a station row is tapped; open while `isPickingStation` (TT-161, D52).
+    @State private var picker: RouteFormViewModel?
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// `picker` opens Schedule with the picker already made, for previews and snapshots.
+    init(
+        viewModel: ScheduleViewModel,
+        stations: any StationRepository,
+        onOpenTrip: @escaping (TripKey) -> Void = { _ in },
+        onOpenLineNotice: @escaping () -> Void = {},
+        bells: AlertBellModel? = nil,
+        onAlertSetup: @escaping (AlertSetupRequest) -> Void = { _ in },
+        picker: RouteFormViewModel? = nil
+    ) {
+        self.viewModel = viewModel
+        self.stations = stations
+        self.onOpenTrip = onOpenTrip
+        self.onOpenLineNotice = onOpenLineNotice
+        self.bells = bells
+        self.onAlertSetup = onAlertSetup
+        _picker = State(initialValue: picker)
+    }
 
     var body: some View {
         timeline
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
+            .overlay { pickerLayer.animation(.spring(duration: 0.3), value: picker?.isPickingStation ?? false) }
             .overlay(alignment: .bottom) { alertToast }
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
@@ -50,7 +73,7 @@ struct ScheduleView: View {
     /// Everything above the timeline, on a canvas background that also covers the status bar, with a 16 pt fade under it.
     private var header: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
-            routeHeader
+            routeBlock(picking: picking)
                 .padding(.horizontal, TTSpace.s5)
             dayStrip
             if let mode = viewModel.statusRowMode(formatter) {
@@ -82,18 +105,102 @@ struct ScheduleView: View {
     /// The canvas's `.edge-top`.
     private static let edgeFade: CGFloat = 16
 
-    /// The line first, then the route card (D49, D48); tapping the card opens the route sheet.
-    private var routeHeader: some View {
+    /// The line first, then the route card (D49, D48); tapping a station opens the picker for it (D52).
+    private func routeBlock(picking: RouteCard.Picking?) -> some View {
         VStack(alignment: .leading, spacing: Self.lineRowGap) {
             lineRow
             RouteCard(
                 from: viewModel.route?.from.name,
                 to: viewModel.route?.to.name,
-                tap: .card(label: viewModel.routeTitle ?? "", id: "schedule.route", action: onEditRoute),
+                fromID: "schedule.from",
+                toID: "schedule.to",
+                onTap: { openPicker($0) },
+                picking: picking,
                 swapID: "schedule.swap"
             ) {
                 Task { await viewModel.swap() }
             }
+        }
+    }
+
+    // MARK: Station picker
+
+    /// Canvas `.pk-panel`: 8 pt under the card and 10 pt above the keyboard.
+    private static let panelGap: CGFloat = TTSpace.s2
+    private static let keyboardGap: CGFloat = 10
+
+    /// A tap on a station row: the picker opens for that field, or moves to it while open.
+    private func openPicker(_ stop: RouteCard.Stop) {
+        let field: RouteFormViewModel.Field = stop == .from ? .from : .to
+        if let picker, picker.isPickingStation {
+            picker.open(field)
+            return
+        }
+        let model = RouteFormViewModel(route: viewModel.route, repository: stations, recents: viewModel.recents)
+        model.open(field)
+        picker = model
+        Task { await model.loadStations() }
+    }
+
+    /// The tapped row as the search field, with the current station selected, and the X in the swap button's place.
+    private var picking: RouteCard.Picking? {
+        guard let picker, picker.isPickingStation else { return nil }
+        return RouteCard.Picking(
+            stop: picker.pickingField == .from ? .from : .to,
+            query: picker.query,
+            selected: picker.pickingStationName,
+            cancelID: "schedule.cancel",
+            onQuery: { picker.query = $0 },
+            onSubmit: { if picker.pickFirstMatch() { apply(picker) } },
+            onCancel: { picker.closeStations() }
+        )
+    }
+
+    /// The scrim dims the day strip and the timeline under the card, and the panel unfolds over it. A tap on the scrim, the
+    /// X or a swipe down on the panel cancels; a pick applies at once.
+    @ViewBuilder private var pickerLayer: some View {
+        if let picker, picker.isPickingStation {
+            VStack(spacing: 0) {
+                // An unseen copy of the line row and the card, as tall as they are in the header, so the scrim and the
+                // panel start right under the card whatever the line row holds.
+                routeBlock(picking: nil)
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, TTSpace.s3)
+                    .hidden()
+                    .allowsHitTesting(false)
+                ZStack(alignment: .top) {
+                    scrim
+                        .onTapGesture { picker.closeStations() }
+                        .accessibilityHidden(true)
+                    StationPickerPanel(
+                        viewModel: picker,
+                        onPick: { if picker.pick($0) { apply(picker) } },
+                        onPickRoute: { route in
+                            picker.choose(route)
+                            Task { await viewModel.show(route) }
+                        },
+                        onCancel: { picker.closeStations() }
+                    )
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, Self.panelGap)
+                    .padding(.bottom, Self.keyboardGap)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+                }
+            }
+        }
+    }
+
+    /// Canvas `--scrim`: the ink at 32% in light, black at 56% in dark.
+    private var scrim: some View {
+        (colorScheme == .dark ? Color.black.opacity(0.56) : TTColor.ink.opacity(0.32))
+            .contentShape(Rectangle())
+    }
+
+    /// A pick that completed the route: show it, which saves it and adds it to Recent.
+    private func apply(_ picker: RouteFormViewModel) {
+        Task {
+            if let route = await picker.route() { await viewModel.show(route) }
         }
     }
 
@@ -358,7 +465,7 @@ struct ScheduleView: View {
 
 #Preview {
     NavigationStack {
-        ScheduleView(viewModel: .fixtures(), onEditRoute: {})
+        ScheduleView(viewModel: .fixtures(), stations: ScheduleDependencies.fixtures().stations)
     }
 }
 

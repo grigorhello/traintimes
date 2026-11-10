@@ -30,9 +30,9 @@ a{color:inherit}a:hover{color:inherit}
       <div class="card rcard">
         <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
         <div style="display: flex; flex-direction: column; min-width: 0">
-          <a class="rrow" href="Route-Picker.dc.html" aria-label="From Oakville GO. Change route"><span class="stn headline">Oakville GO</span></a>
+          <a class="rrow" href="Schedule-Pick.dc.html" aria-label="From Oakville GO. Change station"><span class="stn headline">Oakville GO</span></a>
           <div style="height: 1px; background: var(--hairline)"></div>
-          <a class="rrow" href="Route-Picker.dc.html" aria-label="To Union Station GO. Change route"><span class="stn headline">Union Station GO</span></a>
+          <a class="rrow" href="Schedule-Pick.dc.html" aria-label="To Union Station GO. Change station"><span class="stn headline">Union Station GO</span></a>
         </div>
         <button class="gbtn glass" aria-label="Swap direction"><span class="ico i-swap" aria-hidden="true"></span></button>
       </div>
@@ -70,34 +70,46 @@ a{color:inherit}a:hover{color:inherit}
 
         <span class="tl-mark lead" style="top: 105px" aria-hidden="true"></span>
         <div class="tl-link lead" style="top: 112px" aria-hidden="true"></div>
-        <div class="dep lead" style="top: 78px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, on time, arrival 8:12 AM, platform 2"><span class="time-lead tnum time">7:32 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:12 AM</span><span class="footnote muted">Platform 2</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote soon tnum">in 11 min</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb lead" style="top: 78px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, on time, arrival 8:12 AM, platform 2, not express, no bikes"><span class="time tnum">7:32 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span class="soon">in 11 min</span><span class="sep">·</span><span>Plat <span class="pn tnum">2</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:12 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 289px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 294px" aria-hidden="true"></div>
-        <div class="dep" style="top: 262px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, arrival 8:38 AM, platform pending, express, bike coach"><span class="time-row tnum time">7:58 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a><span class="tag footnote icon-only" role="img" aria-label="Express"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><span class="tag footnote">Bike coach</span></div>
+        <div class="kb" style="top: 262px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, arrival 8:38 AM, platform pending, express, no bikes"><span class="time tnum">7:58 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:38 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 450px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 455px" aria-hidden="true"></div>
-        <div class="dep" style="top: 423px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 423px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express, bikes allowed"><span class="time tnum">8:21 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:01 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 632px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 637px" aria-hidden="true"></div>
-        <div class="dep" style="top: 605px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 605px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM, not express, bikes allowed"><span class="time tnum">8:47 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:27 AM</span>
         </div>
       </div>
     </div>
@@ -109,45 +121,57 @@ a{color:inherit}a:hover{color:inherit}
         <div class="edge-top" aria-hidden="true"></div>
         <div class="tl-rail" style="height: 100%" aria-hidden="true"></div>
         <div class="tl-tick" style="top: 99px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 90px" aria-hidden="true">7:30</span>
-        <div class="tl-tick" style="top: 210px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 201px" aria-hidden="true">7:45</span>
-        <div class="tl-tick" style="top: 321px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 312px" aria-hidden="true">8:00</span>
-        <div class="tl-tick" style="top: 426px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 417px" aria-hidden="true">8:15</span>
-        <div class="tl-tick" style="top: 531px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 522px" aria-hidden="true">8:30</span>
-        <div class="tl-tick" style="top: 636px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 627px" aria-hidden="true">8:45</span>
+        <div class="tl-tick" style="top: 234px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 225px" aria-hidden="true">7:45</span>
+        <div class="tl-tick" style="top: 345px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 336px" aria-hidden="true">8:00</span>
+        <div class="tl-tick" style="top: 450px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 441px" aria-hidden="true">8:15</span>
+        <div class="tl-tick" style="top: 555px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 546px" aria-hidden="true">8:30</span>
+        <div class="tl-tick" style="top: 660px" aria-hidden="true"></div><span class="tl-lbl footnote tnum" style="top: 651px" aria-hidden="true">8:45</span>
         <div class="tl-now" style="top: 35px" aria-hidden="true"></div><span class="tl-lbl tl-nowlbl footnote" style="top: 27px" aria-hidden="true">Now</span>
 
         <span class="tl-mark ghost" style="top: 107px" aria-hidden="true"></span>
         <div class="tl-delay" style="top: 113px; height: 63px" aria-hidden="true"></div>
         <span class="tl-mark lead" style="top: 168px" aria-hidden="true"></span>
         <div class="tl-link lead" style="top: 175px" aria-hidden="true"></div>
-        <div class="dep lead delayed" style="top: 142px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 20 minutes, delayed 9 minutes, expected departure 7:41 AM, estimated arrival 8:21 AM, platform 2"><span class="time-lead tnum time">7:41 AM</span><span class="footnote was tnum">Scheduled 7:32 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Est. arrival</span><span class="time-arrival tnum">8:21 AM</span><span class="footnote muted">Platform 2</span></div>
-          <div class="meta"><span class="badge delay"><span class="ico sm i-delay" aria-hidden="true"></span>Delayed 9 min</span><span class="footnote soon tnum">in 20 min</span><a class="icon-btn bell on" href="Alert-Setup.dc.html" aria-label="Alert on for 7:32 AM train"><span class="ico i-bell-fill" aria-hidden="true"></span></a></div>
+        <div class="kb lead delayed" style="top: 142px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 20 minutes, delayed 9 minutes, expected departure 7:41 AM, estimated arrival 8:21 AM, platform 2, not express, no bikes"><span class="time tnum">7:41 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell on" href="Alert-Setup.dc.html" aria-label="Alert on for 7:32 AM train"><span class="ico i-bell-fill" aria-hidden="true"></span></a>
+          <div class="p"><span class="soon">in 20 min</span><span class="sep">·</span><span>Plat <span class="pn tnum">2</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s delay"><span class="dot" aria-hidden="true"></span><span>Delayed 9 min</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:21 AM</span>
         </div>
 
-        <span class="tl-mark" style="top: 301px" aria-hidden="true"></span>
-        <div class="tl-link" style="top: 306px" aria-hidden="true"></div>
-        <div class="dep" style="top: 274px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, arrival 8:38 AM, platform pending"><span class="time-row tnum time">7:58 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <span class="tl-mark" style="top: 325px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 330px" aria-hidden="true"></div>
+        <div class="kb" style="top: 298px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, on time, arrival 8:38 AM, platform pending, express, no bikes"><span class="time tnum">7:58 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:38 AM</span>
         </div>
 
-        <span class="tl-mark" style="top: 462px" aria-hidden="true"></span>
-        <div class="tl-link" style="top: 467px" aria-hidden="true"></div>
-        <div class="dep" style="top: 435px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <span class="tl-mark" style="top: 486px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 491px" aria-hidden="true"></div>
+        <div class="kb" style="top: 459px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express, bikes allowed"><span class="time tnum">8:21 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:01 AM</span>
         </div>
 
-        <span class="tl-mark" style="top: 644px" aria-hidden="true"></span>
-        <div class="tl-link" style="top: 649px" aria-hidden="true"></div>
-        <div class="dep" style="top: 617px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <span class="tl-mark" style="top: 668px" aria-hidden="true"></span>
+        <div class="tl-link" style="top: 673px" aria-hidden="true"></div>
+        <div class="kb" style="top: 641px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM, not express, bikes allowed"><span class="time tnum">8:47 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:27 AM</span>
         </div>
       </div>
     </div>
@@ -168,34 +192,45 @@ a{color:inherit}a:hover{color:inherit}
 
         <span class="tl-mark cancel" style="top: 105px" aria-hidden="true"><span class="ico i-cancel"></span></span>
         <div class="tl-link cancel" style="top: 112px" aria-hidden="true"></div>
-        <div class="dep cancelled" style="top: 80px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, cancelled"><span class="time-row tnum time">7:32 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:12 AM</span></div>
-          <div class="meta"><span class="badge cancel"><span class="ico sm i-cancel" aria-hidden="true"></span>Cancelled</span><span class="footnote muted">Next usable below</span></div>
+        <div class="kb cancelled" style="top: 80px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, cancelled"><span class="time tnum">7:32 AM</span></a></div>
+          <div class="p"><span class="note">Next usable below</span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s cancel"><span class="dot" aria-hidden="true"></span><span>Cancelled</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:12 AM</span>
         </div>
 
         <span class="tl-mark lead" style="top: 287px" aria-hidden="true"></span>
         <div class="tl-link lead" style="top: 294px" aria-hidden="true"></div>
-        <div class="dep lead" style="top: 260px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, in 37 minutes, on time, arrival 8:38 AM, platform 3"><span class="time-lead tnum time">7:58 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span><span class="footnote muted">Platform 3</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote soon tnum">in 37 min</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb lead" style="top: 260px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, in 37 minutes, on time, arrival 8:38 AM, platform 3, express, no bikes"><span class="time tnum">7:58 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span class="soon">in 37 min</span><span class="sep">·</span><span>Plat <span class="pn tnum">3</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:38 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 450px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 455px" aria-hidden="true"></div>
-        <div class="dep" style="top: 423px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 423px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, on time, arrival 9:01 AM, express, bikes allowed"><span class="time tnum">8:21 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:01 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 632px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 637px" aria-hidden="true"></div>
-        <div class="dep" style="top: 605px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
-          <div class="meta"><span class="badge ontime"><span class="ico sm i-check" aria-hidden="true"></span>On time</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 605px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, on time, arrival 9:27 AM, not express, bikes allowed"><span class="time tnum">8:47 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s ontime"><span class="dot" aria-hidden="true"></span><span>On time</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:27 AM</span>
         </div>
       </div>
     </div>
@@ -219,34 +254,46 @@ a{color:inherit}a:hover{color:inherit}
 
         <span class="tl-mark lead" style="top: 105px" aria-hidden="true"></span>
         <div class="tl-link lead" style="top: 112px" aria-hidden="true"></div>
-        <div class="dep lead" style="top: 78px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, scheduled, arrival 8:12 AM"><span class="time-lead tnum time">7:32 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:12 AM</span><span class="footnote muted">Platform pending</span></div>
-          <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote soon tnum">in 11 min</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb lead" style="top: 78px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:32 AM to Union, in 11 minutes, scheduled, arrival 8:12 AM, not express, no bikes"><span class="time tnum">7:32 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:32 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span class="soon">in 11 min</span><span class="sep">·</span><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s sched ring"><span class="dot" aria-hidden="true"></span><span>Scheduled</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:12 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 289px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 294px" aria-hidden="true"></div>
-        <div class="dep" style="top: 262px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, scheduled, arrival 8:38 AM"><span class="time-row tnum time">7:58 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">8:38 AM</span></div>
-          <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 262px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="7:58 AM to Union, scheduled, arrival 8:38 AM, express, no bikes"><span class="time tnum">7:58 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 7:58 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s sched ring"><span class="dot" aria-hidden="true"></span><span>Scheduled</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>8:38 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 450px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 455px" aria-hidden="true"></div>
-        <div class="dep" style="top: 423px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, scheduled, arrival 9:01 AM, express"><span class="time-row tnum time">8:21 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:01 AM</span></div>
-          <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="tag footnote"><span class="ico sm i-express" aria-hidden="true"></span><span class="tag-text">Express</span></span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 423px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:21 AM to Union, scheduled, arrival 9:01 AM, express, bikes allowed"><span class="time tnum">8:21 AM</span></a><span class="am on" role="img" aria-label="Express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:21 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s sched ring"><span class="dot" aria-hidden="true"></span><span>Scheduled</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:01 AM</span>
         </div>
 
         <span class="tl-mark" style="top: 632px" aria-hidden="true"></span>
         <div class="tl-link" style="top: 637px" aria-hidden="true"></div>
-        <div class="dep" style="top: 605px" role="listitem">
-          <a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, scheduled, arrival 9:27 AM"><span class="time-row tnum time">8:47 AM</span></a>
-          <div class="arr"><span class="lbl footnote">Arrival</span><span class="time-arrival tnum">9:27 AM</span></div>
-          <div class="meta"><span class="badge sched"><span class="ico sm i-clock" aria-hidden="true"></span>Scheduled</span><span class="footnote muted">Platform pending</span><a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a></div>
+        <div class="kb" style="top: 605px" role="listitem">
+          <div class="t"><a class="when" href="Trip-Details.dc.html" aria-label="8:47 AM to Union, scheduled, arrival 9:27 AM, not express, bikes allowed"><span class="time tnum">8:47 AM</span></a><span class="am off" role="img" aria-label="Not express"><span class="ico i-bolt" aria-hidden="true"></span></span></div>
+          <a class="icon-btn bell" href="Alert-Setup.dc.html" aria-label="Alert for 8:47 AM train"><span class="ico i-bell" aria-hidden="true"></span></a>
+          <div class="p"><span>Plat <span class="ph">—</span></span></div>
+          <span class="al tnum">40 min</span>
+          <div class="s sched ring"><span class="dot" aria-hidden="true"></span><span>Scheduled</span></div>
+          <span class="ar tnum"><span class="arl">Arrival</span>9:27 AM</span>
         </div>
       </div>
     </div>

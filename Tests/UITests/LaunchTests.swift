@@ -13,7 +13,7 @@ final class LaunchTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
-        let route = app.buttons["schedule.route"]
+        let route = app.buttons["schedule.from"]
         XCTAssertTrue(route.waitForExistence(timeout: 10))
         let line = app.descendants(matching: .any)["schedule.line"]
         XCTAssertEqual(line.label, "Lakeshore West", "The line comes first (D49)")

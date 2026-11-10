@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Route form, picking the destination</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="gt-theme.css">
+<link rel="stylesheet" href="ds/go-train-app/components/bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.rcard{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:0 8px 0 16px}
+.mk{display:flex;flex-direction:column;align-items:center;padding-top:18px;height:97px;box-sizing:border-box}
+.mk .ring{width:12px;height:12px;border-radius:9999px;box-shadow:inset 0 0 0 2.5px var(--ink-secondary);flex:none}
+.mk .pt{width:3px;height:3px;border-radius:9999px;background:var(--ink-tertiary);margin-top:6px;flex:none}
+.mk .pin{width:20px;height:20px;margin-top:6px;color:var(--accent);flex:none;display:block}
+.rrow{display:flex;align-items:center;gap:8px;min-height:48px}
+.rrow .stn{flex:1;min-width:0}
+.mini{align-self:flex-start;display:flex;flex-direction:column;align-items:center;width:14px;padding-top:6px;flex:none}
+.mini .ring{width:10px;height:10px;border-radius:9999px;box-shadow:inset 0 0 0 2px var(--ink-secondary)}
+.mini .pt{width:2px;height:2px;border-radius:9999px;background:var(--ink-tertiary);margin-top:3px}
+.mini .pin{width:14px;height:14px;margin-top:3px;color:var(--accent);display:block}
+</style>
+</helmet>
+<div class="phone {{themeClass}}" style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-system)">
+  <div style="position: absolute; inset: 0; padding-top: 54px; display: flex; flex-direction: column">
+    <div class="screen" style="gap: 16px; padding-top: 24px">
+      <h1 class="large-title">Choose a route</h1>
+      <div class="card rcard">
+        <div class="mk" aria-hidden="true"><span class="ring"></span><span class="pt"></span><span class="pt"></span><span class="pt"></span><svg class="pin" viewBox="0 0 24 24"><path d="M12 22.5s7.5-6.6 7.5-12.7a7.5 7.5 0 0 0-15 0c0 6.1 7.5 12.7 7.5 12.7z" style="fill: currentColor"></path><circle cx="12" cy="9.8" r="2.8" style="fill: var(--surface)"></circle></svg></div>
+        <div style="display: flex; flex-direction: column; min-width: 0">
+          <a class="rrow" href="Route-Pick-From.dc.html" aria-label="From Oakville GO. Change station"><span class="stn headline">Oakville GO</span></a>
+          <div style="height: 1px; background: var(--hairline)"></div>
+          <div class="rrow active"><div class="pk-line headline"><span class="pk-in typed" role="textbox" aria-label="Search stations">un</span><span class="caret" aria-hidden="true"></span></div></div>
+        </div>
+        <a class="gbtn glass x" href="Route-Picker.dc.html" aria-label="Cancel"><span class="ico i-close" aria-hidden="true"></span></a>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="pk-panel glass fit" style="top: 240px">
+    <div class="pk-scroll">
+      <h2 class="pk-h footnote">Stations</h2>
+      <a class="pk-row" href="Main.dc.html" aria-label="Union Station GO, All lines"><span class="txt"><span class="headline">Union Station GO</span><span class="footnote">All lines</span></span></a>
+      <a class="pk-row" href="Main.dc.html" aria-label="Unionville GO, Stouffville"><span class="txt"><span class="headline">Unionville GO</span><span class="footnote">Stouffville</span></span></a>
+    </div>
+  </div>
+
+  <div class="kbd" role="img" aria-label="Keyboard">
+    <div class="kr"><span class="k">q</span><span class="k">w</span><span class="k">e</span><span class="k">r</span><span class="k">t</span><span class="k">y</span><span class="k">u</span><span class="k">i</span><span class="k">o</span><span class="k">p</span></div>
+    <div class="kr"><span class="k">a</span><span class="k">s</span><span class="k">d</span><span class="k">f</span><span class="k">g</span><span class="k">h</span><span class="k">j</span><span class="k">k</span><span class="k">l</span></div>
+    <div class="kr"><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 4.5 12H9v7h6v-7h4.5z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path></svg></span><span class="k">z</span><span class="k">x</span><span class="k">c</span><span class="k">v</span><span class="k">b</span><span class="k">n</span><span class="k">m</span><span class="k fn w42"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-6-6z" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round"></path><path d="m12 10 5 4m0-4-5 4" style="fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round"></path></svg></span></div>
+    <div class="kr"><span class="k fn w88">123</span><span class="k space">space</span><span class="k go w88">search</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rider = this.props.rider ?? 'first use';
+    return {
+      themeClass: (this.props.theme ?? 'light') === 'dark' ? 'dark' : 'light',
+      isFirstUse: rider === 'first use',
+      isReady: rider === 'both chosen'
+    };
+  }
+}
+</script>
+</body>
+</html>

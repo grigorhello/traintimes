@@ -16,7 +16,7 @@ final class ScheduleRecentTests: XCTestCase {
         XCTAssertEqual(recents.routes, [repository.route])
     }
 
-    /// Swapping keeps the first direction as a recent route, so the sheet offers the way back.
+    /// Swapping keeps the first direction as a recent route, so the picker offers the way back.
     func testSwapAndShowRecordTheRoute() async throws {
         let repository = try repository()
         let recents = RecentRoutes(defaults: .ephemeral())
@@ -32,9 +32,9 @@ final class ScheduleRecentTests: XCTestCase {
         await model.show(burlington)
         XCTAssertEqual(recents.routes, [burlington, back, repository.route])
 
-        // The sheet opened over Burlington lists the other two, newest first.
+        // The picker opened over Burlington lists the other two, newest first.
         let form = RouteFormViewModel(route: model.route, repository: repository, recents: model.recents)
-        XCTAssertEqual(form.recentRoutes, [back, repository.route])
+        XCTAssertEqual(form.suggestedRoutes, [back, repository.route])
     }
 
     /// Acceptance: a relaunch restores the last route, its direction and the recent routes.

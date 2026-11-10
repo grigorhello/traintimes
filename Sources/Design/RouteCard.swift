@@ -2,18 +2,24 @@ import SwiftUI
 
 /// The route card (D48), drawn like a maps route box: a ring for the origin, dots, a pin for the destination, the two
 /// stations split by a hairline, and the swap button to the right. No "From"/"To" words: the markers say which is which.
-/// Schedule shows it as its header (the whole card opens the route sheet); the route form uses it for its fields.
+/// Schedule shows it as its header and the route form uses it for its fields. A tap on a station row makes that row the
+/// search field and the swap button turns into the X that cancels (TT-161, D52).
 struct RouteCard: View {
     enum Stop {
         case from, to
     }
 
-    /// What tapping the stations does.
-    enum Tap {
-        /// One button over both stations, read as `label` (Schedule: opens the route sheet).
-        case card(label: String, id: String, action: () -> Void)
-        /// A button per station, each read as its field name and station (the route form: opens station search).
-        case stop(fromID: String, toID: String, action: (Stop) -> Void)
+    /// The row that is the search field while the picker is open.
+    struct Picking {
+        let stop: Stop
+        /// What the rider typed.
+        let query: String
+        /// The current station, shown selected so typing replaces it; nil on first use, which starts on the placeholder.
+        let selected: String?
+        let cancelID: String
+        let onQuery: (String) -> Void
+        let onSubmit: () -> Void
+        let onCancel: () -> Void
     }
 
     let from: String?
@@ -21,7 +27,12 @@ struct RouteCard: View {
     /// Shown in ink-tertiary while a station is not chosen yet.
     var fromPlaceholder: LocalizedStringKey = "route.choose_from"
     var toPlaceholder: LocalizedStringKey = "route.choose_to"
-    let tap: Tap
+    let fromID: String
+    let toID: String
+    /// A tap on a station row: the picker for that field. Also on the other row while one is open.
+    let onTap: (Stop) -> Void
+    /// Set while the picker is open.
+    var picking: Picking?
     var canSwap = true
     let swapID: String
     let onSwap: () -> Void
@@ -40,50 +51,49 @@ struct RouteCard: View {
                 RouteMarkers()
                     .padding(.top, (Self.rowHeight - RouteMarkers.Size.regular.ring) / 2)
                     .frame(width: Self.markerColumn, height: 2 * Self.rowHeight, alignment: .top)
-                stations
-                GlassIconButton(systemName: "arrow.up.arrow.down", label: "route.swap", action: onSwap)
-                    .disabled(!canSwap)
-                    .accessibilityIdentifier(swapID)
+                VStack(spacing: 0) {
+                    row(.from, station: from, placeholder: fromPlaceholder, id: fromID)
+                    hairline
+                    row(.to, station: to, placeholder: toPlaceholder, id: toID)
+                }
+                if let picking {
+                    GlassIconButton(systemName: "xmark", label: "button.cancel", tint: TTColor.ink, action: picking.onCancel)
+                        .accessibilityIdentifier(picking.cancelID)
+                } else {
+                    GlassIconButton(systemName: "arrow.up.arrow.down", label: "route.swap", action: onSwap)
+                        .disabled(!canSwap)
+                        .accessibilityIdentifier(swapID)
+                }
             }
             .padding(.leading, TTSpace.s4)
             .padding(.trailing, TTSpace.s2)
         }
     }
 
-    @ViewBuilder private var stations: some View {
-        switch tap {
-        case .card(let label, let id, let action):
-            Button(action: action) {
-                VStack(spacing: 0) {
-                    name(from, placeholder: fromPlaceholder)
-                    hairline
-                    name(to, placeholder: toPlaceholder)
-                }
-                .contentShape(Rectangle())
+    /// The station as a button read as its field name and station, or the search field while it is the active row.
+    @ViewBuilder
+    private func row(_ stop: Stop, station: String?, placeholder: LocalizedStringKey, id: String) -> some View {
+        if let picking, picking.stop == stop {
+            let placeholderKey: String.LocalizationValue = stop == .from ? "route.choose_from" : "route.choose_to"
+            StationField(
+                text: picking.query,
+                placeholder: String(localized: placeholderKey),
+                selected: picking.selected,
+                identifier: id,
+                onChange: picking.onQuery,
+                onSubmit: picking.onSubmit
+            )
+            .frame(maxWidth: .infinity, minHeight: Self.rowHeight, maxHeight: Self.rowHeight, alignment: .leading)
+        } else {
+            let field: LocalizedStringKey = stop == .from ? "route.from" : "route.to"
+            Button { onTap(stop) } label: {
+                name(station, placeholder: placeholder).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text(verbatim: label))
+            .accessibilityLabel(Text(field))
+            .accessibilityValue(station.map { Text(verbatim: $0) } ?? Text(placeholder))
             .accessibilityIdentifier(id)
-        case .stop(let fromID, let toID, let action):
-            VStack(spacing: 0) {
-                stopButton(.from, station: from, placeholder: fromPlaceholder, id: fromID, action: action)
-                hairline
-                stopButton(.to, station: to, placeholder: toPlaceholder, id: toID, action: action)
-            }
         }
-    }
-
-    private func stopButton(
-        _ stop: Stop, station: String?, placeholder: LocalizedStringKey, id: String, action: @escaping (Stop) -> Void
-    ) -> some View {
-        let field: LocalizedStringKey = stop == .from ? "route.from" : "route.to"
-        return Button { action(stop) } label: {
-            name(station, placeholder: placeholder).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(field))
-        .accessibilityValue(station.map { Text(verbatim: $0) } ?? Text(placeholder))
-        .accessibilityIdentifier(id)
     }
 
     /// The station in headline, or the placeholder in body ink-tertiary, on one line.

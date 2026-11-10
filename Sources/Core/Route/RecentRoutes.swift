@@ -2,16 +2,16 @@ import Foundation
 import Observation
 
 /// The routes the rider opened last, newest first, kept on device (D48). Each direction is its own entry, and opening a
-/// route again moves it to the top. The route sheet lists them under "Recent", leaving out the route on screen, and their
-/// stations make up Your stations in station search. The last route is also stored on its own (`RouteStoring`) so a
+/// route again moves it to the top. The station picker lists them under "Recent" on Schedule, leaving out the route on
+/// screen, and their stations make up Your stations (D52). The last route is also stored on its own (`RouteStoring`) so a
 /// relaunch opens it. Nothing is sent to a server (D5).
 ///
-/// One instance is shared by Schedule, which records each route it shows, and the route form.
+/// One instance is shared by Schedule, which records each route it shows, and the station picker.
 @Observable @MainActor
 final class RecentRoutes {
-    /// The route on screen plus the three the sheet lists.
+    /// The route on screen plus the three the picker lists.
     static let limit = 4
-    /// How many the route sheet lists.
+    /// How many the picker lists.
     static let shown = 3
     /// An array of route dictionaries (`Route.storedValues`), so UI tests can clear it with `-route.recent ""`.
     static let key = "route.recent"
@@ -35,7 +35,7 @@ final class RecentRoutes {
         defaults?.set(routes.map(\.storedValues), forKey: Self.key)
     }
 
-    /// The routes the sheet lists: up to three, newest first, without `current` in its direction.
+    /// The routes the picker lists: up to three, newest first, without `current` in its direction.
     func routes(excluding current: Route?) -> [Route] {
         Array(routes.filter { route in current.map { !route.isSameDirection(as: $0) } ?? true }.prefix(Self.shown))
     }

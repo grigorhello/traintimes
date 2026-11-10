@@ -15,6 +15,42 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// "Show trains" on the route form (TT-161, D52): a tinted Liquid Glass capsule on iOS 26 and later, the filled pill before
+/// it. Disabled is the same grey pill as `.ttPrimary`.
+struct GlassPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        StyledLabel(configuration: configuration)
+    }
+
+    private struct StyledLabel: View {
+        @Environment(\.isEnabled) private var isEnabled
+        let configuration: ButtonStyleConfiguration
+
+        var body: some View {
+            if #available(iOS 26, *), isEnabled {
+                configuration.label
+                    .font(TTFont.headline)
+                    .foregroundStyle(TTColor.onAccent)
+                    .padding(.horizontal, TTSpace.s5)
+                    .frame(minHeight: TTSize.targetMin + TTSpace.s1)
+                    .glassEffect(.regular.tint(TTColor.accent).interactive(), in: Capsule())
+                    .contentShape(Capsule())
+            } else {
+                configuration.label
+                    .font(TTFont.headline)
+                    .foregroundStyle(isEnabled ? TTColor.onAccent : TTColor.inkSecondary)
+                    .padding(.horizontal, TTSpace.s5)
+                    .frame(minHeight: TTSize.targetMin + TTSpace.s1)
+                    .background(
+                        isEnabled ? (configuration.isPressed ? TTColor.accentPressed : TTColor.accent) : TTColor.surfaceRaised,
+                        in: Capsule()
+                    )
+                    .pressScale(configuration.isPressed)
+            }
+        }
+    }
+}
+
 /// Outlined pill.
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -43,6 +79,7 @@ struct TextButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle { static var ttPrimary: Self { .init() } }
+extension ButtonStyle where Self == GlassPrimaryButtonStyle { static var ttGlassPrimary: Self { .init() } }
 extension ButtonStyle where Self == SecondaryButtonStyle { static var ttSecondary: Self { .init() } }
 extension ButtonStyle where Self == TextButtonStyle { static var ttText: Self { .init() } }
 
@@ -93,18 +130,19 @@ struct IconButton: View {
 }
 
 /// A round control floating over content, 44 pt (D49): Liquid Glass on iOS 26 and later, a raised surface before it.
-/// Accent glyph; dimmed when disabled.
+/// Accent glyph (`tint`, ink for the picker's X); dimmed when disabled.
 struct GlassIconButton: View {
     @Environment(\.isEnabled) private var isEnabled
     let systemName: String
     let label: LocalizedStringKey
+    var tint: Color = TTColor.accent
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
-                .foregroundStyle(isEnabled ? TTColor.accent : TTColor.inkTertiary)
+                .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
                 .opacity(isEnabled ? 1 : 0.55)
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .ttGlass(in: Circle())
@@ -123,6 +161,19 @@ extension View {
             glassEffect(.regular.interactive(), in: shape)
         } else {
             background(TTColor.surfaceRaised, in: shape)
+        }
+    }
+}
+
+extension View {
+    /// The surface of the station picker's suggestions panel (TT-161, D52): Liquid Glass on iOS 26 and later, a material
+    /// before it. The content is clipped to the same shape first, so rows and hairlines keep the rounded corners.
+    @ViewBuilder func ttGlassPanel(cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        if #available(iOS 26, *) {
+            clipShape(shape).glassEffect(.regular, in: shape)
+        } else {
+            clipShape(shape).background(.regularMaterial, in: shape)
         }
     }
 }

@@ -26,7 +26,7 @@ struct ScheduleView: View {
     @State private var stripPosition: Int?
     /// The station picker, made each time a station row is tapped; open while `isPickingStation` (TT-161, D53).
     @State private var picker: RouteFormViewModel?
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// `picker` opens Schedule with the picker already made, for previews and snapshots.
     init(
@@ -56,7 +56,7 @@ struct ScheduleView: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
-            .overlay { pickerLayer.animation(.spring(duration: 0.3), value: picker?.isPickingStation ?? false) }
+            .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { alertToast }
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
@@ -79,7 +79,11 @@ struct ScheduleView: View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
             routeBlock(picking: picking)
                 .padding(.horizontal, TTSpace.s5)
+            // The day strip fades out under the veil while picking (it is not tappable) and back on close.
             dayStrip
+                .opacity(isPicking ? 0 : 1)
+                .allowsHitTesting(!isPicking)
+                .animation(isPicking ? .easeOut(duration: 0.22) : .easeIn(duration: 0.20), value: isPicking)
             if let mode = viewModel.statusRowMode(formatter) {
                 FreshnessLine(mode: mode)
                     .padding(.horizontal, TTSpace.s5)
@@ -129,10 +133,6 @@ struct ScheduleView: View {
 
     // MARK: Station picker
 
-    /// Canvas `.pk-panel`: 8 pt under the card and 10 pt above the keyboard.
-    private static let panelGap: CGFloat = TTSpace.s2
-    private static let keyboardGap: CGFloat = 10
-
     /// A tap on a station row: the picker opens for that field, or moves to it while open.
     private func openPicker(_ stop: RouteCard.Stop) {
         let field: RouteFormViewModel.Field = stop == .from ? .from : .to
@@ -146,13 +146,13 @@ struct ScheduleView: View {
         Task { await model.loadStations() }
     }
 
-    /// The tapped row as the search field, with the current station selected, and the X in the swap button's place.
+    /// The tapped row as the search field, with the current station as a grey hint, and the X in the swap button's place.
     private var picking: RouteCard.Picking? {
         guard let picker, picker.isPickingStation else { return nil }
         return RouteCard.Picking(
             stop: picker.pickingField == .from ? .from : .to,
             query: picker.query,
-            selected: picker.pickingStationName,
+            current: picker.pickingStationName,
             cancelID: "schedule.cancel",
             onQuery: { picker.query = $0 },
             onSubmit: { if picker.pickFirstMatch() { apply(picker) } },
@@ -160,44 +160,55 @@ struct ScheduleView: View {
         )
     }
 
-    /// The scrim dims the day strip and the timeline under the card, and the panel unfolds over it. A tap on the scrim, the
-    /// X or a swipe down on the panel cancels; a pick applies at once.
-    @ViewBuilder private var pickerLayer: some View {
-        if let picker, picker.isPickingStation {
-            VStack(spacing: 0) {
-                // An unseen copy of the line row and the card, as tall as they are in the header, so the scrim and the
-                // panel start right under the card whatever the line row holds.
-                routeBlock(picking: nil)
-                    .padding(.horizontal, TTSpace.s5)
-                    .padding(.top, TTSpace.s3)
-                    .hidden()
-                    .allowsHitTesting(false)
-                ZStack(alignment: .top) {
-                    scrim
+    private var isPicking: Bool { picker?.isPickingStation ?? false }
+
+    /// The list is revealed from the card's bottom edge, and the card squares off its bottom corners to meet it; the day
+    /// strip and timeline recede under a frosted veil (no dark scrim). A tap on the veil, the X or a swipe down on the list
+    /// cancels; a pick applies at once. The layer stays in place so that the veil and the list can play their exit.
+    private var pickerLayer: some View {
+        VStack(spacing: 0) {
+            // An unseen copy of the line row and the card, as tall as they are in the header, so the veil and the list
+            // start right under the card whatever the line row holds.
+            routeBlock(picking: nil)
+                .padding(.horizontal, TTSpace.s5)
+                .padding(.top, TTSpace.s3)
+                .hidden()
+                .allowsHitTesting(false)
+            ZStack(alignment: .top) {
+                if let picker, picker.isPickingStation {
+                    veil
                         .onTapGesture { picker.closeStations() }
                         .accessibilityHidden(true)
-                    StationPickerPanel(
-                        viewModel: picker,
-                        onPick: { if picker.pick($0) { apply(picker) } },
-                        onPickRoute: { route in
-                            picker.choose(route)
-                            Task { await viewModel.show(route) }
-                        },
-                        onCancel: { picker.closeStations() }
-                    )
-                    .padding(.horizontal, TTSpace.s5)
-                    .padding(.top, Self.panelGap)
-                    .padding(.bottom, Self.keyboardGap)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+                        .transition(.pickerVeil)
                 }
+                // The panel is the only child of its own container, so the reveal measures the panel and nothing else.
+                ZStack(alignment: .top) {
+                    if let picker, picker.isPickingStation {
+                        StationPickerPanel(
+                            viewModel: picker,
+                            onPick: { if picker.pick($0) { apply(picker) } },
+                            onPickRoute: { route in
+                                picker.choose(route)
+                                Task { await viewModel.show(route) }
+                            },
+                            onCancel: { picker.closeStations() }
+                        )
+                        .transition(.pickerPanel(reduceMotion: reduceMotion))
+                    }
+                }
+                .padding(.horizontal, TTSpace.s5)
             }
         }
+        // Closed, the layer is only its hidden copy, and every touch goes through to the screen.
+        .allowsHitTesting(isPicking)
     }
 
-    /// Canvas `--scrim`: the ink at 32% in light, black at 56% in dark.
-    private var scrim: some View {
-        (colorScheme == .dark ? Color.black.opacity(0.56) : TTColor.ink.opacity(0.32))
+    /// The timeline and day strip behind the picker, frosted instead of dimmed (Grigor, 2026-11-10: the dark scrim looked
+    /// wrong): `.regularMaterial` under the `Veil` tint. It starts at the card's bottom edge and takes the taps that cancel.
+    private var veil: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .overlay(TTColor.veil)
             .contentShape(Rectangle())
     }
 

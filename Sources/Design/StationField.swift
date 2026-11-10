@@ -2,14 +2,15 @@ import SwiftUI
 import UIKit
 
 /// A station row of the route card while it is the search field (TT-161, D53). It looks like the row: the typed text in
-/// headline, the placeholder in body ink-tertiary, an accent cursor, and nothing else, no capsule and no search glyph. It
-/// takes the keyboard as soon as it is on screen. On Schedule the current station shows selected, so typing replaces it.
+/// headline, an accent cursor, and nothing else, no capsule and no search glyph. It takes the keyboard as soon as it is on
+/// screen. On Schedule the current station stays in the row as a hint, in the same headline but ink-tertiary, and the first
+/// keystroke replaces it: nothing is selected, so no selection handles (Grigor, 2026-11-10).
 struct StationField: UIViewRepresentable {
-    /// What the rider typed; empty while the placeholder or the selected station shows.
+    /// What the rider typed; empty while the placeholder or the current station shows.
     let text: String
     let placeholder: String
-    /// The station name shown selected until the first keystroke; nil starts on the placeholder (first use).
-    let selected: String?
+    /// The station the row held, shown as the hint until the first keystroke; nil starts on the placeholder (first use).
+    let current: String?
     let identifier: String
     let onChange: (String) -> Void
     /// The Return key.
@@ -26,11 +27,13 @@ struct StationField: UIViewRepresentable {
         field.font = .systemFont(ofSize: 17, weight: .semibold)
         field.textColor = UIColor(named: "Ink")
         field.tintColor = UIColor(named: "Accent")
+        let hint = UIColor(named: "InkTertiary") ?? UIColor.placeholderText
         field.attributedPlaceholder = NSAttributedString(
-            string: placeholder,
+            string: current ?? placeholder,
             attributes: [
-                .font: UIFont.systemFont(ofSize: 17, weight: .regular),
-                .foregroundColor: UIColor(named: "InkTertiary") ?? UIColor.placeholderText,
+                // The current station keeps the row's headline; the empty placeholder is the body text.
+                .font: UIFont.systemFont(ofSize: 17, weight: current == nil ? .regular : .semibold),
+                .foregroundColor: hint,
             ]
         )
         field.returnKeyType = .search
@@ -41,12 +44,7 @@ struct StationField: UIViewRepresentable {
         // The row is as wide as the card allows; the text never pushes its width.
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        if text.isEmpty, let selected {
-            field.text = selected
-            field.selectsAllOnFocus = true
-        } else {
-            field.text = text
-        }
+        field.text = text
         return field
     }
 
@@ -84,10 +82,8 @@ struct StationField: UIViewRepresentable {
 }
 
 /// Takes the keyboard when it joins the app's key window (a field drawn for a snapshot is not in one, so it shows no
-/// cursor), and selects its text first when `selectsAllOnFocus` is set.
+/// cursor).
 final class PickerTextField: UITextField {
-    var selectsAllOnFocus = false
-
     override func didMoveToWindow() {
         super.didMoveToWindow()
         guard window?.isKeyWindow == true else { return }
@@ -99,11 +95,6 @@ final class PickerTextField: UITextField {
 
     private func focus() -> Bool {
         guard window != nil else { return false }
-        if isFirstResponder { return true }
-        guard becomeFirstResponder() else { return false }
-        if selectsAllOnFocus {
-            selectedTextRange = textRange(from: beginningOfDocument, to: endOfDocument)
-        }
-        return true
+        return isFirstResponder || becomeFirstResponder()
     }
 }

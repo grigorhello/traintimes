@@ -3,7 +3,8 @@ import SwiftUI
 /// The route card (D48), drawn like a maps route box: a ring for the origin, dots, a pin for the destination, the two
 /// stations split by a hairline, and the swap button to the right. No "From"/"To" words: the markers say which is which.
 /// Schedule shows it as its header and the route form uses it for its fields. A tap on a station row makes that row the
-/// search field and the swap button turns into the X that cancels (TT-161, D53).
+/// search field and the swap button turns into the X that cancels (TT-161, D53, D54). While one is open the suggestions
+/// hang right under the card as one surface with it, so the card squares off its bottom corners.
 struct RouteCard: View {
     enum Stop {
         case from, to
@@ -14,8 +15,9 @@ struct RouteCard: View {
         let stop: Stop
         /// What the rider typed.
         let query: String
-        /// The current station, shown selected so typing replaces it; nil on first use, which starts on the placeholder.
-        let selected: String?
+        /// The current station, shown as a grey hint that the first keystroke replaces; nil on first use, which starts on the
+        /// placeholder.
+        let current: String?
         let cancelID: String
         let onQuery: (String) -> Void
         let onSubmit: () -> Void
@@ -45,7 +47,8 @@ struct RouteCard: View {
     private static let markerColumn: CGFloat = 20
 
     var body: some View {
-        Card(padding: 0) {
+        // While a station is being picked the suggestions hang right under the card, so it squares off its bottom corners.
+        Card(padding: 0, joinsBelow: picking != nil) {
             HStack(spacing: TTSpace.s3) {
                 // The ring centred on the first row; the pin lands centred on the second.
                 RouteMarkers()
@@ -59,15 +62,19 @@ struct RouteCard: View {
                 if let picking {
                     GlassIconButton(systemName: "xmark", label: "button.cancel", tint: TTColor.ink, action: picking.onCancel)
                         .accessibilityIdentifier(picking.cancelID)
+                        .transition(.pickerCancelButton)
                 } else {
                     GlassIconButton(systemName: "arrow.up.arrow.down", label: "route.swap", action: onSwap)
                         .disabled(!canSwap)
                         .accessibilityIdentifier(swapID)
+                        .transition(.pickerSwapButton)
                 }
             }
             .padding(.leading, TTSpace.s4)
             .padding(.trailing, TTSpace.s2)
         }
+        // The corners, the swap button and the X move together with the list opening or closing below (D54).
+        .animation(PickerMotion.animation(opening: picking != nil), value: picking != nil)
     }
 
     /// The station as a button read as its field name and station, or the search field while it is the active row.
@@ -78,7 +85,7 @@ struct RouteCard: View {
             StationField(
                 text: picking.query,
                 placeholder: String(localized: placeholderKey),
-                selected: picking.selected,
+                current: picking.current,
                 identifier: id,
                 onChange: picking.onQuery,
                 onSubmit: picking.onSubmit

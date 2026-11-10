@@ -166,29 +166,71 @@ extension View {
 }
 
 extension View {
-    /// The surface of the station picker's suggestions panel (TT-161, D53): Liquid Glass on iOS 26 and later, a material
-    /// before it, both under the canvas's `--glass` tint so the rows stay legible over the timeline. The content is clipped
-    /// to the same shape first, so rows and hairlines keep the rounded corners.
-    func ttGlassPanel(cornerRadius: CGFloat) -> some View {
-        modifier(GlassPanelSurface(cornerRadius: cornerRadius))
+    /// The surface of the station picker's suggestions (TT-161, D54): the route card's own surface continued below it, flat
+    /// at the top where it meets the card and rounded at the bottom. One soft shadow wraps the card and the panel together
+    /// (`StackShadow`). The content is clipped to the same shape first, so rows keep the rounded corners.
+    func ttAttachedPanel(cornerRadius: CGFloat) -> some View {
+        modifier(AttachedPanelSurface(cornerRadius: cornerRadius))
     }
 }
 
-private struct GlassPanelSurface: ViewModifier {
+private struct AttachedPanelSurface: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: 0, bottomLeadingRadius: cornerRadius, bottomTrailingRadius: cornerRadius, topTrailingRadius: 0
+        )
+        content
+            .clipShape(shape)
+            .background(TTColor.surface, in: shape)
+            .background { StackShadow(cornerRadius: cornerRadius) }
+    }
+}
+
+/// The shadow of the whole stack, the route card above and the panel below it: canvas `0 16 22`, the ink at 14 % in light
+/// and black at 55 % in dark. The card is drawn under the panel's layer, so the shadow is cast by the stack's outline and
+/// then cut away inside it (an even-odd mask), leaving only what falls outside the card and the panel.
+private struct StackShadow: View {
     @Environment(\.colorScheme) private var colorScheme
     let cornerRadius: CGFloat
 
-    /// Canvas `.pk-panel`: `--glass` is white at 78% in light and #222B3B at 80% in dark.
-    private var tint: Color {
-        colorScheme == .dark ? TTColor.surfaceRaised.opacity(0.80) : TTColor.surface.opacity(0.78)
+    /// How far the card reaches above the panel's top edge: two 48 pt rows, less the 1 pt the panel overlaps the card by.
+    private static let cardReach = 2 * RouteCard.rowHeight - 1
+    /// The mask is this much larger than the panel on every side, which is room for the blur and the 16 pt drop.
+    private static let margin: CGFloat = 96
+
+    var body: some View {
+        let colour = colorScheme == .dark ? Color.black.opacity(0.55) : TTColor.ink.opacity(0.14)
+        // Half a point inside the cut-out, so the antialiased edge of the fill never shows outside the stack.
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(.black)
+            .padding(EdgeInsets(top: -Self.cardReach + 0.5, leading: 0.5, bottom: 0.5, trailing: 0.5))
+            .shadow(color: colour, radius: 22, x: 0, y: 16)
+            .mask {
+                Outside(cornerRadius: cornerRadius, reach: Self.cardReach, margin: Self.margin)
+                    .fill(.black, style: FillStyle(eoFill: true))
+                    .padding(-Self.margin)
+            }
+            .allowsHitTesting(false)
     }
 
-    @ViewBuilder func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        if #available(iOS 26, *) {
-            content.clipShape(shape).background(tint, in: shape).glassEffect(.regular, in: shape)
-        } else {
-            content.clipShape(shape).background(tint, in: shape).background(.regularMaterial, in: shape)
+    /// Everything inside the rectangle `margin` past the panel on every side, except the stack's outline (the panel plus the
+    /// card above it, `reach` tall, with one point more of room along the top).
+    private struct Outside: Shape {
+        let cornerRadius: CGFloat
+        let reach: CGFloat
+        let margin: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.addRect(rect)
+            let stack = CGRect(
+                x: rect.minX + margin, y: rect.minY + margin - reach - 1,
+                width: rect.width - 2 * margin, height: rect.height - 2 * margin + reach + 1
+            )
+            path.addPath(Path(roundedRect: stack, cornerRadius: cornerRadius, style: .continuous))
+            return path
         }
     }
 }

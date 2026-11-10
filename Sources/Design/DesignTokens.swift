@@ -24,6 +24,9 @@ enum TTColor {
     static let cancelFill = Color("CancelFill")
     static let scheduledInk = Color("ScheduledInk")
     static let scheduledFill = Color("ScheduledFill")
+    /// The frosted tint over the timetable while the station picker is open (TT-161, D54): #E2E6EE at 62 % in light,
+    /// #0C111B at 40 % in dark, over `.regularMaterial`.
+    static let veil = Color("Veil")
 }
 
 enum TTSpace {

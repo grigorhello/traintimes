@@ -3,10 +3,13 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The inline station picker (TT-161, D53) against design/frames/route-picker.png, route-pick-from.png, route-pick-to.png
-/// and schedule-pick.png, light and dark: first use closed, picking From with nothing typed, picking To with "un" typed,
-/// and Schedule changing the destination in place (Recent, Your stations with the greyed row). The keyboard is not drawn;
-/// a safe area of its height stands in for it, so the panel ends where it does on the simulator.
+/// The inline station picker (TT-161, D53, D54) against design/frames/route-picker.png, route-pick-from.png,
+/// route-pick-to.png and schedule-pick.png, light and dark: first use closed, picking From with nothing typed, picking To
+/// with "un" typed, and Schedule changing the destination in place (Recent, Your stations with the greyed row). The
+/// keyboard is not drawn; a safe area of its height stands in for it, so the panel ends where it does on the simulator.
+/// The entrance animation is off, so every row is in place, and the layer render cannot blur what is behind the veil: those
+/// references show the veil's tint only. They stay layer renders: drawing the key window would let the field take the
+/// keyboard.
 final class RouteFormSnapshotTests: XCTestCase {
     /// The software keyboard on iPhone 17 Pro, portrait.
     private static let keyboardHeight: CGFloat = 291
@@ -67,6 +70,7 @@ final class RouteFormSnapshotTests: XCTestCase {
     @MainActor
     private func form(_ model: RouteFormViewModel) -> some View {
         RouteFormView(viewModel: model, onShowTrains: { _ in })
+            .environment(\.animatesPickerEntrance, false)
             .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.keyboardHeight) }
     }
 
@@ -90,6 +94,7 @@ final class RouteFormSnapshotTests: XCTestCase {
         await picker.loadStations()
         picker.open(.to)
         let view = ScheduleView(viewModel: schedule, stations: repository, picker: picker)
+            .environment(\.animatesPickerEntrance, false)
             .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: Self.keyboardHeight) }
         layOutOnce(view)
         return view

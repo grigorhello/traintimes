@@ -5,6 +5,9 @@ import SwiftUI
 struct Card<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     var padding: CGFloat = TTSpace.s4
+    /// A panel hangs right under the card (the station picker, D54): the bottom corners square off and the 1 pt shadow
+    /// goes, so the card and the panel read as one surface.
+    var joinsBelow = false
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -12,7 +15,11 @@ struct Card<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.lg))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)
+            // A strip over the rounded bottom corners squares them off.
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(TTColor.surface).frame(height: TTRadius.lg).opacity(joinsBelow ? 1 : 0).allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(colorScheme == .dark || joinsBelow ? 0 : 0.06), radius: 1, x: 0, y: 1)
     }
 }
 

@@ -2,15 +2,13 @@ import SwiftUI
 
 /// The first screen on first launch (TT-120, D48, D53), against the canvas frames Route form · first use and picking the
 /// starting station / the destination: a large title, the route card, "Show trains" and a footnote. Tapping a station row
-/// makes it the search field and unfolds the suggestions under the card, with no sheet; "Show trains" and the footnote
-/// step aside while it is open. After the first route, Schedule picks in place with the same card and panel.
+/// makes it the search field and the suggestions drop out from under the card as one surface with it, with no sheet;
+/// "Show trains" and the footnote step aside while it is open. After the first route, Schedule picks in place with the
+/// same card and panel.
 struct RouteFormView: View {
     let viewModel: RouteFormViewModel
     let onShowTrains: (Route) -> Void
-
-    /// Canvas `.pk-panel`: 8 pt under the card and 10 pt above the keyboard.
-    private static let panelGap: CGFloat = TTSpace.s2
-    private static let keyboardGap: CGFloat = 10
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s4) {
@@ -36,12 +34,10 @@ struct RouteFormView: View {
                     viewModel: viewModel,
                     onPick: { viewModel.pick($0) },
                     onPickRoute: { viewModel.choose($0) },
-                    onCancel: { viewModel.closeStations() }
+                    onCancel: { viewModel.closeStations() },
+                    spacingAbove: TTSpace.s4
                 )
-                .padding(.top, Self.panelGap - TTSpace.s4)
-                .padding(.bottom, Self.keyboardGap)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+                .transition(.pickerPanel(reduceMotion: reduceMotion))
             } else {
                 if viewModel.isSameStation {
                     Text("route.same_station")
@@ -70,7 +66,7 @@ struct RouteFormView: View {
         .padding(.top, TTSpace.s6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(TTColor.canvas)
-        .animation(.spring(duration: 0.3), value: viewModel.isPickingStation)
+        .animation(PickerMotion.animation(opening: viewModel.isPickingStation), value: viewModel.isPickingStation)
         .toolbar(.hidden, for: .navigationBar)
         .task { await viewModel.loadStations() }
     }
@@ -81,7 +77,7 @@ struct RouteFormView: View {
         return RouteCard.Picking(
             stop: viewModel.pickingField == .from ? .from : .to,
             query: viewModel.query,
-            selected: viewModel.pickingStationName,
+            current: viewModel.pickingStationName,
             cancelID: "route.cancel",
             onQuery: { viewModel.query = $0 },
             onSubmit: { viewModel.pickFirstMatch() },

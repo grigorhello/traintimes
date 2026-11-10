@@ -3,34 +3,54 @@ import SwiftUI
 /// The scroll view's coordinate space name; file scope, so the `onGeometryChange` closure (Sendable) can read it.
 private let stationPickerScrollSpace = "stationPicker"
 
-/// The suggestions under the route card while a station row is the search field (TT-161, D53), against the canvas frames
-/// Route form · picking the starting station / the destination and Schedule · changing a station in place. A glass panel
-/// that is as tall as its rows, up to the space above the keyboard, and scrolls past that. Groups, in order: Recent
-/// routes (Schedule, before typing), Your stations (from the recent routes) and All stations. The other field's station is
-/// greyed with its reason and cannot be picked.
+/// The suggestions under the route card while a station row is the search field (TT-161, D53, D54), against the canvas
+/// frames Route-Pick-From / To and Schedule-Pick. The panel is the route card's own surface continued below it: no gap,
+/// flat where they meet, one shadow around both, a hairline seam between. It is as tall as its rows, up to the space above
+/// the keyboard, and scrolls past that under a short fade. Groups, in order: Recent routes (Schedule, before typing), Your
+/// stations (from the recent routes) and All stations; every row has a glyph in the column the card's markers use, so all
+/// the titles line up with the field. The other field's station is greyed with its reason and cannot be picked. The parent
+/// reveals it (`AnyTransition.pickerPanel`); its content rides down a little and its rows fall in one after another.
 struct StationPickerPanel: View {
     let viewModel: RouteFormViewModel
     let onPick: (Station) -> Void
     let onPickRoute: (Route) -> Void
     /// A swipe down on the panel: the same as the X.
     let onCancel: () -> Void
+    /// The space a parent stack puts between the card and the panel, which the panel takes back so that it hangs from the
+    /// card's bottom edge.
+    var spacingAbove: CGFloat = 0
 
-    /// Canvas `.pk-panel`: a 26 pt radius.
-    private static let radius: CGFloat = 26
-    /// Canvas `.pk-row`: 56 pt rows, 16 pt in from the panel's edges.
+    /// 56 pt rows, 16 pt in from the panel's edges.
     private static let rowHeight: CGFloat = 56
     private static let inset = TTSpace.s4
+    /// The glyph column: the card's marker column, so row titles start where the field's text does.
+    private static let glyphColumn: CGFloat = 20
     /// A swipe down this far, mostly vertical, cancels.
     private static let cancelDistance: CGFloat = 60
+    /// A long list ends under a fade this tall.
+    private static let fadeHeight: CGFloat = 28
+    /// The panel hangs 1 pt over the card's bottom edge, so no seam shows, and ends 10 pt above the keyboard.
+    private static let overlap: CGFloat = 1
+    private static let keyboardGap: CGFloat = 10
 
     /// The list is at its top, so a swipe down is a cancel and not a scroll back up.
     @State private var isAtTop = true
+    /// Set once the panel is on screen: the content rides down and the rows fall in.
+    @State private var settled = false
+    /// The rider started typing, which ends any stagger still running: rows still falling snap into place.
+    @State private var staggerEnded = false
+    /// Counts picks, for the selection haptic.
+    @State private var picks = 0
+    @Environment(\.animatesPickerEntrance) private var animatesEntrance
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var rowsRevealed: Bool { settled || !animatesEntrance || staggerEnded }
 
     var body: some View {
         ViewThatFits(in: .vertical) {
-            content
+            groups
             ScrollView {
-                content
+                groups
                     .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
                         isAtTop = $0
                     }
@@ -38,8 +58,29 @@ struct StationPickerPanel: View {
             .coordinateSpace(.named(stationPickerScrollSpace))
             // Scrolling the list keeps the keyboard, so the panel does not resize under the rider's finger.
             .scrollDismissesKeyboard(.never)
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: Self.fadeHeight)
+                }
+            }
         }
-        .ttGlassPanel(cornerRadius: Self.radius)
+        // Switching to the other field crossfades the groups in 180 ms, with no second drop.
+        .id(viewModel.pickingField)
+        .transition(.opacity.animation(.easeInOut(duration: 0.18)))
+        .animation(.easeInOut(duration: 0.18), value: viewModel.pickingField)
+        // The seam with the card above, inset like the row separators.
+        .overlay(alignment: .top) { Divider().overlay(TTColor.hairline).padding(.leading, Self.inset) }
+        .ttAttachedPanel(cornerRadius: TTRadius.lg)
+        .padding(.top, -(spacingAbove + Self.overlap))
+        .padding(.bottom, Self.keyboardGap)
+        // Typing and every other height change follow the critically damped spring: nothing bounces under the thumb.
+        .animation(PickerMotion.height, value: viewModel.query)
+        .onAppear { settled = true }
+        .onChange(of: viewModel.query) { _, query in
+            if !query.isEmpty { staggerEnded = true }
+        }
+        .sensoryFeedback(.selection, trigger: picks)
         .simultaneousGesture(
             DragGesture(minimumDistance: 20).onEnded { drag in
                 let down = drag.translation.height
@@ -52,27 +93,35 @@ struct StationPickerPanel: View {
 
     // MARK: Groups
 
-    private var content: some View {
+    private var groups: some View {
         let routes = viewModel.suggestedRoutes
         let yours = viewModel.yourStations
         let all = viewModel.allStations
         // The frame calls the typed results "Stations" when there is no Your stations group to tell them apart from.
         let allTitle: LocalizedStringKey = viewModel.query.isEmpty || !yours.isEmpty ? "stations.all" : "stations.results"
+        // Each group's header shares its first row's place in the fall, and the next group starts after its last row.
+        let yoursBase = routes.count
+        let allBase = yoursBase + yours.count
+        let allGlyph: Glyph = viewModel.pickingField == .from ? .ring : .pin
         return VStack(alignment: .leading, spacing: 0) {
             if !routes.isEmpty {
-                header("route.recent")
+                header("route.recent", order: 0)
                 ForEach(Array(routes.enumerated()), id: \.element) { index, route in
-                    if index > 0 { hairline }
-                    routeRow(route)
+                    VStack(alignment: .leading, spacing: 0) {
+                        if index > 0 { hairline }
+                        routeRow(route)
+                    }
+                    .fallsIn(order: index, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
+                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
                 }
             }
             if !yours.isEmpty {
-                header("stations.yours")
-                stationRows(yours, idPrefix: "station.yours.")
+                header("stations.yours", order: yoursBase)
+                stationRows(yours, idPrefix: "station.yours.", glyph: .clock, base: yoursBase)
             }
             if !all.isEmpty {
-                header(allTitle)
-                stationRows(all, idPrefix: "station.")
+                header(allTitle, order: allBase)
+                stationRows(all, idPrefix: "station.", glyph: allGlyph, base: allBase)
             }
             if viewModel.hasNoMatch {
                 Text("stations.none")
@@ -85,10 +134,13 @@ struct StationPickerPanel: View {
         }
         .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // The rows ride down 10 pt as one block, on a bouncier spring than the clip that reveals them.
+        .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -10)
+        .animation(PickerMotion.ride, value: settled)
     }
 
-    /// A 13 pt ink-secondary group title: canvas `.pk-h`, 12 pt above and 4 pt below.
-    private func header(_ title: LocalizedStringKey) -> some View {
+    /// A 13 pt ink-secondary group title: 12 pt above and 4 pt below.
+    private func header(_ title: LocalizedStringKey, order: Int) -> some View {
         Text(title)
             .font(TTFont.footnote)
             .foregroundStyle(TTColor.inkSecondary)
@@ -96,6 +148,7 @@ struct StationPickerPanel: View {
             .padding(.top, TTSpace.s3)
             .padding(.bottom, TTSpace.s1)
             .accessibilityAddTraits(.isHeader)
+            .fallsIn(order: order, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
     }
 
     private var hairline: some View {
@@ -104,20 +157,54 @@ struct StationPickerPanel: View {
             .padding(.leading, Self.inset)
     }
 
-    private func stationRows(_ rows: [RouteFormViewModel.StationRow], idPrefix: String) -> some View {
+    private func stationRows(_ rows: [RouteFormViewModel.StationRow], idPrefix: String, glyph: Glyph, base: Int) -> some View {
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-            if index > 0 { hairline }
-            stationRow(row, id: idPrefix + row.station.id)
+            VStack(alignment: .leading, spacing: 0) {
+                if index > 0 { hairline }
+                stationRow(row, id: idPrefix + row.station.id, glyph: glyph)
+            }
+            .fallsIn(order: base + index, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
+            // A row that appears while typing fades in over 150 ms.
+            .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
     }
 
-    /// Full name in `headline`, line context in `footnote`, a clock at the right for a station from the recent routes. A
-    /// greyed row is disabled, so VoiceOver reads it as dimmed with its reason.
-    private func stationRow(_ row: RouteFormViewModel.StationRow, id: String) -> some View {
+    /// The glyph in front of a station row: a clock for Your stations, a ring (From) or a pin (To) for the rest.
+    private enum Glyph {
+        case clock, ring, pin
+    }
+
+    @ViewBuilder private func glyphView(_ glyph: Glyph, isDisabled: Bool) -> some View {
+        let colour = isDisabled ? TTColor.inkTertiary : TTColor.inkSecondary
+        Group {
+            switch glyph {
+            case .clock:
+                Image(systemName: "clock")
+                    .font(.system(size: TTSize.iconSM))
+                    .foregroundStyle(colour)
+            case .ring:
+                Circle()
+                    .strokeBorder(colour, lineWidth: 2.5)
+                    .frame(width: 12, height: 12)
+            case .pin:
+                RoutePin()
+                    .fill(colour, style: FillStyle(eoFill: true))
+                    .frame(width: 18, height: 18)
+            }
+        }
+        .frame(width: Self.glyphColumn)
+        .accessibilityHidden(true)
+    }
+
+    /// Full name in `headline`, line context in `footnote`. A greyed row is disabled, so VoiceOver reads it as dimmed with its
+    /// reason.
+    private func stationRow(_ row: RouteFormViewModel.StationRow, id: String, glyph: Glyph) -> some View {
         Button {
+            picks += 1
             onPick(row.station)
         } label: {
             HStack(spacing: TTSpace.s3) {
+                glyphView(glyph, isDisabled: row.isDisabled)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: row.station.name)
                         .font(TTFont.headline)
@@ -129,12 +216,6 @@ struct StationPickerPanel: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if row.isRecent {
-                    Image(systemName: "clock")
-                        .font(.system(size: TTSize.iconSM))
-                        .foregroundStyle(TTColor.inkTertiary)
-                        .accessibilityHidden(true)
-                }
             }
             .padding(.horizontal, Self.inset)
             .padding(.vertical, TTSpace.s2)
@@ -146,13 +227,16 @@ struct StationPickerPanel: View {
         .accessibilityIdentifier(id)
     }
 
-    /// Mini markers, origin over destination at 15 pt semibold, the line's code tile at the right; a tap shows that route.
+    /// Mini markers in the glyph column, origin over destination at 15 pt semibold, the line's code tile at the right; a tap
+    /// shows that route.
     private func routeRow(_ route: Route) -> some View {
         Button {
+            picks += 1
             onPickRoute(route)
         } label: {
             HStack(alignment: .top, spacing: TTSpace.s3) {
                 RouteMarkers(size: .mini)
+                    .frame(width: Self.glyphColumn)
                     .padding(.top, 5)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(verbatim: route.from.name).tracking(-0.2)
@@ -178,12 +262,26 @@ struct StationPickerPanel: View {
     }
 }
 
-/// Keeps a greyed row in ink-tertiary, as on the frame (the plain style would dim a disabled row further), and tints a
-/// pressed row.
+private extension View {
+    /// A header or row falling in from 12 pt above, after the ones above it. Once the panel has settled, rows that appear
+    /// later (while typing) are already in place; the first keystroke makes the rest snap. Reduce Motion: a 200 ms fade.
+    func fallsIn(order: Int, revealed: Bool, snaps: Bool, reduceMotion: Bool) -> some View {
+        opacity(revealed ? 1 : 0)
+            .offset(y: revealed || reduceMotion ? 0 : -12)
+            .animation(snaps ? nil : reduceMotion ? .easeOut(duration: 0.2) : PickerMotion.row(order: order), value: revealed)
+    }
+}
+
+/// Tints a pressed row (the ink at 6 % in light, white at 8 % in dark) and keeps a greyed row in ink-tertiary, as on the
+/// frame (the plain style would dim a disabled row further).
 private struct PanelRowStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? TTColor.ink.opacity(0.06) : .clear)
+            .background(
+                configuration.isPressed ? (colorScheme == .dark ? Color.white.opacity(0.08) : TTColor.ink.opacity(0.06)) : .clear
+            )
     }
 }
 

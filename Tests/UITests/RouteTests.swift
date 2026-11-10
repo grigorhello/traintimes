@@ -81,16 +81,17 @@ final class RouteTests: XCTestCase {
         require(panel(app), "stations.panel", in: app)
         XCTAssertFalse(app.buttons["schedule.swap"].exists)
 
-        // The X cancels and nothing changes.
+        // The X cancels and nothing changes; the swap button is back and tappable within the 220 ms close.
         app.buttons["schedule.cancel"].tap()
         require(schedule.to, "schedule.to", in: app)
         XCTAssertEqual(schedule.to.value as? String, "Union")
-        require(app.buttons["schedule.swap"], "buttons[schedule.swap]", in: app)
+        let swap = app.buttons["schedule.swap"]
+        require(swap, "buttons[schedule.swap]", in: app)
+        wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 1)
 
         schedule.to.tap()
         require(field, "field", in: app)
-        // The station on screen is selected when the field opens, so typing replaces it. No tap first: a tap would put the
-        // caret in "Union" and the text would be appended to it.
+        // The station on screen is the field's grey hint, so the first keystroke replaces it.
         field.typeText("bur")
         let burlington = app.buttons["station.BU"]
         require(burlington, "burlington", in: app)

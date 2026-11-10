@@ -210,16 +210,15 @@ struct ScheduleView: View {
         Rectangle()
             .fill(.regularMaterial)
             .overlay(TTColor.veil)
-            .contentShape(Rectangle())
             // The header above the card is plain canvas, so a veil that starts square at the card's bottom edge left a hard
-            // tonal line in the side margins (light mode). Its first points ease in instead, as the approved frame does.
-            .mask {
-                VStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                        .frame(height: Self.veilRamp)
-                    Color.black
-                }
+            // tonal line in the side margins (light mode). Its first points fade back to canvas instead, as the approved
+            // frame eases the tone. A colour gradient, not a mask: a mask drops the material (and the layer render's tint).
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [TTColor.canvas, TTColor.canvas.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: Self.veilRamp)
+                    .allowsHitTesting(false)
             }
+            .contentShape(Rectangle())
     }
 
     /// How far the veil takes to reach full strength below the card's bottom edge.

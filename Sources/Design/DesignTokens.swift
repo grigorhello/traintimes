@@ -45,7 +45,7 @@ enum TTSize {
     /// icon-md box; an SF Symbol at 18 pt matches their drawn size in the frames (TT-116).
     static let iconButtonGlyph: CGFloat = 18
     static let rowMin: CGFloat = 76
-    static let appMark: CGFloat = 36        // app icon in Settings › About
+    static let appMark: CGFloat = 76        // app mark on Settings › About (TT-168)
 }
 
 /// Text styles at the default (Large) Dynamic Type sizes. Fixed sizes, no Dynamic Type scaling (D23, D45).
@@ -63,6 +63,7 @@ enum TTFont {
     static let badge      = Font.system(size: 13, weight: .semibold)
     static let badgeLarge = Font.system(size: 15, weight: .semibold)                          // status line on a timeline card (D50)
     static let lineName   = Font.system(size: 26, weight: .bold)                              // the line above the route card
+    static let appTitle   = Font.system(size: 26, weight: .bold)                              // "Train Times" on Settings › About (TT-168)
     static let lineCode   = Font.system(size: 13, weight: .bold)                              // the code in the line tile
     static let lineCodeSmall = Font.system(size: 10, weight: .bold)                           // the code in the picker's 26 pt line tile (D54)
     static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D54)

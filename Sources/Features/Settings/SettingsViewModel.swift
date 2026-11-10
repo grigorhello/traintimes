@@ -15,7 +15,8 @@ struct AppInfo: Equatable, Sendable {
     }
 }
 
-/// Settings (TT-105): the two on-device choices, the notification permission in words, the data and privacy links, About.
+/// Settings (TT-105, redesigned in TT-168, D57): the two on-device choices, the Notifications row and page, About and the
+/// Testing page of TestFlight and Debug builds.
 @Observable @MainActor
 final class SettingsViewModel {
     /// Pages on traintimes.ca (TT-151) and the official GO service updates page, opened in Safari.
@@ -23,13 +24,22 @@ final class SettingsViewModel {
     static let privacyURL = URL(string: "https://traintimes.ca/privacy")!
     static let officialUpdatesURL = URL(string: "https://www.gotransit.com/en/service-updates")!
 
+    /// The Notifications row's dot: green while notifications are allowed, red once the rider turned them off in iOS
+    /// Settings, grey while the app has never asked.
+    enum NotificationDot: Equatable {
+        case green, red, grey
+    }
+
     let settings: AppSettings
     let appInfo: AppInfo
-    /// The Testing section (Demo trains) shows in TestFlight and Debug builds only (D49).
+    /// The Testing page (Demo trains, Mock time) shows in TestFlight and Debug builds only (D49).
     let showsTesting: Bool
     /// nil until the first read from the system; refreshed each time Settings appears or the app returns to the foreground.
     var permission: NotificationPermission?
     private let permissions: any NotificationPermissionProviding
+    /// The alert rules, for the Notifications page's "My alerts" count and its "Turn on notifications" button; nil in tests
+    /// that need neither.
+    private let alerts: AlertRules?
     /// The app's clock (with Mock time off, the device or fixture clock): Mock time starts from its "now".
     private let clock: any AppClock
 
@@ -38,13 +48,15 @@ final class SettingsViewModel {
         permissions: any NotificationPermissionProviding = SystemNotificationPermission(),
         appInfo: AppInfo = .main,
         showsTesting: Bool = BuildChannel.showsTesting,
-        clock: any AppClock = SystemClock()
+        clock: any AppClock = SystemClock(),
+        alerts: AlertRules? = nil
     ) {
         self.settings = settings
         self.showsTesting = showsTesting
         self.permissions = permissions
         self.appInfo = appInfo
         self.clock = clock
+        self.alerts = alerts
     }
 
     var appearance: Appearance {
@@ -61,6 +73,54 @@ final class SettingsViewModel {
         get { settings.demoTrains }
         set { settings.demoTrains = newValue }
     }
+
+    // MARK: Notifications
+
+    /// The dot beside the Notifications row; nil until the permission has been read.
+    var notificationDot: NotificationDot? {
+        switch permission {
+        case .allowed: .green
+        case .off: .red
+        case .notAsked: .grey
+        case nil: nil
+        }
+    }
+
+    /// "On" while allowed; "Off" for a denied or never asked permission.
+    var notificationWord: String? {
+        switch permission {
+        case .allowed: String(localized: "settings.notifications.on")
+        case .off, .notAsked: String(localized: "settings.notifications.off")
+        case nil: nil
+        }
+    }
+
+    /// "My alerts · N": every saved rule, paused or not.
+    var alertCount: Int {
+        alerts?.rules.count ?? 0
+    }
+
+    /// The app's page in the Settings app, where notifications are turned back on.
+    var notificationSettingsURL: URL {
+        URL(string: UIApplication.openNotificationSettingsURLString)!
+    }
+
+    func refreshPermission() async {
+        permission = await permissions.current()
+    }
+
+    /// "Turn on notifications": the iOS prompt, once, through the alert rules (D41, revised by D57); the page and the row
+    /// update with the answer.
+    func turnOnNotifications() async {
+        if let alerts {
+            await alerts.requestPermission()
+        } else {
+            _ = await permissions.request()
+        }
+        await refreshPermission()
+    }
+
+    // MARK: Testing
 
     /// Mock time (TT-158, D51): Off pretends nothing; On starts from the app's current time.
     var isMockTimeOn: Bool {
@@ -85,7 +145,7 @@ final class SettingsViewModel {
     }
 
     /// A quick choice: the picker's date at the preset's time. Always a fresh choice, even for the minute already set, so
-    /// "Just before midnight" can be tapped again to run the day change again.
+    /// "Midnight" can be tapped again to run the day change again.
     func chooseMockTime(_ preset: MockTimePreset) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = goTimeZone
@@ -93,22 +153,39 @@ final class SettingsViewModel {
         settings.mockTime = MockTimeSetting(start: moment ?? mockTimeStart, setAt: Date())
     }
 
-    /// "Use real time".
-    func useRealTime() {
+    /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
+    var isTestingActive: Bool {
+        demoTrains != .off || isMockTimeOn
+    }
+
+    /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
+    var testingValue: String {
+        var parts: [String] = []
+        switch demoTrains {
+        case .off: break
+        case .delays: parts.append(String(localized: "settings.demo_trains.delays"))
+        case .offline: parts.append(String(localized: "settings.demo_trains.offline"))
+        case .awaitingPlatform: parts.append(String(localized: "settings.demo_trains.platform"))
+        }
+        if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
+        return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
+    }
+
+    /// "Reset": Demo trains off and the real time.
+    func resetTesting() {
+        demoTrains = .off
         settings.mockTime = nil
     }
 
-    /// "Version 1.0 (1) · Your next GO train, at a glance."
+    // MARK: About
+
+    /// The About row's value, "1.0 (12)".
+    var versionValue: String {
+        String(format: String(localized: "settings.version_value"), appInfo.version, appInfo.build)
+    }
+
+    /// The About page's pill, "Version 1.0 (12)".
     var versionLine: String {
         String(format: String(localized: "settings.version"), appInfo.version, appInfo.build)
-    }
-
-    /// The app's page in the Settings app, where notifications are turned back on.
-    var notificationSettingsURL: URL {
-        URL(string: UIApplication.openNotificationSettingsURLString)!
-    }
-
-    func refreshPermission() async {
-        permission = await permissions.current()
     }
 }

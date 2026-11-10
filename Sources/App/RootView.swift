@@ -50,7 +50,12 @@ struct RootView: View {
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
         // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
-        _settingsModel = State(initialValue: SettingsViewModel(settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock))
+        // Its alert rules give the Notifications page the "My alerts" count and the permission prompt (TT-168).
+        _settingsModel = State(
+            initialValue: SettingsViewModel(
+                settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules
+            )
+        )
         _routeForm = State(
             initialValue: RouteFormViewModel(route: nil, repository: dependencies.stations, recents: schedule.recents)
         )
@@ -113,7 +118,7 @@ struct RootView: View {
             }
             .tag(AppTab.alerts)
 
-            SettingsView(viewModel: settingsModel)
+            SettingsView(viewModel: settingsModel, onShowAlerts: { router.showAlerts() })
                 .tabItem {
                     TabBarStyle.icon(
                         "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,

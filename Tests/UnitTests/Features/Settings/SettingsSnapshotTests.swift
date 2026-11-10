@@ -3,50 +3,101 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The Settings tab (D48) against the canvas "Settings" frame, one per notification permission state, light and dark.
-/// Drawn in the key window so the safe areas render as on the simulator; the tab bar is in the app shell snapshots.
+/// Settings after the redesign (TT-168, D57) against design/frames/settings*.png, light and dark: the main view, the three
+/// Notifications states, About and Testing. Drawn in the key window so the safe areas render as on the simulator; the tab
+/// bar is in the app shell snapshots. Glass is drawn as its solid fallback and the springs are not played (`\.rendersGlass`
+/// and `\.playsSettingsMotion` off), so every image is the settled page, and a dark glass control cannot differ between runs.
 final class SettingsSnapshotTests: XCTestCase {
-    @MainActor func testAllowedLight() { snap(.allowed, .light) }
-    @MainActor func testAllowedDark() { snap(.allowed, .dark) }
-    @MainActor func testOffLight() { snap(.off, .light) }
-    @MainActor func testOffDark() { snap(.off, .dark) }
-    @MainActor func testNotAskedLight() { snap(.notAsked, .light) }
-    @MainActor func testNotAskedDark() { snap(.notAsked, .dark) }
-    /// The Testing section of TestFlight and Debug builds, with Delays chosen (D49).
-    @MainActor func testTestingSectionLight() { snap(.allowed, .light, showsTesting: true) }
-    @MainActor func testTestingSectionDark() { snap(.allowed, .dark, showsTesting: true) }
+    // MARK: Main view
 
-    /// Mock time on at 11:58 PM on Thu Nov 5 (TT-158, D51): the picker, the quick choices and Use real time.
-    @MainActor func testTestingSectionMockTimeLight() { snap(.allowed, .light, showsTesting: true, mockTime: true) }
-    @MainActor func testTestingSectionMockTimeDark() { snap(.allowed, .dark, showsTesting: true, mockTime: true) }
+    /// settings.png: notifications on, Testing off (a TestFlight build).
+    @MainActor func testMainLight() { snapMain(.allowed, .light, showsTesting: true) }
+    /// settings-dark.png: notifications off, Delays and Mock time on.
+    @MainActor func testMainDark() { snapMain(.off, .dark, showsTesting: true, testingOn: true) }
+    /// settings-store.png: the App Store build, four rows, never asked.
+    @MainActor func testMainStoreLight() { snapMain(.notAsked, .light) }
+    @MainActor func testMainStoreDark() { snapMain(.notAsked, .dark) }
+
+    // MARK: Notifications
+
+    @MainActor func testNotificationsOnLight() async { snapNotifications(.allowed, .light, await twoAlerts()) }
+    @MainActor func testNotificationsOnDark() async { snapNotifications(.allowed, .dark, await twoAlerts()) }
+    @MainActor func testNotificationsOffLight() async { snapNotifications(.off, .light, await twoAlerts()) }
+    @MainActor func testNotificationsOffDark() async { snapNotifications(.off, .dark, await twoAlerts()) }
+    @MainActor func testNotificationsNotAskedLight() async { snapNotifications(.notAsked, .light, await twoAlerts()) }
+    @MainActor func testNotificationsNotAskedDark() async { snapNotifications(.notAsked, .dark, await twoAlerts()) }
+
+    // MARK: About and Testing
+
+    @MainActor func testAboutLight() { snap(SettingsAboutPage(viewModel: model(.allowed)), .light) }
+    @MainActor func testAboutDark() { snap(SettingsAboutPage(viewModel: model(.allowed)), .dark) }
+    /// settings-testing.png without Mock time: everything off.
+    @MainActor func testTestingOffLight() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true)), .light) }
+    @MainActor func testTestingOffDark() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true)), .dark) }
+    /// settings-testing.png: Delays and Mock time at 11:58 PM on Thu Nov 5 (TT-158, D51).
+    @MainActor func testTestingMockTimeLight() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .light, waits: true) }
+    @MainActor func testTestingMockTimeDark() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .dark, waits: true) }
+
+    // MARK: Helpers
 
     @MainActor
-    private func snap(
-        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, showsTesting: Bool = false, mockTime: Bool = false,
-        testName: String = #function, line: UInt = #line
-    ) {
+    private func model(
+        _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil
+    ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
-        if showsTesting { settings.demoTrains = .delays }
-        if mockTime {
+        if testingOn {
+            settings.demoTrains = .delays
             settings.mockTime = MockTimeSetting(
                 start: Date(timeIntervalSince1970: 1_793_941_080), setAt: Date(timeIntervalSince1970: 1_000_000_000)
             )
         }
         let model = SettingsViewModel(
-            settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "1"),
-            showsTesting: showsTesting
+            settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
+            showsTesting: showsTesting, alerts: alerts
         )
         model.permission = permission
-        let image = Snapshotting<SettingsView, UIImage>.image(
+        return model
+    }
+
+    /// The Alerts tab's two rules, so the page says "My alerts 2" as the frames do.
+    @MainActor
+    private func twoAlerts() async -> AlertRules {
+        await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.evening])
+    }
+
+    @MainActor
+    private func snapMain(
+        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, showsTesting: Bool = false, testingOn: Bool = false,
+        testName: String = #function, line: UInt = #line
+    ) {
+        let view = SettingsView(viewModel: model(permission, showsTesting: showsTesting, testingOn: testingOn))
+        snap(view, style, testName: testName, line: line)
+    }
+
+    @MainActor
+    private func snapNotifications(
+        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, _ alerts: AlertRules, testName: String = #function,
+        line: UInt = #line
+    ) {
+        let page = SettingsNotificationsPage(viewModel: model(permission, alerts: alerts), onShowAlerts: {})
+        snap(page, style, testName: testName, line: line)
+    }
+
+    @MainActor
+    private func snap(
+        _ view: some View, _ style: UIUserInterfaceStyle, waits: Bool = false, testName: String = #function, line: UInt = #line
+    ) {
+        let content = AnyView(view.environment(\.rendersGlass, false).environment(\.playsSettingsMotion, false))
+        let image = Snapshotting<AnyView, UIImage>.image(
             drawHierarchyInKeyWindow: true,
-            // The compact date picker lays out its pills a moment after it appears and anti-aliases them slightly differently
-            // from run to run, so the Mock time snapshots wait a moment and tolerate 1% of pixels (TT-159).
-            precision: mockTime ? 0.99 : 1,
+            // The compact date picker and the system switch lay out a moment after they appear and anti-alias slightly
+            // differently from run to run, so the Mock time page waits a moment and tolerates 1 % of pixels (TT-159).
+            precision: waits ? 0.99 : 1,
             perceptualPrecision: 0.98,
             layout: .device(config: .iPhone17Pro),
             traits: UITraitCollection(userInterfaceStyle: style)
         )
-        let strategy: Snapshotting<SettingsView, UIImage> = mockTime ? .wait(for: 0.5, on: image) : image
-        assertSnapshot(of: SettingsView(viewModel: model), as: strategy, testName: testName, line: line)
+        let strategy: Snapshotting<AnyView, UIImage> = waits ? .wait(for: 0.5, on: image) : image
+        assertSnapshot(of: content, as: strategy, testName: testName, line: line)
     }
 }

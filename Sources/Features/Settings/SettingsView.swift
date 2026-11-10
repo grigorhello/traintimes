@@ -1,268 +1,200 @@
 import SwiftUI
 
-/// Settings, the third tab (TT-105, D48): the large title, then the cards of design/frames/settings.png.
+/// The pages Settings pushes (TT-168, D57).
+enum SettingsPage: Hashable {
+    case notifications, about, testing
+}
+
+/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and five single-line rows in two cards, four
+/// in App Store builds. Appearance and Time format change in one tap; Notifications, About and Testing open their own pages.
 /// Nothing here is needed to use the timetable; no login, payment, advertising or rating prompt (D5).
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
-    @Environment(\.openURL) private var openURL
+    @State private var path: [SettingsPage] = []
+    /// "My alerts" on the Notifications page: switches to the Alerts tab.
+    private let onShowAlerts: () -> Void
     @Environment(\.scenePhase) private var scenePhase
 
-    init(viewModel: SettingsViewModel) {
+    init(viewModel: SettingsViewModel, onShowAlerts: @escaping () -> Void = {}) {
         _viewModel = State(initialValue: viewModel)
+        self.onShowAlerts = onShowAlerts
     }
 
     var body: some View {
+        NavigationStack(path: $path) {
+            SettingsMainPage(viewModel: viewModel, open: { path.append($0) })
+                .navigationDestination(for: SettingsPage.self) { page in
+                    switch page {
+                    case .notifications: SettingsNotificationsPage(viewModel: viewModel, onShowAlerts: onShowAlerts)
+                    case .about: SettingsAboutPage(viewModel: viewModel)
+                    case .testing: SettingsTestingPage(viewModel: viewModel)
+                    }
+                }
+        }
+        // Reads the permission when Settings appears and again each time the app returns to the foreground, also from the
+        // iOS Settings app while the Notifications page is open.
+        .task(id: scenePhase) {
+            if scenePhase == .active { await viewModel.refreshPermission() }
+        }
+    }
+}
+
+/// The main view: title, then the two cards of design/frames/settings.png.
+struct SettingsMainPage: View {
+    @Bindable var viewModel: SettingsViewModel
+    let open: (SettingsPage) -> Void
+
+    var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TTSpace.s2) {
+            VStack(alignment: .leading, spacing: TTSpace.s3) {
                 Text("nav.settings")
                     .font(TTFont.largeTitle)
                     .foregroundStyle(TTColor.ink)
-                    .frame(minHeight: TTSize.targetMin)
+                    .padding(.bottom, TTSpace.s1)
+                    .frame(height: 52, alignment: .bottomLeading)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("settings.title")
-                Card(padding: 0) {
-                    VStack(spacing: 0) {
-                        segmentRow("settings.appearance", selection: $viewModel.appearance, options: [
-                            (Appearance.system, "settings.appearance.system"),
-                            (Appearance.light, "settings.appearance.light"),
-                            (Appearance.dark, "settings.appearance.dark"),
-                        ])
-                        hairline
-                        segmentRow("settings.time_format", selection: $viewModel.timeFormat, options: [
-                            (TimeFormat.device, "settings.time_format.device"),
-                            (TimeFormat.twelveHour, "settings.time_format.12h"),
-                            (TimeFormat.twentyFourHour, "settings.time_format.24h"),
-                        ])
+
+                SettingsCard {
+                    appearanceRow
+                    SettingsHairline()
+                    timeFormatRow
+                    SettingsHairline()
+                    notificationsRow
+                }
+                SettingsCard {
+                    aboutRow
+                    if viewModel.showsTesting {
+                        SettingsHairline()
+                        testingRow
                     }
                 }
-
-                header("settings.notifications")
-                Card(padding: 0) { permissionRow }
-                footnote("settings.notifications_footnote")
-
-                if viewModel.showsTesting {
-                    header("settings.testing")
-                    Card(padding: 0) {
-                        VStack(spacing: 0) {
-                            segmentRow("settings.demo_trains", selection: $viewModel.demoTrains, options: [
-                                (DemoTrains.off, "settings.demo_trains.off"),
-                                (DemoTrains.delays, "settings.demo_trains.delays"),
-                                (DemoTrains.offline, "settings.demo_trains.offline"),
-                                (DemoTrains.awaitingPlatform, "settings.demo_trains.platform"),
-                            ])
-                            hairline
-                            segmentRow("settings.mock_time", selection: $viewModel.isMockTimeOn, options: [
-                                (false, "settings.mock_time.off"),
-                                (true, "settings.mock_time.on"),
-                            ])
-                            if viewModel.isMockTimeOn { mockTimeRows }
-                        }
-                    }
-                    footnote("settings.demo_trains_footnote")
-                    footnote("settings.mock_time_footnote")
-                }
-
-                header("settings.data_privacy")
-                Card(padding: 0) {
-                    VStack(spacing: 0) {
-                        linkRow("settings.schedule_data", "settings.schedule_data_sub", SettingsViewModel.dataURL, id: "settings.scheduleData")
-                        hairline
-                        linkRow("settings.privacy", "settings.privacy_sub", SettingsViewModel.privacyURL, id: "settings.privacy")
-                        hairline
-                        linkRow(
-                            "settings.official_updates", "settings.official_updates_sub", SettingsViewModel.officialUpdatesURL,
-                            id: "settings.officialUpdates"
-                        )
-                    }
-                }
-                footnote("settings.independent")
-
-                header("settings.about")
-                Card(padding: 0) { aboutRow }
             }
             .padding(.horizontal, TTSpace.s5)
             .padding(.bottom, TTSpace.s6)
         }
         .background(TTColor.canvas)
-        // Reads the permission when Settings appears and again each time the app returns to the foreground.
-        .task(id: scenePhase) {
-            if scenePhase == .active { await viewModel.refreshPermission() }
-        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     // MARK: Rows
 
-    private func segmentRow<Value: Hashable>(
-        _ title: LocalizedStringKey, selection: Binding<Value>, options: [(value: Value, title: LocalizedStringKey)]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: TTSpace.s2) {
-            Text(title).font(TTFont.body).foregroundStyle(TTColor.ink)
-            SegmentedControl(selection: selection, options: options)
-        }
-        .padding(.horizontal, TTSpace.s4)
-        .padding(.vertical, TTSpace.s3)
-    }
-
-    /// Mock time on (TT-158): the date and time picker in Toronto time, the quick choices and Use real time.
-    @ViewBuilder private var mockTimeRows: some View {
-        hairline
-        HStack {
-            DatePicker(
-                "settings.mock_time", selection: $viewModel.mockTimeStart, displayedComponents: [.date, .hourAndMinute]
+    private var appearanceRow: some View {
+        SettingsRow(title: "settings.appearance", trailingInset: TTSpace.s2) {
+            GlassSwitch(
+                selection: $viewModel.appearance,
+                options: [
+                    .init(
+                        value: .system, label: .symbol("circle.lefthalf.filled"), name: "settings.appearance.system",
+                        identifier: "settings.appearance.system"
+                    ),
+                    .init(
+                        value: .light, label: .symbol("sun.max.fill"), name: "settings.appearance.light",
+                        identifier: "settings.appearance.light"
+                    ),
+                    .init(
+                        value: .dark, label: .symbol("moon.fill"), name: "settings.appearance.dark",
+                        identifier: "settings.appearance.dark"
+                    ),
+                ],
+                segmentWidth: 46, turns: true
             )
-            .labelsHidden()
-            .environment(\.timeZone, goTimeZone)
-            .accessibilityIdentifier("settings.mockTime.picker")
-            Spacer(minLength: 0)
         }
-        .modifier(SettingsRow())
-        ForEach(MockTimePreset.allCases, id: \.self) { preset in
-            hairline
-            textRow(LocalizedStringKey(preset.titleKey), id: preset.identifier) { viewModel.chooseMockTime(preset) }
-        }
-        hairline
-        textRow("settings.mock_time.real", id: "settings.mockTime.real") { viewModel.useRealTime() }
     }
 
-    private func textRow(_ title: LocalizedStringKey, id: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(title).font(TTFont.body).foregroundStyle(TTColor.accent)
-                Spacer(minLength: 0)
-            }
-            .modifier(SettingsRow())
-            .contentShape(Rectangle())
+    private var timeFormatRow: some View {
+        SettingsRow(title: "settings.time_format", trailingInset: TTSpace.s2) {
+            GlassSwitch(
+                selection: $viewModel.timeFormat,
+                options: [
+                    .init(
+                        value: .device, label: .text("settings.time_format.device"), name: "settings.time_format.device.name",
+                        identifier: "settings.timeFormat.device"
+                    ),
+                    .init(
+                        value: .twelveHour, label: .text("settings.time_format.12h"), name: "settings.time_format.12h.name",
+                        identifier: "settings.timeFormat.12h"
+                    ),
+                    .init(
+                        value: .twentyFourHour, label: .text("settings.time_format.24h"), name: "settings.time_format.24h.name",
+                        identifier: "settings.timeFormat.24h"
+                    ),
+                ],
+                segmentWidth: 52
+            )
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(id)
     }
 
-    private var permissionRow: some View {
-        HStack(spacing: TTSpace.s3) {
-            VStack(alignment: .leading, spacing: TTSpace.s1 / 2) {
-                Text("settings.notification_permission").font(TTFont.body).foregroundStyle(TTColor.ink)
-                if let permission = viewModel.permission {
-                    HStack(spacing: TTSpace.s1) {
-                        if let symbol = permission.symbol {
-                            Image(systemName: symbol).font(.system(size: TTSize.iconSM))
-                        }
-                        Text(permission.title).font(TTFont.footnote)
+    /// A dot and a word: green On, red Off, grey Off (never asked). Empty until the permission is read.
+    private var notificationsRow: some View {
+        Button { open(.notifications) } label: {
+            SettingsRow(title: "settings.notifications") {
+                HStack(spacing: 6) {
+                    if let dot = viewModel.notificationDot {
+                        Circle()
+                            .fill(dot.color)
+                            .frame(width: 8, height: 8)
+                            .settingsPop(trigger: viewModel.permission, from: 0.2)
                     }
-                    .foregroundStyle(permission.ink)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("settings.permission")
+                    if let word = viewModel.notificationWord {
+                        SettingsValue(text: Text(verbatim: word))
+                    }
                 }
-            }
-            Spacer(minLength: 0)
-            if viewModel.permission == .off {
-                Button("button.open_settings") { openURL(viewModel.notificationSettingsURL) }
-                    .buttonStyle(.ttText)
-                    .accessibilityIdentifier("settings.openSettings")
+                SettingsChevron()
             }
         }
-        .modifier(SettingsRow())
-    }
-
-    private func linkRow(_ title: LocalizedStringKey, _ subtitle: LocalizedStringKey, _ url: URL, id: String) -> some View {
-        Button { openURL(url) } label: {
-            HStack(spacing: TTSpace.s3) {
-                VStack(alignment: .leading, spacing: TTSpace.s1 / 2) {
-                    Text(title).font(TTFont.body).foregroundStyle(TTColor.ink)
-                    Text(subtitle).font(TTFont.footnote).foregroundStyle(TTColor.inkSecondary)
-                }
-                .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(TTFont.body).foregroundStyle(TTColor.inkSecondary)
-            }
-            .modifier(SettingsRow())
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(id)
+        .buttonStyle(SettingsRowButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("settings.notifications")
     }
 
     private var aboutRow: some View {
-        HStack(spacing: TTSpace.s3) {
-            // The app icon at 36 pt keeps its light look in both modes, as on the canvas.
-            Image("TrainTimesSymbol")
-                .resizable()
-                .renderingMode(.template)
-                .foregroundStyle(TTColor.onAccent)
-                .frame(width: TTSize.appMark, height: TTSize.appMark)
-                .background(TTColor.accent)
-                .clipShape(RoundedRectangle(cornerRadius: TTRadius.sm, style: .continuous))
-                .environment(\.colorScheme, .light)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: TTSpace.s1 / 2) {
-                Text("app.name").font(TTFont.headline).foregroundStyle(TTColor.ink)
-                Text(viewModel.versionLine).font(TTFont.footnote).foregroundStyle(TTColor.inkSecondary)
+        Button { open(.about) } label: {
+            SettingsRow(title: "settings.about") {
+                SettingsValue(text: Text(verbatim: viewModel.versionValue).monospacedDigit())
+                SettingsChevron()
             }
-            Spacer(minLength: 0)
         }
-        .modifier(SettingsRow())
+        .buttonStyle(SettingsRowButtonStyle())
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("settings.about")
     }
 
-    // MARK: Parts
-
-    private var hairline: some View {
-        Divider().overlay(TTColor.hairline)
-    }
-
-    private func header(_ key: LocalizedStringKey) -> some View {
-        Text(key)
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .padding(.horizontal, TTSpace.s4)
-            .padding(.top, TTSpace.s3)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    private func footnote(_ key: LocalizedStringKey) -> some View {
-        Text(key)
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .padding(.horizontal, TTSpace.s4)
+    /// "Off", or in amber with a dot what is on, "Delays · Mock time".
+    private var testingRow: some View {
+        let active = viewModel.isTestingActive
+        return Button { open(.testing) } label: {
+            SettingsRow(title: "settings.testing") {
+                HStack(spacing: 6) {
+                    if active { Circle().fill(TTColor.delayInk).frame(width: 8, height: 8) }
+                    Text(verbatim: viewModel.testingValue)
+                        .font(TTFont.body)
+                        .foregroundStyle(active ? TTColor.delayInk : TTColor.inkSecondary)
+                        .lineLimit(1)
+                }
+                SettingsChevron()
+            }
+        }
+        .buttonStyle(SettingsRowButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("settings.testing")
     }
 }
 
-/// A list cell: 16 pt sides, 12 pt top and bottom, 52 pt minimum height.
-private struct SettingsRow: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, TTSpace.s4)
-            .padding(.vertical, TTSpace.s3)
-            .frame(maxWidth: .infinity, minHeight: TTSize.targetMin + TTSpace.s2, alignment: .leading)
-    }
-}
-
-private extension NotificationPermission {
-    var title: LocalizedStringKey {
+extension SettingsViewModel.NotificationDot {
+    /// Accent, cancel ink or ink-tertiary.
+    var color: Color {
         switch self {
-        case .allowed: "settings.permission.allowed"
-        case .off: "settings.permission.off"
-        case .notAsked: "settings.permission.not_asked"
-        }
-    }
-
-    var symbol: String? {
-        switch self {
-        case .allowed: "checkmark.circle.fill"
-        case .off: "xmark.circle.fill"
-        case .notAsked: nil
-        }
-    }
-
-    var ink: Color {
-        switch self {
-        case .allowed: TTColor.accent
-        case .off: TTColor.cancelInk
-        case .notAsked: TTColor.inkSecondary
+        case .green: TTColor.accent
+        case .red: TTColor.cancelInk
+        case .grey: TTColor.inkTertiary
         }
     }
 }
 
 #Preview {
-    NavigationStack { SettingsView(viewModel: SettingsViewModel(settings: AppSettings())) }
+    SettingsView(viewModel: SettingsViewModel(settings: AppSettings()))
 }

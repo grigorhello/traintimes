@@ -24,10 +24,12 @@ struct GlassPrimaryButtonStyle: ButtonStyle {
 
     private struct StyledLabel: View {
         @Environment(\.isEnabled) private var isEnabled
+        /// Off in snapshot tests that draw the button (TT-168): dark glass is drawn differently from one run to the next.
+        @Environment(\.rendersGlass) private var rendersGlass
         let configuration: ButtonStyleConfiguration
 
         var body: some View {
-            if #available(iOS 26, *), isEnabled {
+            if #available(iOS 26, *), isEnabled, rendersGlass {
                 configuration.label
                     .font(TTFont.headline)
                     .foregroundStyle(TTColor.onAccent)

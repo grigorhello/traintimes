@@ -5,36 +5,76 @@ final class SettingsTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Settings shows the permission in words and changes Appearance and Time format (TT-105).
+    /// The main view's glass switches change Appearance and Time format in one tap, and Notifications, About and Testing open
+    /// and close (TT-105, TT-168).
     @MainActor
-    func testChangeAppearanceAndTimeFormat() {
+    func testChangeAppearanceAndOpenThePages() {
         let app = XCUIApplication.onFixtures()
         // Not asked yet, whatever an earlier test answered in the iOS dialog (TT-142).
         app.launchEnvironment["TT_NOTIFICATIONS"] = "notAsked"
         // Start from the defaults whatever an earlier run stored.
-        app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"]
+        app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"] + LaunchArguments.noAlerts
         app.launch()
 
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["System"].isSelected)
-        XCTAssertTrue(app.buttons["Device"].isSelected)
-        XCTAssertTrue(app.staticTexts["Notification permission"].exists)
-        // The app never asks before an alert is set (TT-142), so a fresh install reads Not asked yet.
-        let permission = app.descendants(matching: .any)["settings.permission"]
-        XCTAssertTrue(permission.waitForExistence(timeout: 5))
-        XCTAssertEqual(permission.label, "Not asked yet")
+        XCTAssertTrue(app.buttons["settings.appearance.system"].isSelected)
+        XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
 
-        app.buttons["Dark"].tap()
-        XCTAssertTrue(app.buttons["Dark"].isSelected)
-        XCTAssertFalse(app.buttons["System"].isSelected)
-        app.buttons["24-hour"].tap()
-        XCTAssertTrue(app.buttons["24-hour"].isSelected)
+        app.buttons["settings.appearance.dark"].tap()
+        XCTAssertTrue(app.buttons["settings.appearance.dark"].isSelected)
+        XCTAssertFalse(app.buttons["settings.appearance.system"].isSelected)
+        app.buttons["settings.timeFormat.24h"].tap()
+        XCTAssertTrue(app.buttons["settings.timeFormat.24h"].isSelected)
 
         // Leave the simulator on the defaults for the next run.
-        app.buttons["System"].tap()
-        app.buttons["Device"].tap()
-        XCTAssertTrue(app.buttons["System"].isSelected)
+        app.buttons["settings.appearance.system"].tap()
+        app.buttons["settings.timeFormat.device"].tap()
+        XCTAssertTrue(app.buttons["settings.appearance.system"].isSelected)
+
+        // The app never asks before an alert is set or "Turn on notifications" is tapped (TT-142, TT-168), so a fresh install
+        // reads Off with a grey dot, and the page offers to turn them on.
+        let notifications = app.buttons["settings.notifications"]
+        XCTAssertTrue(notifications.waitForExistence(timeout: 5))
+        XCTAssertTrue(notifications.label.contains("Off"))
+        notifications.tap()
+        XCTAssertTrue(app.staticTexts["Not turned on yet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.notifications.turnOn"].exists)
+        XCTAssertTrue(app.buttons["settings.myAlerts"].label.contains("0"))
+        // The tab bar stays on a pushed page.
+        XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
+        app.buttons["settings.back"].tap()
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+
+        app.buttons["settings.about"].tap()
+        XCTAssertTrue(app.staticTexts["Train Times"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.privacy"].exists)
+        XCTAssertTrue(app.buttons["settings.scheduleData"].exists)
+        XCTAssertTrue(app.buttons["settings.officialUpdates"].exists)
+        app.buttons["settings.back"].tap()
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+
+        app.buttons["settings.testing"].tap()
+        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.demoTrains.off"].isSelected)
+        app.buttons["settings.back"].tap()
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+    }
+
+    /// "My alerts" on the Notifications page switches to the Alerts tab (TT-168).
+    @MainActor
+    func testMyAlertsOpensTheAlertsTab() {
+        let app = XCUIApplication.onFixtures()
+        app.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
+        app.launchArguments += LaunchArguments.noAlerts
+        app.launch()
+
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["settings.notifications"].tap()
+        XCTAssertTrue(app.staticTexts["Notifications are on"].waitForExistence(timeout: 5))
+        app.buttons["settings.myAlerts"].tap()
+        XCTAssertTrue(app.staticTexts["No alerts yet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Alerts"].isSelected)
     }
 
     /// Settings › Testing › Demo trains (D49), in Debug and TestFlight builds: Offline shows the cached timetable with the
@@ -51,15 +91,19 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(offline.waitForExistence(timeout: 10))
 
         app.tabBars.buttons["Settings"].tap()
+        let testing = app.buttons["settings.testing"]
+        XCTAssertTrue(testing.waitForExistence(timeout: 5))
+        XCTAssertTrue(testing.label.contains("Offline"), "The Testing row says what is on")
+        testing.tap()
         XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Offline"].isSelected)
-        XCTAssertFalse(app.buttons["Off"].firstMatch.isSelected)
+        XCTAssertTrue(app.buttons["settings.demoTrains.offline"].isSelected)
+        XCTAssertFalse(app.buttons["settings.demoTrains.off"].isSelected)
     }
 
     /// Settings › Testing › Mock time (TT-158, D51), in Debug and TestFlight builds: Mock time with a quick choice moves
-    /// Schedule's clock (the 7:32 AM train is no longer "in 11 min"), and Use real time brings it back.
+    /// Schedule's clock (the 7:32 AM train is no longer "in 11 min"), and Reset brings the real time back.
     @MainActor
-    func testMockTimeMovesTheScheduleClockAndUseRealTimeBringsItBack() {
+    func testMockTimeMovesTheScheduleClockAndResetBringsItBack() {
         let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
@@ -71,23 +115,31 @@ final class SettingsTests: XCTestCase {
         // Tapping stores Mock time on the simulator, so a failure part way still turns it off for the next test.
         addTeardownBlock {
             app.tabBars.buttons["Settings"].tap()
-            let real = app.buttons["settings.mockTime.real"]
-            if real.exists { real.tap() }
+            let testing = app.buttons["settings.testing"]
+            if testing.exists { testing.tap() }
+            let reset = app.buttons["settings.testing.reset"]
+            if reset.waitForExistence(timeout: 2), reset.isHittable { reset.tap() }
         }
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["Mock time"].tap()
+        app.buttons["settings.testing"].tap()
+        let mockTime = app.switches["settings.mockTime"]
+        XCTAssertTrue(mockTime.waitForExistence(timeout: 5))
+        mockTime.tap()
         let dayChange = app.buttons["settings.mockTime.dayChange"]
         XCTAssertTrue(dayChange.waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["settings.mockTime.picker"].exists)
         dayChange.tap()
-        XCTAssertTrue(app.buttons["Mock time"].isSelected)
+        XCTAssertEqual(app.switches["settings.mockTime"].value as? String, "1")
 
         app.tabBars.buttons["Schedule"].tap()
         wait(for: [expectation(for: NSPredicate(format: "NOT (label CONTAINS 'in 11 min')"), evaluatedWith: card)], timeout: 10)
 
+        // The Settings tab still shows the Testing page; Reset turns Mock time off and goes back to the real time.
         app.tabBars.buttons["Settings"].tap()
-        app.buttons["settings.mockTime.real"].tap()
-        XCTAssertTrue(app.buttons["Real time"].isSelected)
+        let reset = app.buttons["settings.testing.reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        reset.tap()
+        XCTAssertEqual(app.switches["settings.mockTime"].value as? String, "0")
         XCTAssertFalse(app.buttons["settings.mockTime.dayChange"].exists)
 
         app.tabBars.buttons["Schedule"].tap()

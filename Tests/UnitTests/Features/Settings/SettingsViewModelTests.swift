@@ -92,13 +92,101 @@ final class SettingsViewModelTests: XCTestCase {
         model.mockTimeStart = beforeEcho.start
         XCTAssertEqual(settings.mockTime, beforeEcho)
 
-        model.useRealTime()
+        model.isMockTimeOn = false
         XCTAssertFalse(model.isMockTimeOn)
         XCTAssertNil(settings.mockTime)
     }
 
-    func testVersionLine() {
-        XCTAssertEqual(makeModel().versionLine, "Version 1.0 (1) · Your next GO train, at a glance.")
+    /// TT-168: the Notifications row is a dot and a word, green On, red Off, grey Off (never asked); empty until read.
+    func testNotificationRowShowsADotAndAWordPerPermission() async {
+        let model = makeModel(.allowed)
+        XCTAssertNil(model.notificationDot, "Nothing to show before the first read")
+        XCTAssertNil(model.notificationWord)
+
+        for (permission, dot, word) in [
+            (NotificationPermission.allowed, SettingsViewModel.NotificationDot.green, "On"),
+            (.off, .red, "Off"),
+            (.notAsked, .grey, "Off"),
+        ] {
+            let model = makeModel(permission)
+            await model.refreshPermission()
+            XCTAssertEqual(model.notificationDot, dot)
+            XCTAssertEqual(model.notificationWord, word)
+        }
+    }
+
+    /// TT-168: the Testing row reads Off, or what is on, and Reset turns everything off.
+    func testTestingValueNamesWhatIsOnAndResetTurnsItOff() {
+        let settings = AppSettings(defaults: .ephemeral())
+        let model = makeModel(settings: settings, showsTesting: true)
+        XCTAssertFalse(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Off")
+
+        model.demoTrains = .delays
+        XCTAssertTrue(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Delays")
+        model.demoTrains = .awaitingPlatform
+        XCTAssertEqual(model.testingValue, "Platform")
+        model.isMockTimeOn = true
+        XCTAssertEqual(model.testingValue, "Platform · Mock time")
+        model.demoTrains = .off
+        XCTAssertEqual(model.testingValue, "Mock time")
+        XCTAssertTrue(model.isTestingActive, "Mock time alone is something on")
+
+        model.demoTrains = .offline
+        model.resetTesting()
+        XCTAssertEqual(settings.demoTrains, .off)
+        XCTAssertNil(settings.mockTime)
+        XCTAssertFalse(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Off")
+    }
+
+    /// TT-168: "My alerts · N" counts every saved rule; none without alert rules.
+    func testAlertCountIsTheNumberOfSavedRules() async {
+        XCTAssertEqual(makeModel().alertCount, 0)
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.evening])
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: FakeNotificationPermission(.allowed),
+            appInfo: AppInfo(version: "1.0", build: "1"), showsTesting: false, alerts: rules
+        )
+        XCTAssertEqual(model.alertCount, 2)
+    }
+
+    /// TT-168: "Turn on notifications" shows the iOS prompt once and the row and page follow the answer.
+    func testTurnOnNotificationsAsksOnceAndReadsTheAnswer() async {
+        let prompt = PromptingPermission(answer: .allowed)
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: prompt, appInfo: AppInfo(version: "1.0", build: "1"),
+            showsTesting: false
+        )
+        await model.refreshPermission()
+        XCTAssertEqual(model.permission, .notAsked)
+
+        await model.turnOnNotifications()
+        XCTAssertEqual(model.permission, .allowed)
+        XCTAssertEqual(model.notificationDot, .green)
+        let asked = await prompt.asked
+        XCTAssertEqual(asked, 1)
+    }
+
+    /// The same prompt through the alert rules, which is what the app wires (D41, revised by D57).
+    func testTurnOnNotificationsGoesThroughTheAlertRules() async {
+        let prompt = PromptingPermission(answer: .off)
+        let rules = AlertRules(server: FakeAlertServer(), push: FixturePushRegistration(), permissions: prompt, defaults: nil)
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: prompt, appInfo: AppInfo(version: "1.0", build: "1"),
+            showsTesting: false, alerts: rules
+        )
+        await model.turnOnNotifications()
+        XCTAssertEqual(model.permission, .off, "A denied prompt reads Off, red")
+        XCTAssertEqual(model.notificationDot, .red)
+        let asked = await prompt.asked
+        XCTAssertEqual(asked, 1)
+    }
+
+    func testVersionIsShownAsValueAndAsPill() {
+        XCTAssertEqual(makeModel().versionValue, "1.0 (1)")
+        XCTAssertEqual(makeModel().versionLine, "Version 1.0 (1)")
     }
 
     func testVersionComesFromTheBundle() {
@@ -111,5 +199,24 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SettingsViewModel.privacyURL.absoluteString, "https://traintimes.ca/privacy")
         XCTAssertEqual(SettingsViewModel.officialUpdatesURL.host(), "www.gotransit.com")
         XCTAssertEqual(makeModel().notificationSettingsURL.absoluteString, UIApplication.openNotificationSettingsURLString)
+    }
+}
+
+/// A permission that has not been asked until `request()`, which answers `answer` and counts the asks.
+private actor PromptingPermission: NotificationPermissionProviding {
+    private var value = NotificationPermission.notAsked
+    private let answer: NotificationPermission
+    private(set) var asked = 0
+
+    init(answer: NotificationPermission) {
+        self.answer = answer
+    }
+
+    func current() async -> NotificationPermission { value }
+
+    func request() async -> NotificationPermission {
+        asked += 1
+        value = answer
+        return value
     }
 }

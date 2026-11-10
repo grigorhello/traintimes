@@ -89,7 +89,8 @@ final class RouteTests: XCTestCase {
 
         schedule.to.tap()
         require(field, "field", in: app)
-        field.tap()
+        // The station on screen is selected when the field opens, so typing replaces it. No tap first: a tap would put the
+        // caret in "Union" and the text would be appended to it.
         field.typeText("bur")
         let burlington = app.buttons["station.BU"]
         require(burlington, "burlington", in: app)

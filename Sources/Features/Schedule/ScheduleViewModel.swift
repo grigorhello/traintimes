@@ -26,6 +26,8 @@ final class ScheduleViewModel {
     private(set) var now: Date
     /// Nil until the first load.
     private(set) var freshness: Freshness?
+    /// Today's live feed publishes platforms for the route's origin (TT-162): a pending platform may then arrive.
+    private(set) var hasPlatformSource = false
     /// On a day with no direct trains: the next day in the strip that has some, for "Show Monday". Nil when none does.
     private(set) var nextDayWithTrains: ServiceDay?
     /// The last day the schedule covers (the GTFS feed's validity window); nil when it has no end.
@@ -161,8 +163,12 @@ final class ScheduleViewModel {
         return departures.indices.map { index in
             let departure = departures[index]
             let usableBelow = departures[(index + 1)...].contains { $0.isUsable }
+            let isNext = departure.id == next
+            let awaitsPlatform = freshness.map {
+                departure.awaitsPlatform(isNext: isNext, now: now, freshness: $0, hasPlatformSource: hasPlatformSource)
+            } ?? false
             return DepartureCard(
-                departure, isNext: departure.id == next, nextUsableBelow: usableBelow, now: now,
+                departure, isNext: isNext, nextUsableBelow: usableBelow, awaitsPlatform: awaitsPlatform, now: now,
                 formatter: formatter
             )
         }
@@ -470,6 +476,8 @@ final class ScheduleViewModel {
         let departures = Departure.resolve(loaded.trips, live: isToday ? loaded.live : .empty, freshness: freshness, isToday: isToday)
         if departures != self.departures { self.departures = departures }
         if freshness != self.freshness { self.freshness = freshness }
+        let hasPlatformSource = isToday && loaded.live.hasPlatformSource
+        if hasPlatformSource != self.hasPlatformSource { self.hasPlatformSource = hasPlatformSource }
         relayout()
     }
 

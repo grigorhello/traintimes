@@ -79,6 +79,22 @@ struct Departure: Hashable, Sendable, Identifiable {
     }
 }
 
+extension Departure {
+    /// The countdown shows "in 1 min" to "in 15 min": that is the window in which the next train's card shows the
+    /// platform placeholder (TT-162, D55).
+    static let platformWaitMinutes = 1...15
+
+    /// The card shows the pulsing placeholder in place of the dash only while the platform is worth waiting for: the next
+    /// usable train, its "in N min" countdown within 15 min, its platform still pending, fresh live data and a station
+    /// whose feed publishes platforms. Later trains, "Departing", another day, stale or offline data, no platform source
+    /// and cancelled trains keep the dash, so at most one thing moves on screen (TT-162, D55).
+    func awaitsPlatform(isNext: Bool, now: Date, freshness: Freshness, hasPlatformSource: Bool) -> Bool {
+        guard isNext, isUsable, hasPlatformSource, freshness.isLive, trip.platform == .pending else { return false }
+        // The same whole minutes the card's countdown shows (`TimeFormatting.relative`).
+        return Self.platformWaitMinutes.contains(Int(departureTime.timeIntervalSince(now) / 60))
+    }
+}
+
 extension ServiceDay {
     /// Parses "2026-11-05".
     init?(_ string: String) {

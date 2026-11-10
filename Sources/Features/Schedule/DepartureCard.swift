@@ -20,6 +20,11 @@ struct DepartureCard: Hashable, Identifiable {
     /// The part of `platform` after "Plat": "2", or the "—" placeholder.
     let platformValue: String
     let hasPlatform: Bool
+    /// "Plat", the word before the platform slot.
+    let platformLabel: String
+    /// The next train is within 15 min of leaving and still waiting for its platform: the slot shows a pulsing pill in
+    /// place of the dash (`Departure.awaitsPlatform`, TT-162, D55).
+    let awaitsPlatform: Bool
     /// From the stopping-pattern rule (D35); every other card shows the struck bolt.
     let isExpress: Bool
     /// Cancelled or stop skipped (TT-114): red x marker, struck times, no bell, no bolt, never the lead.
@@ -35,8 +40,12 @@ struct DepartureCard: Hashable, Identifiable {
         return false
     }
 
-    init(_ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, now: Date, formatter: some TimeFormatting) {
+    init(
+        _ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, awaitsPlatform: Bool = false, now: Date,
+        formatter: some TimeFormatting
+    ) {
         id = departure.id
+        self.awaitsPlatform = awaitsPlatform
         self.isNext = isNext
         time = formatter.time(departure.departureTime)
         let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
@@ -57,6 +66,7 @@ struct DepartureCard: Hashable, Identifiable {
         }
         platformValue = value
         platform = String(format: String(localized: "schedule.platform_short"), value)
+        platformLabel = String(localized: "schedule.platform_label")
         isExpress = departure.trip.tags.contains(.express)
         isCancelled = !departure.isUsable
         note = isCancelled && nextUsableBelow ? String(localized: "schedule.next_usable_below") : nil

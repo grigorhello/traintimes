@@ -40,7 +40,9 @@ struct TripDetailsView: View {
         let details = viewModel.details(formatter)
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
+                // Above the scroll view, so the close button's glass shadow is not cut off by the top fade (a hard edge in light).
                 header
+                    .zIndex(1)
                 ScrollView {
                     if let details {
                         content(details)

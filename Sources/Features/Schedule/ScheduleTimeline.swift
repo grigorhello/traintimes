@@ -323,7 +323,8 @@ struct DepartureCardView: View {
         }
     }
 
-    /// "in 11 min · Plat 2" on the next train, "Plat 2" (or "Plat —") on the others, "Next usable below" when cancelled.
+    /// "in 11 min · Plat 2" on the next train, "Plat 2" (or "Plat —", or "Plat" and a pulsing pill within 15 min of leaving
+    /// when the feed posts platforms, TT-162) on the others, "Next usable below" when cancelled.
     @ViewBuilder private var detail: some View {
         if card.isCancelled {
             if let note = card.note {
@@ -344,13 +345,35 @@ struct DepartureCardView: View {
                         .font(TTFont.subhead)
                         .foregroundStyle(TTColor.inkTertiary)
                 }
-                Text(platformText)
-                    .font(TTFont.subhead)
-                    .monospacedDigit()
+                // The slot's two states overlap while one fades into the other (0.2 s): the pill becomes the number when
+                // the platform arrives, the dash the pill when the train comes within 15 min (TT-162).
+                ZStack(alignment: .leading) {
+                    if card.awaitsPlatform {
+                        platformPill.transition(.opacity)
+                    } else {
+                        Text(platformText)
+                            .font(TTFont.subhead)
+                            .monospacedDigit()
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: card.awaitsPlatform)
             }
             .lineLimit(1)
             .fixedSize()
         }
+    }
+
+    /// "Plat" and the pulsing pill, one space apart. One element for the card's combined label: "Platform pending".
+    private var platformPill: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TTSpace.s1) {
+            Text(card.platformLabel)
+                .font(TTFont.subhead)
+                .foregroundStyle(TTColor.inkSecondary)
+            PlatformPill()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("schedule.platform_pending")
     }
 
     /// "Plat" in ink-secondary; the number semibold in ink, or the dash in ink-tertiary until GO publishes it.

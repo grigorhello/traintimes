@@ -48,6 +48,7 @@ struct SettingsView: View {
                                 (DemoTrains.off, "settings.demo_trains.off"),
                                 (DemoTrains.delays, "settings.demo_trains.delays"),
                                 (DemoTrains.offline, "settings.demo_trains.offline"),
+                                (DemoTrains.awaitingPlatform, "settings.demo_trains.platform"),
                             ])
                             hairline
                             segmentRow("settings.mock_time", selection: $viewModel.isMockTimeOn, options: [

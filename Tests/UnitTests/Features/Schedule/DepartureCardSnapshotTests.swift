@@ -11,6 +11,11 @@ final class DepartureCardSnapshotTests: XCTestCase {
     @MainActor func testCardStatesADark() { snap(Self.pageA, .dark) }
     @MainActor func testCardStatesBLight() { snap(Self.pageB, .light) }
     @MainActor func testCardStatesBDark() { snap(Self.pageB, .dark) }
+    /// TT-162: the next train waits for its platform (the pill, static), alone and with two later dash cards.
+    @MainActor func testPlatformPillCardLight() { snap([Self.waiting], .light) }
+    @MainActor func testPlatformPillCardDark() { snap([Self.waiting], .dark) }
+    @MainActor func testPlatformPillListLight() { snap(Self.pillList, .light) }
+    @MainActor func testPlatformPillListDark() { snap(Self.pillList, .dark) }
 
     private struct Sample {
         let card: DepartureCard
@@ -23,7 +28,8 @@ final class DepartureCardSnapshotTests: XCTestCase {
     private static func sample(
         _ hour: Int, _ minute: Int, minutes: Int = 40, platform: Platform = .pending, express: Bool = false,
         status: TrainStatus = .onTime, delay: Int = 0, isNext: Bool = false, nowBefore: TimeInterval = 11 * 60,
-        nextUsableBelow: Bool = true, formatter: TimeFormatter = twelve, bell: AlertBellModel.Bell = .off
+        nextUsableBelow: Bool = true, awaitsPlatform: Bool = false, formatter: TimeFormatter = twelve,
+        bell: AlertBellModel.Bell = .off
     ) -> Sample {
         let departure = day.date(hour: hour, minute: minute)
         let trip = Trip(
@@ -41,8 +47,17 @@ final class DepartureCardSnapshotTests: XCTestCase {
             expectedArrival: delay > 0 ? trip.scheduledArrival.addingTimeInterval(shift) : nil
         )
         let now = resolved.departureTime.addingTimeInterval(-nowBefore)
-        let card = DepartureCard(resolved, isNext: isNext, nextUsableBelow: nextUsableBelow, now: now, formatter: formatter)
+        let card = DepartureCard(
+            resolved, isNext: isNext, nextUsableBelow: nextUsableBelow, awaitsPlatform: awaitsPlatform, now: now, formatter: formatter
+        )
         return Sample(card: card, bell: bell)
+    }
+
+    private static var waiting: Sample { sample(7, 58, express: true, isNext: true, awaitsPlatform: true) }
+
+    /// The board's list: only the next train carries the pill; later trains keep the dash.
+    private static var pillList: [Sample] {
+        [waiting, sample(8, 21, minutes: 35, express: true), sample(8, 47, minutes: 44)]
     }
 
     private static var reported: Date { day.date(hour: 7, minute: 20) }
@@ -84,6 +99,7 @@ final class DepartureCardSnapshotTests: XCTestCase {
         .padding(.top, 60)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TTColor.canvas)
+        .environment(\.skeletonPulses, false)
         assertSnapshot(
             of: view,
             as: .image(perceptualPrecision: 0.98, layout: .device(config: .iPhone17Pro), traits: UITraitCollection(userInterfaceStyle: style)),

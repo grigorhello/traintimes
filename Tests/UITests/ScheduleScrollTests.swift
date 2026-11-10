@@ -29,9 +29,21 @@ final class ScheduleScrollTests: XCTestCase {
     }
 
     @MainActor
-    private func waitUntilHittable(_ element: XCUIElement, _ message: String, timeout: TimeInterval = 15) {
+    private func waitUntilHittable(_ app: XCUIApplication, _ element: XCUIElement, _ message: String, timeout: TimeInterval = 15) {
         let done = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
-        XCTAssertEqual(XCTWaiter().wait(for: [done], timeout: timeout), .completed, message)
+        let result = XCTWaiter().wait(for: [done], timeout: timeout)
+        XCTAssertEqual(result, .completed, "\(message). \(whereTheCardsAre(app))")
+    }
+
+    /// Frames of the header and some cards, in the failure message: CI shows no screenshots, so this says where the
+    /// timeline stopped.
+    @MainActor
+    private func whereTheCardsAre(_ app: XCUIApplication) -> String {
+        func frame(_ element: XCUIElement) -> String {
+            element.exists ? "\(element.frame) hittable=\(element.isHittable)" : "missing"
+        }
+        let cards = ["0524", "1724", "1754", "2324"].map { "\($0) \(frame(card(app, $0)))" }.joined(separator: "; ")
+        return "app \(app.frame); route card \(frame(app.buttons["schedule.route"])); \(cards)"
     }
 
     /// 5:47 PM: the 5:54 PM train is the next one and sits near the top; the 5:24 AM train, hours gone, is off screen.
@@ -40,7 +52,7 @@ final class ScheduleScrollTests: XCTestCase {
         let app = launch(mockTime: Moment.evening)
         let next = card(app, "1754")
         XCTAssertTrue(next.waitForExistence(timeout: 10))
-        waitUntilHittable(next, "The timeline scrolls to the next train")
+        waitUntilHittable(app, next, "The timeline scrolls to the next train")
         XCTAssertLessThan(next.frame.minY, app.frame.height * 0.6, "The next train is in the upper part of the screen")
         XCTAssertFalse(card(app, "0524").isHittable, "The first train of the morning is scrolled away")
     }
@@ -51,7 +63,7 @@ final class ScheduleScrollTests: XCTestCase {
         let app = launch(mockTime: Moment.late)
         let last = card(app, "2324")
         XCTAssertTrue(last.waitForExistence(timeout: 10))
-        waitUntilHittable(last, "The timeline scrolls to the end of the service day")
+        waitUntilHittable(app, last, "The timeline scrolls to the end of the service day")
         XCTAssertFalse(card(app, "0524").isHittable)
     }
 
@@ -67,6 +79,6 @@ final class ScheduleScrollTests: XCTestCase {
         let turned = expectation(for: NSPredicate(format: "label CONTAINS '6'"), evaluatedWith: today)
         XCTAssertEqual(XCTWaiter().wait(for: [turned], timeout: 90), .completed, "The strip's Today becomes Nov 6")
         XCTAssertTrue(today.isSelected)
-        waitUntilHittable(card(app, "0524"), "The new day starts from its top: the first train is on screen")
+        waitUntilHittable(app, card(app, "0524"), "The new day starts from its top: the first train is on screen")
     }
 }

@@ -1,12 +1,12 @@
 import Foundation
 import Observation
 
-/// What the Trip details sheet shows (TT-118), every time already formatted by the one formatter (D17).
+/// What the Trip details sheet shows (TT-118, TT-163), every time already formatted by the one formatter (D17).
 struct TripDetails: Hashable {
-    struct Fact: Hashable {
-        let label: String
+    /// One time on the journey card. A time that runs late is the expected one in delay-ink with `scheduled` struck under it.
+    struct Time: Hashable {
         let value: String
-        /// Later than scheduled: drawn in delay-ink.
+        var scheduled: String?
         var isLate = false
     }
 
@@ -14,33 +14,46 @@ struct TripDetails: Hashable {
         let id: String
         let name: String
         let time: String
-        /// Origin and destination: headline name and a filled accent marker.
+        /// Origin and destination: headline name and time, ring and pin markers.
         let isEnd: Bool
-        /// A red x and a struck time.
+        /// A cross marker and a struck time.
         let isSkipped: Bool
     }
 
-    /// "7:32 AM train": the scheduled departure, which stays the train's name (D9).
+    /// "7:32 AM train": the scheduled departure, which stays the train's name (D9). The sheet's accessibility label.
     let title: String
-    /// "Oakville GO to Union Station GO".
-    let routeName: String
-    /// "Lakeshore West · Thu, Nov 5".
-    let lineAndDay: String
-    let status: TripStatus
-    let scheduledDeparture: String
-    /// "Expected departure", or "Departed" once the live departure is past; nil when the feed has no estimate.
-    let liveDeparture: Fact?
-    let scheduledArrival: String
-    /// Nil when the feed has no arrival estimate: the cell is left out.
-    let estimatedArrival: String?
-    /// "Platform 2" or "Platform pending".
+    /// The first and last stop, else the route's.
+    let origin: String
+    let destination: String
+    let departure: Time
+    let arrival: Time
+    /// "in 20 min", or "Departing": only on the next usable train today, as on its card.
+    let countdown: String?
+    /// "Platform 2", or "Platform —" until GO publishes it.
     let platform: String
+    /// The part of `platform` after "Platform": "2", or the "—" placeholder.
+    let platformValue: String
+    let hasPlatform: Bool
+    /// From the stopping-pattern rule (D35); shown only when true.
+    let isExpress: Bool
+    /// "40 min": arrival minus departure of the two times shown.
+    let tripLength: String
+    /// What the card shows (D50): Scheduled until live data says more, "Departed" once the train has left.
+    let status: TripStatus
+    /// The status row's right side: how fresh the data is, or the service day for a timetable only.
+    let freshnessText: String?
+    /// Cancelled or stop skipped: struck journey times and no alert button.
+    let isCancelled: Bool
+    /// Cancelled itself (not only a skipped stop): every stop time is struck and the footnote says so.
+    let isTrainCancelled: Bool
+    /// "7 stops": every stop, both ends included.
+    let stopCount: String
     /// "Expected" when every stop has a live time, otherwise "Scheduled".
     let stopsHeader: String
     let stops: [Stop]
     /// The arrival basis under the stop list.
     let footnote: String
-    /// "Alert me" or "Manage alert"; nil once the train has left.
+    /// "Alert me" or "Manage alert"; nil once the train has left or when it is cancelled.
     let alertButton: String?
 }
 
@@ -62,8 +75,10 @@ final class TripDetailsViewModel {
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
-    /// The last load, resolved again at the current clock before each reload.
-    @ObservationIgnored private var trip: Trip?
+    /// The next usable train today, which alone shows the countdown (as its card does).
+    private(set) var nextDepartureId: TripKey?
+    /// The route's trips from the last load, resolved again at the current clock before each reload.
+    @ObservationIgnored private var trips: [Trip] = []
     @ObservationIgnored private var live = LiveSnapshot.empty
 
     init(route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false) {
@@ -90,9 +105,9 @@ final class TripDetailsViewModel {
         return stops.allSatisfy { $0.isSkipped || $0.expected != nil }
     }
 
-    /// No alert for a train that has already left today.
+    /// No alert for a train that has already left today, or that is cancelled.
     var showsAlertButton: Bool {
-        guard let departure else { return false }
+        guard let departure, departure.isUsable else { return false }
         return !(isToday && departure.departureTime <= now)
     }
 
@@ -100,31 +115,41 @@ final class TripDetailsViewModel {
         guard let departure else { return nil }
         let trip = departure.trip
         let isLive = hasLiveStops
-        let day = key.serviceDay.shortLabel
-        let platform = switch trip.platform {
-        case .published(let name): String(format: String(localized: "schedule.platform"), name)
-        case .pending: String(localized: "schedule.platform_pending")
+        let isCancelled = !departure.isUsable
+        let isTrainCancelled: Bool = if case .cancelled = departure.status { true } else { false }
+        // A late departure carries both times (the spec): each shows its expected value in delay-ink, the scheduled one struck.
+        let isDelayed = departure.expectedDeparture.map { $0.timeIntervalSince(trip.scheduledDeparture) >= 60 } ?? false
+        let platformValue: String
+        let hasPlatform: Bool
+        switch trip.platform {
+        case .published(let name):
+            platformValue = name
+            hasPlatform = true
+        case .pending:
+            platformValue = String(localized: "schedule.platform_placeholder")
+            hasPlatform = false
         }
+        // Ring = Scheduled (D50): without live data the status reads Scheduled, as on the card.
+        let resolved = TripStatus(departure.status, formatter: formatter)
+        let status: TripStatus = hasDeparted ? .departed : (resolved.isLive ? resolved : .scheduled)
+        let arrivalTime = departure.expectedArrival ?? trip.scheduledArrival
         return TripDetails(
             title: String(format: String(localized: "trip.title"), formatter.time(trip.scheduledDeparture)),
-            routeName: String(
-                format: String(localized: "schedule.route_title"),
-                stops.first?.station.name ?? route.from.name,
-                stops.last?.station.name ?? route.to.name
-            ),
-            lineAndDay: route.line.map { String(format: String(localized: "trip.line_day"), $0.name, day) } ?? day,
-            status: TripStatus(departure.status, formatter: formatter),
-            scheduledDeparture: formatter.time(trip.scheduledDeparture),
-            liveDeparture: departure.expectedDeparture.map { expected in
-                TripDetails.Fact(
-                    label: hasDeparted ? String(localized: "trip.departed") : String(localized: "trip.expected_departure"),
-                    value: formatter.time(expected),
-                    isLate: expected.timeIntervalSince(trip.scheduledDeparture) >= 60
-                )
-            },
-            scheduledArrival: formatter.time(trip.scheduledArrival),
-            estimatedArrival: departure.expectedArrival.map { formatter.time($0) },
-            platform: platform,
+            origin: stops.first?.station.name ?? route.from.name,
+            destination: stops.last?.station.name ?? route.to.name,
+            departure: Self.time(departure.expectedDeparture, scheduled: trip.scheduledDeparture, isDelayed: isDelayed, formatter),
+            arrival: Self.time(departure.expectedArrival, scheduled: trip.scheduledArrival, isDelayed: isDelayed, formatter),
+            countdown: departure.id == nextDepartureId ? formatter.relative(until: departure.departureTime, now: now) : nil,
+            platform: String(format: String(localized: "schedule.platform"), platformValue),
+            platformValue: platformValue,
+            hasPlatform: hasPlatform,
+            isExpress: trip.tags.contains(.express),
+            tripLength: formatter.tripLength(from: departure.departureTime, to: arrivalTime),
+            status: status,
+            freshnessText: freshnessText(formatter),
+            isCancelled: isCancelled,
+            isTrainCancelled: isTrainCancelled,
+            stopCount: String(format: String(localized: "trip.stops_count"), stops.count),
             stopsHeader: isLive ? String(localized: "trip.stops_expected") : String(localized: "trip.stops_scheduled"),
             stops: stops.enumerated().map { index, stop in
                 TripDetails.Stop(
@@ -135,23 +160,43 @@ final class TripDetailsViewModel {
                     isSkipped: stop.isSkipped
                 )
             },
-            footnote: isLive
-                ? String(format: String(localized: "trip.footnote_live"), formatter.time(trip.scheduledArrival))
-                : String(localized: "trip.footnote_scheduled"),
+            footnote: footnote(for: departure, isLive: isLive, formatter),
             alertButton: showsAlertButton
                 ? (hasAlert ? String(localized: "button.manage_alert") : String(localized: "button.alert_me"))
                 : nil
         )
     }
 
-    /// The freshness line beside the badge (D14), as on the timeline.
-    func freshnessMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
+    /// The expected time when the feed has one, in delay-ink with the scheduled time to strike under it while the train's
+    /// departure runs a minute or more late (the strike is left out when both read the same minute); the scheduled time
+    /// alone otherwise. Never a guess.
+    private static func time(
+        _ expected: Date?, scheduled: Date, isDelayed: Bool, _ formatter: some TimeFormatting
+    ) -> TripDetails.Time {
+        guard let expected else { return TripDetails.Time(value: formatter.time(scheduled)) }
+        let value = formatter.time(expected)
+        let struck = formatter.time(scheduled)
+        return TripDetails.Time(value: value, scheduled: isDelayed && struck != value ? struck : nil, isLate: isDelayed)
+    }
+
+    private func footnote(for departure: Departure, isLive: Bool, _ formatter: some TimeFormatting) -> String {
+        if case .cancelled = departure.status { return String(localized: "trip.footnote_cancelled") }
+        return isLive
+            ? String(format: String(localized: "trip.footnote_live"), formatter.time(departure.trip.scheduledArrival))
+            : String(localized: "trip.footnote_scheduled")
+    }
+
+    /// The status row's right side (D14): "Updated just now", "Last reported 7:29 AM", "Offline · last updated 6:52 AM",
+    /// or the service day for a timetable only (the ring already says Scheduled).
+    private func freshnessText(_ formatter: some TimeFormatting) -> String? {
         switch freshness {
         case nil: nil
-        case .live(let updatedAt): .live(updated: formatter.updated(at: updatedAt, now: clock.now))
-        case .scheduledOnly: .scheduledOnly(day: isToday ? nil : key.serviceDay.shortLabel)
-        case .stale(let lastReported): .stale(lastReported: formatter.time(lastReported))
-        case .offline(let lastUpdated): .offline(lastUpdated: lastUpdated.map { formatter.time($0) })
+        case .live(let updatedAt): formatter.updated(at: updatedAt, now: clock.now)
+        case .scheduledOnly: key.serviceDay.shortLabel
+        case .stale(let lastReported): String(format: String(localized: "status.last_reported"), formatter.time(lastReported))
+        case .offline(let lastUpdated):
+            lastUpdated.map { String(format: String(localized: "freshness.offline"), formatter.time($0)) }
+                ?? String(localized: "schedule.offline")
         }
     }
 
@@ -172,20 +217,20 @@ final class TripDetailsViewModel {
         let trips = (try? await repository.trips(for: route, on: day)) ?? []
         let live = isToday ? (try? await repository.liveStatus(for: route, on: day)) ?? .empty : .empty
         stops = (try? await repository.stops(for: key, on: route)) ?? []
-        trip = trips.first { $0.key == key }
+        self.trips = trips
         self.live = live
         resolve()
     }
 
-    /// The trip's status from the last load at the current clock.
+    /// The trip's status from the last load at the current clock, and which train is next (the rule of the timeline's cards).
     private func resolve() {
         let current = clock.now
         let isToday = key.serviceDay == ServiceDay(containing: current)
         let freshness = isToday ? Freshness(live, now: current) : .scheduledOnly
         now = current
-        departure = trip.flatMap { trip in
-            Departure.resolve([trip], live: isToday ? live : .empty, freshness: freshness, isToday: isToday).first
-        }
+        let departures = Departure.resolve(trips, live: isToday ? live : .empty, freshness: freshness, isToday: isToday)
+        departure = departures.first { $0.id == key }
+        nextDepartureId = isToday ? departures.first { $0.isUsable && $0.departureTime >= current }?.id : nil
         self.freshness = freshness
     }
 }

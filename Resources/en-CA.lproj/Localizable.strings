@@ -69,15 +69,13 @@
 /* Trip details */
 "trip.title" = "%@ train";
 "trip.line_day" = "%@ · %@";
-"trip.scheduled_departure" = "Scheduled departure";
-"trip.expected_departure" = "Expected departure";
 "trip.departed" = "Departed";
-"trip.platform" = "Platform";
-"trip.stops" = "Stops";
+"trip.stops_count" = "%d stops";
 "trip.stops_expected" = "Expected";
 "trip.stops_scheduled" = "Scheduled";
 "trip.footnote_live" = "Arrival times are estimates from the live feed. Scheduled arrival %@.";
 "trip.footnote_scheduled" = "Arrival times are scheduled.";
+"trip.footnote_cancelled" = "This train is cancelled. Times are the timetable's.";
 
 /* Status badges */
 "status.on_time" = "On time";

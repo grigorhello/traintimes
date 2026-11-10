@@ -16,6 +16,25 @@ struct Card<Content: View>: View {
     }
 }
 
+/// A card on a sheet's canvas ground (TT-163, D56): a surface in a 26 pt radius, the `Card` shadow in light and a 0.5 pt
+/// white 8 % inner edge in dark. Fills the width; the caller sets the padding.
+private struct SheetCard: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: TTRadius.xl)
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(TTColor.surface, in: shape)
+            .overlay(shape.strokeBorder(.white.opacity(colorScheme == .dark ? 0.08 : 0), lineWidth: 0.5))
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.06), radius: 1, x: 0, y: 1)
+    }
+}
+
+extension View {
+    func ttSheetCard() -> some View { modifier(SheetCard()) }
+}
+
 /// The one line that states the data mode (D14). Times are formatted by the one time formatter.
 struct FreshnessLine: View {
     enum Mode: Hashable, Sendable {

@@ -93,18 +93,19 @@ struct IconButton: View {
 }
 
 /// A round control floating over content, 44 pt (D49): Liquid Glass on iOS 26 and later, a raised surface before it.
-/// Accent glyph; dimmed when disabled.
+/// Accent glyph unless `tint` says otherwise (the Trip details close button is ink); dimmed when disabled.
 struct GlassIconButton: View {
     @Environment(\.isEnabled) private var isEnabled
     let systemName: String
     let label: LocalizedStringKey
+    var tint: Color = TTColor.accent
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
-                .foregroundStyle(isEnabled ? TTColor.accent : TTColor.inkTertiary)
+                .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
                 .opacity(isEnabled ? 1 : 0.55)
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .ttGlass(in: Circle())
@@ -115,15 +116,42 @@ struct GlassIconButton: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Off in the Trip details snapshot tests: dark Liquid Glass is drawn differently from one run to the next (the glass
+    /// adapts to what is behind it, 5% of the image in one run), so the snapshots draw the fallback surface instead.
+    @Entry var rendersGlass: Bool = true
+}
+
+/// `ttGlass`: the glass, or its solid fallback before iOS 26 and when `rendersGlass` is off.
+private struct GlassBackground<S: Shape>: ViewModifier {
+    @Environment(\.rendersGlass) private var rendersGlass
+    let tint: Color?
+    let shape: S
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *), rendersGlass {
+            content.glassEffect(glass, in: shape)
+        } else {
+            content.background(tint ?? TTColor.surfaceRaised, in: shape)
+        }
+    }
+
+    @available(iOS 26, *)
+    private var glass: Glass {
+        if let tint { Glass.regular.tint(tint).interactive() } else { Glass.regular.interactive() }
+    }
+}
+
 extension View {
     /// Liquid Glass in `shape` on iOS 26 and later; a raised surface on earlier systems (D49). Only for controls that
     /// float over content: cards and tiles stay solid.
-    @ViewBuilder func ttGlass(in shape: some Shape) -> some View {
-        if #available(iOS 26, *) {
-            glassEffect(.regular.interactive(), in: shape)
-        } else {
-            background(TTColor.surfaceRaised, in: shape)
-        }
+    func ttGlass(in shape: some Shape) -> some View {
+        modifier(GlassBackground(tint: nil, shape: shape))
+    }
+
+    /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.
+    func ttGlass(tint: Color, in shape: some Shape) -> some View {
+        modifier(GlassBackground(tint: tint, shape: shape))
     }
 }
 

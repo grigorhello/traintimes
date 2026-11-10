@@ -1,23 +1,30 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-118: every fact shown comes from the feed or the schedule, and a missing estimate is left out, never guessed.
+/// TT-118, TT-163: every fact shown comes from the feed or the schedule, and a missing estimate is left out, never guessed.
 @MainActor
 final class TripDetailsViewModelTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    func testOnTimeShowsExpectedDepartureAndScheduledStops() async throws {
+    func testOnTimeJourneyCard() async throws {
         let model = try await TripDetailsViewModel.loadedFixture()
         let details = try XCTUnwrap(model.details(formatter))
         XCTAssertEqual(details.title, "7:32 AM train")
-        XCTAssertEqual(details.routeName, "Oakville GO to Union Station GO")
-        XCTAssertEqual(details.lineAndDay, "Lakeshore West · Thu, Nov 5")
-        XCTAssertEqual(details.status, .onTime)
-        XCTAssertEqual(details.scheduledDeparture, "7:32 AM")
-        XCTAssertEqual(details.liveDeparture, TripDetails.Fact(label: "Expected departure", value: "7:32 AM", isLate: false))
-        XCTAssertEqual(details.scheduledArrival, "8:12 AM")
-        XCTAssertNil(details.estimatedArrival, "The feed gives no arrival estimate for this trip")
+        XCTAssertEqual(model.route.line?.name, "Lakeshore West")
+        XCTAssertEqual(details.origin, "Oakville GO")
+        XCTAssertEqual(details.destination, "Union Station GO")
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:32 AM"))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:12 AM"), "The feed gives no arrival estimate for this trip")
+        XCTAssertEqual(details.countdown, "in 11 min")
         XCTAssertEqual(details.platform, "Platform 2")
+        XCTAssertTrue(details.hasPlatform)
+        XCTAssertFalse(details.isExpress)
+        XCTAssertEqual(details.tripLength, "40 min")
+        XCTAssertEqual(details.status, .onTime)
+        XCTAssertEqual(details.freshnessText, "Updated just now")
+        XCTAssertFalse(details.isCancelled)
+        XCTAssertFalse(details.isTrainCancelled)
+        XCTAssertEqual(details.stopCount, "7 stops")
         XCTAssertEqual(details.stopsHeader, "Scheduled")
         XCTAssertEqual(details.stops.map(\.time), ["7:32 AM", "7:40 AM", "7:46 AM", "7:52 AM", "7:57 AM", "8:04 AM", "8:12 AM"])
         XCTAssertEqual(details.stops.map(\.isEnd), [true, false, false, false, false, false, true])
@@ -25,12 +32,17 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.alertButton, "Alert me")
     }
 
-    func testDelayedShowsLiveTimesInDelayInk() async throws {
+    /// Delayed: both times are the expected ones in delay-ink, the scheduled ones struck under them.
+    func testDelayedStrikesTheScheduledTimes() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(.delayed, hasAlert: true)
         let details = try XCTUnwrap(model.details(formatter))
         XCTAssertEqual(details.status, .delayed(minutes: 9))
-        XCTAssertEqual(details.liveDeparture, TripDetails.Fact(label: "Expected departure", value: "7:41 AM", isLate: true))
-        XCTAssertEqual(details.estimatedArrival, "8:21 AM")
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:41 AM", scheduled: "7:32 AM", isLate: true))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:21 AM", scheduled: "8:12 AM", isLate: true))
+        XCTAssertEqual(details.countdown, "in 20 min", "The countdown runs to the expected departure")
+        XCTAssertEqual(details.tripLength, "40 min")
+        XCTAssertEqual(details.freshnessText, "Updated just now")
+        XCTAssertEqual(details.stopCount, "7 stops")
         XCTAssertEqual(details.stopsHeader, "Expected")
         XCTAssertEqual(details.stops.map(\.name), [
             "Oakville GO", "Clarkson GO", "Port Credit GO", "Long Branch GO", "Mimico GO", "Exhibition GO", "Union Station GO",
@@ -38,49 +50,104 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.stops.map(\.time), ["7:41 AM", "7:49 AM", "7:55 AM", "8:01 AM", "8:06 AM", "8:13 AM", "8:21 AM"])
         XCTAssertEqual(details.footnote, "Arrival times are estimates from the live feed. Scheduled arrival 8:12 AM.")
         XCTAssertEqual(details.alertButton, "Manage alert")
-        XCTAssertEqual(model.freshnessMode(formatter), .live(updated: "Updated just now"))
     }
 
-    /// Acceptance: a trip with no estimate shows only Scheduled values and no Est. arrival cell.
+    /// Timetable only: ink times, the Scheduled ring and the service day, "Platform —", the Express bolt on express trains.
+    func testTimetableOnly() async throws {
+        let model = try await TripDetailsViewModel.timetableOnlyFixture()
+        let details = try XCTUnwrap(model.details(formatter))
+        XCTAssertEqual(details.status, .scheduled)
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:58 AM"))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:38 AM"))
+        XCTAssertEqual(details.platform, "Platform —")
+        XCTAssertFalse(details.hasPlatform)
+        XCTAssertTrue(details.isExpress)
+        XCTAssertEqual(details.freshnessText, "Thu, Nov 5", "The service day takes the place of \"Scheduled times only\"")
+        XCTAssertEqual(details.stopsHeader, "Scheduled")
+        XCTAssertEqual(details.alertButton, "Alert me")
+    }
+
+    /// Acceptance: a trip with no estimate shows only scheduled values.
     func testNoEstimateShowsOnlyScheduledValues() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0821-20261105")
         let details = try XCTUnwrap(model.details(formatter))
         XCTAssertEqual(details.status, .scheduled, "No live status: Scheduled, as on the card (D50)")
-        XCTAssertNil(details.liveDeparture)
-        XCTAssertNil(details.estimatedArrival)
-        XCTAssertEqual(details.scheduledArrival, "9:01 AM")
-        XCTAssertEqual(details.platform, "Platform pending")
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "8:21 AM"))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "9:01 AM"))
+        XCTAssertEqual(details.platform, "Platform —")
+        XCTAssertTrue(details.isExpress)
         XCTAssertEqual(details.stopsHeader, "Scheduled")
         XCTAssertEqual(details.stops.first?.time, "8:21 AM")
         XCTAssertEqual(details.stops.last?.time, "9:01 AM")
     }
 
-    /// Stale live data drops every estimate (D13): the badge falls back to Scheduled (D50) and the stops show scheduled times.
+    /// Stale live data drops every estimate (D13): the status falls back to Scheduled (D50) and the stops show scheduled times.
     func testStaleDataShowsNoEstimates() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(.delayed, minutesLater: 5)
         let details = try XCTUnwrap(model.details(formatter))
         XCTAssertEqual(details.status, .scheduled)
-        XCTAssertNil(details.liveDeparture)
-        XCTAssertNil(details.estimatedArrival)
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:32 AM"))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:12 AM"))
         XCTAssertEqual(details.stopsHeader, "Scheduled")
         XCTAssertEqual(details.stops.first?.time, "7:32 AM")
-        XCTAssertEqual(model.freshnessMode(formatter), .stale(lastReported: "7:21 AM"))
+        XCTAssertEqual(details.freshnessText, "Last reported 7:21 AM")
     }
 
-    func testDepartedReplacesExpectedDepartureAndHidesAlert() async throws {
+    func testOfflineFreshnessSlot() async throws {
+        let model = try await TripDetailsViewModel.loadedFixture(.offline)
+        let details = try XCTUnwrap(model.details(formatter))
+        XCTAssertEqual(details.status, .scheduled)
+        XCTAssertEqual(details.freshnessText, "Offline · last updated 6:52 AM")
+        XCTAssertEqual(details.platform, "Platform —", "A cached platform may have changed")
+    }
+
+    /// The countdown is the next usable train's alone, as on the cards: not a later train, not a cancelled one.
+    func testCountdownOnlyOnTheNextUsableTrain() async throws {
+        let next = try await TripDetailsViewModel.loadedFixture()
+        XCTAssertEqual(next.details(formatter)?.countdown, "in 11 min")
+        let later = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0758-20261105")
+        XCTAssertNil(later.details(formatter)?.countdown)
+
+        // 7:32 is cancelled, so 7:58 is the next usable train.
+        let cancelled = try await TripDetailsViewModel.loadedFixture(.cancelled)
+        XCTAssertNil(cancelled.details(formatter)?.countdown)
+        let nextAfterCancelled = try await TripDetailsViewModel.loadedFixture(.cancelled, tripId: "LW-0758-20261105")
+        XCTAssertEqual(nextAfterCancelled.details(formatter)?.countdown, "in 37 min")
+    }
+
+    func testCancelledHidesTheButtonAndSaysSo() async throws {
+        let model = try await TripDetailsViewModel.loadedFixture(.cancelled, hasAlert: true)
+        let details = try XCTUnwrap(model.details(formatter))
+        XCTAssertTrue(details.isCancelled)
+        XCTAssertTrue(details.isTrainCancelled, "Every stop time is struck only for a cancelled train")
+        XCTAssertEqual(details.status, .cancelled)
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:32 AM"))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:12 AM"))
+        XCTAssertNil(details.alertButton, "No alert for a cancelled train, even one that has an alert")
+        XCTAssertFalse(model.showsAlertButton)
+        XCTAssertEqual(details.footnote, "This train is cancelled. Times are the timetable's.")
+        XCTAssertEqual(details.stopsHeader, "Scheduled")
+        XCTAssertEqual(details.freshnessText, "Updated just now")
+    }
+
+    func testDepartedShowsTheActualTimeAndHidesAlert() async throws {
         let model = try await TripDetailsViewModel.departedFixture()
         let details = try XCTUnwrap(model.details(formatter))
         XCTAssertTrue(model.hasDeparted)
-        XCTAssertEqual(details.liveDeparture, TripDetails.Fact(label: "Departed", value: "7:43 AM", isLate: true))
-        XCTAssertEqual(details.estimatedArrival, "8:23 AM")
+        XCTAssertEqual(details.status, .departed)
+        XCTAssertEqual(details.status.text, "Departed")
+        XCTAssertEqual(details.departure, TripDetails.Time(value: "7:43 AM", scheduled: "7:32 AM", isLate: true))
+        XCTAssertEqual(details.arrival, TripDetails.Time(value: "8:23 AM", scheduled: "8:12 AM", isLate: true))
         XCTAssertEqual(details.stops.last?.time, "8:23 AM")
+        XCTAssertNil(details.countdown)
         XCTAssertNil(details.alertButton)
     }
 
     func testScheduledTrainThatHasLeftOffersNoAlert() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0821-20261105", minutesLater: 61)
         let details = try XCTUnwrap(model.details(formatter))
-        XCTAssertNil(details.liveDeparture, "Without live data the sheet never claims the train departed")
+        XCTAssertEqual(details.status, .scheduled, "Without live data the sheet never claims the train departed")
+        XCTAssertNil(details.departure.scheduled)
         XCTAssertNil(details.alertButton)
     }
 
@@ -91,6 +158,17 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertTrue(mimico.isSkipped)
         XCTAssertEqual(mimico.time, "7:57 AM")
         XCTAssertEqual(details.stopsHeader, "Expected")
+    }
+
+    func testLongTripCountsEveryStop() async throws {
+        let model = try await TripDetailsViewModel.longTripFixture()
+        let details = try XCTUnwrap(model.details(formatter))
+        XCTAssertEqual(details.stopCount, "12 stops")
+        XCTAssertEqual(details.origin, "West Harbour GO")
+        XCTAssertEqual(details.destination, "Union Station GO")
+        XCTAssertEqual(details.tripLength, "64 min")
+        XCTAssertEqual(details.stops.map(\.isEnd).filter { $0 }.count, 2)
+        XCTAssertEqual(details.alertButton, "Alert me")
     }
 
     func testUnknownTripShowsNothing() async throws {

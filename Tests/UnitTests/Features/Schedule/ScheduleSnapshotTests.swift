@@ -12,7 +12,8 @@ final class ScheduleSnapshotTests: XCTestCase {
     @MainActor func testTodayDark() async throws { snap(try await .loadedFixture(), .dark) }
     @MainActor func testAnotherDayLight() async throws { snap(try await .loadedFixture(dayIndex: 3), .light) }
     @MainActor func testAnotherDayDark() async throws { snap(try await .loadedFixture(dayIndex: 3), .dark) }
-    // TT-160: a past day selected (Wed 4), with the strip scrolled to show it.
+    // TT-160: a past day selected (Wed 4), with the strip scrolled to show it. The fixtures run no trains before Thu 5, so the
+    // timeline area shows the empty state, as a past day outside the feed does on a device.
     @MainActor func testPastDayLight() async throws { snap(try await .loadedFixture(dayIndex: -1), .light) }
     @MainActor func testPastDayDark() async throws { snap(try await .loadedFixture(dayIndex: -1), .dark) }
     // TT-114: design/frames/schedule-timeline-delayed.png, schedule-timeline-cancelled.png and schedule-dark.png. The

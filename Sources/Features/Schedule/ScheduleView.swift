@@ -22,9 +22,9 @@ struct ScheduleView: View {
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.openURL) private var openURL
-    /// The strip's leftmost tile, as its id (0 is Today), for scrolling it to a tile that is out of view. The strip opens at
-    /// Today, after the past week.
-    @State private var stripPosition: Int? = 0
+    /// The strip's leftmost tile, as its id (0 is Today), for scrolling it to a tile that is out of view. Nil until the
+    /// strip has scrolled; it opens on `openingTile`, at Today after the past week.
+    @State private var stripPosition: Int?
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
     /// The latest ask to scroll the timeline, carried out by `ScrollOffsetSetter`.
@@ -161,18 +161,16 @@ struct ScheduleView: View {
     private var dayStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: TTSpace.s2) {
-                ForEach(Array(viewModel.stripDays.enumerated()), id: \.offset) { position, day in
-                    let index = position - ScheduleViewModel.pastDayCount
+                ForEach(stripTiles) { tile in
                     DayCell(
-                        weekday: index == 0 ? String(localized: "button.today") : day.weekdayShort,
-                        day: "\(day.day)",
-                        isSelected: day == viewModel.selectedDay,
-                        isToday: index == 0
+                        weekday: tile.id == 0 ? String(localized: "button.today") : tile.day.weekdayShort,
+                        day: "\(tile.day.day)",
+                        isSelected: tile.day == viewModel.selectedDay,
+                        isToday: tile.id == 0
                     ) {
-                        Task { await viewModel.select(day) }
+                        Task { await viewModel.select(tile.day) }
                     }
-                    .id(index)
-                    .accessibilityIdentifier("schedule.day.\(index)")
+                    .accessibilityIdentifier("schedule.day.\(tile.id)")
                 }
             }
             .scrollTargetLayout()
@@ -181,7 +179,7 @@ struct ScheduleView: View {
         }
         .contentMargins(.horizontal, TTSpace.s5, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
-        .scrollPosition(id: $stripPosition)
+        .scrollPosition(id: stripBinding)
         .mask {
             HStack(spacing: 0) {
                 LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
@@ -192,11 +190,10 @@ struct ScheduleView: View {
             }
         }
         // "Show Monday" and picking another day bring an out-of-view tile to the start; Today brings the strip back.
-        .onChange(of: viewModel.selectedDay) { showSelectedDay(animated: true) }
-        .onAppear { showSelectedDay(animated: false) }
+        .onChange(of: viewModel.selectedDay) { showSelectedDay() }
         // Tapping the Schedule tab again returns to Today and Now: the strip comes back to Today too, though Today was selected.
         .onChange(of: viewModel.scrollRequest) {
-            guard viewModel.isToday, stripPosition != 0 else { return }
+            guard viewModel.isToday, let first = stripPosition, first != 0 else { return }
             withAnimation(.easeOut(duration: 0.3)) { stripPosition = 0 }
         }
         .frame(height: DayCell.size.height + 2 * Self.shadowRoom)
@@ -205,16 +202,34 @@ struct ScheduleView: View {
         .accessibilityAddTraits(.isTabBar)
     }
 
-    /// Brings the selected day's tile into the strip's five whole tiles when it is not in them.
-    private func showSelectedDay(animated: Bool) {
+    /// A strip tile. Its id is the one the strip's scroll position and the UI identifier use, counted from Today, so the
+    /// `ForEach` identity and the position agree (D53).
+    private struct StripTile: Identifiable {
+        let id: Int
+        let day: ServiceDay
+    }
+
+    private var stripTiles: [StripTile] {
+        viewModel.stripDays.enumerated().map { StripTile(id: $0.offset - ScheduleViewModel.pastDayCount, day: $0.element) }
+    }
+
+    /// The scroll position, reading `openingTile` until the strip has scrolled, so it opens there on its first layout.
+    private var stripBinding: Binding<Int?> {
+        Binding(get: { stripPosition ?? openingTile }, set: { stripPosition = $0 })
+    }
+
+    /// The tile the strip opens on: Today (0), or the selected day when that is not one of the first five tiles from Today.
+    private var openingTile: Int {
+        let selected = viewModel.stripIndex(of: viewModel.selectedDay) ?? 0
+        return (0..<Self.fullTiles).contains(selected) ? 0 : selected
+    }
+
+    /// Brings the selected day's tile to the start of the strip when it is not among the five whole tiles. Before the strip
+    /// has scrolled, the binding's `openingTile` does it.
+    private func showSelectedDay() {
         let index = viewModel.stripIndex(of: viewModel.selectedDay) ?? 0
-        let first = stripPosition ?? 0
-        guard index < first || index >= first + Self.fullTiles else { return }
-        if animated {
-            withAnimation(.easeOut(duration: 0.3)) { stripPosition = index }
-        } else {
-            stripPosition = index
-        }
+        guard let first = stripPosition, index < first || index >= first + Self.fullTiles else { return }
+        withAnimation(.easeOut(duration: 0.3)) { stripPosition = index }
     }
 
     private static let shadowRoom: CGFloat = 2

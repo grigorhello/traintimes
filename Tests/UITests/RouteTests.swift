@@ -81,13 +81,14 @@ final class RouteTests: XCTestCase {
         require(panel(app), "stations.panel", in: app)
         XCTAssertFalse(app.buttons["schedule.swap"].exists)
 
-        // The X cancels and nothing changes; the swap button is back and tappable within the 220 ms close.
+        // The X cancels and nothing changes; the swap button is back and tappable once the close is over (the timeout is
+        // generous: a query takes a second on a loaded CI runner, and a button stuck at scale 0.6 would still fail).
         app.buttons["schedule.cancel"].tap()
         require(schedule.to, "schedule.to", in: app)
         XCTAssertEqual(schedule.to.value as? String, "Union")
         let swap = app.buttons["schedule.swap"]
         require(swap, "buttons[schedule.swap]", in: app)
-        wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 1)
+        wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 5)
 
         schedule.to.tap()
         require(field, "field", in: app)

@@ -33,7 +33,8 @@ private struct PanelReveal: ViewModifier, Animatable {
     var lift: CGFloat = 0
     var fadeTail: Double = 0
 
-    var animatableData: Double {
+    // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
+    nonisolated var animatableData: Double {
         get { progress }
         set { progress = newValue }
     }
@@ -60,7 +61,8 @@ private struct PanelReveal: ViewModifier, Animatable {
 private struct TurnIn: ViewModifier, Animatable {
     var progress: Double
 
-    var animatableData: Double {
+    // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
+    nonisolated var animatableData: Double {
         get { progress }
         set { progress = newValue }
     }

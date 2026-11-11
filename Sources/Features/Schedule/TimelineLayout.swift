@@ -236,6 +236,14 @@ extension TimelineLayout {
             time = time.addingTimeInterval(step)
         }
     }
+
+    /// Each card's place in the cascade when a new set of trains is shown (TT-164, D61), counted from the first card in view
+    /// with the timeline scrolled to `scrollOffset` (where it opens: Now on today, the first train on another day). The
+    /// cards above count as the first, so the stagger starts where the rider looks.
+    func cascadeOrder(scrolledTo scrollOffset: CGFloat) -> [TripKey: Int] {
+        let first = cards.firstIndex { $0.bottom > scrollOffset } ?? 0
+        return Dictionary(cards.enumerated().map { ($0.element.id, max(0, $0.offset - first)) }, uniquingKeysWith: { kept, _ in kept })
+    }
 }
 
 extension Departure {

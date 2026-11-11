@@ -28,7 +28,9 @@ final class ScheduleSnapshotTests: XCTestCase {
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
         layOutOnce(view)
-        assertSnapshot(
+        // The whole failure message on one line, so the CI log shows how far the image is from the reference: this suite
+        // failed one test now and then after TT-164 (a different one each run) with only the message's first line logged.
+        let failure = verifySnapshot(
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
@@ -37,8 +39,12 @@ final class ScheduleSnapshotTests: XCTestCase {
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
             ),
+            file: #filePath,
             testName: testName,
             line: line
         )
+        if let failure {
+            XCTFail(failure.replacingOccurrences(of: "\n", with: " | "), line: line)
+        }
     }
 }

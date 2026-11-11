@@ -134,7 +134,8 @@ struct FixtureScheduleRepository: ScheduleRepository {
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         self.stationList = stationList
         self.lineStops = try file.stops.map { stop in
-            guard let station = stationList.first(where: { $0.id == stop.id }) else { throw FixtureError.invalid(stop.id) }
+            guard var station = stationList.first(where: { $0.id == stop.id }) else { throw FixtureError.invalid(stop.id) }
+            station.place = stop.lat.flatMap { lat in stop.lon.map { GeoPoint(latitude: lat, longitude: $0) } }
             return LineStop(station: station, minutes: stop.minutes)
         }
     }
@@ -228,7 +229,7 @@ private struct FixtureFile: Decodable {
         let tags: [String]?
         let reportedAt: String?
     }
-    struct StopDTO: Decodable { let id: String; let minutes: Int }
+    struct StopDTO: Decodable { let id: String; let minutes: Int; let lat: Double?; let lon: Double? }
     struct NoticeDTO: Decodable { let line: String; let text: String; let reportedAt: String }
     struct DelayedDTO: Decodable {
         let tripId: String

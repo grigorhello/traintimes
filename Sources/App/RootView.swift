@@ -112,7 +112,7 @@ struct RootView: View {
                 let isSelected = router.selectedTab == .alerts
                 TabBarStyle.icon(
                     "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
-                    showsDot: !isSelected && (router.showsAlertsDot || alertsModel.showsTabDot), colorScheme: colorScheme
+                    dot: alertsModel.tabDot(isSelected: isSelected, hasNewUpdate: router.showsAlertsDot), colorScheme: colorScheme
                 )
                 .accessibilityLabel(Text("tab.alerts"))
             }

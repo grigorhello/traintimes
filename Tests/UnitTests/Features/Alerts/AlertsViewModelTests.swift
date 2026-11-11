@@ -209,4 +209,134 @@ final class AlertsViewModelTests: XCTestCase {
         model.markReviewsSeen()
         XCTAssertFalse(model.showsTabDot)
     }
+
+    // MARK: Notifications off (TT-169)
+
+    /// The warning needs notifications denied and an alert switched on: paused alerts, a permission never asked, an allowed
+    /// one and no alerts at all show nothing.
+    func testTheWarningNeedsDeniedNotificationsAndASwitchedOnAlert() async {
+        let cases: [(NotificationPermission, [AlertRule], Bool)] = [
+            (.off, [AlertsFixtures.morning], true),
+            (.off, [AlertsFixtures.morning, AlertsFixtures.today], true),
+            (.off, [AlertsFixtures.evening], false),
+            (.off, [], false),
+            (.notAsked, [AlertsFixtures.morning], false),
+            (.allowed, [AlertsFixtures.morning], false),
+        ]
+        for (permission, on, warns) in cases {
+            let rules = await AlertsFixtures.rules(FakeAlertServer(), permission: permission, on: on)
+            let model = await AlertsFixtures.model(rules)
+            XCTAssertEqual(model.warnsNotificationsOff, warns, "\(permission) with \(on.map(\.id))")
+        }
+    }
+
+    func testTheWarningCountsOnlyAlertsSwitchedOnAndStillInForce() async {
+        let yesterday = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261104", day: 4), route: AlertsFixtures.oakvilleToUnion)
+        let rules = await AlertsFixtures.rules(
+            FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning, AlertsFixtures.evening, AlertsFixtures.today, yesterday]
+        )
+        let model = await AlertsFixtures.model(rules)
+
+        XCTAssertEqual(model.switchedOnCount, 2, "morning and today: evening is paused, yesterday's train has gone")
+        XCTAssertEqual(rules.switchedOnCount(on: ServiceDay(year: 2026, month: 11, day: 5)), 2)
+        XCTAssertEqual(AlertsViewModel.offDetail(count: 1), "Your alert is saved, but it can't reach you.")
+        XCTAssertEqual(AlertsViewModel.offDetail(count: 2), "Your 2 alerts are saved, but they can't reach you.")
+    }
+
+    /// With notifications off a rule that is on reads Not delivering and keeps its switch; a paused one still reads Paused.
+    func testRowsThatAreOnReadNotDeliveringAndPausedRowsStayPaused() async {
+        let rules = await AlertsFixtures.rules(
+            FakeAlertServer(), permission: .off, on: [AlertsFixtures.evening, AlertsFixtures.morning, AlertsFixtures.today]
+        )
+        let model = await AlertsFixtures.model(rules)
+
+        let rows = model.ruleRows(formatter)
+        XCTAssertEqual(rows.map(\.id), ["today", "morning", "evening"], "Not delivering sorts with On, before Paused")
+        XCTAssertEqual(rows.map(\.state), [.notificationsOff, .notificationsOff, .paused])
+        XCTAssertEqual(rows.map(\.accessory), [
+            .toggle(isOn: true, isEnabled: true), .toggle(isOn: true, isEnabled: true), .toggle(isOn: false, isEnabled: true),
+        ])
+    }
+
+    func testTheSwitchStillPausesARuleThatIsNotDelivering() async {
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, permission: .off, on: [AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules)
+
+        await model.setOn(false, for: "morning")?.value
+        XCTAssertEqual(model.ruleRows(formatter).first?.state, .paused)
+        XCTAssertFalse(model.warnsNotificationsOff, "the last alert is paused, so nothing is left to warn about")
+        let saved = await server.saved
+        XCTAssertEqual(saved.last?.paused, true)
+    }
+
+    /// The red dot shows from the other tabs while the warning does, wins over the accent dot, and is hidden on Alerts.
+    func testTheRedDotWinsOverTheAccentDotAndHidesOnAlerts() async {
+        let server = FakeAlertServer()
+        let quiet = await AlertsFixtures.model(await AlertsFixtures.rules(server, on: [AlertsFixtures.morning]))
+        XCTAssertNil(quiet.tabDot(isSelected: false, hasNewUpdate: false))
+        XCTAssertEqual(quiet.tabDot(isSelected: false, hasNewUpdate: true), .accent)
+
+        let rules = await AlertsFixtures.rules(
+            FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington]
+        )
+        let model = await AlertsFixtures.model(rules)
+        XCTAssertTrue(model.showsTabDot, "a rule to review would show the accent dot")
+        XCTAssertEqual(model.tabDot(isSelected: false, hasNewUpdate: true), .warning)
+        XCTAssertNil(model.tabDot(isSelected: true, hasNewUpdate: true), "its card is on the screen")
+
+        model.markReviewsSeen()
+        XCTAssertEqual(model.tabDot(isSelected: false, hasNewUpdate: false), .warning, "visiting Alerts does not clear it")
+    }
+
+    /// Returning with notifications allowed clears the warning and shows "Notifications are on" once, after a moment.
+    func testAllowingNotificationsClearsTheWarningAndShowsTheToastOnce() async throws {
+        let permission = SwitchablePermission(.off)
+        let rules = AlertRules(server: FakeAlertServer(), push: FixturePushRegistration(), permissions: permission, defaults: nil)
+        await rules.save(AlertsFixtures.morning)
+        let model = AlertsViewModel(
+            rules: rules, updates: await AlertsFixtures.updates([]), notices: FakeLineNotices([]), clock: FixedClock(now: AlertsFixtures.now),
+            notificationsOnDelay: .milliseconds(10), notificationsOnDuration: .seconds(1)
+        )
+        XCTAssertTrue(model.warnsNotificationsOff)
+
+        await model.refresh()
+        XCTAssertTrue(model.warnsNotificationsOff, "still denied: nothing changes")
+        XCTAssertFalse(model.showsNotificationsOn)
+
+        await permission.set(.allowed)
+        await model.refresh()
+        XCTAssertFalse(model.warnsNotificationsOff)
+        XCTAssertEqual(model.ruleRows(formatter).first?.state, .on)
+        let shown = await poll { model.showsNotificationsOn }
+        XCTAssertTrue(shown, "the toast rises after its delay")
+        let gone = await poll { !model.showsNotificationsOn }
+        XCTAssertTrue(gone, "and leaves by itself")
+
+        await model.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(model.showsNotificationsOn, "once: a later refresh with nothing to fix says nothing")
+    }
+
+    /// Polls for up to 3 s.
+    private func poll(_ condition: @MainActor () -> Bool) async -> Bool {
+        for _ in 0..<300 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+}
+
+/// A permission the test turns on by hand, as the rider does in iOS Settings.
+actor SwitchablePermission: NotificationPermissionProviding {
+    private var value: NotificationPermission
+
+    init(_ value: NotificationPermission) {
+        self.value = value
+    }
+
+    func set(_ new: NotificationPermission) { value = new }
+
+    func current() async -> NotificationPermission { value }
 }

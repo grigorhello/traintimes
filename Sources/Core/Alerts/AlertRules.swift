@@ -74,6 +74,12 @@ final class AlertRules: WatchedTripsProviding {
         return state
     }
 
+    /// Alerts switched on and still in force on `today` (paused ones and past This-trip ones do not count): the number the
+    /// notifications-off warning speaks of (TT-169).
+    func switchedOnCount(on today: ServiceDay) -> Int {
+        rules.filter { !$0.paused && $0.isCurrent(on: today) }.count
+    }
+
     /// A rule the server set to Review needed: its usual train has changed (the Alerts tab dot, TT-143).
     var needsReview: Bool {
         rules.contains { state(of: $0) == .reviewNeeded }

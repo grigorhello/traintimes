@@ -609,7 +609,8 @@ private struct DayPress: ViewModifier {
         } keyframes: { _ in
             KeyframeTrack(\.scale) {
                 LinearKeyframe(pressed, duration: 0.001)
-                SpringKeyframe(1, duration: 0.75, spring: spring)
+                // From rest: left to itself the spring keeps the 1 ms ramp's speed and throws the tile through zero.
+                SpringKeyframe(1, duration: 0.75, spring: spring, startVelocity: 0)
             }
         }
     }

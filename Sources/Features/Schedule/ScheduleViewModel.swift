@@ -483,8 +483,9 @@ final class ScheduleViewModel {
             setTodayNotices([], line: nil)
         }
         now = clock.now
+        // Trains that replace "Loading timetable" cascade too, even when a refresh brings them.
+        if newTrains || loaded == nil { entranceRequest += 1 }
         loaded = (day, trips, live)
-        if newTrains { entranceRequest += 1 }
         resolve()
     }
 

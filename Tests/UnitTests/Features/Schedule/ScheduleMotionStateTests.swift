@@ -40,6 +40,24 @@ final class ScheduleMotionStateTests: XCTestCase {
         XCTAssertEqual(model.entranceRequest, 1, "The midnight turn does not cascade")
     }
 
+    /// Trains that replace "Loading timetable" after a failed first load cascade, even from a refresh; the next refresh does not.
+    func testTrainsReplacingTheLoadingSkeletonCascade() async {
+        let repository = OfflineFirstRepository()
+        let route = Route(
+            from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO"),
+            line: Line(id: "LW", name: "Lakeshore West", colorHex: "#98002e")
+        )
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.content, .loading)
+        XCTAssertEqual(model.entranceRequest, 0, "Nothing to cascade while the skeleton shows")
+        await repository.connect()
+        await model.refresh()
+        XCTAssertEqual(model.entranceRequest, 1)
+        await model.refresh()
+        XCTAssertEqual(model.entranceRequest, 1)
+    }
+
     /// Tapping the Schedule tab again pulses the Now dot each time.
     func testTheScheduleTabPulsesNow() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
@@ -73,4 +91,19 @@ final class ScheduleMotionStateTests: XCTestCase {
         let pastFirst = model.layout.cascadeOrder(scrolledTo: cards[0].bottom + 1)
         XCTAssertEqual(cards.map { pastFirst[$0.id] }, [0, 0, 1, 2])
     }
+}
+
+/// No timetable until `connect()`, like a first launch without a connection (TT-130).
+private actor OfflineFirstRepository: ScheduleRepository {
+    private var isConnected = false
+
+    func connect() { isConnected = true }
+
+    func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
+        guard isConnected else { throw URLError(.notConnectedToInternet) }
+        return []
+    }
+
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
 }

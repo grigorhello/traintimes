@@ -11,6 +11,11 @@ struct GTFSFeed: Codable, Sendable, Equatable {
         /// a copy imported before TT-171 until its refresh.
         var latitude: Double?
         var longitude: Double?
+
+        var place: GeoPoint? {
+            guard let latitude, let longitude else { return nil }
+            return GeoPoint(latitude: latitude, longitude: longitude)
+        }
     }
 
     struct Line: Codable, Sendable, Equatable {

@@ -54,7 +54,9 @@ enum DemoRide {
         let stops = calls.enumerated().map { index, call -> RidePlan.Stop in
             let arrival = day.gtfsTime(17 * 3600 + call.minute * 60)
             let stands = index == 0 || index == last ? 0 : dwell
-            return RidePlan.Stop(station: call.station, arrival: arrival, departure: arrival.addingTimeInterval(stands))
+            // The stops carry their places, so the demo departure's Trip details shows the Directions link (TT-188, TT-177).
+            let station = Station(id: call.station.id, name: call.station.name, place: call.place)
+            return RidePlan.Stop(station: station, arrival: arrival, departure: arrival.addingTimeInterval(stands))
         }
         var points: [GeoPoint] = []
         for (index, call) in calls.enumerated() {

@@ -87,6 +87,18 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNotNil(model.details(formatter))
     }
 
+    func testDirectionsOpenMapsToTheDepartureStationUntilTheTrainLeaves() async throws {
+        let maps = FakeMapsOpener()
+        let rig = DepartureRig.started()
+        let model = await rig.tripDetails(maps: maps)
+        XCTAssertEqual(model.directionsStation?.id, "UN")
+        model.openDirections()
+        XCTAssertEqual(maps.opened.map(\.name), ["Union Station GO"])
+        rig.move(to: DepartureRig.time(17, 16), model)
+        XCTAssertNotNil(model.departureDetails(formatter), "Departed still shows the card")
+        XCTAssertNil(model.directionsStation, "the train has left Union: no link")
+    }
+
     func testTheSheetFollowsTheClockWhileLive() async {
         let model = await DepartureRig.started().tripDetails()
         XCTAssertTrue(model.followsClock)

@@ -55,6 +55,8 @@ struct TripDetails: Hashable {
     let footnote: String
     /// "Alert me" or "Manage alert"; nil once the train has left or when it is cancelled.
     let alertButton: String?
+    /// The Directions link under the departure station (TT-188, D64).
+    let showsDirections: Bool
 }
 
 /// The Trip details sheet for one trip and service date (TT-118). It loads the trip, its live status and its stops from
@@ -82,6 +84,7 @@ final class TripDetailsViewModel {
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
+    private let maps: any MapsOpening
     /// The next usable train today, which alone shows the countdown (as its card does).
     private(set) var nextDepartureId: TripKey?
     /// The route's trips from the last load, resolved again at the current clock before each reload.
@@ -100,7 +103,7 @@ final class TripDetailsViewModel {
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
-        onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil
+        onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, maps: any MapsOpening = SystemMapsOpener()
     ) {
         self.route = route
         self.key = key
@@ -110,6 +113,7 @@ final class TripDetailsViewModel {
         self.onBoard = onBoard
         self.alerts = alerts
         followsRide = onBoard?.isRunning(key) ?? false
+        self.maps = maps
         now = clock.now
     }
 
@@ -132,6 +136,22 @@ final class TripDetailsViewModel {
     var showsAlertButton: Bool {
         guard let departure, departure.isUsable else { return false }
         return !(isToday && departure.departureTime <= now)
+    }
+
+    /// The departure station while directions to it help (TT-188, D64): the train has not left it yet (live time, else
+    /// scheduled; a past day's train has left), it calls there (not cancelled, no skipped stop), and the feed gives the
+    /// station a place. Riding (TT-172) replaces the journey card with the ride card, which takes the link with it.
+    var directionsStation: Station? {
+        guard let departure, departure.isUsable, departure.departureTime > now,
+              let station = stops.first?.station, station.place != nil
+        else { return nil }
+        return station
+    }
+
+    /// The Directions link: Apple Maps with directions to the departure station.
+    func openDirections() {
+        guard let station = directionsStation, let place = station.place else { return }
+        maps.openDirections(to: station.name, at: place)
     }
 
     func details(_ formatter: some TimeFormatting) -> TripDetails? {
@@ -186,7 +206,8 @@ final class TripDetailsViewModel {
             footnote: footnote(for: departure, isLive: isLive, formatter),
             alertButton: showsAlertButton
                 ? (hasAlert ? String(localized: "button.manage_alert") : String(localized: "button.alert_me"))
-                : nil
+                : nil,
+            showsDirections: directionsStation != nil
         )
     }
 

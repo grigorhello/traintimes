@@ -224,14 +224,16 @@ struct DepartureRig {
     var key: TripKey { TripKey(serviceDay: DepartureRig.day, tripId: DemoRide.tripId) }
 
     /// Trip details on the demo train, as its strip opens it, loaded.
-    func tripDetails() async -> TripDetailsViewModel {
+    /// Directions taps go to `maps`, a fake by default, so no test opens Apple Maps.
+    func tripDetails(maps: any MapsOpening = FakeMapsOpener()) async -> TripDetailsViewModel {
         let model = TripDetailsViewModel(
             route: DemoRide.route,
             key: key,
             repository: StubScheduleRepository(tripList: [], live: .empty, stopList: []),
             clock: clock,
             hasAlert: true,
-            onBoard: onBoard
+            onBoard: onBoard,
+            maps: maps
         )
         await model.load()
         return model

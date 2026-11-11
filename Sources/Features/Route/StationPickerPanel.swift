@@ -178,7 +178,11 @@ struct StationPickerPanel: View {
     }
 
     private func stationRows(_ rows: [RouteFormViewModel.StationRow], idPrefix: String, glyph: Glyph, base: Int) -> some View {
-        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+        // Keyed by group and station: Union Station GO can be under Your stations and All stations at once, and a lazy stack
+        // draws a duplicate id as an empty row (TT-196).
+        ForEach(rows.enumerated().map { KeyedRow(key: idPrefix + $0.element.id, index: $0.offset, row: $0.element) }) { item in
+            let index = item.index
+            let row = item.row
             VStack(alignment: .leading, spacing: 0) {
                 if index > 0 { hairline }
                 stationRow(row, id: idPrefix + row.station.id, glyph: glyph)
@@ -187,6 +191,15 @@ struct StationPickerPanel: View {
             // A row that appears while typing fades in over 150 ms.
             .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
+    }
+
+    /// A station row with its group's id prefix, the key a lazy stack needs to be unique across groups.
+    private struct KeyedRow: Identifiable {
+        let key: String
+        let index: Int
+        let row: RouteFormViewModel.StationRow
+
+        var id: String { key }
     }
 
     /// The glyph in front of a station row: a clock for Your stations, a ring (From) or a pin (To) for the rest.

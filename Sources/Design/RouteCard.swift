@@ -46,6 +46,11 @@ struct RouteCard: View {
     @Environment(\.swapFrozenAt) private var frozenAt
     /// The swap motion in progress, nil at rest.
     @State private var swap = SwapRun()
+    /// Counts the picker opening or closing; the timeline runs for a moment after each (`morphRuns`).
+    @State private var morphs = 0
+    /// The timeline also runs while the swap arrows and the X trade places, so nothing inside the card waits on a paused
+    /// timeline to be redrawn: the turn caught up in jumps 0.9 s and 1.7 s after the tap (TT-196).
+    @State private var morphRuns = false
 
     /// Canvas `.rrow`: 48 pt per station.
     static let rowHeight: CGFloat = 48
@@ -59,8 +64,17 @@ struct RouteCard: View {
 
     var body: some View {
         // Paused (no frames) unless a swap is playing; the poses come from the clock, not from SwiftUI animations.
-        TimelineView(.animation(paused: swap.start == nil)) { context in
+        TimelineView(.animation(paused: swap.start == nil && !morphRuns)) { context in
             card(pose: pose(at: context.date))
+        }
+        .onChange(of: picking != nil) {
+            morphs += 1
+            let run = morphs
+            morphRuns = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.8))
+                if morphs == run { morphRuns = false }
+            }
         }
     }
 

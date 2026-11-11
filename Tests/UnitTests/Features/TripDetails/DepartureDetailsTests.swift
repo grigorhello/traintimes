@@ -198,6 +198,47 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(card.freshness)
     }
 
+    func testTheCountdownStripRanksUnderTheRideAndTrainDetection() {
+        let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
+        let asking = TrainMatcher.State.asking(DetectionFixtures.question())
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle, departs: true), .departure)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle, departs: false), .otherwise)
+        // The phone moving with a train, and a ride, win over the countdown (D68, D69).
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking, departs: true), .checking)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: asking, departs: true), .asking)
+        XCTAssertEqual(RideStripContent(isRiding: true, detection: .idle, departs: true), .riding)
+    }
+
+    func testAHandOffRideThatEndedOnItsOwnLetsARealRideStart() async throws {
+        let day = DepartureRig.day
+        let clock = TestClock(now: DepartureRig.time(17, 10))
+        let app = RideEngine(
+            data: FakeRideData(plan: try OnBoardFixtures.plan()), location: FakeLocation(authorized: true), clock: clock,
+            defaults: nil, tickInterval: nil
+        )
+        let onBoard = OnBoard(
+            app: app,
+            makeDeparture: { DemoDeparture.Session(day: day, clock: clock) },
+            makeHandOff: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) }
+        )
+        onBoard.setDemoDeparture(true)
+        let handedOff = await onBoard.handOffDemo()
+        XCTAssertTrue(handedOff)
+        XCTAssertFalse(onBoard.canStart, "the demo ride stands in for the app's engine while it runs")
+
+        // The demo ride ends by itself, as 10 min after its last stop, not through End ride.
+        onBoard.engine?.end()
+        XCTAssertNil(onBoard.activeRide)
+        XCTAssertTrue(onBoard.canStart)
+
+        // Train detection's Yes (or "I’m on board") on a real train now starts it on the app's engine.
+        let ride = Ride(trip: TripKey(serviceDay: day, tripId: "LW-REAL"), from: "UN", to: "CL")
+        let started = await onBoard.start(ride, on: DemoRide.route)
+        XCTAssertTrue(started)
+        XCTAssertTrue(onBoard.engine === app)
+        XCTAssertEqual(onBoard.activeRide?.tripId, "LW-REAL")
+    }
+
     // MARK: Real trains
 
     /// The fixture route at 7:29 AM: the 7:32 AM and 7:58 AM trains are both in their window.

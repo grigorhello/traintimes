@@ -1,9 +1,11 @@
 import Foundation
 
-/// Settings › Testing › Demo trains › Ride (TT-172, D63): the 5:13 PM Lakeshore West train from Union to Clarkson, played
-/// from 5:32 to 5:43 PM today, so the ride's moments (riding, at a station, your stop next, arriving, at your stop) can be
-/// checked on the simulator with no train. It runs on a ride engine of its own with a clock of its own, six times as fast,
-/// and a location track that keeps to the timetable; it keeps nothing on device and leaves the app's engine alone.
+/// Settings › Testing › Demo trains › Ride (TT-172, D63): the 5:13 PM Lakeshore West train from Union to Clarkson, so the
+/// ride's moments (riding, at a station, your stop next, arriving, at your stop) can be checked on the simulator with no
+/// train. First the question (TT-175, D68): from 5:18:20 PM the phone moves with the train, stops with it at Exhibition and
+/// Mimico, and Schedule asks "On the 5:13 PM train?" as they leave Mimico, twenty times as fast so it comes in about 22 s.
+/// Yes starts the ride from that moment, six times as fast, on a ride engine of its own with a clock of its own and a
+/// location track that keeps to the timetable; it keeps nothing on device and leaves the app's engine alone.
 enum DemoRide {
     static let tripId = "DEMO-LW-1713"
     static let line = Line(id: "LW", name: "Lakeshore West", colorHex: nil)
@@ -11,6 +13,11 @@ enum DemoRide {
     static let startSeconds = 17 * 3600 + 32 * 60
     /// The demo clock runs this many times as fast as the real one: the 11 minutes take under 2.
     static let speed = 6.0
+    /// The question's clock starts here (5:18:20 PM, 40 s before Exhibition) and runs this many times as fast, with a fix
+    /// each `detectInterval`, 5 s on its clock.
+    static let detectStartSeconds = 17 * 3600 + 18 * 60 + 20
+    static let detectSpeed = 20.0
+    static let detectInterval: Duration = .milliseconds(250)
     /// How long the train stands at each station between the two ends.
     static let dwell: TimeInterval = 40
 
@@ -70,19 +77,12 @@ enum DemoRide {
     /// Where the demo train is at `time`, in metres along its track: standing at each station from its arrival to its
     /// departure, and at an even speed between them.
     static func along(at time: Date, plan: RidePlan) -> Double {
-        guard let distances = plan.track?.stopDistances, let lastDistance = distances.last else { return 0 }
-        let stops = plan.stops
-        for index in stops.indices {
-            if time < stops[index].arrival {
-                guard index > 0 else { return distances[0] }
-                let leaves = stops[index - 1].departure
-                let span = stops[index].arrival.timeIntervalSince(leaves)
-                let fraction = span > 0 ? min(max(time.timeIntervalSince(leaves) / span, 0), 1) : 1
-                return distances[index - 1] + (distances[index] - distances[index - 1]) * fraction
-            }
-            if time <= stops[index].departure { return distances[index] }
-        }
-        return lastDistance
+        plan.scheduledAlong(at: time)
+    }
+
+    /// The demo train as the matcher sees it (TT-175).
+    static func candidate(on day: ServiceDay) -> TrainCandidate {
+        TrainCandidate(trip: ride(on: day).tripKey, route: route, plan: plan(on: day))
     }
 
     /// The demo's engine on `day`, read against `clock`. `tickInterval` nil runs no timer and sends one fix, at the start
@@ -99,11 +99,12 @@ enum DemoRide {
         )
     }
 
-    /// The demo as Settings › Testing plays it: today, from 5:32 PM, six times as fast.
+    /// The demo ride as Settings › Testing plays it: today, six times as fast, from `moment` (where the question's Yes
+    /// left the demo clock), else from 5:32 PM.
     @MainActor
-    static func session(startingAt realStart: Date = Date()) -> (engine: RideEngine, ride: Ride) {
-        let day = ServiceDay(calendarDayContaining: realStart)
-        let clock = DemoRideClock(start: day.gtfsTime(startSeconds), realStart: realStart, speed: speed)
+    static func session(startingAt realStart: Date = Date(), from moment: Date? = nil) -> (engine: RideEngine, ride: Ride) {
+        let day = moment.map { ServiceDay(calendarDayContaining: $0) } ?? ServiceDay(calendarDayContaining: realStart)
+        let clock = DemoRideClock(start: moment ?? day.gtfsTime(startSeconds), realStart: realStart, speed: speed)
         return (engine(on: day, clock: clock), ride(on: day))
     }
 
@@ -113,6 +114,51 @@ enum DemoRide {
     static func session(continuing departure: DemoDeparture.Session, realStart: Date = Date()) -> (engine: RideEngine, ride: Ride) {
         let clock = DemoRideClock(start: departure.now, realStart: realStart, speed: speed)
         return (engine(on: departure.day, clock: clock), ride(on: departure.day))
+    }
+
+    /// The question's detector on `day`, read against `clock`: the demo train placed as GO's train feed would place it
+    /// (so it asks as soon as the two stops are shared), and a phone that rides it. It stops once it asks, so the question
+    /// waits for the rider. `tickInterval` nil runs no timer and sends one fix, at the start (tests).
+    @MainActor
+    static func detector(on day: ServiceDay, clock: any AppClock, tickInterval: Duration? = DemoRide.detectInterval) -> TrainDetector {
+        let ridePlan = plan(on: day)
+        return TrainDetector(
+            candidates: DemoCandidates(train: candidate(on: day)),
+            location: DemoLocation(plan: ridePlan, clock: clock, interval: tickInterval),
+            trains: DemoTrainPositions(plan: ridePlan, clock: clock),
+            clock: clock,
+            defaults: nil,
+            tickInterval: tickInterval,
+            feedInterval: 0,
+            watchesWhileAsking: false
+        )
+    }
+
+    /// The question as Settings › Testing plays it: today, from 5:18:20 PM, twenty times as fast.
+    @MainActor
+    static func detector(startingAt realStart: Date = Date()) -> TrainDetector {
+        let day = ServiceDay(calendarDayContaining: realStart)
+        let clock = DemoRideClock(start: day.gtfsTime(detectStartSeconds), realStart: realStart, speed: detectSpeed)
+        return detector(on: day, clock: clock)
+    }
+}
+
+/// The demo question's one train (TT-175).
+struct DemoCandidates: TrainCandidatesProviding {
+    let train: TrainCandidate
+
+    func candidates(on route: Route, at time: Date) async -> [TrainCandidate] { [train] }
+}
+
+/// The demo train where GO's train feed would place it: on its timetable, by the demo clock.
+struct DemoTrainPositions: TrainPositionProviding {
+    let plan: RidePlan
+    let clock: any AppClock
+
+    func position(of trip: TripKey) async -> TrainPosition? {
+        guard trip.tripId == DemoRide.tripId, let shape = plan.track?.shape else { return nil }
+        let now = clock.now
+        return TrainPosition(coordinate: shape.point(at: plan.scheduledAlong(at: now)), reportedAt: now)
     }
 }
 

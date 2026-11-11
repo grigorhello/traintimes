@@ -67,6 +67,7 @@ struct ScheduleView: View {
             .background(TTColor.canvas)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { alertToast }
+            // The cards' bell states ease as before; the toast keeps its words from it (`RisingToast`).
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
             // A light haptic when an alert turns on (TT-141).
@@ -460,40 +461,60 @@ struct ScheduleView: View {
 
     /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
     /// "Alert off", or "Could not save" with Try again; else "Tap the bell on a train" after the Alerts tab's "Add alert".
-    @ViewBuilder private var alertToast: some View {
-        if let bells, bells.toast == nil, bells.showsHint {
-            Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell")
-                .padding(.horizontal, TTSpace.s5)
-                .padding(.bottom, TTSpace.s2)
-        } else if let bells, let toast = bells.toast {
+    /// One toast whose words change in place, so Setting up turns into Alert on without a second toast rising through the
+    /// first. It rises on a spring and drops away as it goes (`RisingToast`, TT-166).
+    private var alertToast: some View {
+        RisingToast(item: toastItem) { item in
             Group {
-                switch toast.kind {
-                case .settingUp:
-                    Toast(message: String(localized: "alert.state.setting_up"), systemImage: "clock", tint: TTColor.inkSecondary)
-                case .on:
-                    Toast(
-                        message: String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
-                        systemImage: "bell.fill",
-                        actionTitle: "alert.repeat"
-                    ) {
-                        if let request = bells.repeatRequest() { onAlertSetup(request) }
-                    }
-                case .off:
-                    Toast(message: String(localized: "alert.toast_off"), systemImage: "bell.slash", tint: TTColor.inkSecondary)
-                case .couldNotSave:
-                    Toast(
-                        message: String(localized: "alert.could_not_save"),
-                        systemImage: "xmark.circle.fill",
-                        tint: TTColor.cancelInk,
-                        actionTitle: "button.try_again"
-                    ) {
-                        tapBell(toast.trip, on: toast.route)
+                switch item {
+                case .hint:
+                    Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell", transition: .identity)
+                case .alert(let toast):
+                    if let bells {
+                        let look = toastLook(toast, bells: bells)
+                        Toast(
+                            message: look.message, systemImage: look.systemImage, tint: look.tint,
+                            actionTitle: look.actionTitle, transition: .identity, action: look.action
+                        )
                     }
                 }
             }
-            .id(toast.id)
             .padding(.horizontal, TTSpace.s5)
             .padding(.bottom, TTSpace.s2)
+        }
+    }
+
+    private enum ToastItem: Equatable {
+        case hint
+        case alert(AlertBellModel.AlertToast)
+    }
+
+    private var toastItem: ToastItem? {
+        guard let bells else { return nil }
+        if let toast = bells.toast { return .alert(toast) }
+        return bells.showsHint ? .hint : nil
+    }
+
+    /// What the alert toast says for each kind: its words, icon, tint and action.
+    private func toastLook(
+        _ toast: AlertBellModel.AlertToast, bells: AlertBellModel
+    ) -> (message: String, systemImage: String, tint: Color, actionTitle: LocalizedStringKey?, action: () -> Void) {
+        switch toast.kind {
+        case .settingUp:
+            return (String(localized: "alert.state.setting_up"), "clock", TTColor.inkSecondary, nil, {})
+        case .on:
+            return (
+                String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
+                "bell.fill", TTColor.accent, "alert.repeat",
+                { if let request = bells.repeatRequest() { onAlertSetup(request) } }
+            )
+        case .off:
+            return (String(localized: "alert.toast_off"), "bell.slash", TTColor.inkSecondary, nil, {})
+        case .couldNotSave:
+            return (
+                String(localized: "alert.could_not_save"), "xmark.circle.fill", TTColor.cancelInk, "button.try_again",
+                { tapBell(toast.trip, on: toast.route) }
+            )
         }
     }
 

@@ -4,8 +4,9 @@ import XCTest
 @testable import TrainTimes
 
 /// The alert setup sheet against design/frames/alert-setup.png, alert-setup-repeat.png and permission-prompt.png, light
-/// and dark: a new This-trip and Repeat alert, Setting up, On (Manage alert), Notifications off and Could not save. The
-/// sheet is drawn at the bottom of the screen on its own; the system draws the grabber and the dimmed timetable.
+/// and dark: a new This-trip and Repeat alert, Setting up, the Enable alerts check (TT-166), On (Manage alert),
+/// Notifications off and Could not save. The sheet is drawn at the bottom of the screen on its own; the system draws the
+/// grabber and the dimmed timetable.
 final class AlertSetupSnapshotTests: XCTestCase {
     @MainActor func testThisTripLight() { snap(model(), .light) }
     @MainActor func testThisTripDark() { snap(model(), .dark) }
@@ -13,8 +14,10 @@ final class AlertSetupSnapshotTests: XCTestCase {
     @MainActor func testRepeatDark() { snap(model(.repeating), .dark) }
     @MainActor func testSettingUpLight() async { await settingUp(.light) }
     @MainActor func testSettingUpDark() async { await settingUp(.dark) }
-    @MainActor func testOnLight() async { snap(await saved(), .light) }
-    @MainActor func testOnDark() async { snap(await saved(), .dark) }
+    @MainActor func testConfirmedLight() async { await confirmed(.light) }
+    @MainActor func testConfirmedDark() async { await confirmed(.dark) }
+    @MainActor func testOnLight() async { snap(await managing(), .light) }
+    @MainActor func testOnDark() async { snap(await managing(), .dark) }
     @MainActor func testNotificationsOffLight() async { snap(await saved(permission: .off), .light) }
     @MainActor func testNotificationsOffDark() async { snap(await saved(permission: .off), .dark) }
     @MainActor func testCouldNotSaveLight() async { snap(await saved(failing: true), .light) }
@@ -35,6 +38,28 @@ final class AlertSetupSnapshotTests: XCTestCase {
         let model = self.model(server: server, permission: permission)
         await model.save()
         return model
+    }
+
+    /// The sheet opened again on an alert that is On: Manage alert. (A new alert that turns On closes the sheet, TT-166.)
+    @MainActor
+    private func managing() async -> AlertSetupViewModel {
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        await AlertSetupViewModel(request: AlertSetupViewModelTests.request(), rules: rules, hold: AlertSetupViewModelTests.noHold).save()
+        return AlertSetupViewModel(request: AlertSetupViewModelTests.request(), rules: rules)
+    }
+
+    /// The check in the Enable alerts button while the sheet holds before it closes (TT-166).
+    @MainActor
+    private func confirmed(_ style: UIUserInterfaceStyle, testName: String = #function) async {
+        let hold = HeldHold()
+        let model = AlertSetupViewModel(
+            request: AlertSetupViewModelTests.request(), rules: AlertFixtures.rules(FakeAlertServer()), hold: { await hold.wait($0) }
+        )
+        let save = Task { await model.save() }
+        await hold.waitUntilHolding()
+        snap(model, style, testName: testName)
+        await hold.release()
+        await save.value
     }
 
     /// "Setting up" while the server holds the save, as behind the permission dialog in permission-prompt.png.

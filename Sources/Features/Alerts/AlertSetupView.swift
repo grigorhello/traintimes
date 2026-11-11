@@ -3,7 +3,8 @@ import SwiftUI
 /// Alert setup sheet (TT-142), after design/frames/alert-setup.png, alert-setup-repeat.png and permission-prompt.png:
 /// title and close, the trip card, This trip | Repeat, the Repeat days, the sentence, then "Enable alerts" (or "Save")
 /// with the footnote, or the rule's state in words once it exists. Notifications off replaces the button with the red
-/// panel and Open Settings. The sheet is as tall as its content, as on the canvas (D41).
+/// panel and Open Settings. The sheet is as tall as its content, as on the canvas (D41). A new alert that turns On pops a
+/// check into the button, holds 0.3 s and closes the sheet (TT-166).
 struct AlertSetupView: View {
     @Bindable var viewModel: AlertSetupViewModel
     /// Delete alert closes the sheet.
@@ -12,6 +13,7 @@ struct AlertSetupView: View {
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var height: CGFloat = 460
 
     /// Canvas `.sheet`: 10 pt padding, the 5 pt grabber and its 16 pt margin, the 16 pt gap and the title row's -8 pt.
@@ -46,6 +48,10 @@ struct AlertSetupView: View {
         .frame(maxWidth: .infinity, alignment: .top)
         // RootView reads it again whenever the app comes back to the foreground (TT-141).
         .task { await viewModel.refresh() }
+        // The check's hold is over: the sheet goes on the system curve (TT-166).
+        .onChange(of: viewModel.isFinished) { _, isFinished in
+            if isFinished { dismiss() }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sheet.alertSetup")
         .presentationDetents([.height(height)])
@@ -119,9 +125,7 @@ struct AlertSetupView: View {
                 .buttonStyle(.ttSecondary)
                 .accessibilityIdentifier("alert.openSettings")
             } else {
-                Button { Task { await viewModel.save() } } label: {
-                    Text(viewModel.buttonTitle).frame(maxWidth: .infinity)
-                }
+                Button { Task { await viewModel.save() } } label: { enableLabel }
                 .buttonStyle(.ttPrimary)
                 .disabled(!viewModel.canSave)
                 .accessibilityIdentifier("alert.enable")
@@ -147,6 +151,29 @@ struct AlertSetupView: View {
                 .accessibilityIdentifier("alert.delete")
             }
         }
+    }
+
+    /// "Enable alerts", or once the new alert is On the check popping in from 0.6 on `TTMotion.confirm` (TT-166, D62); the
+    /// title keeps its place, so the button does not change size. Each property has its own animation beside it: as a
+    /// transition the check lost most of its overshoot, and the title faded in the disabled grey on the green pill.
+    /// Reduce Motion cross-fades.
+    private var enableLabel: some View {
+        let confirmed = viewModel.isConfirmed
+        return ZStack {
+            Text(viewModel.buttonTitle)
+                // Its colour (and the check's) turns with the pill at once, rather than easing from the disabled grey.
+                .transaction { $0.animation = nil }
+                .opacity(confirmed ? 0 : 1)
+                .animation(.easeOut(duration: 0.15), value: confirmed)
+            Image(systemName: "checkmark")
+                .transaction { $0.animation = nil }
+                .scaleEffect(confirmed || reduceMotion ? 1 : 0.6)
+                .animation(TTMotion.confirm, value: confirmed)
+                .opacity(confirmed ? 1 : 0)
+                .animation(reduceMotion ? TTMotion.fade : .easeOut(duration: 0.15), value: confirmed)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     /// Canvas: cancel-fill panel, 12 pt radius, the cancel icon beside "Notifications off" and the sentence.

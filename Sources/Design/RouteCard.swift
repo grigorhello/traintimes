@@ -134,10 +134,11 @@ struct RouteCard: View {
         if let frozenAt { return SwapMotion.pose(at: frozenAt, step: rowStep) }
         guard let start = swap.start else { return SwapMotion.rest }
         var pose = SwapMotion.pose(at: date.timeIntervalSince(start), step: rowStep, carry: swap.carry)
-        // The names move only once the card shows the stations the other way round than at the tap.
+        // Until the card shows the stations the other way round than at the tap (Schedule swaps a moment later, in a task),
+        // each name stays where the tap found it: at rest, or mid-flight on a second tap (the carry, read back).
         if from != swap.to || to != swap.from {
-            pose.from = SwapMotion.NamePose()
-            pose.to = SwapMotion.NamePose()
+            pose.from = swap.carry.to
+            pose.to = swap.carry.from
         }
         return pose
     }
@@ -192,7 +193,7 @@ struct RouteCard: View {
             if pose.pill > 0 {
                 RoundedRectangle(cornerRadius: Self.pillRadius)
                     .fill(TTColor.surfaceRaised)
-                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.14), radius: 7, x: 0, y: 6)
+                    .shadow(color: colorScheme == .dark ? .black.opacity(0.5) : TTColor.ink.opacity(0.14), radius: 7, x: 0, y: 6)
                     .opacity(pose.pill)
                     .padding(EdgeInsets(top: -2, leading: -Self.pillInset, bottom: -2, trailing: -Self.pillInset))
             }

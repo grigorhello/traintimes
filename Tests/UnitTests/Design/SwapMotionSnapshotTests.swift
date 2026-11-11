@@ -28,7 +28,10 @@ final class SwapMotionSnapshotTests: XCTestCase {
         .padding(TTSpace.s5)
         .frame(maxWidth: .infinity)
         .background(TTColor.canvas)
-        let traits = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: style), UITraitCollection(displayScale: 3)])
+        let traits = UITraitCollection { traits in
+            traits.userInterfaceStyle = style
+            traits.displayScale = 3
+        }
         assertSnapshot(
             of: view,
             as: .image(perceptualPrecision: 0.98, layout: .fixed(width: 402, height: 176), traits: traits),

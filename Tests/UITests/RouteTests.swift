@@ -104,9 +104,9 @@ final class RouteTests: XCTestCase {
         requireGone(panel(app), "stations.panel", in: app)
     }
 
-    /// Acceptance (TT-165): the swap button swaps the route at the tap, the names trade places and the button is hittable
-    /// again once the motion is over; a second swap puts them back. The motion itself is checked by the unit tests and the
-    /// key-frame snapshots.
+    /// Acceptance (TT-165): the swap button swaps the route at the tap, the names trade places and the button stays
+    /// hittable through the motion, so a second tap (which may land while the first motion still plays) swaps them back.
+    /// The motion itself is checked by the unit tests and the key-frame snapshots.
     @MainActor
     func testSwapTradesTheStationsAndTheButtonIsReadyAgain() {
         let app = XCUIApplication.onFixtures()

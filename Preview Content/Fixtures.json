@@ -21,31 +21,45 @@
   "stops": [
     {
       "id": "OA",
-      "minutes": 0
+      "minutes": 0,
+      "lat": 43.455594,
+      "lon": -79.682242
     },
     {
       "id": "CL",
-      "minutes": 8
+      "minutes": 8,
+      "lat": 43.513127,
+      "lon": -79.633206
     },
     {
       "id": "PO",
-      "minutes": 14
+      "minutes": 14,
+      "lat": 43.555999,
+      "lon": -79.586881
     },
     {
       "id": "LO",
-      "minutes": 20
+      "minutes": 20,
+      "lat": 43.591317,
+      "lon": -79.546149
     },
     {
       "id": "MO",
-      "minutes": 25
+      "minutes": 25,
+      "lat": 43.616411,
+      "lon": -79.497762
     },
     {
       "id": "EX",
-      "minutes": 32
+      "minutes": 32,
+      "lat": 43.635549,
+      "lon": -79.418927
     },
     {
       "id": "UN",
-      "minutes": 40
+      "minutes": 40,
+      "lat": 43.645195,
+      "lon": -79.3806
     }
   ],
   "trains": [

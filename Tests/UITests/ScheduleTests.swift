@@ -98,6 +98,7 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(last.waitForExistence(timeout: 5))
         let alert = app.buttons["trip.alert"]
         XCTAssertTrue(alert.exists)
+        XCTAssertTrue(app.buttons["trip.directions"].exists, "Directions to Oakville GO before the train leaves (TT-188)")
 
         // The whole list is reachable: scroll to the last stop, which then sits above the floating button (TT-163).
         if !last.isHittable { sheet.swipeUp() }

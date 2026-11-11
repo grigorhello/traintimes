@@ -242,6 +242,6 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertEqual(ArrivingHaptics.atYourStop.events.count, 1)
         XCTAssertEqual(ArrivingHaptics.atYourStop.events.first?.kind, .transient)
         XCTAssertNil(ArrivingHaptics.atYourStop.fade)
-        XCTAssertNoThrow(try ArrivingHaptics.pattern(.atYourStop))
+        XCTAssertNoThrow(try ArrivingHaptics.pattern(ArrivingHaptics.atYourStop))
     }
 }

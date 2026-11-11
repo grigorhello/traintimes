@@ -300,15 +300,21 @@ final class TripDetailsViewModel {
     @discardableResult
     func startRide() async -> Bool {
         guard let onBoard else { return false }
+        // Set before the ride starts: the sheet shows the ride as soon as it runs, which can be before the start returns.
+        ridesInPlace = liveDeparture != nil
         let started: Bool
         if demoDeparture != nil {
             started = await onBoard.handOffDemo()
         } else {
             started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
         }
-        if started { followsRide = true }
+        if started { followsRide = true } else { ridesInPlace = false }
         return started
     }
+
+    /// "I'm on board" was tapped on the departure card (TT-177, D69): the ride takes the card's place in the same update,
+    /// drawn at rest. Its rows rise only when the sheet opens on a ride or starts one from the journey card.
+    private(set) var ridesInPlace = false
 
     // MARK: Before departure (TT-177)
 

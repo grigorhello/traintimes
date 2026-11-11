@@ -118,6 +118,7 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(model.departureDetails(formatter))
         XCTAssertNotNil(model.rideDetails(formatter))
         XCTAssertFalse(model.showsOnBoardButton)
+        XCTAssertTrue(model.ridesInPlace, "the ride takes the card's place at rest, with no rise")
         XCTAssertNotNil(rig.onBoard.departureDemo, "the departure keeps playing under the ride")
     }
 

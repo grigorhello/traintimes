@@ -22,6 +22,31 @@ struct FakeNotificationPermission: NotificationPermissionProviding {
     func current() async -> NotificationPermission { value }
 }
 
+/// A permission a test changes, as the rider does in iOS Settings, whose dialog answers `answer` and counts each time it
+/// is shown (TT-190).
+actor SettableNotificationPermission: NotificationPermissionProviding {
+    private var value: NotificationPermission
+    private let answer: NotificationPermission
+    private(set) var requests = 0
+
+    init(_ value: NotificationPermission, answer: NotificationPermission = .off) {
+        self.value = value
+        self.answer = answer
+    }
+
+    func set(_ value: NotificationPermission) {
+        self.value = value
+    }
+
+    func current() -> NotificationPermission { value }
+
+    func request() -> NotificationPermission {
+        requests += 1
+        if value == .notAsked { value = answer }
+        return value
+    }
+}
+
 /// A clock a test moves forward by hand, for the Schedule minute tick.
 /// `@unchecked Sendable` is safe: `value` is only read and written while holding `lock`.
 final class TestClock: AppClock, @unchecked Sendable {
@@ -54,6 +79,8 @@ actor FakeAlertServer: AlertServer {
     private(set) var deleted: [String] = []
     /// What `GET …/rules` answers (TT-143).
     private(set) var statuses: [AlertRuleStatus] = []
+    /// Live Activity reports (TT-178).
+    private(set) var activityReports: [LiveActivityReport] = []
     private var failing = false
     private var holding = false
     private var holdingDeletes = false
@@ -103,6 +130,15 @@ actor FakeAlertServer: AlertServer {
             throw AlertServerError.unknownInstallation
         }
         return statuses
+    }
+
+    func report(_ activity: LiveActivityReport, installation: String) async throws {
+        if failing { throw URLError(.cannotFindHost) }
+        if unknownInstallationOnce {
+            unknownInstallationOnce = false
+            throw AlertServerError.unknownInstallation
+        }
+        activityReports.append(activity)
     }
 
     /// Waits until a save or a delete is held.

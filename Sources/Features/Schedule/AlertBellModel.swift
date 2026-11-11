@@ -1,9 +1,15 @@
 import Foundation
 import Observation
+import UIKit
 
-/// The one-tap bell on each card and its glass capsule (TT-141, TT-191). With notifications allowed, a tap turns the card's
-/// alert on; once it is saved the bell fills and the capsule says "Alert on · 7:32 AM" with Repeat. A second tap turns it
-/// off ("Alert off · 7:32 AM" with Undo). Without permission, the tap opens the alert setup sheet instead (TT-142).
+/// The one-tap bell on each card and its glass capsule (TT-141, TT-191). A tap turns the card's alert on: the bell pops and
+/// waits at half strength while the server stores it, then goes solid and the capsule says "Alert on · 7:32 AM" with Repeat.
+/// A second tap turns it off ("Alert off · 7:32 AM" with Undo).
+///
+/// Permission from the bell (TT-190, D72): the first tap ever is the request, with no sheet of ours first. The bell holds
+/// while iOS asks; Allow turns the alert on, Don't Allow saves nothing. With notifications off a tap saves nothing either:
+/// the bell shakes and the capsule says "Notifications are off · Turn on", whose Turn on opens the app's page in iOS
+/// Settings; back with notifications on, the bell that was tapped turns on.
 ///
 /// One alert per card (TT-189, D70): the bell shows and changes the alert that covers its train on that day
 /// (`AlertRules.alert(for:on:)`), so a repeating alert fills the bell on each of its days, and a tap never adds a second one.
@@ -14,13 +20,9 @@ import Observation
 /// capsule into the day panel, where every tile saves by itself.
 @Observable @MainActor
 final class AlertBellModel {
-    enum Bell {
-        case off
-        /// The server has not confirmed the rule yet: the bell stays outlined and dimmed, and taps do nothing.
-        case settingUp
-        /// Filled in accent: the server stored the rule, the token is registered and notifications are allowed.
-        case on
-    }
+    /// The bell's faces (`BellFace`, TT-190): outline, the hold while iOS asks, waiting at half strength while the alert is
+    /// saved (taps do nothing), filled, and crossed while notifications are off (a tap explains, never deletes).
+    typealias Bell = BellFace
 
     /// The glass capsule above the tab bar (TT-191, D71). One at a time: a new one takes the last one's place, its words
     /// cross-fading in, and restarts the time, 5 s with an action and 2.5 s without. Repeat grows it into the day panel,
@@ -33,7 +35,8 @@ final class AlertBellModel {
             case off
             /// "Couldn't turn alert on", "Couldn't change days" or "Couldn't turn alert off", with Try again.
             case failed(Failure)
-            /// "Notifications are off" with Turn on, which opens the app's page in iOS Settings (TT-190 shows it).
+            /// "Notifications are off" with Turn on, which opens the app's page in iOS Settings: a bell tapped after Don't
+            /// Allow, or with notifications off (TT-190).
             case notificationsOff
             /// "Notifications are on", with the tick, once they are back on (TT-190 shows it).
             case notificationsOn
@@ -70,12 +73,29 @@ final class AlertBellModel {
         }
     }
 
+    /// The app's page in the Settings app, where notifications are turned back on (the capsule's Turn on).
+    static let notificationSettingsURL = URL(string: UIApplication.openNotificationSettingsURLString)!
+
     let rules: AlertRules
     private(set) var capsule: Capsule?
     /// Counts alerts turned on, for the light haptic.
     private(set) var enabledCount = 0
     /// Counts day tiles lit in the panel, for the selection haptic.
     private(set) var dayOnCount = 0
+    /// Counts refusals (notifications off, or a save that failed), for the warning haptic (TT-190).
+    private(set) var refusedCount = 0
+    /// The train whose bell asked iOS, while the dialog is up (TT-190).
+    private(set) var asking: TripKey?
+    /// The train whose alert is being saved after its tap: its bell waits, also before the save is in flight.
+    private var saving: TripKey?
+    /// Each train's refusals: its bell shakes on each one (TT-190).
+    private var shakeCounts: [TripKey: Int] = [:]
+    /// The bell whose capsule's Turn on went to iOS Settings: it turns on when the app is back with notifications on.
+    @ObservationIgnored private var turnsOnWhenBack: (trip: Trip, route: Route)?
+    /// Between the bell's shake and the capsule that explains it (the Motion board's Refused: 120 ms).
+    private let refusalDelay: Duration
+    /// After iOS's answer: until the app is active again and 0.15 s more, so the pop or the shake is seen (TT-190).
+    private let afterPrompt: @MainActor () async -> Void
     private let actionDuration: Duration
     private let plainDuration: Duration
     private let hintDuration: Duration
@@ -107,36 +127,48 @@ final class AlertBellModel {
         let route: Route
     }
 
-    /// A capsule with an action shows for 5 s, one without for 2.5 s (TT-191); the hint for 5 s.
+    /// A capsule with an action shows for 5 s, one without for 2.5 s (TT-191); the hint for 5 s. Tests pass no
+    /// `refusalDelay` and an `afterPrompt` that returns at once (TT-190).
     init(
         rules: AlertRules, actionDuration: Duration = .seconds(5), plainDuration: Duration = .milliseconds(2500),
-        hintDuration: Duration = .seconds(5)
+        hintDuration: Duration = .seconds(5), refusalDelay: Duration = .milliseconds(120),
+        afterPrompt: @escaping @MainActor () async -> Void = AlertBellModel.waitUntilActive
     ) {
         self.rules = rules
         self.actionDuration = actionDuration
         self.plainDuration = plainDuration
         self.hintDuration = hintDuration
+        self.refusalDelay = refusalDelay
+        self.afterPrompt = afterPrompt
     }
 
-    /// The card's alert (TT-189). A rule paused on the Alerts tab (TT-143) or by the bell sends nothing, so its bell is outlined.
+    /// The card's face (TT-189, TT-190). A rule paused on the Alerts tab (TT-143) or by the bell sends nothing, so its bell
+    /// is outlined; one that is switched on but cannot reach the rider is crossed.
     func bell(for trip: Trip, on route: Route) -> Bell {
+        if asking == trip.key { return .asking }
+        if saving == trip.key { return .waiting }
         guard let rule = rules.alert(for: trip, on: route), !rule.paused else { return .off }
         return switch rules.state(of: rule) {
         case .on: .on
         // A day change from the panel keeps the bell on while it saves: the alert was on before and stays on (or goes
         // back to what was saved, still on).
-        case .settingUp: wanted?.ruleID == rule.id ? .on : .settingUp
-        case .notificationsOff, .couldNotSave, .reviewNeeded: .off
+        case .settingUp: wanted?.ruleID == rule.id ? .on : .waiting
+        case .notificationsOff: .crossed
+        case .couldNotSave, .reviewNeeded: .off
         }
+    }
+
+    /// How many times this train's bell has shaken: it shakes again each time the number grows.
+    func shakes(for trip: Trip) -> Int {
+        shakeCounts[trip.key] ?? 0
     }
 
     /// Turns the card's alert off or on (TT-189): an alert that is on goes off (a one-day alert is deleted, a repeating one
     /// is switched off and keeps its days); one that is off, paused or not saved is switched on again. With no alert on
     /// the card, a repeating alert for the same usual train takes this day too, else a new This-trip alert is made. A bell
-    /// tapped while the day panel is open closes it first. Returns the alert setup sheet to open when notifications are not
-    /// allowed yet: on the first tap ever, or after the rider turned them off.
-    func tap(_ trip: Trip, on route: Route) async -> AlertSetupRequest? {
-        guard !busy.contains(trip.key) else { return nil }
+    /// tapped while the day panel is open closes it first. Turning on asks for permission first (`mayAlert`, TT-190).
+    func tap(_ trip: Trip, on route: Route) async {
+        guard !busy.contains(trip.key) else { return }
         busy.insert(trip.key)
         defer { busy.remove(trip.key) }
         closePanel()
@@ -148,22 +180,65 @@ final class AlertBellModel {
         if let existing {
             switch rules.state(of: existing) {
             case .settingUp:
-                return nil
+                return
             case .on where !existing.paused:
                 await turnOff(existing, trip: trip, route: route)
-                return nil
+                return
             case .on, .notificationsOff, .couldNotSave, .reviewNeeded:
                 break
             }
         }
-        await rules.refreshPermission()
-        guard rules.permission == .allowed else {
-            return AlertSetupRequest(route: route, trip: trip, kind: existing?.kind ?? .thisTrip)
-        }
-        var rule = existing ?? newAlert(for: trip, on: route)
+        guard await mayAlert(trip, on: route) else { return }
+        // Again after the wait for permission: the alert may have changed meanwhile.
+        var rule = rules.alert(for: trip, on: route) ?? newAlert(for: trip, on: route)
         rule.paused = false
         await turnOn(rule, trip: trip, route: route)
-        return nil
+    }
+
+    /// The permission rule (TT-190, D72), in this model so Trip details reuses it (TT-192): true while notifications are
+    /// allowed. Not asked yet, iOS asks now, the train's bell holding until the app is active again. Refused, now or
+    /// before, nothing is saved: the bell shakes with the warning haptic and the capsule follows. A caller that gets true
+    /// saves at once, in the same turn of the main actor, so the hold runs straight into the bell's wait.
+    func mayAlert(_ trip: Trip, on route: Route) async -> Bool {
+        await rules.refreshPermission()
+        if rules.permission == .notAsked {
+            asking = trip.key
+            await rules.requestPermission()
+            await afterPrompt()
+            asking = nil
+        }
+        guard rules.permission == .allowed else {
+            await refuse(.notificationsOff, trip: trip, route: route)
+            return false
+        }
+        return true
+    }
+
+    /// The capsule's Turn on: the capsule goes and the bell is remembered, so it turns on when the rider comes back from
+    /// iOS Settings with notifications on (`cameBack()`). The view opens `notificationSettingsURL`.
+    func turnOnInSettings() {
+        guard let capsule, capsule.kind == .notificationsOff else { return }
+        if let trip = capsule.trip, let route = capsule.route { turnsOnWhenBack = (trip, route) }
+        dismissCapsule()
+    }
+
+    /// The app is active again: the bell whose Turn on went to iOS Settings turns on if notifications are now on, and is
+    /// forgotten either way. RootView calls it on every return to the foreground.
+    func cameBack() async {
+        guard let back = turnsOnWhenBack else { return }
+        turnsOnWhenBack = nil
+        await rules.refreshPermission()
+        guard rules.permission == .allowed, bell(for: back.trip, on: back.route) == .off else { return }
+        await tap(back.trip, on: back.route)
+    }
+
+    /// Waits until the app is active again after the iOS dialog, then 0.15 s, so the bell finishes where the rider sees it
+    /// (the Motion board's First tap ever).
+    static func waitUntilActive() async {
+        while UIApplication.shared.applicationState != .active {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        try? await Task.sleep(for: .milliseconds(150))
     }
 
     // MARK: The capsule's actions
@@ -216,17 +291,17 @@ final class AlertBellModel {
         await turnOn(back, trip: trip, route: route)
     }
 
-    /// Try again on "Couldn't …": the same change once more. Returns the setup sheet when turning on needs permission.
-    func tryAgain() async -> AlertSetupRequest? {
-        guard let retry else { return nil }
+    /// Try again on "Couldn't …": the same change once more.
+    func tryAgain() async {
+        guard let retry else { return }
         self.retry = nil
         switch retry {
         case let .turnOn(trip, route):
-            guard !isWorking(trip, on: route) else { return dismiss() }
-            return await tap(trip, on: route)
+            guard !isWorking(trip, on: route) else { return dismissCapsule() }
+            await tap(trip, on: route)
         case let .turnOff(trip, route):
-            guard isWorking(trip, on: route) else { return dismiss() }
-            return await tap(trip, on: route)
+            guard isWorking(trip, on: route) else { return dismissCapsule() }
+            await tap(trip, on: route)
         case let .changeDays(days, ruleID, trip, route):
             hideTask?.cancel()
             let shown = capsule?.id
@@ -234,13 +309,12 @@ final class AlertBellModel {
             want(days, ruleID: ruleID, trip: trip, route: route)
             if let saving = daySaving { await saving.value }
             // Something newer took the capsule's place meanwhile (a failure that came back says so itself): leave it.
-            guard capsule?.id == shown else { return nil }
+            guard capsule?.id == shown else { return }
             guard let rule = rules.rules.first(where: { $0.id == ruleID }), Self.rule(rule, has: days, for: trip) else {
                 // The alert went or changed elsewhere meanwhile: nothing left to try again.
-                return dismiss()
+                return dismissCapsule()
             }
             show(.on, trip: trip, route: route, repeats: rule.kind == .repeating ? rule.weekdays : [])
-            return nil
         }
     }
 
@@ -254,7 +328,7 @@ final class AlertBellModel {
         }
     }
 
-    /// "Notifications are off" with Turn on, or "Notifications are on" (TT-190 decides when).
+    /// "Notifications are off" with Turn on, or "Notifications are on", with no train.
     func showNotifications(on: Bool) {
         show(on ? .notificationsOn : .notificationsOff, trip: nil, route: nil)
     }
@@ -282,11 +356,20 @@ final class AlertBellModel {
         return usual
     }
 
-    /// Saves the alert switched on. A capsule already up stays through the wait, then the new one takes its place.
+    /// Saves the alert switched on, the bell waiting at half strength until the server has it. A capsule already up stays
+    /// through the wait, then the new one takes its place. A save that fails shakes the bell (TT-190).
     private func turnOn(_ rule: AlertRule, trip: Trip, route: Route) async {
         hideTask?.cancel()
-        guard await rules.commit(rule) else {
-            show(.failed(.turnOn), trip: trip, route: route, retry: .turnOn(trip, route))
+        saving = trip.key
+        let committed = await rules.commit(rule)
+        saving = nil
+        guard committed else {
+            await refuse(.failed(.turnOn), trip: trip, route: route, retry: .turnOn(trip, route))
+            return
+        }
+        if let alert = rules.alert(for: trip, on: route), !alert.paused, rules.state(of: alert) == .notificationsOff {
+            // Turned off in iOS Settings while it saved.
+            await refuse(.notificationsOff, trip: trip, route: route)
             return
         }
         guard let saved = rules.alert(for: trip, on: route), !saved.paused, rules.state(of: saved) == .on else {
@@ -325,9 +408,13 @@ final class AlertBellModel {
         return !alert.paused && rules.state(of: alert) == .on
     }
 
-    private func dismiss() -> AlertSetupRequest? {
+    /// The bell shakes with the warning haptic and the capsule says why 120 ms later (the Motion board's Refused).
+    private func refuse(_ kind: Capsule.Kind, trip: Trip, route: Route, retry: Retry? = nil) async {
+        shakeCounts[trip.key, default: 0] += 1
+        refusedCount += 1
         dismissCapsule()
-        return nil
+        if refusalDelay > .zero { try? await Task.sleep(for: refusalDelay) }
+        show(kind, trip: trip, route: route, retry: retry)
     }
 
     // MARK: Days

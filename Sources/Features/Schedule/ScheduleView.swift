@@ -18,7 +18,7 @@ struct ScheduleView: View {
     var onOpenLineNotice: () -> Void = {}
     /// The one-tap bells and their glass capsule (TT-141, TT-191); nil shows outlined bells that do nothing.
     var bells: AlertBellModel?
-    /// The alert setup sheet (TT-142): a bell tapped before notifications are allowed.
+    /// The alert setup sheet (TT-142). The bell asks for permission itself (TT-190) and Repeat opens the day panel (TT-191).
     var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
     /// On board (TT-172): the ride strip under the day strip while a ride runs; nil shows none.
     var onBoard: OnBoard?
@@ -86,8 +86,10 @@ struct ScheduleView: View {
             .simultaneousGesture(TapGesture().onEnded { bells?.closePanel() }, including: isPanelOpen ? .all : .subviews)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { capsuleLayer }
-            // A light haptic when an alert turns on (TT-141), the selection haptic when a day tile lights (TT-191).
+            // A light haptic when an alert turns on (TT-141), the warning one when a bell is refused (TT-190), the selection
+            // haptic when a day tile lights (TT-191).
             .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
+            .sensoryFeedback(.warning, trigger: bells?.refusedCount ?? 0)
             .sensoryFeedback(.selection, trigger: bells?.dayOnCount ?? 0)
             .onDisappear { bells?.closePanel() }
             .toolbar(.hidden, for: .navigationBar)
@@ -497,8 +499,8 @@ struct ScheduleView: View {
                     ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
                 case .timeline:
                     ScheduleTimeline(
-                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:),
-                        cascade: cascade, motion: motion
+                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
+                        onBell: tapBell(_:), cascade: cascade, motion: motion
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
@@ -560,6 +562,11 @@ struct ScheduleView: View {
         return bells.bell(for: train.trip, on: train.route)
     }
 
+    private func shakes(for id: TripKey) -> Int {
+        guard let bells, let train = train(id) else { return 0 }
+        return bells.shakes(for: train.trip)
+    }
+
     private func tapBell(_ id: TripKey) {
         guard let train = train(id) else { return }
         tapBell(train.trip, on: train.route)
@@ -567,9 +574,7 @@ struct ScheduleView: View {
 
     private func tapBell(_ trip: Trip, on route: Route) {
         guard let bells else { return }
-        Task {
-            if let request = await bells.tap(trip, on: route) { onAlertSetup(request) }
-        }
+        Task { await bells.tap(trip, on: route) }
     }
 
     private var isPanelOpen: Bool { bells?.capsule?.isPanelOpen ?? false }
@@ -628,12 +633,11 @@ struct ScheduleView: View {
         case .off:
             Task { await bells.undo() }
         case .failed:
-            Task {
-                if let request = await bells.tryAgain() { onAlertSetup(request) }
-            }
+            Task { await bells.tryAgain() }
         case .notificationsOff:
-            bells.dismissCapsule()
-            openURL(AlertSetupViewModel.notificationSettingsURL)
+            // Back with notifications on, the bell that was tapped turns on (TT-190).
+            bells.turnOnInSettings()
+            openURL(AlertBellModel.notificationSettingsURL)
         case .notificationsOn, .hint:
             break
         }

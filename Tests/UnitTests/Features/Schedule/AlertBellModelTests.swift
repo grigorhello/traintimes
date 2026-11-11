@@ -2,8 +2,9 @@ import XCTest
 @testable import TrainTimes
 
 /// The one-tap bell (TT-141) and its glass capsule (TT-191): a tap turns the alert on with Repeat, a second turns it off
-/// with Undo; without permission it opens the setup sheet; repeated taps send one request; nothing is half-kept when the
-/// server cannot be reached; Repeat grows the capsule into the day panel, where each tile saves by itself.
+/// with Undo; repeated taps send one request; nothing is half-kept when the server cannot be reached; Repeat grows the
+/// capsule into the day panel, where each tile saves by itself. Permission from the bell (TT-190): the first tap asks iOS,
+/// a refusal saves nothing and explains, and Turn on brings the tapped bell back on.
 @MainActor
 final class AlertBellModelTests: XCTestCase {
     private let route = AlertFixtures.route
@@ -15,8 +16,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let bells = AlertBellModel(rules: AlertFixtures.rules(server))
 
-        let request = await bells.tap(trip, on: route)
-        XCTAssertNil(request)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
         XCTAssertEqual(bells.capsule?.kind, .on)
         XCTAssertEqual(bells.capsule?.actionKey, "alert.repeat")
@@ -24,7 +24,7 @@ final class AlertBellModelTests: XCTestCase {
         let saved = await server.saved
         XCTAssertEqual(saved.map(\.kind), [.thisTrip])
 
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.bell(for: trip, on: route), .off)
         XCTAssertEqual(bells.capsule?.kind, .off)
         XCTAssertEqual(bells.capsule?.actionKey, "button.undo")
@@ -37,13 +37,13 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         var rule = try XCTUnwrap(rules.alert(for: trip, on: route))
         rule.paused = true
         await rules.save(rule)
         XCTAssertEqual(bells.bell(for: trip, on: route), .off)
 
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
         XCTAssertEqual(bells.capsule?.kind, .on)
         XCTAssertEqual(rules.rules.map(\.id), [rule.id], "the same rule, not deleted")
@@ -52,20 +52,98 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertTrue(deleted.isEmpty)
     }
 
-    func testWithoutPermissionTheTapOpensTheSetupSheet() async {
-        for permission in [NotificationPermission.notAsked, .off] {
-            let server = FakeAlertServer()
-            let bells = AlertBellModel(rules: AlertFixtures.rules(server, permission: permission))
+    /// The first tap ever is the request: the bell holds while iOS asks, and Allow turns the alert on.
+    func testTheFirstTapAsksIOSAndAllowTurnsTheAlertOn() async {
+        let server = FakeAlertServer()
+        let permission = SettableNotificationPermission(.notAsked, answer: .allowed)
+        let rules = AlertRules(server: server, push: FixturePushRegistration(), permissions: permission, defaults: nil)
+        let seen = FaceRecorder(trip: trip, route: route)
+        let bells = AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: { seen.record() })
+        seen.bells = bells
 
-            let request = await bells.tap(trip, on: route)
-            XCTAssertEqual(request, AlertSetupRequest(route: route, trip: trip, kind: .thisTrip))
-            XCTAssertNil(bells.capsule)
-            let saved = await server.saved
-            XCTAssertEqual(saved, [])
-        }
+        await bells.tap(trip, on: route)
+
+        XCTAssertEqual(seen.faces, [.asking], "the bell holds while iOS asks")
+        let asked = await permission.requests
+        XCTAssertEqual(asked, 1)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+        XCTAssertEqual(bells.capsule?.kind, .on)
+        XCTAssertEqual(bells.enabledCount, 1)
+        XCTAssertEqual(bells.shakes(for: trip), 0)
+        let saved = await server.saved
+        XCTAssertEqual(saved.count, 1)
     }
 
-    /// While the server has not answered the bell is Setting up and no capsule shows; repeated taps send nothing more.
+    /// Don't Allow saves nothing: the bell stays an outline and shakes, the warning haptic plays, and the capsule says
+    /// Notifications are off with Turn on. A later tap does not ask again: it explains again.
+    func testDontAllowSavesNothingTheBellShakesAndTheCapsuleExplains() async {
+        let server = FakeAlertServer()
+        let permission = SettableNotificationPermission(.notAsked, answer: .off)
+        let rules = AlertRules(server: server, push: FixturePushRegistration(), permissions: permission, defaults: nil)
+        let bells = AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: {})
+
+        await bells.tap(trip, on: route)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off)
+        XCTAssertEqual(bells.shakes(for: trip), 1)
+        XCTAssertEqual(bells.refusedCount, 1)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOff)
+        XCTAssertTrue(rules.rules.isEmpty)
+
+        await bells.tap(trip, on: route)
+        let asked = await permission.requests
+        XCTAssertEqual(asked, 1, "iOS asks once")
+        XCTAssertEqual(bells.shakes(for: trip), 2)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOff)
+        XCTAssertEqual(bells.enabledCount, 0)
+        let saved = await server.saved
+        XCTAssertEqual(saved, [])
+    }
+
+    /// With notifications off a tap makes no alert; Turn on remembers the bell, and back with notifications on it turns on.
+    func testTurnOnInSettingsTurnsTheTappedBellOnWhenBackAllowed() async {
+        let server = FakeAlertServer()
+        let permission = SettableNotificationPermission(.off)
+        let rules = AlertRules(server: server, push: FixturePushRegistration(), permissions: permission, defaults: nil)
+        let bells = AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: {})
+        let other = AlertFixtures.trip("LW-0758-20261105")
+
+        await bells.tap(trip, on: route)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOff)
+        bells.turnOnInSettings()
+        XCTAssertNil(bells.capsule)
+
+        await permission.set(.allowed)
+        await bells.cameBack()
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+        XCTAssertEqual(bells.bell(for: other, on: route), .off)
+        XCTAssertEqual(bells.capsule?.kind, .on)
+        XCTAssertEqual(rules.rules.count, 1)
+
+        // Once only: a later return does nothing more.
+        await bells.tap(trip, on: route)
+        await bells.cameBack()
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off)
+    }
+
+    /// Back from iOS Settings still off: nothing is saved, and the bell is forgotten.
+    func testComingBackWithNotificationsStillOffSavesNothing() async {
+        let server = FakeAlertServer()
+        let permission = SettableNotificationPermission(.off)
+        let rules = AlertRules(server: server, push: FixturePushRegistration(), permissions: permission, defaults: nil)
+        let bells = AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: {})
+
+        await bells.tap(trip, on: route)
+        bells.turnOnInSettings()
+        await bells.cameBack()
+        XCTAssertTrue(rules.rules.isEmpty)
+
+        await permission.set(.allowed)
+        await bells.cameBack()
+        XCTAssertTrue(rules.rules.isEmpty, "forgotten after the first return")
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off)
+    }
+
+    /// While the server has not answered the bell waits at half strength and no capsule shows; repeated taps send nothing more.
     func testRepeatedTapsSendOneRequest() async {
         let server = FakeAlertServer()
         await server.holdSaves()
@@ -73,10 +151,10 @@ final class AlertBellModelTests: XCTestCase {
 
         let first = Task { await bells.tap(trip, on: route) }
         await server.waitUntilHolding()
-        XCTAssertEqual(bells.bell(for: trip, on: route), .settingUp)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .waiting)
         XCTAssertNil(bells.capsule)
-        _ = await bells.tap(trip, on: route)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         await server.release()
         _ = await first.value
 
@@ -90,18 +168,19 @@ final class AlertBellModelTests: XCTestCase {
     func testAFailedNewAlertLeavesNoAlertAndTryAgainSavesIt() async {
         let server = FakeAlertServer()
         await server.setFailing(true)
-        let bells = AlertBellModel(rules: AlertFixtures.rules(server))
+        let bells = AlertBellModel(rules: AlertFixtures.rules(server), refusalDelay: .zero)
 
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.capsule?.kind, .failed(.turnOn))
+        XCTAssertEqual(bells.shakes(for: trip), 1, "the outline bell shakes (TT-190)")
+        XCTAssertEqual(bells.refusedCount, 1)
         XCTAssertEqual(bells.capsule?.actionKey, "button.try_again")
         XCTAssertEqual(bells.bell(for: trip, on: route), .off)
         XCTAssertEqual(bells.rules.rules, [], "no alert kept as Could not save")
         XCTAssertEqual(bells.enabledCount, 0)
 
         await server.setFailing(false)
-        let request = await bells.tryAgain()
-        XCTAssertNil(request)
+        await bells.tryAgain()
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
         XCTAssertEqual(bells.rules.rules.count, 1)
         XCTAssertEqual(bells.capsule?.kind, .on)
@@ -113,7 +192,7 @@ final class AlertBellModelTests: XCTestCase {
     func testRepeatMakesTheSameAlertRepeatMonToFriAndOpensThePanel() async throws {
         let rules = AlertFixtures.rules(FakeAlertServer())
         let bells = AlertBellModel(rules: rules, actionDuration: .milliseconds(50))
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         let id = try XCTUnwrap(rules.rules.first?.id)
 
         bells.repeatTapped()
@@ -134,7 +213,7 @@ final class AlertBellModelTests: XCTestCase {
     func testRepeatOnAWeekendTrainStartsWithThatDay() async {
         let rules = AlertFixtures.rules(FakeAlertServer())
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(saturday, on: route)
+        await bells.tap(saturday, on: route)
 
         bells.repeatTapped()
         XCTAssertEqual(bells.capsule?.panelDays, [6])
@@ -146,7 +225,7 @@ final class AlertBellModelTests: XCTestCase {
     func testEachTileSavesByItselfAndNoDayLitMakesItAOneDayAlert() async throws {
         let rules = AlertFixtures.rules(FakeAlertServer())
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(saturday, on: route)
+        await bells.tap(saturday, on: route)
         let id = try XCTUnwrap(rules.rules.first?.id)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [6] }
@@ -172,7 +251,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
 
@@ -184,7 +263,7 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(bells.bell(for: trip, on: route), .on, "the saved alert still works")
 
         await server.setFailing(false)
-        _ = await bells.tryAgain()
+        await bells.tryAgain()
         XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5, 6])
         XCTAssertEqual(bells.capsule?.kind, .on)
         XCTAssertEqual(bells.capsule?.repeats, [1, 2, 3, 4, 5, 6])
@@ -196,7 +275,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
 
@@ -214,7 +293,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
 
@@ -236,7 +315,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
 
@@ -250,7 +329,7 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
 
         await server.setFailing(false)
-        _ = await bells.tryAgain()
+        await bells.tryAgain()
         XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5, 6, 7])
         XCTAssertEqual(bells.capsule?.repeats, [1, 2, 3, 4, 5, 6, 7])
     }
@@ -260,7 +339,7 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
         let rule = try XCTUnwrap(rules.rules.first)
@@ -281,13 +360,13 @@ final class AlertBellModelTests: XCTestCase {
     func testABellTapClosesThePanel() async {
         let rules = AlertFixtures.rules(FakeAlertServer())
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.repeatTapped()
         XCTAssertEqual(bells.capsule?.isPanelOpen, true)
         await eventually { rules.rules.first?.kind == .repeating }
 
         let later = AlertFixtures.trip("LW-0805-20261105", departure: "13:05")
-        _ = await bells.tap(later, on: route)
+        await bells.tap(later, on: route)
         XCTAssertEqual(bells.capsule?.kind, .on)
         XCTAssertEqual(bells.capsule?.isPanelOpen, false)
     }
@@ -299,9 +378,9 @@ final class AlertBellModelTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         let id = try XCTUnwrap(rules.rules.first?.id)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(rules.rules, [])
 
         await bells.undo()
@@ -322,7 +401,7 @@ final class AlertBellModelTests: XCTestCase {
         await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
         let id = try XCTUnwrap(rules.rules.first?.id)
 
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.capsule?.kind, .off)
         XCTAssertEqual(bells.capsule?.repeats, [1, 2, 3, 4, 5])
         XCTAssertEqual(rules.rules.first?.paused, true)
@@ -342,13 +421,13 @@ final class AlertBellModelTests: XCTestCase {
         await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
 
         await server.setFailing(true)
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.capsule?.kind, .failed(.turnOff))
         XCTAssertEqual(rules.rules.first?.paused, false)
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
 
         await server.setFailing(false)
-        _ = await bells.tryAgain()
+        await bells.tryAgain()
         XCTAssertEqual(rules.rules.first?.paused, true)
         XCTAssertEqual(bells.capsule?.kind, .off)
     }
@@ -368,7 +447,7 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(bells.bell(for: friday, on: route), .on)
         XCTAssertEqual(bells.bell(for: saturday, on: route), .off)
 
-        _ = await bells.tap(friday, on: route)
+        await bells.tap(friday, on: route)
         XCTAssertEqual(bells.capsule?.kind, .off)
         XCTAssertEqual(bells.bell(for: friday, on: route), .off)
         XCTAssertEqual(bells.bell(for: trip, on: route), .off, "every day is off")
@@ -376,7 +455,7 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(rules.rules.first?.paused, true)
         XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
 
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         XCTAssertEqual(bells.capsule?.kind, .on)
         XCTAssertEqual(bells.capsule?.repeats, [1, 2, 3, 4, 5])
         XCTAssertEqual(bells.bell(for: friday, on: route), .on)
@@ -393,7 +472,7 @@ final class AlertBellModelTests: XCTestCase {
         let bells = AlertBellModel(rules: rules)
         await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
 
-        _ = await bells.tap(saturday, on: route)
+        await bells.tap(saturday, on: route)
 
         XCTAssertEqual(rules.rules.count, 1)
         XCTAssertEqual(rules.rules.first?.kind, .repeating)
@@ -402,16 +481,23 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(bells.capsule?.kind, .on)
     }
 
-    /// Without permission the sheet opens on the card's own alert, so a repeating one opens on Repeat.
-    func testWithoutPermissionTheSheetOpensOnTheCardsAlert() async {
+    /// Crossed (TT-190): an alert covers the train but notifications are off. A tap explains and never deletes.
+    func testACrossedBellExplainsAndNeverDeletes() async {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server, permission: .off)
         await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [4]))
-        let bells = AlertBellModel(rules: rules)
+        let bells = AlertBellModel(rules: rules, refusalDelay: .zero)
+        await rules.refreshPermission()
+        XCTAssertEqual(bells.bell(for: trip, on: route), .crossed)
 
-        let request = await bells.tap(trip, on: route)
-        XCTAssertEqual(request, AlertSetupRequest(route: route, trip: trip, kind: .repeating))
+        await bells.tap(trip, on: route)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .crossed)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOff)
+        XCTAssertEqual(bells.shakes(for: trip), 1)
         XCTAssertEqual(rules.rules.count, 1)
+        XCTAssertEqual(rules.rules.first?.paused, false)
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, [])
     }
 
     // MARK: Time on screen
@@ -420,14 +506,14 @@ final class AlertBellModelTests: XCTestCase {
     func testACapsuleWithAnActionAndOneWithoutHideAfterTheirTimes() async throws {
         let rules = AlertFixtures.rules(FakeAlertServer())
         let quick = AlertBellModel(rules: rules, actionDuration: .milliseconds(50), plainDuration: .seconds(60))
-        _ = await quick.tap(trip, on: route)
+        await quick.tap(trip, on: route)
         XCTAssertNotNil(quick.capsule)
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertNil(quick.capsule, "Alert on with Repeat")
 
         await rules.save(AlertRule(kind: .repeating, trip: saturday, route: route, weekdays: [6], paused: true))
         let plain = AlertBellModel(rules: rules, actionDuration: .seconds(60), plainDuration: .milliseconds(50))
-        _ = await plain.tap(saturday, on: route)
+        await plain.tap(saturday, on: route)
         XCTAssertNil(plain.capsule?.actionKey)
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertNil(plain.capsule, "a repeating alert's Alert on, no action")
@@ -436,7 +522,7 @@ final class AlertBellModelTests: XCTestCase {
     /// A finger on the capsule holds it; lifted, its time starts again.
     func testAFingerOnTheCapsuleHoldsIt() async throws {
         let bells = AlertBellModel(rules: AlertFixtures.rules(FakeAlertServer()), actionDuration: .milliseconds(100))
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         bells.holdCapsule(true)
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertNotNil(bells.capsule)
@@ -508,5 +594,23 @@ final class AlertBellModelTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(10))
         }
         XCTFail("Timed out", file: file, line: line)
+    }
+}
+
+/// Records the bell's face each time iOS's answer comes in (the model's `afterPrompt`).
+@MainActor
+private final class FaceRecorder {
+    let trip: Trip
+    let route: Route
+    weak var bells: AlertBellModel?
+    private(set) var faces: [AlertBellModel.Bell] = []
+
+    init(trip: Trip, route: Route) {
+        self.trip = trip
+        self.route = route
+    }
+
+    func record() {
+        if let bells { faces.append(bells.bell(for: trip, on: route)) }
     }
 }

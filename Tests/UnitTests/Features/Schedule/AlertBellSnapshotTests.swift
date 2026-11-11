@@ -6,12 +6,16 @@ import XCTest
 /// The filled bell and the glass capsule on Schedule (TT-141, TT-191) against the Alerts-Spec board: the 7:32 AM train
 /// delayed to 7:41 AM with its alert on and "Alert on · 7:32 AM · Repeat" above the tab bar, then Repeat tapped, the
 /// capsule grown into the day panel with Mon to Fri lit and the timeline faded under it; light and dark. The capsule's
-/// glass is off (`\.rendersGlass`), as in the other control snapshots.
+/// glass is off (`\.rendersGlass`), as in the other control snapshots. Refused (TT-190, the Alert-Flow-Denied frame): the
+/// 7:32 AM bell tapped with notifications off stays an outline, nothing is saved, and "Notifications are off · Turn on"
+/// shows in the capsule.
 final class AlertBellSnapshotTests: XCTestCase {
     @MainActor func testAlertOnLight() async throws { snap(try await alertOn(), .light) }
     @MainActor func testAlertOnDark() async throws { snap(try await alertOn(), .dark) }
     @MainActor func testDayPanelLight() async throws { snap(try await dayPanel(), .light) }
     @MainActor func testDayPanelDark() async throws { snap(try await dayPanel(), .dark) }
+    @MainActor func testNotificationsOffLight() async throws { snap(try await notificationsOff(), .light) }
+    @MainActor func testNotificationsOffDark() async throws { snap(try await notificationsOff(), .dark) }
 
     @MainActor
     private func alertOn() async throws -> (ScheduleViewModel, AlertBellModel) {
@@ -23,7 +27,7 @@ final class AlertBellSnapshotTests: XCTestCase {
             permissions: FakeNotificationPermission(.allowed), defaults: nil
         )
         let bells = AlertBellModel(rules: rules, actionDuration: .seconds(600))
-        _ = await bells.tap(trip, on: route)
+        await bells.tap(trip, on: route)
         return (schedule, bells)
     }
 
@@ -35,6 +39,20 @@ final class AlertBellSnapshotTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(bells.rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
+        return (schedule, bells)
+    }
+
+    @MainActor
+    private func notificationsOff() async throws -> (ScheduleViewModel, AlertBellModel) {
+        let schedule = try await ScheduleViewModel.loadedFixture(.delayed)
+        let route = try XCTUnwrap(schedule.route)
+        let trip = try XCTUnwrap(schedule.departures.first { $0.trip.key.tripId == "LW-0732-20261105" }?.trip)
+        let rules = AlertRules(
+            server: FixtureAlertServer(delay: .zero), push: FixturePushRegistration(),
+            permissions: FakeNotificationPermission(.off), defaults: nil
+        )
+        let bells = AlertBellModel(rules: rules, actionDuration: .seconds(600), refusalDelay: .zero)
+        await bells.tap(trip, on: route)
         return (schedule, bells)
     }
 

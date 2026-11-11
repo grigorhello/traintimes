@@ -11,16 +11,17 @@ struct TrainTimesWidgets: WidgetBundle {
     }
 }
 
-/// The ride on the Lock Screen and in the Dynamic Island (*Live-Lock*, *Live-Island*, D67). A tap anywhere opens Trip
-/// details on the ride; the expanded island's End ride is a link, the one control Apple lets work there. iOS does not grey
-/// a stale activity, so the views do (`isStale`).
+/// The ride on the Lock Screen and in the Dynamic Island (*Live-Lock*, *Live-Island*, D67), and before it the alerted
+/// train's countdown (*Live-Depart-Lock*, TT-178, D74). A tap anywhere opens Trip details on the ride (on the train before
+/// departure); the expanded island's End ride, or "I’m on board" before departure, is a link, the one control Apple lets
+/// work there. iOS does not grey a stale activity, so the views do (`isStale`).
 struct RideActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RideActivityAttributes.self) { context in
             RideActivityLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(RideActivityLockView.background(context.state))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(RideActivityLink.open.url)
+                .widgetURL(Self.link(context.state).url)
         } dynamicIsland: { context in
             let attributes = context.attributes
             let state = context.state
@@ -34,18 +35,25 @@ struct RideActivityWidget: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if !state.isAlert {
+                    if state.isDeparture {
+                        RideActivityDepartureCountdown(state: state, style: style)
+                    } else if !state.isAlert {
                         RideActivityCountdownStack(state: state, style: style)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    if !state.isAlert {
+                    if state.isDeparture {
+                        RideActivityDepartureTitle(attributes: attributes, state: state, style: style)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if !state.isAlert {
                         RideActivityTitle(state: state, style: style)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if state.isAlert {
+                    if state.isDeparture {
+                        RideActivityDepartureBottom(state: state, style: style)
+                    } else if state.isAlert {
                         RideActivityExpandedAlert(attributes: attributes, state: state, style: style)
                     } else {
                         RideActivityExpandedBottom(attributes: attributes, state: state, style: style)
@@ -54,12 +62,21 @@ struct RideActivityWidget: Widget {
             } compactLeading: {
                 RideActivityTile(attributes: attributes, size: .compact)
             } compactTrailing: {
-                RideActivityCompactTrailing(state: state, style: style)
+                if state.isDeparture {
+                    RideActivityDepartureCompactTrailing(state: state, style: style)
+                } else {
+                    RideActivityCompactTrailing(state: state, style: style)
+                }
             } minimal: {
                 RideActivityTile(attributes: attributes, size: .minimal)
             }
-            .keylineTint(state.isAlert ? RideActivityStyle.alertGreen : RideActivityStyle.mint)
-            .widgetURL(RideActivityLink.open.url)
+            .keylineTint(state.isAlert ? RideActivityStyle.alertGreen : state.late ? RideActivityStyle.amber : RideActivityStyle.mint)
+            .widgetURL(Self.link(state).url)
         }
+    }
+
+    /// A tap opens the ride, or before departure the train's Trip details.
+    static func link(_ state: RideActivityAttributes.ContentState) -> RideActivityLink {
+        state.isDeparture ? .departure : .open
     }
 }

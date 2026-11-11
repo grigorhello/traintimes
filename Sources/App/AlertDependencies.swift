@@ -2,8 +2,9 @@ import Foundation
 
 /// What the alert rules talk to (TT-141): the alert server at alerts.traintimes.ca, the APNs device token and the
 /// notification permission in the app; the fixture server and token in previews and tests, which never reach APNs or the
-/// network. UI tests (`TT_FIXTURES`) can fix the permission with `TT_NOTIFICATIONS`, keep rules on device and hold the
-/// bell's capsule longer with `TT_TOAST_SECONDS`; the unit test host and previews keep rules in memory.
+/// network. UI tests (`TT_FIXTURES`) can fix the permission with `TT_NOTIFICATIONS` (or answer the first ask with `deny`),
+/// keep rules on device and hold the bell's capsule longer with `TT_TOAST_SECONDS`; the unit test host and previews keep
+/// rules in memory.
 @MainActor
 struct AlertDependencies {
     let server: any AlertServer
@@ -24,6 +25,9 @@ struct AlertDependencies {
             var permissions: any NotificationPermissionProviding = SystemNotificationPermission()
             if let fixed = environment["TT_NOTIFICATIONS"].flatMap(NotificationPermission.init(rawValue:)) {
                 permissions = FixedNotificationPermission(value: fixed)
+            } else if environment["TT_NOTIFICATIONS"] == "deny" {
+                // Not asked, and the first bell tap's dialog answers Don't Allow (TT-190).
+                permissions = AnsweringNotificationPermission(answer: .off)
             }
             var dependencies = AlertDependencies(
                 server: FixtureAlertServer(),

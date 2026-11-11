@@ -96,7 +96,7 @@ final class SettingsSnapshotTests: XCTestCase {
             perceptualPrecision: 0.98,
             layout: .device(config: .iPhone17Pro),
             traits: UITraitCollection(userInterfaceStyle: style)
-        )
+        ).comparedAsRecorded
         let strategy: Snapshotting<AnyView, UIImage> = waits ? .wait(for: 0.5, on: image) : image
         assertSnapshot(of: content, as: strategy, testName: testName, line: line)
     }

@@ -6,6 +6,9 @@ struct Station: Hashable, Sendable, Identifiable {
     /// The lines that serve the station, for its line context in the station picker (TT-121). Empty where unknown, as for
     /// the saved route.
     var lines: [String] = []
+    /// Where the station is (GTFS stop_lat/stop_lon), for the Directions link on Trip details (TT-188, D64). Nil where the
+    /// feed gives none, and on stations that only name a route (the saved route, alert rules).
+    var place: GeoPoint?
 
     /// One station is one id, whatever name or lines it was loaded with, so a station from the saved route equals the
     /// same station picked in search.

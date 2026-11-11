@@ -30,6 +30,7 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.stops.map(\.isEnd), [true, false, false, false, false, false, true])
         XCTAssertEqual(details.footnote, "Arrival times are scheduled.")
         XCTAssertEqual(details.alertButton, "Alert me")
+        XCTAssertTrue(details.showsDirections)
     }
 
     /// Delayed: both times are the expected ones in delay-ink, the scheduled ones struck under them.
@@ -169,6 +170,53 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.tripLength, "64 min")
         XCTAssertEqual(details.stops.map(\.isEnd).filter { $0 }.count, 2)
         XCTAssertEqual(details.alertButton, "Alert me")
+    }
+
+    // MARK: Directions (TT-188, D64)
+
+    /// The link opens Apple Maps with directions to the departure station, at its place from the feed.
+    func testDirectionsOpenMapsAtTheDepartureStation() async throws {
+        let maps = FakeMapsOpener()
+        let model = try await directionsFixture(.delayed, maps: maps)
+        XCTAssertEqual(model.details(formatter)?.showsDirections, true, "A delayed train that has not left yet")
+        model.openDirections()
+        XCTAssertEqual(maps.opened, [.init(name: "Oakville GO", place: GeoPoint(latitude: 43.455594, longitude: -79.682242))])
+    }
+
+    func testNoDirectionsOnACancelledTrain() async throws {
+        let maps = FakeMapsOpener()
+        let model = try await directionsFixture(.cancelled, maps: maps)
+        XCTAssertEqual(model.details(formatter)?.showsDirections, false)
+        model.openDirections()
+        XCTAssertTrue(maps.opened.isEmpty)
+    }
+
+    func testNoDirectionsOnceTheTrainHasLeft() async throws {
+        let departed = try await TripDetailsViewModel.departedFixture()
+        XCTAssertEqual(departed.details(formatter)?.showsDirections, false, "Left at 7:43 AM by the live feed")
+        let scheduled = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0821-20261105", minutesLater: 61)
+        XCTAssertEqual(scheduled.details(formatter)?.showsDirections, false, "No live data: its scheduled 8:21 AM has passed")
+    }
+
+    func testNoDirectionsWithoutTheStationsPlace() async throws {
+        let model = try await TripDetailsViewModel.longTripFixture()
+        XCTAssertEqual(model.details(formatter)?.showsDirections, false, "The stops of this fixture have no coordinates")
+    }
+
+    /// One fixture trip (the 7:32 AM train) at 7:21 AM, with the Maps opener a test hands it.
+    private func directionsFixture(
+        _ scenario: FixtureScheduleRepository.Scenario, maps: FakeMapsOpener
+    ) async throws -> TripDetailsViewModel {
+        let repository = try FixtureScheduleRepository(scenario: scenario, bundle: Bundle(for: Self.self))
+        let model = TripDetailsViewModel(
+            route: repository.route,
+            key: TripKey(serviceDay: repository.serviceDay, tripId: TripDetailsViewModel.fixtureTripId),
+            repository: repository,
+            clock: FixedClock(now: repository.now),
+            maps: maps
+        )
+        await model.load()
+        return model
     }
 
     func testUnknownTripShowsNothing() async throws {

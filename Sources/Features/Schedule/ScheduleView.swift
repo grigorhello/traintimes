@@ -4,7 +4,9 @@ import SwiftUI
 /// opens the picker under the card, in place, D54), the day strip carousel, a status row only while loading, offline or
 /// stale, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and
 /// cards (TT-113). The header is a top inset over one full-height scroll view, so the timeline scrolls under the glass
-/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now.
+/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now. Motion (TT-164,
+/// D61): the selected day's tile glides to a tapped day, which presses and springs back; a new set of trains cascades in;
+/// the Now dot pulses on the way back to Now.
 struct ScheduleView: View {
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
@@ -32,6 +34,13 @@ struct ScheduleView: View {
     /// The station picker, made each time a station row is tapped; open while `isPickingStation` (TT-161, D54).
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playsScheduleMotion) private var playsMotion
+    /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
+    @State private var motion: ScheduleMotionClock
+    /// Taps on each day tile, by tile id: each one replays that tile's press.
+    @State private var dayTaps: [Int: Int] = [:]
+    /// When each day tile last pressed, by tile id.
+    @State private var dayPressedAt: [Int: Date] = [:]
 
     /// `picker` opens Schedule with the picker already made, for previews and snapshots.
     init(
@@ -54,6 +63,8 @@ struct ScheduleView: View {
         self.onBoard = onBoard
         self.onOpenRide = onOpenRide
         _picker = State(initialValue: picker)
+        // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
+        _motion = State(initialValue: ScheduleMotionClock(cascadeSeen: viewModel.entranceRequest))
     }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
@@ -80,6 +91,69 @@ struct ScheduleView: View {
                 guard scenePhase == .active else { return }
                 await viewModel.pollLiveStatus()
             }
+            .onChange(of: viewModel.entranceRequest) { startEntrance() }
+            .onChange(of: viewModel.nowPulse) { startPulse() }
+    }
+
+    // MARK: Motion (TT-164, D61)
+
+    /// The cards' cascade: pending (every card at its first pose, unseen) from the tap that asks for new trains until the
+    /// start is taken, just after the frame that puts them on screen. The cards work it out from the clock themselves, so
+    /// the start and the end redraw them alone.
+    private var cascade: CascadeCue {
+        CascadeCue(
+            clock: motion, request: viewModel.entranceRequest, awaitsNewTrains: viewModel.awaitsNewTrains, plays: playsMotion
+        )
+    }
+
+    /// The start is taken on the main actor's next turn, after the frame that draws the new cards: building that frame
+    /// can take a moment, and a start taken before it would skip the cascade's first frames.
+    private func startEntrance() {
+        let request = viewModel.entranceRequest
+        let motion = motion
+        guard playsMotion else {
+            motion.cascadeSeen = request
+            return
+        }
+        Task { @MainActor in
+            // A newer request takes its own start.
+            guard request == viewModel.entranceRequest else { return }
+            let start = Date()
+            motion.cascadeSeen = request
+            motion.cascadeStart = start
+            try? await Task.sleep(for: .seconds(CascadeMotion.duration))
+            if motion.cascadeStart == start { motion.cascadeStart = nil }
+        }
+    }
+
+    /// Started on the next turn too, like the cascade, so its first frames are drawn.
+    private func startPulse() {
+        guard playsMotion, !reduceMotion else { return }
+        let pulse = viewModel.nowPulse
+        let motion = motion
+        Task { @MainActor in
+            guard pulse == viewModel.nowPulse else { return }
+            let start = Date()
+            motion.pulseStart = start
+            try? await Task.sleep(for: .seconds(NowPulse.duration))
+            if motion.pulseStart == start { motion.pulseStart = nil }
+        }
+    }
+
+    /// Room for a slow frame after a day tap: the press's animation starts only after it.
+    private static let slowFrameRoom = 0.3
+
+    /// The tapped day presses (not under Reduce Motion), then the day is selected.
+    private func tapDay(_ tile: StripTile) {
+        // The selected tile's accent shape is drawn apart from it, so pressing it would shrink only its label. A tile still in
+        // its last press, or in the slow frame before it, does not press again: two runs of its animation would add up.
+        let pressedAt = dayPressedAt[tile.id] ?? .distantPast
+        if playsMotion, !reduceMotion, tile.day != viewModel.selectedDay,
+           Date().timeIntervalSince(pressedAt) > DayPressMotion.duration + Self.slowFrameRoom {
+            dayPressedAt[tile.id] = Date()
+            dayTaps[tile.id, default: 0] += 1
+        }
+        Task { await viewModel.select(tile.day) }
     }
 
     // MARK: Header
@@ -308,14 +382,17 @@ struct ScheduleView: View {
                         weekday: tile.id == 0 ? String(localized: "button.today") : tile.day.weekdayShort,
                         day: "\(tile.day.day)",
                         isSelected: tile.day == viewModel.selectedDay,
-                        isToday: tile.id == 0
+                        isToday: tile.id == 0,
+                        drawsSelection: false
                     ) {
-                        Task { await viewModel.select(tile.day) }
+                        tapDay(tile)
                     }
                     .accessibilityIdentifier("schedule.day.\(tile.id)")
+                    .dayPress(dayTaps[tile.id, default: 0], animated: playsMotion && !reduceMotion)
                 }
             }
             .scrollTargetLayout()
+            .background(alignment: .leading) { selectionTile }
             // Room for the tile shadow inside the clipped strip.
             .padding(.vertical, Self.shadowRoom)
         }
@@ -378,6 +455,23 @@ struct ScheduleView: View {
     /// Tiles that show whole at the start of the strip.
     private static let fullTiles = 5
 
+    /// The selected day's accent tile, one shape under the tiles (which leave the selected one see-through), so that it
+    /// glides from the old day to the new one on `TTMotion.glide`, passing under the days between, as on the board. Placed by
+    /// the tile's index: the lazy strip may not have built the old day's tile to match a geometry to. It glides only when
+    /// the rider picks a day (`daySelection`), so the strip shifting at midnight moves it with the tiles. Reduce Motion: it
+    /// jumps.
+    @ViewBuilder private var selectionTile: some View {
+        if let index = viewModel.stripIndex(of: viewModel.selectedDay) {
+            RoundedRectangle(cornerRadius: TTRadius.md)
+                .fill(TTColor.accent)
+                .frame(width: DayCell.size.width, height: DayCell.size.height)
+                .offset(x: CGFloat(index + ScheduleViewModel.pastDayCount) * (DayCell.size.width + TTSpace.s2))
+                .animation(playsMotion && !reduceMotion ? TTMotion.glide : nil, value: viewModel.daySelection)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     // MARK: Timeline
 
     /// The to-scale timeline (TT-111 layout, TT-113 drawing), its loading skeleton, or an empty state card (TT-115).
@@ -391,15 +485,19 @@ struct ScheduleView: View {
                     ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
                 case .timeline:
                     ScheduleTimeline(
-                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
+                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:),
+                        cascade: cascade, motion: motion
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
                     )
+                // The empty states only fade in with a new set of trains, never cascade.
                 case .noTrains(let title, let message, let showDay):
                     noTrains(title: title, message: message, showDay: showDay)
+                        .cascadeEntrance(cascade, order: 0, moves: false)
                 case .noConnection:
                     noConnection
+                        .cascadeEntrance(cascade, order: 0, moves: false)
                 }
             }
         }
@@ -407,7 +505,7 @@ struct ScheduleView: View {
         .refreshable { await viewModel.refresh() }
         .onChange(of: viewModel.scrollRequest) { previous, _ in
             riderScrolled = false
-            scroll(animated: previous != 0)
+            scroll(animated: previous != 0 && !viewModel.scrollJumps)
         }
         // The cards are measured after the first scroll, which moves Now: scroll again (D49).
         .onChange(of: viewModel.settleRequest) {
@@ -429,10 +527,11 @@ struct ScheduleView: View {
     }
 
     /// A scroll to the present again, unless the rider has taken over the scrolling. Without animation on the first request
-    /// (the launch); later ones animate, as the request did, so the second scroll only steers the first.
+    /// (the launch) and after a jump to new trains (TT-164: the cards cascade in where they land); later ones animate, as
+    /// the request did, so the second scroll only steers the first.
     private func settle() {
         guard !riderScrolled else { return }
-        scroll(animated: viewModel.scrollRequest > 1)
+        scroll(animated: viewModel.scrollRequest > 1 && !viewModel.scrollJumps)
     }
 
     // MARK: Alerts

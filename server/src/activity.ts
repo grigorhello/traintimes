@@ -80,7 +80,7 @@ export function shortName(name: string): string {
   return name.endsWith(' GO') ? name.slice(0, -3) : name;
 }
 
-/** "Union Station GO" reads "Union" on the activity's departure label (the app's `DetectionStrip.shortName`). */
+/** "Union Station GO" reads "Union" on the activity's departure label (the app's `TrainQuestion.shortName`). */
 function shorterName(name: string): string {
   const short = shortName(name);
   return short.endsWith(' Station') ? short.slice(0, -8) : short;

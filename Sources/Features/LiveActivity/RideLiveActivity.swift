@@ -481,6 +481,7 @@ extension RideLiveActivity {
     static func app(following ride: RideEngine, environment: [String: String] = ProcessInfo.processInfo.environment) -> RideLiveActivity? {
         guard !ScheduleDependencies.isFixtureRun(environment) else { return nil }
         let stations = ScheduleDependencies.app(environment: environment).stations
+        let installationKey = AlertRules.installationKey
         return RideLiveActivity(
             app: ride,
             line: { ride in
@@ -501,7 +502,7 @@ extension RideLiveActivity {
             canStart: { UIApplication.shared.applicationState == .active },
             backgroundReport: { report in
                 // Only an installation the server knows: it registered with the rider's first alert.
-                guard let installation = UserDefaults.standard.string(forKey: AlertRules.installationKey) else { return }
+                guard let installation = UserDefaults.standard.string(forKey: installationKey) else { return }
                 try? await HTTPAlertServer().report(report, installation: installation)
             }
         )

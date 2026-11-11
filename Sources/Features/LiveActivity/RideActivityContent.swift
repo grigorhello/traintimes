@@ -69,7 +69,8 @@ extension RideActivityAttributes.ContentState {
             title = String(format: String(localized: "live.arriving"), yours)
             detail = String(localized: "live.arrivingDetail")
             countdownTo = times.time(at: last)
-        case .atYourStop:
+        case .atYourStop, .countingDown, .boarding, .departed:
+            // A ride's state is never a departure phase (`phase` is mapped from `RidePhase` above).
             title = String(localized: "onboard.thisIsYours")
             detail = pair(yours, String(localized: "onboard.complete"))
             countdownTo = nil
@@ -81,7 +82,7 @@ extension RideActivityAttributes.ContentState {
         departure = String(format: String(localized: "live.stopTime"), name(0), formatter.time(times.scheduled(at: 0)))
         self.arrival = String(format: String(localized: "live.stopTime"), yours, arrival)
         position = switch phase {
-        case .atYourStop: Double(last)
+        case .atYourStop, .countingDown, .boarding, .departed: Double(last)
         case .atStation: Double(passed)
         case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
         }
@@ -158,7 +159,7 @@ extension RideActivityAttributes.ContentState {
         countdownEnd = live.phase == .departed ? nil : deviceNow.addingTimeInterval(live.leaves.timeIntervalSince(now))
         self.now = ""
         time = live.phase == .departed ? "" : String(localized: "depart.in")
-        self.departure = String(format: String(localized: "live.stopTime"), DetectionStrip.shortName(origin), leaves)
+        self.departure = String(format: String(localized: "live.stopTime"), TrainQuestion.shortName(origin), leaves)
         let arrivalText = String(format: String(localized: "live.stopTime"), yours, arrivalTime)
         arrival = arrivalText
         arrives = String(format: String(localized: "depart.arrives"), arrivalText)

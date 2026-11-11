@@ -65,21 +65,22 @@ final class AlertsTabTests: XCTestCase {
     /// TT-169: with notifications off and an alert on, one card tops the tab with its button, and the row reads Not delivering.
     @MainActor
     func testNotificationsOffShowsTheCardAndNotDelivering() {
+        // The 7:32 AM train's alert is turned on from its bell with notifications allowed (a tap with them off saves
+        // nothing, TT-190), then the app comes back with them off: the alert is kept, not delivered.
+        let setup = XCUIApplication.onFixtures()
+        setup.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
+        setup.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
+        setup.launch()
+        let bell = setup.buttons["schedule.bell.LW-0732-20261105"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 20))
+        bell.tap()
+        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
+        setup.terminate()
+
         let app = XCUIApplication.onFixtures()
         app.launchEnvironment["TT_NOTIFICATIONS"] = "off"
-        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
+        app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
-
-        // The alert is saved from the 7:32 AM train's sheet: with notifications off it is kept, not delivered.
-        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 20))
-        card.tap()
-        XCTAssertTrue(app.buttons["trip.alert"].waitForExistence(timeout: 5))
-        app.buttons["trip.alert"].tap()
-        XCTAssertTrue(app.buttons["alert.enable"].waitForExistence(timeout: 5))
-        app.buttons["alert.enable"].tap()
-        XCTAssertTrue(app.buttons["alert.openSettings"].waitForExistence(timeout: 10))
-        app.buttons["alert.close"].tap()
 
         app.tabBars.buttons["Alerts"].tap()
         let warning = app.descendants(matching: .any).matching(identifier: "alerts.notificationsOff").firstMatch

@@ -33,27 +33,116 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertTrue(details.showsDirections)
     }
 
-    /// TT-189: the button reads the train's one alert from the alert rules, live: a repeating alert covering this train's
-    /// day says Manage alert at once, and switched off it says Alert me again.
-    func testTheAlertButtonReadsTheTrainsAlert() async throws {
-        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+    /// TT-189, TT-192: the bar reads the train's one alert from the alert rules, live: a repeating alert covering this
+    /// train's day says Alert on with its days at once, and switched off it says Alert me again.
+    func testTheAlertBarReadsTheTrainsAlert() async throws {
         let rules = AlertFixtures.rules(FakeAlertServer())
-        let model = TripDetailsViewModel(
-            route: repository.route, key: TripKey(serviceDay: repository.serviceDay, tripId: TripDetailsViewModel.fixtureTripId),
-            repository: repository, clock: FixedClock(now: repository.now), alerts: rules
-        )
-        await model.load()
+        let model = try await alertModel(rules)
         XCTAssertEqual(model.details(formatter)?.alertButton, "Alert me")
+        XCTAssertEqual(model.bell, .off)
 
         let trip = try XCTUnwrap(model.departure?.trip)
-        var alert = AlertRule(kind: .repeating, trip: trip, route: repository.route, weekdays: [1, 2, 3, 4, 5])
+        var alert = AlertRule(kind: .repeating, trip: trip, route: model.route, weekdays: [1, 2, 3, 4, 5])
         await rules.save(alert)
         XCTAssertTrue(model.hasAlert)
-        XCTAssertEqual(model.details(formatter)?.alertButton, "Manage alert")
+        XCTAssertEqual(model.bell, .on)
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Alert on")
+        XCTAssertEqual(model.repeatTitle, "Mon to Fri")
+
+        alert.weekdays = [1, 3, 5, 6]
+        await rules.save(alert)
+        XCTAssertEqual(model.repeatTitle, "4 days", "Mon, Wed, Fri, Sat does not fit")
 
         alert.paused = true
         await rules.save(alert)
         XCTAssertFalse(model.hasAlert)
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Alert me")
+        XCTAssertEqual(model.repeatTitle, "Repeat")
+    }
+
+    /// TT-192: "Alert me" turns the alert on in place, with no capsule in the sheet (the bar says it); "Alert on" turns it
+    /// off, again with no capsule.
+    func testAlertMeTurnsTheAlertOnInPlaceAndAlertOnTurnsItOff() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let model = try await alertModel(rules)
+
+        await model.tapAlert()
+        XCTAssertEqual(model.bell, .on)
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Alert on")
+        XCTAssertEqual(rules.rules.map(\.kind), [.thisTrip])
+        XCTAssertNil(model.capsule, "Alert on is the bar's own word")
+        XCTAssertEqual(model.bells?.enabledCount, 1)
+
+        await model.tapAlert()
+        XCTAssertEqual(model.bell, .off)
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Alert me")
+        XCTAssertTrue(rules.rules.isEmpty)
+        XCTAssertNil(model.capsule)
+    }
+
+    /// TT-192: Repeat opens the day panel in the sheet with Mon to Fri on this weekday train, the same alert repeats, and
+    /// Repeat then reads its days; tapped again it closes the panel.
+    func testRepeatOpensTheDayPanelAndTheSameAlertRepeats() async throws {
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        let model = try await alertModel(rules)
+        await model.tapAlert()
+        let id = try XCTUnwrap(rules.rules.first?.id)
+
+        model.tapRepeat()
+        XCTAssertEqual(model.capsule?.isPanelOpen, true)
+        XCTAssertEqual(model.capsule?.panelDays, [1, 2, 3, 4, 5])
+        XCTAssertEqual(model.repeatTitle, "Mon to Fri")
+        await eventually { rules.rules.first?.kind == .repeating }
+        XCTAssertEqual(rules.rules.map(\.id), [id], "the same alert")
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
+
+        model.bells?.toggleDay(6)
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5, 6] }
+
+        model.tapRepeat()
+        XCTAssertNil(model.capsule)
+        XCTAssertEqual(model.repeatTitle, "Mon to Sat")
+        XCTAssertEqual(model.bell, .on)
+
+        // Opened again, the panel shows the alert's days and saves nothing.
+        model.tapRepeat()
+        XCTAssertEqual(model.capsule?.panelDays, [1, 2, 3, 4, 5, 6])
+    }
+
+    /// TT-192, D72: with notifications off a tap saves nothing, the bar's bell shakes and the capsule shows in the sheet.
+    func testARefusalShowsTheCapsuleInTheSheet() async throws {
+        let rules = AlertFixtures.rules(FakeAlertServer(), permission: .off)
+        let model = try await alertModel(rules)
+
+        await model.tapAlert()
+        XCTAssertEqual(model.capsule?.kind, .notificationsOff)
+        XCTAssertEqual(model.bellShakes, 1)
+        XCTAssertEqual(model.bell, .off)
+        XCTAssertTrue(rules.rules.isEmpty)
+    }
+
+    /// The 7:32 AM fixture train with the alert rules and the sheet's own bell model, loaded.
+    private func alertModel(_ rules: AlertRules) async throws -> TripDetailsViewModel {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let model = TripDetailsViewModel(
+            route: repository.route, key: TripKey(serviceDay: repository.serviceDay, tripId: TripDetailsViewModel.fixtureTripId),
+            repository: repository, clock: FixedClock(now: repository.now), alerts: rules,
+            bells: AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: {})
+        )
+        await model.load()
+        return model
+    }
+
+    /// Waits up to 3 s for work the bell model runs in its own task (the panel's saves).
+    private func eventually(
+        _ condition: () async -> Bool, file: StaticString = #filePath, line: UInt = #line
+    ) async {
+        for _ in 0..<300 {
+            if await condition() { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out", file: file, line: line)
     }
 
     /// Delayed: both times are the expected ones in delay-ink, the scheduled ones struck under them.
@@ -73,7 +162,7 @@ final class TripDetailsViewModelTests: XCTestCase {
         ])
         XCTAssertEqual(details.stops.map(\.time), ["7:41 AM", "7:49 AM", "7:55 AM", "8:01 AM", "8:06 AM", "8:13 AM", "8:21 AM"])
         XCTAssertEqual(details.footnote, "Arrival times are estimates from the live feed. Scheduled arrival 8:12 AM.")
-        XCTAssertEqual(details.alertButton, "Manage alert")
+        XCTAssertEqual(details.alertButton, "Alert on")
     }
 
     /// Timetable only: ink times, the Scheduled ring and the service day, "Platform —", the Express bolt on express trains.

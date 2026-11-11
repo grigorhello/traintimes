@@ -44,6 +44,18 @@ final class AlertBellModel {
             case hint
         }
 
+        /// The glyph at the capsule's start: the filled bell, the outline, the exclamation mark, the crossed bell or the
+        /// tick.
+        var glyph: CapsuleGlyph {
+            switch self {
+            case .on: .bellOn
+            case .off, .hint: .bellOff
+            case .failed: .failed
+            case .notificationsOff: .notificationsOff
+            case .notificationsOn: .confirmed
+            }
+        }
+
         enum Failure: Equatable {
             case turnOn
             case changeDays
@@ -212,6 +224,32 @@ final class AlertBellModel {
             return false
         }
         return true
+    }
+
+    /// Trip details' Repeat (TT-192, D77): the day panel for the train's alert, with no capsule before it. A one-day alert
+    /// starts repeating as the capsule's Repeat makes it (Mon to Fri, on a weekend train that day alone); a repeating one
+    /// opens on its days. Tapped again while it is open, the panel closes.
+    func togglePanel(for trip: Trip, on route: Route) {
+        if capsule?.isPanelOpen == true { return closePanel() }
+        guard let rule = rules.alert(for: trip, on: route), !rule.paused else { return }
+        hideTask?.cancel()
+        let repeats = rule.kind == .repeating ? rule.weekdays : []
+        let days = repeats.isEmpty ? AlertDays.repeatDays(for: trip.key.serviceDay) : repeats
+        capsuleCount += 1
+        capsule = Capsule(id: capsuleCount, kind: .on, trip: trip, route: route, repeats: repeats, panelDays: days)
+        undoRule = nil
+        retry = nil
+        panelRuleID = rule.id
+        if repeats.isEmpty { want(days, ruleID: rule.id, trip: trip, route: route) }
+    }
+
+    /// Another model on the same alert rules and timings, with a capsule of its own: Trip details' (TT-192), so its
+    /// capsule and panel never show on Schedule under the sheet.
+    func sibling() -> AlertBellModel {
+        AlertBellModel(
+            rules: rules, actionDuration: actionDuration, plainDuration: plainDuration, hintDuration: hintDuration,
+            refusalDelay: refusalDelay, afterPrompt: afterPrompt
+        )
     }
 
     /// The capsule's Turn on: the capsule goes and the bell is remembered, so it turns on when the rider comes back from
@@ -541,6 +579,16 @@ extension AlertBellModel.Capsule {
             return String(format: String(localized: "alert.days.date_only"), day.weekdayShort, day.day)
         }()
         return String(format: String(localized: "capsule.panel"), formatter.time(trip.scheduledDeparture), days)
+    }
+
+    /// Trip details shows only what its bar cannot say (TT-192): a refusal, a failed save and the day panel. The bar itself
+    /// says Alert on and off.
+    var showsInTripDetails: Bool {
+        switch kind {
+        case .failed, .notificationsOff: true
+        case .on: isPanelOpen
+        case .off, .notificationsOn, .hint: false
+        }
     }
 
     /// The action's words: Repeat, Undo, Try again or Turn on.

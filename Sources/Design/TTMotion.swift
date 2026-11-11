@@ -58,6 +58,8 @@ enum TTMotion {
     static let tilePressCurve = Curve(response: 0.30, damping: 0.75)
     /// A card's bell turned off: the outline settling from 0.86, quiet on purpose (TT-191).
     static let settleCurve = Curve(response: 0.40, damping: 0.70)
+    /// Trip details' "Alert on" drawing in to make room for Repeat, with no overshoot (TT-192).
+    static let drawInCurve = Curve(response: 0.28, damping: 1.0)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }
@@ -71,6 +73,7 @@ enum TTMotion {
     static var stops: Animation { stopsCurve.animation }
     static var grow: Animation { growCurve.animation }
     static var morph: Animation { morphCurve.animation }
+    static var drawIn: Animation { drawInCurve.animation }
     /// An arriving element fading in while its spring moves it: the Trip details card, stop rows and button (TT-167).
     static var appear: Animation { .easeOut(duration: 0.15) }
     /// When Trip details stop row `index` starts, after the first: 24 ms apart, and from the ninth row on with the eighth,

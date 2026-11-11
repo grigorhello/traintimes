@@ -5,7 +5,7 @@ import XCTest
 
 /// Trip details against design/frames/trip-details*.png (TT-163), light and dark: the 7:32 AM train delayed 9 min with an
 /// alert, the 7:58 AM express train on the timetable only, a cancelled train, a 12-stop trip scrolled to its end, and a train
-/// after it has left. The sheet content is drawn on its own in the key window; the system draws the grabber.
+/// after it has left, and the alert bar's day panel (TT-192). The sheet content is drawn on its own in the key window; the system draws the grabber.
 final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testDelayedLight() async throws { snap(try await .loadedFixture(.delayed, hasAlert: true), .light) }
     @MainActor func testDelayedDark() async throws { snap(try await .loadedFixture(.delayed, hasAlert: true), .dark) }
@@ -17,6 +17,25 @@ final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testEndDark() async throws { snap(try await .longTripFixture(), .dark, startsAtEnd: true) }
     @MainActor func testDepartedLight() async throws { snap(try await .departedFixture(), .light) }
     @MainActor func testDepartedDark() async throws { snap(try await .departedFixture(), .dark) }
+    /// TT-192 (*Alert-Trip-Days-Dark*): the alert on, Repeat tapped: the day panel above the bar, Mon to Fri lit.
+    @MainActor func testAlertDaysLight() async throws { snap(try await alertDays(), .light) }
+    @MainActor func testAlertDaysDark() async throws { snap(try await alertDays(), .dark) }
+
+    /// The 7:32 AM train with its alert turned on from the bar, and Repeat's day panel open.
+    @MainActor
+    private func alertDays() async throws -> TripDetailsViewModel {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        let model = TripDetailsViewModel(
+            route: repository.route, key: TripKey(serviceDay: repository.serviceDay, tripId: TripDetailsViewModel.fixtureTripId),
+            repository: repository, clock: FixedClock(now: repository.now), alerts: rules,
+            bells: AlertBellModel(rules: rules, refusalDelay: .zero, afterPrompt: {})
+        )
+        await model.load()
+        await model.tapAlert()
+        model.tapRepeat()
+        return model
+    }
 
     @MainActor
     private func snap(

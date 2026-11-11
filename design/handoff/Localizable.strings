@@ -18,6 +18,7 @@
 "button.close" = "Close";
 "button.alert_me" = "Alert me";
 "button.manage_alert" = "Manage alert";
+"button.alert_on" = "Alert on";
 "button.directions" = "Directions";
 "button.try_again" = "Try again";
 "button.undo" = "Undo";
@@ -72,6 +73,7 @@
 "trip.line_day" = "%@ · %@";
 "trip.departed" = "Departed";
 "trip.stops_count" = "%d stops";
+"trip.repeat_days" = "%d days";
 "trip.stops_expected" = "Expected";
 "trip.stops_scheduled" = "Scheduled";
 "trip.footnote_live" = "Arrival times are estimates from the live feed. Scheduled arrival %@.";

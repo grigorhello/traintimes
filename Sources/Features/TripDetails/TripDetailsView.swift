@@ -12,6 +12,9 @@ struct TripDetailsView: View {
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
+    /// The permission sheet before the first ride's iOS prompt (TT-172).
+    @State private var showsIntro = false
+    @State private var tick = 0
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -28,6 +31,11 @@ struct TripDetailsView: View {
     private static let dotHalo: CGFloat = 2
     private static let skippedGlyph: CGFloat = 14
     private static let alertHeight: CGFloat = 52
+    /// With the Directions link (TT-188): the ring sits on the name line, 12 pt from the row's top, and the time 4 pt down.
+    private static let directionsRingTop: CGFloat = 12
+    private static let directionsTimeTop: CGFloat = 4
+    private static let directionsGlyph: CGFloat = 15
+    private static let directionsGap: CGFloat = 5
     /// 16 + the 52 pt button + 24 pt above the sheet's bottom edge; 40 pt when there is no button.
     private static let bottomInsetWithButton: CGFloat = 92
     private static let bottomInset: CGFloat = 40
@@ -37,19 +45,28 @@ struct TripDetailsView: View {
     private static let bottomFadeOpacity = 0.72
 
     var body: some View {
+        // The ride's countdowns and the train on the rail follow the clock: the sheet is drawn again each second while riding.
+        let _ = tick
+        let ride = viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
+        let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
+        let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Above the scroll view, so the close button's glass shadow is not cut off by the top fade (a hard edge in light).
                 header
                     .zIndex(1)
                 ScrollView {
-                    if let details {
-                        content(details)
-                            .padding(.horizontal, TTSpace.s5)
-                            .padding(.top, TTSpace.s4)
-                            .padding(.bottom, details.alertButton == nil ? Self.bottomInset : Self.bottomInsetWithButton)
+                    Group {
+                        if let ride {
+                            RideContent(ride: ride)
+                        } else if let details {
+                            content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
+                        }
                     }
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, TTSpace.s4)
+                    .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
                 }
                 .defaultScrollAnchor(startsAtEnd ? UnitPoint.bottom : nil)
                 .overlay(alignment: .top) {
@@ -58,7 +75,13 @@ struct TripDetailsView: View {
                         .allowsHitTesting(false)
                 }
             }
-            if let title = details?.alertButton {
+            if let ride {
+                bottomFade
+                rideButton(ride)
+            } else if showsOnBoard {
+                bottomFade
+                onBoardButtons(alert: details?.alertButton)
+            } else if let title = details?.alertButton {
                 bottomFade
                 alertButton(title)
             }
@@ -67,8 +90,24 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
+        .task(id: viewModel.isRiding) {
+            while viewModel.isRiding, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                tick &+= 1
+            }
+        }
+        .sheet(isPresented: $showsIntro) {
+            RideIntroSheet(
+                destination: viewModel.destinationName,
+                onContinue: {
+                    showsIntro = false
+                    Task { await viewModel.startRide() }
+                },
+                onNotNow: { showsIntro = false }
+            )
+        }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(details?.title ?? "")
+        .accessibilityLabel(ride?.title ?? details?.title ?? "")
         .accessibilityIdentifier("sheet.tripDetails")
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(TTRadius.sheet)
@@ -99,10 +138,10 @@ struct TripDetailsView: View {
         .padding(.top, Self.headerTop)
     }
 
-    private func content(_ details: TripDetails) -> some View {
+    private func content(_ details: TripDetails, hint: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             journey(details)
-            stops(details)
+            stops(details, hint: hint)
                 .padding(.top, TTSpace.s5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,9 +156,13 @@ struct TripDetailsView: View {
     private func journey(_ details: TripDetails) -> some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: TTSpace.s3) {
-                journeyMarkers
+                journeyMarkers(ringOnNameLine: details.showsDirections)
                 VStack(spacing: 0) {
-                    stationRow(details.origin, time: details.departure, isStruck: details.isCancelled)
+                    if details.showsDirections {
+                        directionsRow(details.origin, time: details.departure)
+                    } else {
+                        stationRow(details.origin, time: details.departure, isStruck: details.isCancelled)
+                    }
                     metaRow(details)
                     stationRow(details.destination, time: details.arrival, isStruck: details.isCancelled)
                 }
@@ -146,14 +189,16 @@ struct TripDetailsView: View {
         .stagedEntrance(rise: 12, on: TTMotion.card)
     }
 
-    /// The ring centred on the first row, the three dots beside the meta row, the pin centred on the second row.
-    private var journeyMarkers: some View {
+    /// The ring centred on the first row (on its name line when the Directions link is under the name), the three dots
+    /// beside the meta row, the pin centred on the second row.
+    private func journeyMarkers(ringOnNameLine: Bool) -> some View {
         let size = RouteMarkers.Size.regular
         return VStack(spacing: 0) {
             Circle()
                 .strokeBorder(TTColor.inkSecondary, lineWidth: size.ringStroke)
                 .frame(width: size.ring, height: size.ring)
-                .frame(height: Self.stationRow)
+                .padding(.top, ringOnNameLine ? Self.directionsRingTop : 0)
+                .frame(height: Self.stationRow, alignment: ringOnNameLine ? .top : .center)
             VStack(spacing: size.gap) {
                 ForEach(0..<size.dots, id: \.self) { _ in
                     Circle().fill(TTColor.inkTertiary).frame(width: size.dot, height: size.dot)
@@ -171,30 +216,67 @@ struct TripDetailsView: View {
 
     private func stationRow(_ name: String, time: TripDetails.Time, isStruck: Bool) -> some View {
         HStack(spacing: TTSpace.s2) {
-            Text(verbatim: name)
-                .font(TTFont.headline)
-                .foregroundStyle(TTColor.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            stationName(name)
             Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(time.value)
-                    .font(TTFont.route)
-                    .monospacedDigit()
-                    .strikethrough(isStruck)
-                    .foregroundStyle(isStruck ? TTColor.inkTertiary : time.isLate ? TTColor.delayInk : TTColor.ink)
-                if let scheduled = time.scheduled {
-                    Text(scheduled)
-                        .font(TTFont.footnote)
-                        .monospacedDigit()
-                        .strikethrough()
-                        .foregroundStyle(TTColor.inkTertiary)
-                }
-            }
-            .lineLimit(1)
-            .fixedSize()
+            timeStack(time, isStruck: isStruck)
         }
         .frame(height: Self.stationRow)
+    }
+
+    /// The departure row with the Directions link under the name (TT-188, D64): the name and the link are one button the
+    /// full height of the row's left side, and the time lines up with the name.
+    private func directionsRow(_ name: String, time: TripDetails.Time) -> some View {
+        HStack(alignment: .top, spacing: TTSpace.s2) {
+            Button { viewModel.openDirections() } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    stationName(name)
+                    HStack(spacing: Self.directionsGap) {
+                        Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.system(size: Self.directionsGlyph, weight: .semibold))
+                            .accessibilityHidden(true)
+                        Text("button.directions")
+                            .font(TTFont.subhead.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(TTColor.accent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(DimOnPressStyle())
+            .accessibilityIdentifier("trip.directions")
+            timeStack(time, isStruck: false)
+                .padding(.top, Self.directionsTimeTop)
+        }
+        .frame(height: Self.stationRow)
+    }
+
+    private func stationName(_ name: String) -> some View {
+        Text(verbatim: name)
+            .font(TTFont.headline)
+            .foregroundStyle(TTColor.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
+
+    /// The time, with the struck scheduled time under it when the train runs late.
+    private func timeStack(_ time: TripDetails.Time, isStruck: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            Text(time.value)
+                .font(TTFont.route)
+                .monospacedDigit()
+                .strikethrough(isStruck)
+                .foregroundStyle(isStruck ? TTColor.inkTertiary : time.isLate ? TTColor.delayInk : TTColor.ink)
+            if let scheduled = time.scheduled {
+                Text(scheduled)
+                    .font(TTFont.footnote)
+                    .monospacedDigit()
+                    .strikethrough()
+                    .foregroundStyle(TTColor.inkTertiary)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
     }
 
     /// "in 20 min · Platform — · Express" on the left, the trip length on the right.
@@ -262,7 +344,8 @@ struct TripDetailsView: View {
 
     // MARK: Stops
 
-    private func stops(_ details: TripDetails) -> some View {
+    /// `hint` takes the footnote's place while "I'm on board" shows (TT-172).
+    private func stops(_ details: TripDetails, hint: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(details.stopCount).accessibilityAddTraits(.isHeader)
@@ -285,7 +368,7 @@ struct TripDetailsView: View {
             .ttSheetCard()
             .padding(.top, 6)
 
-            Text(details.footnote)
+            Text(hint ?? details.footnote)
                 .font(TTFont.footnote)
                 .monospacedDigit()
                 .foregroundStyle(TTColor.inkSecondary)
@@ -387,6 +470,81 @@ struct TripDetailsView: View {
         .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
+    }
+
+    // MARK: On board (TT-172)
+
+    /// *Live-Entry*: the alert button turns into a 52 pt glass bell beside "I'm on board"; the bell alone goes once the
+    /// train has left (no alert then), and "I'm on board" fills the row.
+    private func onBoardButtons(alert: String?) -> some View {
+        HStack(spacing: 10) {
+            if let alert {
+                Button(action: onAlert) {
+                    Image(systemName: viewModel.hasAlert ? "bell.fill" : "bell")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(TTColor.accent)
+                        .frame(width: Self.alertHeight, height: Self.alertHeight)
+                        .ttGlass(in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressScaleStyle())
+                .accessibilityLabel(alert)
+                .accessibilityIdentifier("trip.alert")
+            }
+            Button {
+                if viewModel.needsLocationIntro {
+                    showsIntro = true
+                } else {
+                    Task { await viewModel.startRide() }
+                }
+            } label: {
+                Text("onboard.button")
+                    .font(TTFont.headline)
+                    .foregroundStyle(TTColor.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.alertHeight)
+                    .ttGlass(tint: TTColor.accent, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PressScaleStyle())
+            .accessibilityIdentifier("trip.onboard")
+        }
+        // Arrives like the alert button it stands in for (TT-167).
+        .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.bottom, Self.buttonBottom)
+    }
+
+    /// End ride, a glass capsule in ink; Done at your stop, filled in the accent. Either one ends the ride and closes the
+    /// sheet.
+    private func rideButton(_ ride: RideDetails) -> some View {
+        Button {
+            viewModel.endRide()
+            dismiss()
+        } label: {
+            let title = Text(ride.button)
+                .font(TTFont.headline)
+                .foregroundStyle(ride.isComplete ? TTColor.onAccent : TTColor.ink)
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.alertHeight)
+            if ride.isComplete {
+                title.ttGlass(tint: TTColor.accent, in: Capsule())
+            } else {
+                title.ttGlass(in: Capsule())
+            }
+        }
+        .contentShape(Capsule())
+        .buttonStyle(PressScaleStyle())
+        .accessibilityIdentifier("trip.endRide")
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.bottom, Self.buttonBottom)
+    }
+}
+
+/// The Directions link dims while pressed, as the canvas's link does.
+private struct DimOnPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.45 : 1)
     }
 }
 

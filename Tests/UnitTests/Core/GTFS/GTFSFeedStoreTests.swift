@@ -108,6 +108,10 @@ final class GTFSFeedStoreTests: XCTestCase {
         let late = GTFSTimetable(feed: try GTFSFeed(zip: GTFSTimetableTests.sampleZip(), importedAt: imported.addingTimeInterval(17 * 86_400)))
         XCTAssertFalse(GTFSFeedStore.isDue(late, now: imported.addingTimeInterval(18 * 86_400)), "Fri Nov 27")
         XCTAssertTrue(GTFSFeedStore.isDue(late, now: imported.addingTimeInterval(19 * 86_400)), "Sat Nov 28")
+        // A copy imported before TT-171 has no track shapes: it is refreshed for them (On board).
+        var old = timetable.feed
+        old.shapes = nil
+        XCTAssertTrue(GTFSFeedStore.isDue(GTFSTimetable(feed: old), now: imported.addingTimeInterval(86_400)))
     }
 }
 

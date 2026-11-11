@@ -114,10 +114,14 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
+    # TT-171: asked only when a ride starts (On board); the background session also needs UIBackgroundModes location.
+    'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
+      'Your location shows which station is next while you ride, and taps you before your stop.',
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D49 reverses D25: no UIDesignRequiresCompatibility key, so iOS 26 draws Liquid Glass (TT-156).
     # D36: MetrolinxAPIKey comes from the METROLINX_API_KEY setting in Config/App.xcconfig (TT-131).
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).
+    # TT-171: UIBackgroundModes location keeps a ride's location going in the background (On board).
     'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',

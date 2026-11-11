@@ -7,6 +7,8 @@ struct ScheduleDependencies {
     let repository: any ScheduleRepository
     let stations: any StationRepository
     let clock: any AppClock
+    /// On board's trips and tracks (TT-171): the GO feed in the app; none in fixture runs, so no ride starts or restores.
+    var rides: (any RideDataProviding)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -24,7 +26,7 @@ struct ScheduleDependencies {
             live: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0) },
             alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
         )
-        let live = ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock())
+        let live = ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock(), rides: repository)
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
 
@@ -38,7 +40,8 @@ struct ScheduleDependencies {
                 base: repository, clock: mocked, mode: { DemoTrains.stored }, isMockTime: { MockTime.stored != nil }
             ),
             stations: stations,
-            clock: mocked
+            clock: mocked,
+            rides: rides
         )
     }
 
@@ -53,6 +56,20 @@ struct ScheduleDependencies {
             return ScheduleDependencies(repository: NoScheduleRepository(), stations: NoScheduleRepository(), clock: SystemClock())
         }
         return ScheduleDependencies(repository: repository, stations: repository, clock: FixedClock(now: repository.now))
+    }
+}
+
+extension RideEngine {
+    /// The app's one ride engine (TT-171): the GO feed's trips and tracks, the phone's location and the schedule's clock, so
+    /// Mock time reaches rides too. Fixture runs keep no ride on device.
+    static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> RideEngine {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        return RideEngine(
+            data: dependencies.rides,
+            location: SystemLocationProvider(),
+            clock: dependencies.clock,
+            defaults: dependencies.rides == nil ? nil : .standard
+        )
     }
 }
 

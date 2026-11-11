@@ -11,7 +11,8 @@ final class FakeWatchedTrips: WatchedTripsProviding {
         self.trips = trips
     }
 
-    func isWatched(_ trip: TripKey) -> Bool { trips.contains(trip) }
+    func isWatched(_ trip: Trip, on route: Route) -> Bool { trips.contains(trip.key) }
+    func isAlerted(_ trip: Trip, on route: Route) -> Bool { trips.contains(trip.key) }
 }
 
 extension ScheduleViewModel {

@@ -166,12 +166,13 @@ struct RisingToast<Item: Equatable, Content: View>: View {
         ZStack {
             if let shown {
                 content(shown)
-                    // The words change in place at once, whatever animation the screen runs.
-                    .transaction { $0.animation = nil }
                     .offset(y: offset)
                     .animation(phase == .gone ? .easeIn(duration: 0.2) : TTMotion.toast, value: phase)
                     .opacity(phase == .rest ? 1 : 0)
                     .animation(phase == .gone ? .easeIn(duration: 0.2) : .easeOut(duration: 0.15), value: phase)
+                    // The screen's animation stops here, so the words change in place at once; the two above run inside
+                    // it. (On the content itself it also stopped the offset, which SwiftUI moves with the content.)
+                    .transaction { $0.animation = nil }
                     .transition(.identity)
                     .onAppear { phase = .rest }
             }

@@ -90,28 +90,42 @@ struct ScheduleView: View {
 
     // MARK: Motion (TT-164, D61)
 
-    /// The cards' cascade: pending from the frame the new trains are on screen until the start is taken just after it.
+    /// The cards' cascade: pending (every card at its first pose, unseen) from the tap that asks for new trains until the
+    /// start is taken, just after the frame that puts them on screen.
     private var entrance: MotionRun {
-        MotionRun(start: entranceStart, pending: playsMotion && viewModel.entranceRequest != entranceSeen)
+        MotionRun(
+            start: entranceStart,
+            pending: playsMotion && (viewModel.entranceRequest != entranceSeen || viewModel.awaitsNewTrains)
+        )
     }
 
+    /// The start is taken on the main actor's next turn, after the frame that draws the new cards: building that frame
+    /// can take a moment, and a start taken before it would skip the cascade's first frames.
     private func startEntrance() {
-        entranceSeen = viewModel.entranceRequest
-        guard playsMotion else { return }
-        let start = Date()
-        entranceStart = start
+        let request = viewModel.entranceRequest
+        guard playsMotion else {
+            entranceSeen = request
+            return
+        }
         Task { @MainActor in
+            // A newer request takes its own start.
+            guard request == viewModel.entranceRequest else { return }
+            let start = Date()
+            entranceSeen = request
+            entranceStart = start
             try? await Task.sleep(for: .seconds(CascadeMotion.duration))
-            // A newer cascade has its own start.
             if entranceStart == start { entranceStart = nil }
         }
     }
 
+    /// Started on the next turn too, like the cascade, so its first frames are drawn.
     private func startPulse() {
         guard playsMotion, !reduceMotion else { return }
-        let start = Date()
-        pulseStart = start
+        let pulse = viewModel.nowPulse
         Task { @MainActor in
+            guard pulse == viewModel.nowPulse else { return }
+            let start = Date()
+            pulseStart = start
             try? await Task.sleep(for: .seconds(NowPulse.duration))
             if pulseStart == start { pulseStart = nil }
         }
@@ -469,7 +483,7 @@ struct ScheduleView: View {
         .refreshable { await viewModel.refresh() }
         .onChange(of: viewModel.scrollRequest) { previous, _ in
             riderScrolled = false
-            scroll(animated: previous != 0)
+            scroll(animated: previous != 0 && !viewModel.scrollJumps)
         }
         // The cards are measured after the first scroll, which moves Now: scroll again (D49).
         .onChange(of: viewModel.settleRequest) {
@@ -491,10 +505,11 @@ struct ScheduleView: View {
     }
 
     /// A scroll to the present again, unless the rider has taken over the scrolling. Without animation on the first request
-    /// (the launch); later ones animate, as the request did, so the second scroll only steers the first.
+    /// (the launch) and after a jump to new trains (TT-164: the cards cascade in where they land); later ones animate, as
+    /// the request did, so the second scroll only steers the first.
     private func settle() {
         guard !riderScrolled else { return }
-        scroll(animated: viewModel.scrollRequest > 1)
+        scroll(animated: viewModel.scrollRequest > 1 && !viewModel.scrollJumps)
     }
 
     // MARK: Alerts

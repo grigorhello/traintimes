@@ -35,11 +35,12 @@ struct DayCell: View {
                     .monospacedDigit()
                     .foregroundStyle(isSelected ? TTColor.onAccent : showsToday ? TTColor.accent : TTColor.ink)
             }
+            // Only the text cross-fades when the selection moves; the tile turns at once, as on the Motion board, so a
+            // half-faded tile never shows the gliding accent through it (TT-164).
+            .animation(.easeOut(duration: 0.2), value: isSelected)
             .frame(width: Self.size.width, height: Self.size.height)
             .background(fill, in: RoundedRectangle(cornerRadius: TTRadius.md))
             .shadow(color: .black.opacity(colorScheme == .dark || isSelected ? 0 : 0.06), radius: 1, x: 0, y: 1)
-            // The text and the tile cross-fade when the selection moves.
-            .animation(.easeOut(duration: 0.2), value: isSelected)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])

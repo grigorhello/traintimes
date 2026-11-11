@@ -55,6 +55,40 @@ final class ScheduleMotionStateTests: XCTestCase {
         XCTAssertEqual(model.daySelection, 2, "The tab on Today")
     }
 
+    /// New trains jump the timeline to where they open (the cards cascade in there); the tab on Today and the midnight turn
+    /// still glide.
+    func testNewTrainsJumpTheTimeline() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        await model.select(model.days[1])
+        XCTAssertTrue(model.scrollJumps, "A day tapped")
+        await model.backToNow()
+        XCTAssertTrue(model.scrollJumps, "Back to Today from another day")
+        await model.backToNow()
+        XCTAssertFalse(model.scrollJumps, "The tab on Today")
+        await model.swap()
+        XCTAssertTrue(model.scrollJumps, "The route swapped")
+        XCTAssertFalse(model.awaitsNewTrains)
+    }
+
+    /// From the tap until the new trains land, the old cards are hidden; a load that fails ends the wait too.
+    func testTheOldCardsHideWhileNewTrainsLoad() async throws {
+        let repository = GatedRepository()
+        let route = Route(
+            from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO"),
+            line: Line(id: "LW", name: "Lakeshore West", colorHex: "#98002e")
+        )
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
+        await model.loadIfNeeded()
+        XCTAssertFalse(model.awaitsNewTrains)
+        await repository.close()
+        let selecting = Task { await model.select(model.days[1]) }
+        await repository.held()
+        XCTAssertTrue(model.awaitsNewTrains, "Hidden from the tap")
+        await repository.open()
+        await selecting.value
+        XCTAssertFalse(model.awaitsNewTrains, "Shown once the trains land")
+    }
+
     /// A past day's cards only fade in.
     func testPastDaysOnlyFade() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
@@ -126,6 +160,39 @@ private actor OfflineFirstRepository: ScheduleRepository {
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
         guard isConnected else { throw URLError(.notConnectedToInternet) }
+        return []
+    }
+
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
+}
+
+/// Holds a load at the gate while it is closed, so a test can look at the screen while new trains load.
+private actor GatedRepository: ScheduleRepository {
+    private var isOpen = true
+    private var parked: [CheckedContinuation<Void, Never>] = []
+    private var watchers: [CheckedContinuation<Void, Never>] = []
+
+    func close() { isOpen = false }
+
+    func open() {
+        isOpen = true
+        parked.forEach { $0.resume() }
+        parked = []
+    }
+
+    /// Returns once a load waits at the closed gate.
+    func held() async {
+        guard parked.isEmpty else { return }
+        await withCheckedContinuation { watchers.append($0) }
+    }
+
+    func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
+        if !isOpen {
+            watchers.forEach { $0.resume() }
+            watchers = []
+            await withCheckedContinuation { parked.append($0) }
+        }
         return []
     }
 

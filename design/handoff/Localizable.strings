@@ -295,7 +295,7 @@
 "settings.testing.off" = "Off";
 "settings.testing.reset" = "Reset";
 "settings.testing.time" = "Time";
-"settings.testing.footnote" = "Toronto time. With mock time on, Schedule shows the timetable only. Testing appears in TestFlight and Xcode builds only.";
+"settings.testing.footnote" = "Toronto time. With mock time on, the real live data is off; Live data still works. Testing appears in TestFlight and Xcode builds only.";
 "settings.demo_trains" = "Demo trains";
 "settings.demo_trains.off" = "Off";
 "settings.demo_trains.delays" = "Delays";
@@ -309,6 +309,18 @@
 "settings.demo_trains.platform_detail" = "The next train leaves in 8 min with no platform posted yet.";
 "settings.demo_trains.ride_detail" = "Asks on Schedule if you’re on the 5:13 PM train, then plays your ride to Clarkson.";
 "settings.demo_trains.departure_detail" = "Plays the last 17 minutes before the 5:13 PM train leaves Union, with an alert on it. Open it from the strip on Schedule.";
+"settings.live_data" = "Live data";
+"settings.live_data.off" = "Off";
+"settings.live_data.on_time" = "On time";
+"settings.live_data.mixed" = "Mixed";
+"settings.live_data.changing" = "Changing";
+"settings.live_data.stale" = "Stale";
+"settings.live_data.value" = "Live: %@";
+"settings.live_data.off_detail" = "The real live feed. Until the Metrolinx key arrives, there is none.";
+"settings.live_data.on_time_detail" = "Every train live and on time, updated just now.";
+"settings.live_data.mixed_detail" = "The next trains late 4 min, cancelled, on time, late 22 min and skipping your stop, with platforms and a line notice.";
+"settings.live_data.changing_detail" = "The next train’s delay changes every minute: on time, 3, 6, 9 min, then over again.";
+"settings.live_data.stale_detail" = "The next train late, last reported 8 min ago, so cards fall back to Scheduled.";
 "settings.mock_time" = "Mock time";
 "settings.mock_time.early" = "Early morning";
 "settings.mock_time.late" = "Late evening";

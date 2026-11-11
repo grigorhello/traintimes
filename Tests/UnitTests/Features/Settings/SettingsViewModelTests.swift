@@ -141,6 +141,28 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.testingValue, "Off")
     }
 
+    /// TT-195: Live data and the Demo trains modes that make their own live status are one at a time; the row names it and
+    /// Reset turns it off. Ride and Departure keep Live data on.
+    func testLiveDataAndDemoTrainsAreOneAtATime() {
+        let settings = AppSettings(defaults: .ephemeral())
+        let model = makeModel(settings: settings, showsTesting: true)
+        model.demoTrains = .delays
+        model.mockLive = .mixed
+        XCTAssertEqual(settings.demoTrains, .off)
+        XCTAssertEqual(model.testingValue, "Live: Mixed")
+        XCTAssertTrue(model.isTestingActive)
+
+        model.demoTrains = .ride
+        XCTAssertEqual(settings.mockLive, .mixed)
+        model.demoTrains = .offline
+        XCTAssertEqual(settings.mockLive, .off)
+
+        model.mockLive = .stale
+        model.resetTesting()
+        XCTAssertEqual(settings.mockLive, .off)
+        XCTAssertFalse(model.isTestingActive)
+    }
+
     /// TT-168: "My alerts · N" counts every saved rule; none without alert rules.
     func testAlertCountIsTheNumberOfSavedRules() async {
         XCTAssertEqual(makeModel().alertCount, 0)

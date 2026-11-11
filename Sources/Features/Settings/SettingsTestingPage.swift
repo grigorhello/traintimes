@@ -15,9 +15,11 @@ struct SettingsTestingPage: View {
                 VStack(alignment: .leading, spacing: TTSpace.s2) {
                     header("settings.demo_trains").settingsRise(order: 0)
                     demoCard.settingsRise(order: 0)
-                    header("settings.testing.time").settingsRise(order: 1)
-                    mockTimeCard.settingsRise(order: 1)
-                    SettingsNote(text: "settings.testing.footnote").settingsRise(order: 2)
+                    header("settings.live_data").settingsRise(order: 1)
+                    liveCard.settingsRise(order: 1)
+                    header("settings.testing.time").settingsRise(order: 2)
+                    mockTimeCard.settingsRise(order: 2)
+                    SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
                 }
             }
         )
@@ -103,6 +105,38 @@ struct SettingsTestingPage: View {
         .animation(.easeOut(duration: 0.15), value: viewModel.demoTrains)
     }
 
+    // MARK: Live data
+
+    /// Live data (TT-195): a made-up feed on the real timetable, five choices on the same switch as Demo trains.
+    private var liveCard: some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 10) {
+                GlassSwitch(
+                    selection: $viewModel.mockLive,
+                    options: MockLive.allCases.map { live -> GlassSwitch<MockLive>.Option in
+                        let key = LocalizedStringKey(live.labelKey ?? "settings.live_data.off")
+                        return GlassSwitch<MockLive>.Option(
+                            value: live, label: .text(key), name: key, identifier: "settings.liveData.\(live.rawValue)"
+                        )
+                    }
+                )
+                ZStack(alignment: .topLeading) {
+                    ForEach(MockLive.allCases, id: \.self) { live in
+                        Text(LocalizedStringKey(live.detailKey))
+                            .font(TTFont.footnote)
+                            .foregroundStyle(TTColor.inkSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .opacity(live == viewModel.mockLive ? 1 : 0)
+                            .accessibilityHidden(live != viewModel.mockLive)
+                    }
+                }
+                .padding(.horizontal, 2)
+                .animation(.easeOut(duration: 0.15), value: viewModel.mockLive)
+            }
+            .padding(TTSpace.s3)
+        }
+    }
+
     // MARK: Mock time
 
     private var mockTimeCard: some View {
@@ -172,6 +206,19 @@ private extension DemoTrains {
         case .awaitingPlatform: "settings.demo_trains.platform_detail"
         case .ride: "settings.demo_trains.ride_detail"
         case .departure: "settings.demo_trains.departure_detail"
+        }
+    }
+}
+
+private extension MockLive {
+    /// The line under the switch for this feed.
+    var detailKey: String {
+        switch self {
+        case .off: "settings.live_data.off_detail"
+        case .onTime: "settings.live_data.on_time_detail"
+        case .mixed: "settings.live_data.mixed_detail"
+        case .changing: "settings.live_data.changing_detail"
+        case .stale: "settings.live_data.stale_detail"
         }
     }
 }

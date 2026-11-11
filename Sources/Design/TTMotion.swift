@@ -35,12 +35,16 @@ enum TTMotion {
     static let turnCurve = Curve(response: 0.50, damping: 0.58)
     /// A pressed glass button springing back (0.88 to 1 on the swap button).
     static let pressCurve = Curve(response: 0.40, damping: 0.50)
-    /// A small pop: the route pin after the swap lands.
+    /// A small pop: the route pin after the swap lands, and a card's bell springing back from its swell (TT-166).
     static let popCurve = Curve(response: 0.35, damping: 0.45)
     /// The selected day's accent tile gliding to the tapped day (TT-164, D61).
     static let glideCurve = Curve(response: 0.45, damping: 0.72)
     /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D61).
     static let cascadeCurve = Curve(response: 0.44, damping: 0.62)
+    /// The bell's toast rising 32 pt into place (TT-166).
+    static let toastCurve = Curve(response: 0.45, damping: 0.68)
+    /// The Enable alerts check popping in from 0.6 (TT-166).
+    static let confirmCurve = Curve(response: 0.35, damping: 0.50)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }
@@ -48,6 +52,10 @@ enum TTMotion {
     static var pop: Animation { popCurve.animation }
     static var glide: Animation { glideCurve.animation }
     static var cascade: Animation { cascadeCurve.animation }
+    static var toast: Animation { toastCurve.animation }
+    static var confirm: Animation { confirmCurve.animation }
+    /// The bell's swell to 1.3 before `pop`; the glyph swaps at its top (TT-166).
+    static var swell: Animation { .easeOut(duration: 0.1) }
     /// Status changes, and every transform-free stand-in under Reduce Motion.
     static var fade: Animation { .easeOut(duration: 0.18) }
 

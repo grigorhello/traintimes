@@ -104,5 +104,6 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 40 | TT-163 · Trip details sheet: journey card, stop list and floating alert button | [#83](https://github.com/grigorhello/traintimes/issues/83) | P1 | 5 | Grigor, 2026-11-10, D56 |
 | 41 | TT-164 · Schedule motion: day-change glide, card cascade, Now pulse | [#89](https://github.com/grigorhello/traintimes/issues/89) | P1 | 2 | Grigor, 2026-11-10, D61 |
 | 42 | TT-165 · Swap button animation: the station names trade places | [#91](https://github.com/grigorhello/traintimes/issues/91) | P1 | 2 | Grigor, 2026-11-10, D59 |
+| 43 | TT-166 · Bell pop, toast spring and the Enable-alerts confirmation | [#92](https://github.com/grigorhello/traintimes/issues/92) | P2 | 1 | Grigor, 2026-11-10, D62 |
 | 45 | TT-168 · Settings redesign: five-row main view, glass switches, Notifications, About and Testing pages | [#85](https://github.com/grigorhello/traintimes/issues/85) | P1 | 8 | Grigor, 2026-11-10, D57 |
 | 46 | TT-169 · Notifications-off warning: red dot on the Alerts tab and a fix card in Alerts | [#86](https://github.com/grigorhello/traintimes/issues/86) | P1 | 3 | Grigor, 2026-11-10, D58 |

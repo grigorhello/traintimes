@@ -121,10 +121,9 @@ final class ArrivalNudge {
 
     func handle(_ event: RideEvent, ride: Ride, destination: Station, now: Date) {
         if ride != self.ride {
+            // "I'm on board" on another train replaces the ride without ending it: the old one's notifications go.
+            cancel()
             self.ride = ride
-            pending = [:]
-            done = []
-            sawRideBeforeYourStop = false
         }
         switch event {
         case .update(let state):

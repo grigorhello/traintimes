@@ -96,8 +96,8 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.arriving)]?.delay, 1)
     }
 
-    /// Acceptance: with location lost the engine falls back to the timetable with the last measured offset, and the
-    /// notifications stay where they are, so they still go off on the timetable.
+    /// Acceptance: with location lost the engine falls back to the timetable corrected by the last measured offset, and
+    /// the notifications stay where they are, so they still go off on that timetable.
     func testWithLocationLostTheTimetableNotificationsStay() async throws {
         let plan = try OnBoardFixtures.plan()
         let clock = TestClock(now: t(11, 15))
@@ -107,22 +107,25 @@ final class ArrivalNudgeTests: XCTestCase {
         rig.nudge.follow(engine)
         let started = await engine.start(ride)
         XCTAssertTrue(started)
-        for minute in stride(from: 16, through: 30, by: 2) {
-            clock.set(t(11, minute))
-            location.send(try OnBoardFixtures.fix(along: OnBoardFixtures.along(at: t(11, minute), plan: plan), plan: plan))
-        }
         await until { rig.notifications.added.count >= 2 }
-        XCTAssertEqual(rig.notifications.pending.count, 2)
-        let scheduled = rig.notifications.added.count
 
-        // No fix for three minutes: the timetable places the train.
-        clock.set(t(11, 33))
+        // The phone finds the train still at Union at 11:20, three minutes late: both move to 11:54 and 11:55.
+        clock.set(t(11, 20))
+        location.send(try OnBoardFixtures.fix(along: 0, plan: plan))
+        await until { rig.notifications.added.count >= 4 }
+        await until { false }
+        XCTAssertEqual(rig.notifications.added.count, 4)
+        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.arriving)]?.delay ?? 0, 34 * 60, accuracy: 0.5)
+
+        // No fix for four minutes: the timetable places the train, three minutes late, and nothing moves.
+        clock.set(t(11, 24))
         engine.update()
-        await until { engine.state?.source == .timetable }
         await until { false }
         XCTAssertEqual(engine.state?.source, .timetable)
-        XCTAssertEqual(rig.notifications.added.count, scheduled, "nothing moved, nothing was removed")
-        XCTAssertTrue(rig.notifications.removed.isEmpty)
+        XCTAssertEqual(engine.state?.expectedArrival, t(11, 55))
+        XCTAssertEqual(rig.notifications.added.count, 4, "nothing moved")
+        XCTAssertTrue(rig.notifications.removed.isEmpty, "nothing was removed")
         XCTAssertEqual(rig.notifications.pending.count, 2)
     }
 
@@ -134,6 +137,18 @@ final class ArrivalNudgeTests: XCTestCase {
 
         XCTAssertEqual(Set(rig.notifications.removed), Set(ids))
         XCTAssertTrue(rig.notifications.pending.isEmpty)
+    }
+
+    func testARideOnAnotherTrainRemovesTheOldRidesNotifications() {
+        let rig = rig()
+        send(.update(state(.riding, arrival: t(11, 52))), to: rig, at: t(11, 17))
+        let old = [rig.nudge.id(.arriving), rig.nudge.id(.here)]
+        let later = Ride(trip: TripKey(serviceDay: OnBoardFixtures.friday, tripId: "20261127-LW-1047"), from: "UN", to: "CL")
+        rig.nudge.handle(.update(state(.atStation, arrival: t(12, 22))), ride: later, destination: clarkson, now: t(11, 40))
+
+        XCTAssertEqual(Set(rig.notifications.removed), Set(old))
+        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertTrue(rig.notifications.pending.keys.allSatisfy { $0.contains("20261127-LW-1047") })
     }
 
     func testTheDemoRideSchedulesInRealSeconds() {

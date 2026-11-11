@@ -10,8 +10,11 @@ final class OnBoard {
     private let app: RideEngine?
     /// The app's train detector (TT-175); nil in fixture runs, previews and most tests.
     private let detector: TrainDetector?
-    /// The demo ride's engine while Demo trains › Ride is on, from the question's Yes.
-    private(set) var demo: RideEngine?
+    /// The demo ride's engine while Demo trains › Ride is on, from the question's Yes. The Live Activity follows whichever
+    /// demo engine plays, however it was started or stopped (TT-174).
+    private(set) var demo: RideEngine? {
+        didSet { if demo !== oldValue { liveActivity?.follow(demo: demo) } }
+    }
     /// The demo question's detector, until its Yes (TT-175).
     private(set) var demoDetector: TrainDetector?
     /// Demo trains › Ride is on.
@@ -30,10 +33,13 @@ final class OnBoard {
     private var demoIsHandOff = false
     private let makeDeparture: @MainActor () -> DemoDeparture.Session
     private let makeHandOff: @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride)
+    /// The ride's Live Activity (TT-174), which follows the demo's engine while it plays; nil in previews and tests.
+    private let liveActivity: (any RideActivityFollowing)?
 
     init(
         app: RideEngine?,
         detector: TrainDetector? = nil,
+        liveActivity: (any RideActivityFollowing)? = nil,
         makeDemo: @escaping @MainActor (Date?) -> (engine: RideEngine, ride: Ride) = { DemoRide.session(from: $0) },
         makeDemoDetector: (@MainActor () -> TrainDetector)? = { DemoRide.detector() },
         makeDeparture: @escaping @MainActor () -> DemoDeparture.Session = { DemoDeparture.session() },
@@ -43,6 +49,7 @@ final class OnBoard {
     ) {
         self.app = app
         self.detector = detector
+        self.liveActivity = liveActivity
         self.makeDemo = makeDemo
         self.makeDemoDetector = makeDemoDetector
         self.makeDeparture = makeDeparture
@@ -226,4 +233,11 @@ final class OnBoard {
         route = resolved
         return resolved
     }
+}
+
+/// The ride's Live Activity on the Lock Screen and in the Dynamic Island (TT-174, `RideLiveActivity`): it follows the app's
+/// engine, and the demo's while Demo trains › Ride plays.
+@MainActor
+protocol RideActivityFollowing: AnyObject {
+    func follow(demo engine: RideEngine?)
 }

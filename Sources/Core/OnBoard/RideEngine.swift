@@ -109,9 +109,11 @@ final class RideEngine {
     @ObservationIgnored private var locationStartedAt = Date.distantPast
     @ObservationIgnored private var offLineSince: Date?
     /// Progress as a rank: 2i at stop i, 2i + 1 between stops i and i + 1. `measuredRank` is the furthest the phone or the
-    /// feed placed the train, so a noisy fix never moves it back.
+    /// feed placed the train, so a noisy fix never moves it back; a measured position does take back the timetable's guess.
     @ObservationIgnored private var rank = 0
     @ObservationIgnored private var measuredRank = 0
+    /// The last phase sent as `.phase`.
+    @ObservationIgnored private var announcedPhase: RidePhase?
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var subscribers: [UUID: AsyncStream<RideEvent>.Continuation] = [:]
 
@@ -141,8 +143,9 @@ final class RideEngine {
     func start(_ ride: Ride) async -> Bool {
         guard let data, let plan = try? await data.ridePlan(for: ride), plan.stops.count >= 2 else { return false }
         let allowed = await location.requestWhenInUse()
+        let status = await data.rideStatus(for: ride)
         stopTracking()
-        begin(ride, plan: plan, saved: SavedRide(ride: ride, startedAt: clock.now), tracksLocation: allowed)
+        begin(ride, plan: plan, saved: SavedRide(ride: ride, startedAt: clock.now), status: status, tracksLocation: allowed)
         return true
     }
 
@@ -154,8 +157,13 @@ final class RideEngine {
             SavedRide.clear(from: defaults, key: Self.storageKey)
             return
         }
+        let status = await data.rideStatus(for: saved.ride)
         guard ride == nil else { return }
-        begin(saved.ride, plan: plan, saved: saved, tracksLocation: location.isAuthorized)
+        // A ride 10 min past your stop is over: it ends at once on the timetable, and location does not start again.
+        let offset = status.delay ?? saved.offset ?? 0
+        let arrival = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
+        let isOver = clock.now.timeIntervalSince(arrival) >= Self.endAfterArrival
+        begin(saved.ride, plan: plan, saved: saved, status: status, tracksLocation: location.isAuthorized && !isOver)
     }
 
     /// End ride.
@@ -175,17 +183,18 @@ final class RideEngine {
         return stream
     }
 
-    private func begin(_ ride: Ride, plan: RidePlan, saved: SavedRide, tracksLocation: Bool) {
+    private func begin(_ ride: Ride, plan: RidePlan, saved: SavedRide, status: RideStatus, tracksLocation: Bool) {
         self.ride = ride
         self.plan = plan
         self.saved = saved
+        self.status = status
         state = nil
-        status = .none
         fix = nil
         feedPosition = nil
         offLineSince = nil
         rank = 0
         measuredRank = 0
+        announcedPhase = nil
         // Without a track a fix cannot place the train, so the phone is not used.
         self.tracksLocation = tracksLocation && plan.track != nil
         locationStartedAt = clock.now
@@ -275,47 +284,72 @@ final class RideEngine {
 
         let source = source(at: now)
         let measured = source == .phone ? fix : source == .trainFeed ? feedPosition : nil
+        // Until the phone's first fix the timetable only fills the card in: it moves nothing for good, makes no arrival,
+        // and sends no phase.
+        let isProvisional = source == .phone && measured == nil
+        let shown: Int
         if let measured, let track = plan.track {
             let placed = Self.rank(along: measured.along, stops: track.stopDistances)
             if placed >= measuredRank {
                 measuredRank = placed
-                saved.offset = Self.offset(rank: placed, along: measured.along, at: measured.at, now: now, plan: plan)
+                // A stationary fix stands for now, since iOS sends nothing more while the train does not move.
+                let time = measured.isStationary ? now : measured.at
+                saved.offset = Self.offset(rank: placed, along: measured.along, at: time, now: now, plan: plan)
             }
+            // The phone and the feed correct the timetable, back too: an arrival it guessed is taken back.
             rank = measuredRank
+            if rank < 2 * last, saved.arrivalGuessed == true {
+                saved.arrivedAt = nil
+                saved.arrivalGuessed = nil
+            }
             saved.lastUpdate = measured.at
+            shown = rank
         } else {
             let offset = status.delay ?? saved.offset ?? 0
-            rank = max(rank, measuredRank, Self.rank(at: now.addingTimeInterval(-offset), stops: plan.stops))
+            shown = max(rank, measuredRank, Self.rank(at: now.addingTimeInterval(-offset), stops: plan.stops))
+            if !isProvisional { rank = shown }
         }
 
         let offset = (measured != nil ? saved.offset : nil) ?? status.delay ?? saved.offset ?? 0
         let expectedArrival = plan.stops[last].arrival.addingTimeInterval(offset)
-        if rank >= 2 * last, saved.arrivedAt == nil {
-            // The timetable places the arrival at its expected time, so a ride restored long after ends at once.
-            saved.arrivedAt = measured == nil ? min(now, expectedArrival) : now
-        }
-        if saved != self.saved {
-            // Kept on device when the arrival or the offset moves; not on every fix.
-            let before = self.saved
-            let offsetMoved = abs((saved.offset ?? 0) - (before?.offset ?? 0)) >= 30 || (saved.offset == nil) != (before?.offset == nil)
-            self.saved = saved
-            if offsetMoved || saved.arrivedAt != before?.arrivedAt { save() }
+        if shown >= 2 * last, saved.arrivedAt == nil, !isProvisional {
+            if measured == nil {
+                // The timetable places the arrival at its expected time, never before the ride started, so a ride
+                // restored long after ends at once.
+                saved.arrivedAt = max(saved.startedAt, min(now, expectedArrival))
+                saved.arrivalGuessed = true
+            } else {
+                saved.arrivedAt = now
+            }
         }
 
-        let index = saved.arrivedAt != nil ? last : min(rank / 2, last)
-        let isAtStop = saved.arrivedAt != nil || rank % 2 == 0
+        let index = saved.arrivedAt != nil ? last : min(shown / 2, last)
+        let isAtStop = saved.arrivedAt != nil || shown % 2 == 0
         let phase: RidePhase
         if index == last {
             phase = .atYourStop
         } else if isAtStop {
             phase = .atStation
         } else if index + 1 == last {
-            let isClose = expectedArrival.timeIntervalSince(now) <= Self.arrivingLead
+            let isClose = !isProvisional && expectedArrival.timeIntervalSince(now) <= Self.arrivingLead
             phase = isClose || state?.phase == .arriving ? .arriving : .yourStopNext
         } else {
             phase = .riding
         }
-        let previous = state
+        // The arriving tap comes once a ride (D60), also when a correction brings the train back before it.
+        let announces = !isProvisional && phase != announcedPhase && !(phase == .arriving && saved.announcedArriving == true)
+        if announces, phase == .arriving { saved.announcedArriving = true }
+
+        if saved != self.saved {
+            // Kept on device when the arrival, the arriving tap or the offset moves; not on every fix.
+            let before = self.saved
+            let offsetMoved = abs((saved.offset ?? 0) - (before?.offset ?? 0)) >= 30 || (saved.offset == nil) != (before?.offset == nil)
+            self.saved = saved
+            if offsetMoved || saved.arrivedAt != before?.arrivedAt || saved.announcedArriving != before?.announcedArriving {
+                save()
+            }
+        }
+
         let current = RideState(
             phase: phase,
             currentStop: isAtStop ? plan.stops[index].station : nil,
@@ -340,10 +374,13 @@ final class RideEngine {
             state = current
             return end(ending)
         }
-        guard current != previous else { return }
-        state = current
-        if current.phase != previous?.phase { emit(.phase(current.phase)) }
-        emit(.update(current))
+        let changed = current != state
+        if changed { state = current }
+        if announces {
+            announcedPhase = phase
+            emit(.phase(phase))
+        }
+        if changed { emit(.update(current)) }
     }
 
     /// The phone while it has a fix less than 60 s old (or a stationary one, which iOS does not repeat), and for the first
@@ -427,6 +464,9 @@ struct SavedRide: Codable, Equatable {
     /// Seconds late, as last measured.
     var offset: TimeInterval?
     var arrivedAt: Date?
+    /// The timetable, not the phone or the feed, placed the arrival; a measured position takes it back.
+    var arrivalGuessed: Bool?
+    var announcedArriving: Bool?
     var lastUpdate: Date?
 
     static func read(from defaults: UserDefaults?, key: String) -> SavedRide? {

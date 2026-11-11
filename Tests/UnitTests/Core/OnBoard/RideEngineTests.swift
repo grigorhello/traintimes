@@ -171,6 +171,124 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(rig.engine.state?.expectedArrival, t(11, 57), "5 min late leaving Exhibition")
     }
 
+    /// A train held between stations: iOS sends one stationary fix and then nothing, and the delay keeps growing, so the
+    /// arriving tap waits for the train to move.
+    func testAStationaryFixBetweenStationsKeepsTheDelayGrowing() async throws {
+        let rig = try rig(at: t(11, 50, 20))
+        await rig.engine.start(ride)
+        let distances = try XCTUnwrap(rig.plan.track).stopDistances
+        let held = try OnBoardFixtures.fix(along: distances[5] - 1_400, plan: rig.plan, stationary: true)
+        rig.location.send(held)
+        rig.clock.set(t(11, 53))
+        rig.engine.update()
+        let state = try XCTUnwrap(rig.engine.state)
+        XCTAssertEqual(state.source, .phone)
+        XCTAssertEqual(state.phase, .yourStopNext, "Still held 1.4 km before Clarkson: no arriving tap yet")
+        XCTAssertEqual(state.minutesToYourStop, 2)
+    }
+
+    /// The live status is read before the first update, so a ride starts with the feed's delay.
+    func testARideStartsWithTheFeedsDelay() async throws {
+        let rig = try rig(at: t(11, 10), answer: false)
+        await rig.data.setStatus(RideStatus(delay: 300))
+        await rig.engine.start(ride)
+        XCTAssertEqual(rig.engine.state?.expectedArrival, t(11, 57))
+    }
+
+    /// A late train with no delay in the feed: until the first fix the timetable only fills in, so a ride started after
+    /// the timetable's arrival at your stop neither arrives nor ends, and the phone places the train.
+    func testALateTrainIsPlacedByThePhoneNotTheTimetable() async throws {
+        let rig = try rig(at: t(11, 55))
+        let events = rig.engine.events()
+        await rig.engine.start(ride)
+        XCTAssertNotEqual(rig.engine.state?.phase, .ended)
+        let atUnion = try OnBoardFixtures.fix(along: 0, plan: rig.plan)
+        for second in stride(from: 0, through: 15 * 60, by: 10) {
+            rig.clock.set(t(11, 55).addingTimeInterval(TimeInterval(second)))
+            rig.location.send(atUnion)
+        }
+        let state = try XCTUnwrap(rig.engine.state)
+        XCTAssertEqual(state.phase, .atStation, "Still at Union at 12:10, after the timetable's 11:52 at Clarkson")
+        XCTAssertEqual(state.currentStop?.id, "UN")
+        XCTAssertEqual(state.stopsLeft, 5)
+        XCTAssertEqual(state.expectedArrival, t(12, 45), "53 min late leaving Union")
+
+        rig.engine.end()
+        var emitted: [RidePhase] = []
+        for await event in events {
+            guard case let .phase(phase) = event else { continue }
+            emitted.append(phase)
+            if phase == .ended { break }
+        }
+        XCTAssertEqual(emitted, [.atStation, .ended], "No phase is sent before the first fix")
+    }
+
+    /// After a minute without a fix the timetable can place the arrival; the phone's next fix short of your stop takes it
+    /// back, and the ride ends 10 min after the measured arrival.
+    func testAFixTakesBackTheTimetablesArrival() async throws {
+        let rig = try rig(at: t(11, 45))
+        await rig.engine.start(ride)
+        let distances = try XCTUnwrap(rig.plan.track).stopDistances
+        let atPortCredit = try OnBoardFixtures.fix(along: distances[4], plan: rig.plan)
+        rig.location.send(atPortCredit)
+        rig.clock.set(t(11, 53))
+        rig.engine.update()
+        XCTAssertEqual(rig.engine.state?.source, .timetable)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+
+        let short = try OnBoardFixtures.fix(along: distances[5] - 2_000, plan: rig.plan)
+        rig.location.send(short)
+        XCTAssertEqual(rig.engine.state?.phase, .yourStopNext)
+        XCTAssertEqual(rig.engine.state?.nextStop?.id, "CL")
+
+        let atClarkson = try OnBoardFixtures.fix(along: distances[5], plan: rig.plan)
+        rig.clock.set(t(11, 55))
+        rig.location.send(atClarkson)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+        rig.clock.set(t(12, 4))
+        rig.location.send(atClarkson)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop, "The timetable's 11:52 would have ended it at 12:02")
+        rig.clock.set(t(12, 5))
+        rig.engine.update()
+        XCTAssertEqual(rig.engine.state?.phase, .ended)
+        XCTAssertEqual(rig.engine.state?.endReason, .arrived)
+    }
+
+    /// The arriving tap comes once a ride: the timetable's while the phone was silent counts, and a fix that brings the
+    /// train back to Port Credit, 6 min late, does not make a second one.
+    func testTheArrivingTapComesOnce() async throws {
+        let rig = try rig(at: t(11, 45))
+        let events = rig.engine.events()
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 45))
+        rig.clock.set(t(11, 51, 10))
+        rig.engine.update()
+        XCTAssertEqual(rig.engine.state?.source, .timetable)
+        XCTAssertEqual(rig.engine.state?.phase, .arriving)
+
+        var phases: [RidePhase] = []
+        var time = t(11, 51, 15)
+        while time <= t(11, 58, 30) {
+            rig.clock.set(time)
+            let along = try OnBoardFixtures.along(at: time.addingTimeInterval(-6 * 60), plan: rig.plan)
+            let fix = try OnBoardFixtures.fix(along: along, plan: rig.plan)
+            rig.location.send(fix)
+            let phase = try XCTUnwrap(rig.engine.state).phase
+            if phase != phases.last { phases.append(phase) }
+            time = time.addingTimeInterval(5)
+        }
+        XCTAssertEqual(phases, [.atStation, .yourStopNext, .arriving, .atYourStop], "The card still shows arriving")
+
+        rig.engine.end()
+        var emitted: [RidePhase] = []
+        for await event in events {
+            guard case let .phase(phase) = event else { continue }
+            emitted.append(phase)
+            if phase == .ended { break }
+        }
+        XCTAssertEqual(emitted, [.atStation, .arriving, .atStation, .yourStopNext, .atYourStop, .ended])
+    }
+
     /// Acceptance: a ride survives a relaunch: it is restored from disk, and the background updates start again without
     /// asking.
     func testARideSurvivesARelaunch() async throws {

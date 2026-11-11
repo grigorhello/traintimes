@@ -156,6 +156,8 @@
 "alert.could_not_save" = "Could not save";
 "alert.bell.label" = "Alert for %@ train";
 "alert.bell.label_on" = "Alert on for %@ train";
+"alert.notifications_off" = "Notifications are off";
+"alert.turn_on" = "Turn on";
 "alerts.my_alerts" = "My alerts";
 "alerts.recent_updates" = "Recent updates";
 "alerts.line_notices" = "Line notices";

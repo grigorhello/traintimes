@@ -16,6 +16,10 @@ final class DepartureCardSnapshotTests: XCTestCase {
     @MainActor func testPlatformPillCardDark() { snap([Self.waiting], .dark) }
     @MainActor func testPlatformPillListLight() { snap(Self.pillList, .light) }
     @MainActor func testPlatformPillListDark() { snap(Self.pillList, .dark) }
+    /// TT-190: the bell's four faces on the spec board, top to bottom: outline, waiting (half strength while the alert is
+    /// saved), filled, crossed (notifications off).
+    @MainActor func testBellFacesLight() { snap(Self.bellFaces, .light) }
+    @MainActor func testBellFacesDark() { snap(Self.bellFaces, .dark) }
 
     private struct Sample {
         let card: DepartureCard
@@ -61,6 +65,15 @@ final class DepartureCardSnapshotTests: XCTestCase {
     }
 
     private static var reported: Date { day.date(hour: 7, minute: 20) }
+
+    private static var bellFaces: [Sample] {
+        [
+            sample(7, 32, platform: .published("2"), isNext: true),
+            sample(7, 58, express: true, bell: .waiting),
+            sample(8, 21, minutes: 35, express: true, bell: .on),
+            sample(8, 47, minutes: 44, bell: .crossed),
+        ]
+    }
 
     private static var pageA: [Sample] {
         [

@@ -21,7 +21,7 @@ enum NotificationPermission: String, CaseIterable, Sendable {
 protocol NotificationPermissionProviding: Sendable {
     func current() async -> NotificationPermission
     /// Shows the iOS permission dialog if the rider has not been asked yet, then returns the answer. Called only after
-    /// the rider's first "Enable alerts" (TT-142), never before the first timetable.
+    /// the rider's own tap (the first bell tap ever, TT-190), never before the first timetable.
     func request() async -> NotificationPermission
 }
 
@@ -49,4 +49,23 @@ struct FixedNotificationPermission: NotificationPermissionProviding {
     let value: NotificationPermission
 
     func current() async -> NotificationPermission { value }
+}
+
+/// Not asked yet, and its dialog answers by itself: UI tests set it with `TT_NOTIFICATIONS=deny` in fixture runs (TT-190).
+/// iOS asks only once per install and a UI test cannot reset the answer, so the real dialog is answered "Allow" and the
+/// refusal is tested with this one, which leaves the simulator as it was.
+actor AnsweringNotificationPermission: NotificationPermissionProviding {
+    private var value = NotificationPermission.notAsked
+    private let answer: NotificationPermission
+
+    init(answer: NotificationPermission) {
+        self.answer = answer
+    }
+
+    func current() -> NotificationPermission { value }
+
+    func request() -> NotificationPermission {
+        if value == .notAsked { value = answer }
+        return value
+    }
 }

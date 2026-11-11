@@ -173,10 +173,12 @@ struct RootView: View {
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
         // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
-        // review and notifications may have arrived (TT-143).
+        // review and notifications may have arrived (TT-143). Back from the toast's Turn on with notifications on, the
+        // bell that was tapped turns on (TT-190).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             await refreshAlerts()
+            await bells.cameBack()
         }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in

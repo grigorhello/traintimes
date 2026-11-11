@@ -138,8 +138,9 @@ final class AlertRules: WatchedTripsProviding {
         if current != permission { permission = current }
     }
 
-    /// Shows the iOS permission dialog if the rider has not been asked yet, then reads the answer. The alert setup sheet
-    /// calls it on "Enable alerts" (TT-142), never before.
+    /// Shows the iOS permission dialog if the rider has not been asked yet, then reads the answer. Called only after the
+    /// rider's own tap: the first bell tap ever (TT-190, D72), "Enable alerts" on the alert setup sheet (TT-142) or "Turn on
+    /// notifications" in Settings (D57).
     func requestPermission() async {
         if await permissions.current() == .notAsked {
             _ = await permissions.request()

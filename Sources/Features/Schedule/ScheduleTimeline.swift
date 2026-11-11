@@ -11,6 +11,8 @@ struct ScheduleTimeline: View {
     let onOpen: (TripKey) -> Void
     /// Each card's bell (TT-141).
     var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
+    /// How many times each card's bell has shaken on a refusal (TT-190).
+    var shakes: (TripKey) -> Int = { _ in 0 }
     var onBell: (TripKey) -> Void = { _ in }
     /// The cards' cascade, at rest unless a new set of trains has just been shown.
     var cascade: CascadeCue = .rest
@@ -67,7 +69,9 @@ struct ScheduleTimeline: View {
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
+                DepartureCardView(
+                    card: card, bell: bell(card.id), shakes: shakes(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }
+                ) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
                 .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
@@ -253,6 +257,8 @@ struct ScheduleTimeline: View {
 struct DepartureCardView: View {
     let card: DepartureCard
     var bell: AlertBellModel.Bell = .off
+    /// Each increase shakes the bell (TT-190).
+    var shakes = 0
     let onOpen: () -> Void
     var onBell: () -> Void = {}
     let onSize: (TimelineCardSize) -> Void
@@ -432,18 +438,18 @@ struct DepartureCardView: View {
         return card.isDelayed ? TTColor.delayInk : TTColor.ink
     }
 
-    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141), with the pop (TT-166). Dimmed
-    /// while Setting up.
+    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141), with the pop (TT-166). The bell's
+    /// faces and its shake on a refusal (TT-190); taps while it waits do nothing (`AlertBellModel`).
     private var bellButton: some View {
         let label = bell == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label")
         return AlertBellButton(
-            isOn: bell == .on,
+            face: bell,
+            shakes: shakes,
             label: Text(verbatim: String(format: label, card.trainName)),
             glyph: Self.bellGlyph,
             target: Self.bellTarget,
             action: onBell
         )
-        .disabled(bell == .settingUp)
         .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
     }
 

@@ -39,6 +39,8 @@ struct ScheduleView: View {
     @State private var motion: ScheduleMotionClock
     /// Taps on each day tile, by tile id: each one replays that tile's press.
     @State private var dayTaps: [Int: Int] = [:]
+    /// When each day tile last pressed, by tile id.
+    @State private var dayPressedAt: [Int: Date] = [:]
 
     /// `picker` opens Schedule with the picker already made, for previews and snapshots.
     init(
@@ -138,10 +140,19 @@ struct ScheduleView: View {
         }
     }
 
+    /// Room for a slow frame after a day tap: the press's animation starts only after it.
+    private static let slowFrameRoom = 0.3
+
     /// The tapped day presses (not under Reduce Motion), then the day is selected.
     private func tapDay(_ tile: StripTile) {
-        // The selected tile's accent shape is drawn apart from it, so pressing it would shrink only its label.
-        if playsMotion, !reduceMotion, tile.day != viewModel.selectedDay { dayTaps[tile.id, default: 0] += 1 }
+        // The selected tile's accent shape is drawn apart from it, so pressing it would shrink only its label. A tile still in
+        // its last press, or in the slow frame before it, does not press again: two runs of its animation would add up.
+        let pressedAt = dayPressedAt[tile.id] ?? .distantPast
+        if playsMotion, !reduceMotion, tile.day != viewModel.selectedDay,
+           Date().timeIntervalSince(pressedAt) > DayPressMotion.duration + Self.slowFrameRoom {
+            dayPressedAt[tile.id] = Date()
+            dayTaps[tile.id, default: 0] += 1
+        }
         Task { await viewModel.select(tile.day) }
     }
 

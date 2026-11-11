@@ -99,19 +99,46 @@ final class ScheduleMotionStateTests: XCTestCase {
         )
         let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
         await model.loadIfNeeded()
-        let shown = model.content
+        let flag = ChangeFlag()
+        withObservationTracking { _ = model.newTrainsAreSlow } onChange: { MainActor.assumeIsolated { flag.changed = true } }
         await model.select(model.days[1])
-        XCTAssertFalse(model.newTrainsAreSlow, "A quick load")
+        XCTAssertFalse(flag.changed, "A quick load never shows it")
         await repository.close()
         let selecting = Task { await model.select(model.days[2]) }
         await repository.held()
-        XCTAssertEqual(model.content, shown, "Hidden by the cascade's wait at first, not loading")
+        XCTAssertNotEqual(model.content, .loading, "Hidden by the cascade's wait at first, not loading")
         try await Task.sleep(for: ScheduleViewModel.slowNewTrains + .milliseconds(200))
         XCTAssertEqual(model.content, .loading, "Loading once the wait is long")
         await repository.open()
         await selecting.value
         XCTAssertFalse(model.newTrainsAreSlow)
         XCTAssertNotEqual(model.content, .loading, "The trains landed")
+    }
+
+    /// A load overtaken by a newer one (today's, waiting for live status) neither keeps the newer trains hidden nor shows the
+    /// loading timeline over them, and its trains never replace them.
+    func testAnOvertakenLoadLeavesTheNewTrainsAlone() async throws {
+        let repository = GatedRepository()
+        let route = Route(
+            from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO"),
+            line: Line(id: "LW", name: "Lakeshore West", colorHex: "#98002e")
+        )
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
+        await model.loadIfNeeded()
+        await repository.close(day: model.days[1])
+        let overtaken = Task { await model.select(model.days[1]) }
+        await repository.held()
+        await model.select(model.days[2])
+        XCTAssertFalse(model.awaitsNewTrains, "The latest trains have landed")
+        try await Task.sleep(for: ScheduleViewModel.slowNewTrains + .milliseconds(200))
+        XCTAssertFalse(model.newTrainsAreSlow, "The overtaken load's wait does not count")
+        XCTAssertNotEqual(model.content, .loading)
+        let request = model.entranceRequest
+        await repository.open()
+        await overtaken.value
+        XCTAssertFalse(model.awaitsNewTrains)
+        XCTAssertEqual(model.selectedDay, model.days[2])
+        XCTAssertEqual(model.entranceRequest, request, "Its trains never land")
     }
 
     /// A card measured at the size the layout already gave it leaves the layout as it is, so the cards are not all redrawn;
@@ -213,10 +240,15 @@ private actor OfflineFirstRepository: ScheduleRepository {
 /// Holds a load at the gate while it is closed, so a test can look at the screen while new trains load.
 private actor GatedRepository: ScheduleRepository {
     private var isOpen = true
+    /// The one day held at the closed gate; nil holds every day.
+    private var heldDay: ServiceDay?
     private var parked: [CheckedContinuation<Void, Never>] = []
     private var watchers: [CheckedContinuation<Void, Never>] = []
 
-    func close() { isOpen = false }
+    func close(day: ServiceDay? = nil) {
+        isOpen = false
+        heldDay = day
+    }
 
     func open() {
         isOpen = true
@@ -231,7 +263,7 @@ private actor GatedRepository: ScheduleRepository {
     }
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
-        if !isOpen {
+        if !isOpen, heldDay == nil || heldDay == day {
             watchers.forEach { $0.resume() }
             watchers = []
             await withCheckedContinuation { parked.append($0) }

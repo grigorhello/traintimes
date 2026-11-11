@@ -59,9 +59,11 @@ final class ScheduleViewModel {
     /// midnight turn never bump it.
     private(set) var entranceRequest = 0
     /// New trains are loading for another day or route: the old cards are hidden at once and the new ones wait at the
-    /// cascade's first pose (TT-164, D61). A count, so a load overtaken by a newer one does not end the wait early.
-    private(set) var newTrainsLoading = 0
-    var awaitsNewTrains: Bool { newTrainsLoading > 0 }
+    /// cascade's first pose (TT-164, D61). Only the latest such load ends the wait, so a load it overtook (today's, still
+    /// waiting for live status) can neither end it early nor keep the latest trains hidden.
+    private(set) var awaitsNewTrains = false
+    /// Counts the loads of new trains, so each knows whether it is still the latest.
+    @ObservationIgnored private var newTrainsTicket = 0
     /// New trains have kept the timeline empty for `slowNewTrains`, so it shows the loading timeline until they land: today's
     /// trains wait for live status, which can take the network's time (up to 10 s on a dead connection, D36).
     private(set) var newTrainsAreSlow = false
@@ -461,15 +463,19 @@ final class ScheduleViewModel {
 
     /// A load for another day or route: the old cards hide at once and the new ones cascade in once it lands.
     private func loadNewTrains() async {
-        newTrainsLoading += 1
+        newTrainsTicket += 1
+        let ticket = newTrainsTicket
+        awaitsNewTrains = true
         let slow = Task {
             try? await Task.sleep(for: Self.slowNewTrains)
-            if !Task.isCancelled { newTrainsAreSlow = true }
+            if !Task.isCancelled, ticket == newTrainsTicket { newTrainsAreSlow = true }
         }
         defer {
             slow.cancel()
-            newTrainsLoading -= 1
-            if newTrainsLoading == 0 { newTrainsAreSlow = false }
+            if ticket == newTrainsTicket {
+                awaitsNewTrains = false
+                if newTrainsAreSlow { newTrainsAreSlow = false }
+            }
         }
         await load(newTrains: true)
     }

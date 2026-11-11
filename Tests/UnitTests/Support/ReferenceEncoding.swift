@@ -7,10 +7,11 @@ extension Snapshotting where Format == UIImage {
     ///
     /// A key-window capture is extended-range sRGB, and its reference is a 16-bit Display P3 PNG. When the two are not equal
     /// byte for byte, swift-snapshot-testing 1.19.7 compares their raw numbers with colour management off
-    /// (`perceptuallyCompare`), so every saturated pixel reads as about dE 8.4 off, and one stray pixel fails the whole
-    /// snapshot with the same numbers each time. RideSnapshotTests.testPermissionLight failed this way in about a third of
-    /// CI runs (0.9472656 of pixels / 0.9159375: its accent pixels). In the reference's encoding, `precision` and
-    /// `perceptualPrecision` measure the real difference.
+    /// (`perceptuallyCompare`), so saturated pixels read several dE off (about 8.4 for the light accent, about 4 for the
+    /// dark one), and one stray pixel fails the whole snapshot with the same numbers each time.
+    /// RideSnapshotTests.testPermissionLight failed this way in about a third of CI runs (0.9472656 of pixels /
+    /// 0.9159375: its accent pixels). In the reference's encoding, `precision` and `perceptualPrecision` measure the real
+    /// difference.
     var comparedAsRecorded: Snapshotting {
         let capture = snapshot
         return Snapshotting(pathExtension: pathExtension, diffing: diffing, asyncSnapshot: { value in

@@ -34,6 +34,26 @@ final class HTTPAlertServerTests: XCTestCase {
         XCTAssertNil(delete.httpBody)
     }
 
+    /// The Live Activity's tokens (TT-178): the push-to-start token with the registration, each activity on its own path.
+    func testLiveActivityRequests() throws {
+        let server = HTTPAlertServer()
+        let registration = InstallationRegistration(deviceToken: "ab", timeFormat: "12h", environment: "sandbox", startToken: "cd")
+        let put = try server.request("PUT", path: "v1/installations/abc", body: registration)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(put.httpBody)) as? [String: String])
+        XCTAssertEqual(body["startToken"], "cd")
+
+        let report = LiveActivityReport(tripId: "LW-1713", serviceDate: "20261127", originId: "UN", destinationId: "CL", token: "ef")
+        let activity = try server.request("PUT", path: "v1/installations/abc/activities", body: report)
+        XCTAssertEqual(activity.url?.absoluteString, "https://alerts.traintimes.ca/v1/installations/abc/activities")
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(activity.httpBody)) as? [String: Any])
+        XCTAssertEqual(fields["tripId"] as? String, "LW-1713")
+        XCTAssertEqual(fields["serviceDate"] as? String, "20261127")
+        XCTAssertEqual(fields["originId"] as? String, "UN")
+        XCTAssertEqual(fields["destinationId"] as? String, "CL")
+        XCTAssertEqual(fields["token"] as? String, "ef")
+        XCTAssertEqual(fields["handedOff"] as? Bool, false)
+    }
+
     /// `GET …/rules` as the server answers it (server/src/api.ts `ruleJSON`, TT-143).
     func testRuleListReadsEachRulesState() throws {
         let server = HTTPAlertServer()

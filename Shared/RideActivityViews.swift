@@ -6,9 +6,12 @@ import SwiftUI
 // island is always black), so these views keep their own palette rather than the app's tokens, which the extension does
 // not have.
 
-/// The activity's colours: mint on the dark card and in the black island, white on the arriving green; grey once stale.
+/// The activity's colours: mint on the dark card and in the black island, white on the arriving green; amber for a late
+/// train before departure (TT-178); grey once stale.
 struct RideActivityStyle {
     static let mint = Color(red: 110 / 255, green: 231 / 255, blue: 183 / 255)
+    /// The dark delay ink, #FDE68A: a late train's countdown and delay before departure.
+    static let amber = Color(red: 253 / 255, green: 230 / 255, blue: 138 / 255)
     /// Brand green, #0C7B53: the arriving alert.
     static let alertGreen = Color(red: 12 / 255, green: 123 / 255, blue: 83 / 255)
     /// The Lock Screen card, #1C202A, at 78 % over the wallpaper.
@@ -20,19 +23,23 @@ struct RideActivityStyle {
     let isStale: Bool
     /// What the train's disc is filled with: the card, the island's black or the alert green.
     let surface: Color
+    /// A late train before departure: the countdown in amber.
+    var isLate = false
 
     /// The Lock Screen card.
     static func lock(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> RideActivityStyle {
-        RideActivityStyle(isAlert: state.isAlert, isStale: isStale, surface: state.isAlert ? alertGreen : lockDisc)
+        RideActivityStyle(isAlert: state.isAlert, isStale: isStale, surface: state.isAlert ? alertGreen : lockDisc, isLate: state.late)
     }
 
     /// The Dynamic Island, black; the arriving card in it is green.
     static func island(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> RideActivityStyle {
-        RideActivityStyle(isAlert: state.isAlert, isStale: isStale, surface: state.isAlert ? alertGreen : .black)
+        RideActivityStyle(isAlert: state.isAlert, isStale: isStale, surface: state.isAlert ? alertGreen : .black, isLate: state.late)
     }
 
     /// The countdown, the bar's done part, the train and the pin.
-    var tint: Color { isStale ? .white.opacity(0.45) : isAlert ? .white : Self.mint }
+    var tint: Color { isStale ? .white.opacity(0.45) : isAlert ? .white : isLate ? Self.amber : Self.mint }
+    /// "I’m on board" before departure: mint, even beside an amber countdown.
+    var button: Color { isStale ? .white.opacity(0.45) : Self.mint }
     var secondary: Color { .white.opacity(isAlert ? 0.82 : 0.72) }
     var track: Color { .white.opacity(isAlert ? 0.35 : 0.22) }
     var stopDot: Color { .white.opacity(isAlert ? 0.4 : 0.45) }
@@ -345,9 +352,15 @@ struct RideActivityLockView: View {
     let isStale: Bool
 
     var body: some View {
-        RideActivityCard(attributes: attributes, state: state, style: .lock(state, isStale: isStale))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+        Group {
+            if state.isDeparture {
+                RideActivityDepartureCard(attributes: attributes, state: state, style: .lock(state, isStale: isStale))
+            } else {
+                RideActivityCard(attributes: attributes, state: state, style: .lock(state, isStale: isStale))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 
     /// The card's colour behind it: the activity's background tint.
@@ -417,6 +430,199 @@ struct RideActivityCompactTrailing: View {
                 .background(RideActivityStyle.alertGreen, in: Capsule())
         } else {
             RideActivityCountdown(state: state, style: style, fontSize: 15, width: 42)
+        }
+    }
+}
+
+// MARK: Before departure (TT-178, D74)
+
+// After *Live-Depart-Lock* and the before-departure cells of *Live-Island*: the alerted train's countdown from 30 min
+// before it leaves, the same activity that the hand-off then turns into the ride.
+
+extension RideActivityAttributes.ContentState {
+    /// "5:13 PM" at the start of the title, "7:13" or "07:13" in 24-hour format: set in semibold with the destination.
+    static func leadingTime(_ text: String) -> String? {
+        let words = text.split(separator: " ")
+        guard let first = words.first, first.contains(":") else { return nil }
+        if words.count > 1, words[1] == "AM" || words[1] == "PM" { return "\(first) \(words[1])" }
+        return String(first)
+    }
+
+    /// "5:43 PM" at the end of "Clarkson 5:43 PM": set in semibold on the departure's two ends.
+    static func trailingTime(_ text: String) -> String? {
+        let words = text.split(separator: " ")
+        guard let last = words.last else { return nil }
+        if last == "AM" || last == "PM", words.count > 1 { return "\(words[words.count - 2]) \(last)" }
+        return last.contains(":") ? String(last) : nil
+    }
+}
+
+/// "Union 5:13 PM" with the time white and semibold, the rest grey (the departure's two ends, "Arrives Clarkson 5:43 PM").
+struct RideActivityTimeLabel: View {
+    let text: String
+    let style: RideActivityStyle
+    var fontSize: CGFloat = 12
+
+    var body: some View {
+        Text(attributed)
+            .tracking(-0.1)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+
+    private var attributed: AttributedString {
+        var label = AttributedString(text)
+        label.font = .system(size: fontSize)
+        label.foregroundColor = style.secondary
+        if let time = RideActivityAttributes.ContentState.trailingTime(text), let range = label.range(of: time, options: .backwards) {
+            label[range].font = .system(size: fontSize, weight: .semibold)
+            label[range].foregroundColor = .white
+        }
+        return label
+    }
+}
+
+/// "5:13 PM to Clarkson" (the time and the station semibold, "to" regular and grey) over "Platform 7 · On time", the delay
+/// in amber and Boarding now in mint; "Updated 5:01 PM" once stale.
+struct RideActivityDepartureTitle: View {
+    let attributes: RideActivityAttributes
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Group {
+                if style.isStale {
+                    Text(state.updated)
+                } else if state.pill, let platform = state.platform, state.detail.hasPrefix(platform) {
+                    // "Platform", the still pill, then " · On time".
+                    HStack(spacing: 4) {
+                        Text(platform)
+                        Capsule()
+                            .fill(style.secondary.opacity(0.5))
+                            .frame(width: 18, height: 9)
+                        Text(detail(String(state.detail.dropFirst(platform.count))))
+                    }
+                } else {
+                    Text(detail(state.detail))
+                }
+            }
+            .font(.system(size: 13))
+            .tracking(-0.1)
+            .monospacedDigit()
+            .foregroundStyle(style.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        }
+    }
+
+    private var title: AttributedString {
+        var text = AttributedString(state.title)
+        text.font = .system(size: 17, weight: .regular)
+        text.foregroundColor = style.secondary
+        text.tracking = -0.4
+        for part in [RideActivityAttributes.ContentState.leadingTime(state.title), attributes.destinationName].compactMap({ $0 }) {
+            if let range = text.range(of: part, options: part == attributes.destinationName ? .backwards : []) {
+                text[range].font = .system(size: 17, weight: .semibold)
+                text[range].foregroundColor = .white
+            }
+        }
+        return text
+    }
+
+    /// The status after " · " in amber while late, in mint while boarding.
+    private func detail(_ line: String) -> AttributedString {
+        var text = AttributedString(line)
+        let tint: Color? = style.isStale ? nil : state.late ? RideActivityStyle.amber : state.phase == .boarding ? RideActivityStyle.mint : nil
+        if let tint, let dot = text.range(of: " · ") {
+            text[dot.upperBound...].foregroundColor = tint
+        }
+        return text
+    }
+}
+
+/// The countdown over "departs", hidden once the train has left (the detail then says "Departed 5:16 PM").
+struct RideActivityDepartureCountdown: View {
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        if state.phase != .departed {
+            RideActivityCountdownStack(state: state, style: style)
+        }
+    }
+}
+
+/// The Lock Screen card before departure (*Live-Depart-Lock*): the line, the train and its platform, the countdown, and
+/// the two ends; no bar until the ride.
+struct RideActivityDepartureCard: View {
+    let attributes: RideActivityAttributes
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                RideActivityTile(attributes: attributes, size: .large, edge: style.tileEdge)
+                RideActivityDepartureTitle(attributes: attributes, state: state, style: style)
+                Spacer(minLength: 0)
+                RideActivityDepartureCountdown(state: state, style: style)
+            }
+            HStack {
+                RideActivityTimeLabel(text: state.departure, style: style)
+                Spacer(minLength: 8)
+                RideActivityTimeLabel(text: state.arrival, style: style)
+            }
+        }
+    }
+}
+
+/// The expanded island's bottom before departure: "Arrives Clarkson 5:43 PM" and "I’m on board", a link (the one control
+/// that works there), which opens the app and turns this activity into the ride.
+struct RideActivityDepartureBottom: View {
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RideActivityTimeLabel(text: state.arrives ?? state.arrival, style: style, fontSize: 13)
+            Spacer(minLength: 0)
+            Link(destination: RideActivityLink.board.url) {
+                Text(state.button)
+                    .font(.system(size: 14, weight: .semibold))
+                    .tracking(-0.2)
+                    .lineLimit(1)
+                    .foregroundStyle(style.button)
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    // Circular ends, as End ride's (D67).
+                    .background(Capsule(style: .circular).strokeBorder(style.button, lineWidth: 1.5))
+            }
+            // Clear of the island's rounded corner, as End ride (D67).
+            .padding(.trailing, 4)
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 4)
+    }
+}
+
+/// The compact island's trailing side before departure: a clock before the countdown tells it from a ride.
+struct RideActivityDepartureCompactTrailing: View {
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "clock")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(style.tint)
+            if state.phase != .departed {
+                RideActivityCountdown(state: state, style: style, fontSize: 14, width: 38)
+            }
         }
     }
 }

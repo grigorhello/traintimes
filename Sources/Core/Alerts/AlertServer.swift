@@ -1,11 +1,26 @@
 import Foundation
 
 /// What the app registers for its installation (TT-140): the APNs device token, the Time format resolved to 12h or 24h
-/// so notifications show times as the app does (D17), and the APNs environment.
+/// so notifications show times as the app does (D17), and the APNs environment; and the Live Activity push-to-start token
+/// once iOS issues it (iOS 17.2+, TT-178), left out until then.
 struct InstallationRegistration: Codable, Hashable, Sendable {
     let deviceToken: String
     let timeFormat: String
     let environment: String
+    var startToken: String?
+}
+
+/// A before-departure Live Activity the app knows of (TT-178, D74): it started it, iOS gave it an update token, or the ride
+/// took it over. The server then starts no other for that train, sends its updates and end to the token, and stops once
+/// handed off.
+struct LiveActivityReport: Codable, Hashable, Sendable {
+    let tripId: String
+    /// GTFS form, "20261109".
+    let serviceDate: String
+    let originId: String
+    let destinationId: String
+    var token: String?
+    var handedOff = false
 }
 
 /// The alert server's app API (TT-140, D38), keyed by the anonymous installation id (D5).
@@ -15,6 +30,21 @@ protocol AlertServer: Sendable {
     func delete(ruleId: String, installation: String) async throws
     /// What the server says about each stored rule: Review needed, and the last day with no matching train (TT-143).
     func rules(installation: String) async throws -> [AlertRuleStatus]
+    /// A before-departure Live Activity's start, update token or hand-off (TT-178).
+    func report(_ activity: LiveActivityReport, installation: String) async throws
+}
+
+/// What the Live Activity tells the alert server (TT-178): `AlertRules`, which registers the installation.
+@MainActor
+protocol LiveActivityReporting: AnyObject {
+    /// iOS issued the push-to-start token; it goes with the registration.
+    func reportStartToken(_ token: String) async
+    func report(_ activity: LiveActivityReport) async
+}
+
+extension AlertServer {
+    /// Fixture servers keep nothing of Live Activities.
+    func report(_ activity: LiveActivityReport, installation: String) async throws {}
 }
 
 enum AlertServerError: Error, Equatable {
@@ -45,6 +75,10 @@ struct HTTPAlertServer: AlertServer {
     func rules(installation: String) async throws -> [AlertRuleStatus] {
         let data = try await send("GET", path: "v1/installations/\(installation)/rules", body: nil as AlertRule?)
         return try JSONDecoder().decode(RuleList.self, from: data).rules
+    }
+
+    func report(_ activity: LiveActivityReport, installation: String) async throws {
+        try await send("PUT", path: "v1/installations/\(installation)/activities", body: activity)
     }
 
     /// The `GET …/rules` body: `{"rules": [...]}`, each rule with its state.

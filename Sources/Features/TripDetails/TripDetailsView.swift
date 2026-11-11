@@ -12,6 +12,9 @@ struct TripDetailsView: View {
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
+    /// The permission sheet before the first ride's iOS prompt (TT-172).
+    @State private var showsIntro = false
+    @State private var tick = 0
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -37,19 +40,28 @@ struct TripDetailsView: View {
     private static let bottomFadeOpacity = 0.72
 
     var body: some View {
+        // The ride's countdowns and the train on the rail follow the clock: the sheet is drawn again each second while riding.
+        let _ = tick
+        let ride = viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
+        let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
+        let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Above the scroll view, so the close button's glass shadow is not cut off by the top fade (a hard edge in light).
                 header
                     .zIndex(1)
                 ScrollView {
-                    if let details {
-                        content(details)
-                            .padding(.horizontal, TTSpace.s5)
-                            .padding(.top, TTSpace.s4)
-                            .padding(.bottom, details.alertButton == nil ? Self.bottomInset : Self.bottomInsetWithButton)
+                    Group {
+                        if let ride {
+                            RideContent(ride: ride)
+                        } else if let details {
+                            content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
+                        }
                     }
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, TTSpace.s4)
+                    .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
                 }
                 .defaultScrollAnchor(startsAtEnd ? UnitPoint.bottom : nil)
                 .overlay(alignment: .top) {
@@ -58,7 +70,13 @@ struct TripDetailsView: View {
                         .allowsHitTesting(false)
                 }
             }
-            if let title = details?.alertButton {
+            if let ride {
+                bottomFade
+                rideButton(ride)
+            } else if showsOnBoard {
+                bottomFade
+                onBoardButtons(alert: details?.alertButton)
+            } else if let title = details?.alertButton {
                 bottomFade
                 alertButton(title)
             }
@@ -67,8 +85,24 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
+        .task(id: viewModel.isRiding) {
+            while viewModel.isRiding, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                tick &+= 1
+            }
+        }
+        .sheet(isPresented: $showsIntro) {
+            RideIntroSheet(
+                destination: viewModel.destinationName,
+                onContinue: {
+                    showsIntro = false
+                    Task { await viewModel.startRide() }
+                },
+                onNotNow: { showsIntro = false }
+            )
+        }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(details?.title ?? "")
+        .accessibilityLabel(ride?.title ?? details?.title ?? "")
         .accessibilityIdentifier("sheet.tripDetails")
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(TTRadius.sheet)
@@ -99,10 +133,10 @@ struct TripDetailsView: View {
         .padding(.top, Self.headerTop)
     }
 
-    private func content(_ details: TripDetails) -> some View {
+    private func content(_ details: TripDetails, hint: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             journey(details)
-            stops(details)
+            stops(details, hint: hint)
                 .padding(.top, TTSpace.s5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -257,7 +291,8 @@ struct TripDetailsView: View {
 
     // MARK: Stops
 
-    private func stops(_ details: TripDetails) -> some View {
+    /// `hint` takes the footnote's place while "I'm on board" shows (TT-172).
+    private func stops(_ details: TripDetails, hint: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(details.stopCount).accessibilityAddTraits(.isHeader)
@@ -279,7 +314,7 @@ struct TripDetailsView: View {
             .ttSheetCard()
             .padding(.top, 6)
 
-            Text(details.footnote)
+            Text(hint ?? details.footnote)
                 .font(TTFont.footnote)
                 .monospacedDigit()
                 .foregroundStyle(TTColor.inkSecondary)
@@ -375,6 +410,72 @@ struct TripDetailsView: View {
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityIdentifier("trip.alert")
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.bottom, Self.buttonBottom)
+    }
+
+    // MARK: On board (TT-172)
+
+    /// *Live-Entry*: the alert button turns into a 52 pt glass bell beside "I'm on board"; the bell alone goes once the
+    /// train has left (no alert then), and "I'm on board" fills the row.
+    private func onBoardButtons(alert: String?) -> some View {
+        HStack(spacing: 10) {
+            if let alert {
+                Button(action: onAlert) {
+                    Image(systemName: viewModel.hasAlert ? "bell.fill" : "bell")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(TTColor.accent)
+                        .frame(width: Self.alertHeight, height: Self.alertHeight)
+                        .ttGlass(in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressScaleStyle())
+                .accessibilityLabel(alert)
+                .accessibilityIdentifier("trip.alert")
+            }
+            Button {
+                if viewModel.needsLocationIntro {
+                    showsIntro = true
+                } else {
+                    Task { await viewModel.startRide() }
+                }
+            } label: {
+                Text("onboard.button")
+                    .font(TTFont.headline)
+                    .foregroundStyle(TTColor.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.alertHeight)
+                    .ttGlass(tint: TTColor.accent, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PressScaleStyle())
+            .accessibilityIdentifier("trip.onboard")
+        }
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.bottom, Self.buttonBottom)
+    }
+
+    /// End ride, a glass capsule in ink; Done at your stop, filled in the accent. Either one ends the ride and closes the
+    /// sheet.
+    private func rideButton(_ ride: RideDetails) -> some View {
+        Button {
+            viewModel.endRide()
+            dismiss()
+        } label: {
+            let title = Text(ride.button)
+                .font(TTFont.headline)
+                .foregroundStyle(ride.isComplete ? TTColor.onAccent : TTColor.ink)
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.alertHeight)
+            if ride.isComplete {
+                title.ttGlass(tint: TTColor.accent, in: Capsule())
+            } else {
+                title.ttGlass(in: Capsule())
+            }
+        }
+        .contentShape(Capsule())
+        .buttonStyle(PressScaleStyle())
+        .accessibilityIdentifier("trip.endRide")
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
     }

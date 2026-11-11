@@ -135,6 +135,16 @@ final class RideEngine {
         self.tickInterval = tickInterval
     }
 
+    /// A ride can start: the app has the GO feed's trips (fixture runs have none).
+    var canStart: Bool { data != nil }
+
+    /// The rider has not answered the When In Use prompt yet: the first "I'm on board" shows the app's sheet before
+    /// `start(_:)` asks (TT-172).
+    var asksForLocation: Bool { location.canAsk }
+
+    /// The engine's clock, which the ride's countdowns are read against (Mock time, or the demo ride's own clock).
+    var now: Date { clock.now }
+
     // MARK: Start, restore, end
 
     /// Starts a ride the rider asked for. Asks for When In Use location here, and nowhere else; without it the ride runs
@@ -290,7 +300,9 @@ final class RideEngine {
         let shown: Int
         if let measured, let track = plan.track {
             let placed = Self.rank(along: measured.along, stops: track.stopDistances)
-            if placed >= measuredRank {
+            // Once the train was measured at your stop the offset stays what it was on arrival: standing there is not
+            // running late (TT-172, the card's "On time · Ride complete").
+            if placed >= measuredRank, saved.arrivedAt == nil || saved.arrivalGuessed == true {
                 measuredRank = placed
                 // A stationary fix stands for now, since iOS sends nothing more while the train does not move.
                 let time = measured.isStationary ? now : measured.at

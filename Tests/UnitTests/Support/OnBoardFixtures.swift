@@ -83,6 +83,9 @@ final class FakeLocation: LocationProviding {
         isAuthorized = authorized
     }
 
+    /// Unanswered until the first request, unless the test starts with location allowed.
+    var canAsk: Bool { !isAuthorized && requests == 0 }
+
     func requestWhenInUse() async -> Bool {
         requests += 1
         isAuthorized = answer

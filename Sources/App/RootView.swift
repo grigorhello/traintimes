@@ -21,6 +21,8 @@ struct RootView: View {
     @State private var alertSetup: AlertSetupViewModel?
     /// The Alerts tab (TT-143): the rules, recent updates and the saved route's line notices.
     @State private var alertsModel: AlertsViewModel
+    /// On board (TT-172): the app's ride engine, or the demo ride's; shared by Trip details and the ride strip.
+    @State private var onBoard: OnBoard
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -37,7 +39,8 @@ struct RootView: View {
         dismissedNotices: DismissedNotices = DismissedNotices(),
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
-        alertUpdates: AlertUpdates? = nil
+        alertUpdates: AlertUpdates? = nil,
+        ride: RideEngine? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.toastDuration
@@ -70,6 +73,7 @@ struct RootView: View {
                 toastDuration: alertDependencies.toastDuration
             )
         )
+        _onBoard = State(initialValue: OnBoard(app: ride))
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -88,7 +92,9 @@ struct RootView: View {
                         onOpenTrip: { openTrip($0) },
                         onOpenLineNotice: { router.present(.lineNotices) },
                         bells: bells,
-                        onAlertSetup: { openAlertSetup($0) }
+                        onAlertSetup: { openAlertSetup($0) },
+                        onBoard: onBoard,
+                        onOpenRide: { Task { await openRide() } }
                     )
                 }
             }
@@ -156,6 +162,8 @@ struct RootView: View {
         .environment(\.timeFormatter, settings.timeFormatter)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
+        // Demo trains › Ride (TT-172): the demo ride plays from 5:32 PM while it is on.
+        .task(id: settings.demoTrains == .ride) { await onBoard.setDemo(settings.demoTrains == .ride) }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
@@ -216,9 +224,16 @@ struct RootView: View {
     private func openTrip(_ key: TripKey, on route: Route? = nil) {
         guard let route = route ?? schedule.route else { return }
         tripDetails = TripDetailsViewModel(
-            route: route, key: key, repository: repository, clock: clock, hasAlert: alerts.thisTripRule(for: key, on: route) != nil
+            route: route, key: key, repository: repository, clock: clock, hasAlert: alerts.thisTripRule(for: key, on: route) != nil,
+            onBoard: onBoard
         )
         router.present(.tripDetails)
+    }
+
+    /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).
+    private func openRide() async {
+        guard let ride = onBoard.activeRide, let route = await onBoard.rideRoute(stations: stations) else { return }
+        openTrip(ride.tripKey, on: route)
     }
 
     /// A notification tap: Trip details for its trip and service date, over the timeline of the alert's route and day, so

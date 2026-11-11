@@ -10,6 +10,9 @@ enum DemoTrains: String, CaseIterable, Sendable {
     /// The next train leaves in 8 min and its platform is not posted yet, on a feed that posts platforms: the card's
     /// pulsing placeholder (TT-162, D55).
     case awaitingPlatform
+    /// A ride on board from Union to Clarkson, 5:32 to 5:43 PM, six times as fast, on its own clock (TT-172, D61,
+    /// `DemoRide`): the ride strip on Schedule opens it. The timetable stays as it is.
+    case ride
 
     static let key = "settings.demoTrains"
 

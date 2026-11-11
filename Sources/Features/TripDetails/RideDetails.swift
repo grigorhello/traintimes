@@ -296,9 +296,9 @@ private struct RideTimes {
 }
 
 extension OnBoard {
-    /// Trip details' ride mode for `key`, at the engine's clock; nil when that trip is not riding.
+    /// Trip details' ride mode for `key`, at the engine's clock; nil when the engine's ride is another trip's.
     func details(for key: TripKey, formatter: some TimeFormatting) -> RideDetails? {
-        guard isRiding(key), let engine, let plan = engine.plan, let state = engine.state else { return nil }
+        guard let engine, engine.ride?.tripKey == key, let plan = engine.plan, let state = engine.state else { return nil }
         return RideDetails(plan: plan, state: state, now: engine.now, formatter: formatter)
     }
 

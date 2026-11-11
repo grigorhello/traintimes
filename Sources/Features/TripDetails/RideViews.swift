@@ -271,7 +271,13 @@ struct RideStopList: View {
                 row(stop)
             }
         }
-        .background(alignment: .topLeading) { rail }
+        .background(alignment: .topLeading) {
+            // Your stop's tint lies under the rail, so the rail runs on into its pin (Live-Ride).
+            ZStack(alignment: .topLeading) {
+                yourStopTint
+                rail
+            }
+        }
         .overlay(alignment: .topLeading) { train }
         .padding(.horizontal, TTSpace.s4)
         .padding(.vertical, 6)
@@ -295,6 +301,19 @@ struct RideStopList: View {
         }
         .offset(x: x, y: Self.row / 2)
         .accessibilityHidden(true)
+    }
+
+    /// Your stop's row in accent soft, 10 pt wider than the rows on each side and 3 pt in from their edges, from your stop
+    /// next until the sheet closes.
+    private var yourStopTint: some View {
+        let index = ride.stops.firstIndex(where: \.isYours) ?? max(0, ride.stops.count - 1)
+        return RoundedRectangle(cornerRadius: TTRadius.md)
+            .fill(TTColor.accentSoft)
+            .frame(height: Self.row - 6)
+            .padding(.horizontal, -10)
+            .offset(y: Self.row * CGFloat(index) + 3)
+            .opacity(ride.highlightsYourStop ? 1 : 0)
+            .accessibilityHidden(true)
     }
 
     /// The train glyph on a surface disc, centred on the rail; gone at your stop.
@@ -327,15 +346,6 @@ struct RideStopList: View {
         .font(isBold ? TTFont.headline : TTFont.body)
         .foregroundStyle(colour)
         .frame(height: Self.row)
-        .background {
-            if stop.isYours {
-                RoundedRectangle(cornerRadius: TTRadius.md)
-                    .fill(TTColor.accentSoft)
-                    .padding(.horizontal, -10)
-                    .padding(.vertical, 3)
-                    .opacity(ride.highlightsYourStop ? 1 : 0)
-            }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("trip.ride.stop.\(stop.id)")
     }

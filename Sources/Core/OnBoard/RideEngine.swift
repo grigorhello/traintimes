@@ -307,6 +307,8 @@ final class RideEngine {
                 // A stationary fix stands for now, since iOS sends nothing more while the train does not move.
                 let time = measured.isStationary ? now : measured.at
                 saved.offset = Self.offset(rank: placed, along: measured.along, at: time, now: now, plan: plan)
+                // Measured at your stop: an arrival the timetable placed is now the train's, and the offset stays.
+                if placed >= 2 * last, saved.arrivalGuessed == true { saved.arrivalGuessed = nil }
             }
             // The phone and the feed correct the timetable, back too: an arrival it guessed is taken back.
             rank = measuredRank

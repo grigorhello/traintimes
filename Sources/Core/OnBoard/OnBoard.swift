@@ -37,11 +37,15 @@ final class OnBoard {
         return ride
     }
 
-    /// Trip details opens in ride mode for this trip: its ride runs, or it ended at your stop (the sheet then says Ride
-    /// complete until it closes).
-    func isRiding(_ key: TripKey) -> Bool {
+    /// This trip's ride runs: started and not ended.
+    func isRunning(_ key: TripKey) -> Bool {
+        activeRide?.tripKey == key
+    }
+
+    /// This trip's ride ended at your stop, 10 min after the train got there.
+    func endedAtYourStop(_ key: TripKey) -> Bool {
         guard let engine, engine.ride?.tripKey == key, let state = engine.state else { return false }
-        return state.phase != .ended || state.endReason == .arrived
+        return state.phase == .ended && state.endReason == .arrived
     }
 
     /// "I'm on board": starts the ride on the app's engine, where location is asked. False when it did not start.

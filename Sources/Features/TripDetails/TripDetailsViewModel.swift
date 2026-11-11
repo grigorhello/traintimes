@@ -82,6 +82,9 @@ final class TripDetailsViewModel {
     /// The route's trips from the last load, resolved again at the current clock before each reload.
     @ObservationIgnored private var trips: [Trip] = []
     @ObservationIgnored private var live = LiveSnapshot.empty
+    /// The sheet follows a ride: it opened on this trip's running ride, or "I'm on board" started one here. Only then
+    /// does a ride that ended at your stop stay on screen as Ride complete.
+    private var followsRide: Bool
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
@@ -93,6 +96,7 @@ final class TripDetailsViewModel {
         self.clock = clock
         self.hasAlert = hasAlert
         self.onBoard = onBoard
+        followsRide = onBoard?.isRunning(key) ?? false
         now = clock.now
     }
 
@@ -216,8 +220,12 @@ final class TripDetailsViewModel {
         now >= departure.addingTimeInterval(-boardingLead) && now < arrival
     }
 
-    /// The sheet shows the ride: this trip's ride runs, or it ended at your stop.
-    var isRiding: Bool { onBoard?.isRiding(key) ?? false }
+    /// The sheet shows the ride: this trip's ride runs, or the ride it followed ended at your stop (Ride complete until
+    /// the sheet closes). Opened again later, the sheet shows the trip.
+    var isRiding: Bool {
+        guard let onBoard else { return false }
+        return onBoard.isRunning(key) || (followsRide && onBoard.endedAtYourStop(key))
+    }
 
     /// "I'm on board": a ride can start, and this train runs today, is not cancelled and is in its window.
     var showsOnBoardButton: Bool {
@@ -239,14 +247,17 @@ final class TripDetailsViewModel {
     var destinationName: String { RideDetails.shortName(route.to.name) }
 
     func rideDetails(_ formatter: some TimeFormatting) -> RideDetails? {
-        onBoard?.details(for: key, formatter: formatter)
+        guard isRiding else { return nil }
+        return onBoard?.details(for: key, formatter: formatter)
     }
 
     /// "I'm on board" (or Continue on the permission sheet): the ride starts, and location is asked here.
     @discardableResult
     func startRide() async -> Bool {
         guard let onBoard else { return false }
-        return await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
+        let started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
+        if started { followsRide = true }
+        return started
     }
 
     /// End ride, or Done at your stop.

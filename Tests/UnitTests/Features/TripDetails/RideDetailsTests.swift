@@ -112,14 +112,19 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertEqual(try details(rig).detail, "On time · Ride complete")
     }
 
-    func testTheRideEndsTenMinutesAfterYourStopAndStaysCompleteInTheSheet() async throws {
+    func testTheRideEndsTenMinutesAfterYourStopAndStaysCompleteInTheOpenSheetOnly() async throws {
         let rig = await DemoRideRig.started(at: t(17, 43, 5))
         XCTAssertNotNil(rig.onBoard.activeRide)
+        let open = rig.tripDetails()
         rig.drive(to: t(17, 53, 10))
         XCTAssertEqual(rig.engine?.state?.phase, .ended)
         XCTAssertNil(rig.onBoard.activeRide, "The strip goes")
-        XCTAssertTrue(rig.onBoard.isRiding(rig.key), "The open sheet still says Ride complete")
-        XCTAssertEqual(try details(rig).moment, .atYourStop)
+        XCTAssertTrue(open.isRiding, "The open sheet still says Ride complete")
+        XCTAssertEqual(open.rideDetails(formatter)?.moment, .atYourStop)
+
+        let later = rig.tripDetails()
+        XCTAssertFalse(later.isRiding, "Opened again later, the sheet shows the trip")
+        XCTAssertNil(later.rideDetails(formatter))
     }
 
     // MARK: Live data, the timetable, a late train

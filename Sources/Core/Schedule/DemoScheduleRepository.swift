@@ -53,7 +53,7 @@ struct DemoScheduleRepository: ScheduleRepository {
         let mode = mode()
         let now = clock.now
         switch mode {
-        case .off, .ride:
+        case .off, .ride, .departure:
             return isMockTime() ? .empty : try await base.liveStatus(for: route, on: day)
         case .offline:
             return LiveSnapshot(updatedAt: now.addingTimeInterval(-Self.offlineLastUpdated), isOffline: true)

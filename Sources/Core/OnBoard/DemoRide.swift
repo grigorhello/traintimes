@@ -61,7 +61,9 @@ enum DemoRide {
         let stops = calls.enumerated().map { index, call -> RidePlan.Stop in
             let arrival = day.gtfsTime(17 * 3600 + call.minute * 60)
             let stands = index == 0 || index == last ? 0 : dwell
-            return RidePlan.Stop(station: call.station, arrival: arrival, departure: arrival.addingTimeInterval(stands))
+            // The stops carry their places, so the demo departure's Trip details shows the Directions link (TT-188, TT-177).
+            let station = Station(id: call.station.id, name: call.station.name, place: call.place)
+            return RidePlan.Stop(station: station, arrival: arrival, departure: arrival.addingTimeInterval(stands))
         }
         var points: [GeoPoint] = []
         for (index, call) in calls.enumerated() {
@@ -104,6 +106,14 @@ enum DemoRide {
         let day = moment.map { ServiceDay(calendarDayContaining: $0) } ?? ServiceDay(calendarDayContaining: realStart)
         let clock = DemoRideClock(start: moment ?? day.gtfsTime(startSeconds), realStart: realStart, speed: speed)
         return (engine(on: day, clock: clock), ride(on: day))
+    }
+
+    /// The demo departure's "I’m on board" (TT-177): the same train, ridden from the departure demo's time on, six times as
+    /// fast.
+    @MainActor
+    static func session(continuing departure: DemoDeparture.Session, realStart: Date = Date()) -> (engine: RideEngine, ride: Ride) {
+        let clock = DemoRideClock(start: departure.now, realStart: realStart, speed: speed)
+        return (engine(on: departure.day, clock: clock), ride(on: departure.day))
     }
 
     /// The question's detector on `day`, read against `clock`: the demo train placed as GO's train feed would place it

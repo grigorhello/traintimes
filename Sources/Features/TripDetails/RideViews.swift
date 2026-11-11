@@ -4,6 +4,9 @@ import SwiftUI
 /// rail, and the footnote. The rows rise into place when the sheet opens on a ride.
 struct RideContent: View {
     let ride: RideDetails
+    /// False when the ride takes the departure card's place (TT-177, D69): the rows are there in the same update, with
+    /// no rise, so the sheet never shows empty between the two.
+    var risesIn = true
 
     @Environment(\.playsRideMotion) private var playsMotion
     @State private var hasRisen = false
@@ -37,7 +40,7 @@ struct RideContent: View {
     }
 
     /// Snapshots draw the rows in place.
-    private var settled: Bool { hasRisen || !playsMotion }
+    private var settled: Bool { hasRisen || !playsMotion || !risesIn }
 }
 
 /// A row of the ride rising into place: 16 pt up and 0.97 to 1, on `RideMotion.rise` after its stagger; a fade with Reduce

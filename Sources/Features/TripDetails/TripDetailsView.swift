@@ -15,6 +15,9 @@ struct TripDetailsView: View {
     /// The permission sheet before the first ride's iOS prompt (TT-172).
     @State private var showsIntro = false
     @State private var tick = 0
+    /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey or departure card does
+    /// not show through for the length of the dismissal (TT-177).
+    @State private var closingRide: RideDetails?
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -45,10 +48,12 @@ struct TripDetailsView: View {
     private static let bottomFadeOpacity = 0.72
 
     var body: some View {
-        // The ride's countdowns and the train on the rail follow the clock: the sheet is drawn again each second while riding.
+        // The ride's countdowns and the train on the rail follow the clock, as does the countdown before departure: the sheet
+        // is drawn again each second while riding or live (TT-177).
         let _ = tick
-        let ride = viewModel.rideDetails(formatter)
+        let ride = closingRide ?? viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
+        let departure = ride == nil ? viewModel.departureDetails(formatter) : nil
         let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
         let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
         ZStack(alignment: .bottom) {
@@ -59,7 +64,9 @@ struct TripDetailsView: View {
                 ScrollView {
                     Group {
                         if let ride {
-                            RideContent(ride: ride)
+                            RideContent(ride: ride, risesIn: !viewModel.ridesInPlace)
+                        } else if let departure, let details {
+                            departureContent(departure, details: details)
                         } else if let details {
                             content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
                         }
@@ -90,9 +97,10 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
-        .task(id: viewModel.isRiding) {
-            while viewModel.isRiding, !Task.isCancelled {
+        .task(id: viewModel.followsClock) {
+            while viewModel.followsClock, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
+                viewModel.tick()
                 tick &+= 1
             }
         }
@@ -148,6 +156,24 @@ struct TripDetailsView: View {
         // A live time or status that changes later cross-fades; nothing bounces (TT-167).
         .contentTransition(.opacity)
         .animation(TTMotion.fade, value: details)
+    }
+
+    // MARK: Before departure (TT-177)
+
+    /// *Live-Depart-Trip*: the departure card in the journey card's place; the stop list as it was, with the window's
+    /// footnote.
+    private func departureContent(_ departure: DepartureDetails, details: TripDetails) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            LiveDepartureCard(
+                departure: departure,
+                onDirections: viewModel.directionsStation != nil ? { viewModel.openDirections() } : nil
+            )
+            // The card arrives first, as the journey card does (TT-167, D65).
+            .stagedEntrance(rise: 12, on: TTMotion.card)
+            stops(details, hint: departure.footnote)
+                .padding(.top, TTSpace.s5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Journey card
@@ -519,6 +545,7 @@ struct TripDetailsView: View {
     /// sheet.
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
+            closingRide = ride
             viewModel.endRide()
             dismiss()
         } label: {

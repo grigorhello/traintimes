@@ -319,8 +319,9 @@ struct RootView: View {
         return DepartureActivitySource(live: live, route: route, now: now, hasPlatformSource: schedule.hasPlatformSource)
     }
 
-    /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, unless the first-ride
-    /// sheet has to come first (the rider taps "I’m on board" there).
+    /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, in the sheet's own
+    /// button window (from 20 min before departure, D63) and unless the first-ride sheet has to come first (the rider then
+    /// taps "I’m on board" there).
     private func openDepartureFromActivity(boards: Bool) async {
         guard let ride = liveActivity?.departureRide else { return }
         let key = ride.tripKey
@@ -330,7 +331,9 @@ struct RootView: View {
         } else {
             await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId))
         }
-        guard boards, let details = tripDetails, details.key == key, !details.needsLocationIntro else { return }
+        guard boards, let details = tripDetails, details.key == key else { return }
+        await details.load()
+        guard details.showsOnBoardButton, !details.needsLocationIntro else { return }
         _ = await details.startRide()
     }
 

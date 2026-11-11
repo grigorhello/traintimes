@@ -53,7 +53,7 @@ final class RideLiveActivity: RideActivityFollowing {
     private let canStart: @MainActor () -> Bool
     /// Reports a departure activity before `connect` (a background launch): straight to the server, if the installation is
     /// registered there.
-    private let backgroundReport: (@Sendable (LiveActivityReport) async -> Void)?
+    private let backgroundReport: (@Sendable (LiveActivityReport) async -> Bool)?
 
     private var isFollowing = false
     private var listener: Task<Void, Never>?
@@ -71,8 +71,11 @@ final class RideLiveActivity: RideActivityFollowing {
     /// The live departure, once `RootView` connects.
     private var departures: (@MainActor () -> DepartureActivitySource?)?
     private var reporter: (any LiveActivityReporting)?
-    /// The train whose departure has had an activity this window: one the rider swiped away does not come back.
-    private var departureStarted: Ride?
+    /// The trains whose departure has had an activity while the app runs: one the rider swiped away does not come back.
+    private var departureStarted: Set<Ride> = []
+    /// A hand-off the server has not taken yet: sent again on each pass, or the server would end the ride's activity 2 min
+    /// after the train left.
+    private var pendingHandOff: LiveActivityReport?
     private var departureSentAt: Date?
     private var ticker: Task<Void, Never>?
     private var observesTokens = false
@@ -87,7 +90,7 @@ final class RideLiveActivity: RideActivityFollowing {
         plan: @escaping @MainActor (Ride) async -> RidePlan? = { _ in nil },
         formatter: @escaping @MainActor () -> TimeFormatter,
         canStart: @escaping @MainActor () -> Bool,
-        backgroundReport: (@Sendable (LiveActivityReport) async -> Void)? = nil
+        backgroundReport: (@Sendable (LiveActivityReport) async -> Bool)? = nil
     ) {
         self.app = app
         self.line = line
@@ -181,6 +184,7 @@ final class RideLiveActivity: RideActivityFollowing {
     private func reconcile() async {
         let engine = engine
         let ride = engine?.ride
+        if let handOff = pendingHandOff, await report(handOff) { pendingHandOff = nil }
         let activities = Activity<RideActivityAttributes>.activities.filter { Self.isShowing($0.activityState) }
         // Another ride's activity (one that ended while the app was stopped, or the demo's) leaves at once.
         for id in activities.filter({ !$0.content.state.isDeparture && !$0.attributes.shows(ride) }).map(\.id) {
@@ -207,7 +211,7 @@ final class RideLiveActivity: RideActivityFollowing {
         for activity in activities where activity.content.state.isDeparture && !fits(activity) {
             await Self.end(activity.id, content: nil, dismissal: nil)
             // This train's, with another stop count: the ride gets its own activity, and the server leaves this one.
-            if activity.attributes.shows(ride) { await report(LiveActivityReport(activity.attributes, handedOff: true)) }
+            if activity.attributes.shows(ride) { await handOff(LiveActivityReport(activity.attributes, handedOff: true)) }
         }
         let deviceNow = Date()
         guard let content = RideActivityAttributes.ContentState(
@@ -226,8 +230,8 @@ final class RideLiveActivity: RideActivityFollowing {
                 // The hand-off: the same activity now shows the ride, and the server leaves it to the app. Ended later,
                 // the ride does not bring the countdown back.
                 startedRide = ride
-                departureStarted = ride
-                await report(LiveActivityReport(current.attributes, handedOff: true))
+                departureStarted.insert(ride)
+                await handOff(LiveActivityReport(current.attributes, handedOff: true))
             }
         } else {
             guard startedRide != ride, canStart(), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
@@ -281,7 +285,6 @@ final class RideLiveActivity: RideActivityFollowing {
         }
         guard let source = departures?() else { return }
         let ride = source.ride
-        if departureStarted != ride { departureStarted = nil }
         let content = RideActivityAttributes.ContentState(
             departure: source.live, origin: source.route.from.name, destination: source.route.to.name,
             hasPlatformSource: source.hasPlatformSource, now: source.now, deviceNow: deviceNow, formatter: formatter()
@@ -289,7 +292,7 @@ final class RideLiveActivity: RideActivityFollowing {
         let staleDate = Self.departureStaleDate(source.live, now: source.now, deviceNow: deviceNow)
         let mine = current.filter { $0.attributes.shows(ride) }
         if let shown = mine.first {
-            departureStarted = ride
+            departureStarted.insert(ride)
             // The server's start and the app's crossed: one stays, and its token is the one the server updates.
             for extra in mine.dropFirst() {
                 await Self.end(extra.id, content: nil, dismissal: nil)
@@ -303,7 +306,7 @@ final class RideLiveActivity: RideActivityFollowing {
             return
         }
         // Started by the app in front, once a window, and not once the train has left.
-        guard departureStarted != ride, source.live.phase != .departed, canStart(),
+        guard !departureStarted.contains(ride), source.live.phase != .departed, canStart(),
               ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         if startToken != nil, source.live.leaves.timeIntervalSince(source.now) > LiveDeparture.window - Self.serverGrace { return }
         guard let plan = await plan(ride), plan.stops.count >= 2 else { return }
@@ -317,7 +320,7 @@ final class RideLiveActivity: RideActivityFollowing {
         guard let activity = (try? Activity.request(attributes: attributes, content: activityContent, pushType: .token))
             ?? (try? Activity.request(attributes: attributes, content: activityContent))
         else { return }
-        departureStarted = ride
+        departureStarted.insert(ride)
         departureSentAt = deviceNow
         followToken(of: activity.id)
         await report(LiveActivityReport(attributes))
@@ -361,12 +364,16 @@ final class RideLiveActivity: RideActivityFollowing {
         await report(LiveActivityReport(activity.attributes, token: token))
     }
 
-    private func report(_ activity: LiveActivityReport) async {
-        if let reporter {
-            await reporter.report(activity)
-        } else {
-            await backgroundReport?(activity)
-        }
+    /// True once the server has it.
+    @discardableResult
+    private func report(_ activity: LiveActivityReport) async -> Bool {
+        if let reporter { return await reporter.report(activity) }
+        return await backgroundReport?(activity) ?? true
+    }
+
+    /// The hand-off must reach the server: kept until it does.
+    private func handOff(_ activity: LiveActivityReport) async {
+        if await !report(activity) { pendingHandOff = activity }
     }
 
     // MARK: ActivityKit
@@ -502,8 +509,13 @@ extension RideLiveActivity {
             canStart: { UIApplication.shared.applicationState == .active },
             backgroundReport: { report in
                 // Only an installation the server knows: it registered with the rider's first alert.
-                guard let installation = UserDefaults.standard.string(forKey: installationKey) else { return }
-                try? await HTTPAlertServer().report(report, installation: installation)
+                guard let installation = UserDefaults.standard.string(forKey: installationKey) else { return true }
+                do {
+                    try await HTTPAlertServer().report(report, installation: installation)
+                    return true
+                } catch {
+                    return false
+                }
             }
         )
     }

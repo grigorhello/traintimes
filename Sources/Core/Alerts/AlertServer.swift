@@ -39,7 +39,9 @@ protocol AlertServer: Sendable {
 protocol LiveActivityReporting: AnyObject {
     /// iOS issued the push-to-start token; it goes with the registration.
     func reportStartToken(_ token: String) async
-    func report(_ activity: LiveActivityReport) async
+    /// True once the server has it, or when it needs nothing (no alert: the server watches no train); false to try again.
+    @discardableResult
+    func report(_ activity: LiveActivityReport) async -> Bool
 }
 
 extension AlertServer {

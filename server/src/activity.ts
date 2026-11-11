@@ -148,9 +148,13 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
   return state;
 }
 
-/** What a rider sees, the update time aside: an update is sent only when this changes. */
+/**
+ * What a rider sees, the update time aside: an update is sent only when this changes. The countdown counts to the half
+ * minute, so an expected time that moves by a few seconds sends nothing (the app allows 15 s).
+ */
 export function signature(state: ContentState): string {
-  return [state.phase, state.title, state.detail, state.departure, state.arrival, state.countdownEnd ?? ''].join('|');
+  const countdown = state.countdownEnd === undefined ? '' : Math.round(state.countdownEnd / 30);
+  return [state.phase, state.title, state.detail, state.departure, state.arrival, countdown].join('|');
 }
 
 /** The activity becomes stale, and the app ends it, 2 min after the expected departure. */

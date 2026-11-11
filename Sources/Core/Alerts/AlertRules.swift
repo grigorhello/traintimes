@@ -322,8 +322,9 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
 
     /// A before-departure activity's start, update token or hand-off. An unreachable server misses it: the server then
     /// starts its own activity or sends nothing to this one, and the app keeps its activity up to date while it runs.
-    func report(_ activity: LiveActivityReport) async {
-        guard !rules.isEmpty else { return }
+    @discardableResult
+    func report(_ activity: LiveActivityReport) async -> Bool {
+        guard !rules.isEmpty else { return true }
         do {
             try await registerIfNeeded()
             do {
@@ -333,7 +334,10 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
                 try await registerIfNeeded()
                 try await server.report(activity, installation: installation)
             }
-        } catch {}
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func retryPendingDeletes() async {

@@ -235,6 +235,10 @@ describe('the rules', () => {
     assert.equal(state.late, false);
     assert.equal(state.countdownEnd, at('7:14') / 1000);
     assert.equal(signature(state), signature(contentState(onTime, 'countingDown', at('7:01'), '12h')));
+    // The expected time moving by a few seconds sends nothing; by a minute it does.
+    const seconds = (ms: number) => ({ ...onTime, status: { ...onTime.status, expected: at('7:14') + ms } });
+    assert.equal(signature(state), signature(contentState(seconds(8_000), 'countingDown', at('7:00'), '12h')));
+    assert.notEqual(signature(state), signature(contentState(seconds(60_000), 'countingDown', at('7:00'), '12h')));
   });
 
   test('APNs gets the live activity push type, its topic and priority 10', async () => {

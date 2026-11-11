@@ -223,16 +223,22 @@ final class DepartureActivityTests: XCTestCase {
         let server = FakeAlertServer()
         let rules = AlertFixtures.rules(server)
         let report = LiveActivityReport(tripId: "LW-1713", serviceDate: "20261127", originId: "UN", destinationId: "CL", token: "ef")
-        await rules.report(report)
+        let needsNothing = await rules.report(report)
+        XCTAssertTrue(needsNothing, "No alert: the server watches no train")
         let none = await server.activityReports
         XCTAssertEqual(none, [])
 
         await rules.save(AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: AlertFixtures.route))
         await server.answerUnknownInstallationOnce()
-        await rules.report(report)
+        let sent = await rules.report(report)
+        XCTAssertTrue(sent)
         let reports = await server.activityReports
         XCTAssertEqual(reports, [report])
         let registrations = await server.registrations
         XCTAssertEqual(registrations.count, 2, "Registered with the save, then again for the unknown installation")
+
+        await server.setFailing(true)
+        let failed = await rules.report(report)
+        XCTAssertFalse(failed, "An unreachable server: the hand-off is sent again")
     }
 }

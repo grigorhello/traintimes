@@ -373,7 +373,8 @@ struct RideActivityExpandedBottom: View {
                         .foregroundStyle(style.tint)
                         .padding(.horizontal, 14)
                         .frame(height: 28)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(style.tint, lineWidth: 1.5))
+                        // Circular ends: a continuous capsule's outline shows a notch at each end on iOS 26.
+                        .background(Capsule(style: .circular).strokeBorder(style.tint, lineWidth: 1.5))
                 }
             }
         }

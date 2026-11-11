@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The Alerts tab as one list (TT-193, D77; TT-143 before it): the title and one card of alarm-style rows, the time, one
+/// The Alerts tab as one list (TT-193, D78; TT-143 before it): the title and one card of alarm-style rows, the time, one
 /// line and a switch, in time order. A row opens in place to its day tiles and "Remove alert"; a row whose usual train
 /// changed offers "Pick a new train". Recent shows up to three notifications from the last 7 days. With no alert, the next
 /// three trains of the route stand in, each with its real bell. Every change saves the same alert (same id) through

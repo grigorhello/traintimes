@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Alerts tab as one list (TT-193, D77; frames *Alerts-Tab*, *-Open*, *-States*, *-Muted*, *-Empty* on the canvas): the
+/// The Alerts tab as one list (TT-193, D78; frames *Alerts-Tab*, *-Open*, *-States*, *-Muted*, *-Empty* on the canvas): the
 /// title and one card of rows, each the time, one line and a switch, in time order, with "Alerts start 1 hour before each
 /// train leaves." under it. A tap opens a row in place to its day tiles and "Remove alert" (one row at a time); a Time
 /// changed row offers "Pick a new train". Recent lists up to three notifications. With no alert, "Next trains" offers the

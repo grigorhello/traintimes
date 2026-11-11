@@ -20,6 +20,9 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testEntryDark() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .dark) }
     @MainActor func testPermissionLight() { snap(permission, .light) }
     @MainActor func testPermissionDark() { snap(permission, .dark) }
+    /// Live-Always (TT-176): "Notice your train by itself", after the first completed ride.
+    @MainActor func testDetectOfferLight() { snap(detectOffer, .light) }
+    @MainActor func testDetectOfferDark() { snap(detectOffer, .dark) }
     @MainActor func testStripLight() async { snap(await strip(), .light) }
     @MainActor func testStripDark() async { snap(await strip(), .dark) }
 
@@ -37,6 +40,19 @@ final class RideSnapshotTests: XCTestCase {
             Color.black.opacity(0.2)
             RideIntroSheet(destination: "Clarkson")
                 .frame(height: RideIntroSheet.height)
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: TTRadius.sheet, topTrailingRadius: TTRadius.sheet))
+        }
+        .ignoresSafeArea()
+    }
+
+    /// The "Detect my train" offer over a dimmed screen, as it rises from the bottom.
+    @MainActor
+    private var detectOffer: some View {
+        ZStack(alignment: .bottom) {
+            TTColor.canvas
+            Color.black.opacity(0.2)
+            DetectOfferSheet()
+                .frame(height: DetectOfferSheet.height)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: TTRadius.sheet, topTrailingRadius: TTRadius.sheet))
         }
         .ignoresSafeArea()

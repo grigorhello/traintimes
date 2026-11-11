@@ -28,6 +28,8 @@ struct RootView: View {
     /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
     @State private var opensRide = false
     private let liveActivity: RideLiveActivity?
+    /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
+    private let detection: BackgroundDetection?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -46,7 +48,8 @@ struct RootView: View {
         bells: AlertBellModel? = nil,
         alertUpdates: AlertUpdates? = nil,
         ride: RideEngine? = nil,
-        liveActivity: RideLiveActivity? = nil
+        liveActivity: RideLiveActivity? = nil,
+        detection: BackgroundDetection? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.bellToastDuration,
@@ -63,7 +66,8 @@ struct RootView: View {
         // Its alert rules give the Notifications page the "My alerts" count and the permission prompt (TT-168).
         _settingsModel = State(
             initialValue: SettingsViewModel(
-                settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules
+                settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
+                detection: detection
             )
         )
         _routeForm = State(
@@ -82,6 +86,7 @@ struct RootView: View {
         )
         _onBoard = State(initialValue: OnBoard(app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity))
         self.liveActivity = liveActivity
+        self.detection = detection
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -159,6 +164,8 @@ struct RootView: View {
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
+            case .detectOffer:
+                DetectOfferSheet(onTurnOn: { Task { await turnOnDetection() } }, onNotNow: { router.dismissSheet() })
             }
         }
         // A tapped notification, also one that launched the app before this view appeared (TT-144).
@@ -194,6 +201,9 @@ struct RootView: View {
             guard scenePhase == .active else { return }
             // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
             liveActivity?.sceneDidBecomeActive()
+            // Schedule's detection takes over from a background check, and a Not me tapped meanwhile counts (TT-176).
+            detection?.appDidBecomeActive()
+            detection?.refresh()
             await refreshAlerts()
         }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
@@ -221,6 +231,25 @@ struct RootView: View {
         .onChange(of: onBoard.activeRide) {
             guard opensRide, onBoard.activeRide != nil else { return }
             Task { await openRideFromActivity() }
+        }
+        // The first ride that reaches its stop makes the "Detect my train" offer due (TT-176); it shows over Schedule once
+        // nothing else is up, after a sheet that just closed has gone.
+        .onChange(of: onBoard.engine?.state?.phase) { _, phase in
+            if phase == .atYourStop { detection?.rideReachedYourStop() }
+        }
+        .task(id: offersDetection) {
+            guard offersDetection else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard offersDetection, !Task.isCancelled else { return }
+            detection?.offerShown()
+            router.present(.detectOffer)
+        }
+        // Start On board, or a tap, on the background question (TT-176): acted on once the app is active, so the ride's Live
+        // Activity can start.
+        .task(id: detectedRequest) {
+            guard let request = detectedRequest else { return }
+            router.detectedTrain = nil
+            await openDetected(request)
         }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
@@ -301,6 +330,44 @@ struct RootView: View {
     private var detection: DetectionRun {
         let watches = scenePhase == .active && router.selectedTab == .schedule
         return DetectionRun(route: watches ? schedule.route : nil, demo: playsDemoRide)
+    }
+
+    /// The "Detect my train" offer is due and Schedule shows in the foreground with nothing over it (TT-176).
+    private var offersDetection: Bool {
+        detection?.offerDue == true && scenePhase == .active && router.selectedTab == .schedule && router.presentedSheet == nil
+            && schedule.route != nil
+    }
+
+    /// The background question's answer, once the app is active.
+    private var detectedRequest: DetectedTrainRequest? {
+        scenePhase == .active ? router.detectedTrain : nil
+    }
+
+    /// Turn on, on the offer: iOS asks for Always, then for notifications if never asked (the question is one), and the
+    /// sheet closes once they are answered.
+    private func turnOnDetection() async {
+        if await detection?.turnOn() == true { await alerts.requestPermission() }
+        router.dismissSheet()
+    }
+
+    /// Start On board: the ride on that train starts, with the app in front, and Trip details opens on it in ride mode; a
+    /// tap opens the train's Trip details, where "I’m on board" is. The demo's train (a test push in Debug and TestFlight
+    /// builds) plays the demo ride.
+    private func openDetected(_ request: DetectedTrainRequest) async {
+        let train = request.train
+        if train.trip.tripId == DemoRide.tripId {
+            guard BuildChannel.showsTesting, request.startsRide, await onBoard.startDemoRide() else { return }
+            router.showSchedule()
+            await openRide()
+            return
+        }
+        let link = NotificationLink.trip(train.trip, originId: train.originId, destinationId: train.destinationId)
+        guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+        if request.startsRide, onBoard.activeRide == nil {
+            _ = await onBoard.start(train.ride, on: route)
+        }
+        router.showSchedule()
+        openTrip(train.trip, on: route)
     }
 
     /// Demo trains › Ride is on, in a build that shows Settings › Testing.

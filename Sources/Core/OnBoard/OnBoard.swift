@@ -154,6 +154,20 @@ final class OnBoard {
         return true
     }
 
+    /// Start On board on the demo's background question (TT-176; Debug and TestFlight builds, as a test push sends it): the
+    /// demo ride from 5:32 PM on its own engine, which End ride stops, as the demo departure's ride (TT-177). False when a
+    /// ride already runs.
+    @discardableResult
+    func startDemoRide() async -> Bool {
+        guard activeRide == nil else { return false }
+        let session = makeDemo(nil)
+        guard await session.engine.start(session.ride) else { return false }
+        demo?.end()
+        demo = session.engine
+        demoIsHandOff = true
+        return true
+    }
+
     // MARK: Train detection (TT-175)
 
     /// What the strip under the day strip shows instead of the ride: the matcher checking, or its question; nothing while

@@ -14,7 +14,7 @@ protocol TrainCandidatesProviding: Sendable {
 /// never starts a ride: the rider's Yes does (`OnBoard.accept`). No silences the question's trains for the day.
 @Observable @MainActor
 final class TrainDetector {
-    static let silencedKey = "detect.silenced"
+    static let silencedKey = DetectionStore.silencedKey
     static let candidatesInterval: TimeInterval = 60
 
     /// What the strip or the question shows.
@@ -97,6 +97,13 @@ final class TrainDetector {
     /// Loads the trains and starts the phone's updates; false when location is not allowed.
     func start(on route: Route) async -> Bool {
         guard location.isAuthorized else { return false }
+        // A Not me on the background question (TT-176) may have silenced trains since this detector was made.
+        let stored = Self.silencedToday(in: defaults, now: clock.now).subtracting(matcher.silenced)
+        if !stored.isEmpty {
+            matcher.silence(Array(stored))
+            saved.formUnion(stored)
+            publish()
+        }
         if isWatching {
             isWatching = false
             location.stopUpdates()

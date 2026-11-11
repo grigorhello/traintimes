@@ -92,6 +92,29 @@ extension TrainDetector {
     }
 }
 
+extension BackgroundDetection {
+    /// "Detect my train" in the app (TT-176): the GO feed's trains on the saved route, significant-change wake-ups and GPS
+    /// that runs in the background for a check, the schedule's clock, the question in the notification centre. None in
+    /// fixture runs, so UI tests and previews never touch location.
+    static func app(ride: RideEngine, environment: [String: String] = ProcessInfo.processInfo.environment) -> BackgroundDetection? {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        guard let candidates = dependencies.candidates else { return nil }
+        let clock = dependencies.clock
+        return BackgroundDetection(
+            location: SystemWakeLocation(),
+            candidates: candidates,
+            notifier: SystemDetectionNotifier(formatter: { AppSettings().timeFormatter }),
+            clock: clock,
+            defaults: .standard,
+            route: { UserDefaultsRouteStore().route },
+            isRiding: { ride.ride != nil && ride.state?.phase != .ended },
+            makeDetector: {
+                TrainDetector(candidates: candidates, location: BackgroundFixes(), clock: clock, defaults: .standard, tickInterval: nil)
+            }
+        )
+    }
+}
+
 extension ScheduleViewModel {
     /// Previews: the canvas route on the canvas clock (Thu Nov 5, 7:21 AM) from `Fixtures.json`.
     static func fixtures(scenario: FixtureScheduleRepository.Scenario = .normal, bundle: Bundle = .main) -> ScheduleViewModel {

@@ -35,7 +35,15 @@ final class TestClock: AppClock, @unchecked Sendable {
     var now: Date { lock.withLock { value } }
 
     func advance(minutes: Int) {
-        lock.withLock { value = value.addingTimeInterval(TimeInterval(minutes * 60)) }
+        advance(seconds: TimeInterval(minutes * 60))
+    }
+
+    func advance(seconds: TimeInterval) {
+        lock.withLock { value = value.addingTimeInterval(seconds) }
+    }
+
+    func set(_ date: Date) {
+        lock.withLock { value = date }
     }
 }
 

@@ -1,11 +1,16 @@
 import Foundation
 
 /// The rail part of a GTFS feed, as kept on device (TT-130, D35): stations, lines, each service's dates and each trip's
-/// stops and times. Feed types stay inside the GTFS repository; screens read domain types (`GTFSTimetable`).
+/// stops and times, and the track each trip runs on (TT-171). Feed types stay inside the GTFS repository; screens read
+/// domain types (`GTFSTimetable`).
 struct GTFSFeed: Codable, Sendable, Equatable {
     struct Stop: Codable, Sendable, Equatable {
         let id: String
         let name: String
+        /// Where the station is (WGS 84), to place it on its trips' track (TT-171). Nil where the feed gives none, and in
+        /// a copy imported before TT-171 until its refresh.
+        var latitude: Double?
+        var longitude: Double?
     }
 
     struct Line: Codable, Sendable, Equatable {
@@ -30,6 +35,15 @@ struct GTFSFeed: Codable, Sendable, Equatable {
         /// Seconds after noon minus 12 h on the service date, the GTFS reference: 25:10:00 is 90,600.
         let arrivals: [Int]
         let departures: [Int]
+        /// Index into `shapes`; nil when the feed gives the trip no track (TT-171).
+        var shape: Int?
+    }
+
+    /// A trip's track (GTFS shapes.txt, TT-171): latitude and longitude pairs in order, simplified on import.
+    struct Shape: Codable, Sendable, Equatable {
+        let id: String
+        /// Latitude, longitude, latitude, longitude, …
+        let points: [Double]
     }
 
     var importedAt: Date
@@ -38,6 +52,9 @@ struct GTFSFeed: Codable, Sendable, Equatable {
     /// Each service's dates as yyyymmdd, ascending.
     var services: [[Int]]
     var trips: [Trip]
+    /// The tracks the rail trips run on (TT-171). Nil in a copy imported before TT-171, which is refreshed for them; empty
+    /// when the feed has no shapes.txt.
+    var shapes: [Shape]? = nil
 }
 
 extension GTFSFeed {
@@ -58,8 +75,8 @@ extension GTFSFeed {
         try self.init(importedAt: importedAt) { try archive.data(named: $0) }
     }
 
-    /// Imports the rail routes (route_type 2): their trips, stop times, stations and service dates. `file` returns a feed
-    /// file's contents by name, nil when the feed has none.
+    /// Imports the rail routes (route_type 2): their trips, stop times, stations, service dates and track shapes. `file`
+    /// returns a feed file's contents by name, nil when the feed has none.
     init(importedAt: Date, file: (String) throws -> Data?) throws {
         func required(_ name: String) throws -> Data {
             guard let data = try file(name) else { throw ImportError.missingFile(name) }
@@ -87,6 +104,7 @@ extension GTFSFeed {
         var tripIds: [String] = []
         var tripLines: [Int] = []
         var tripServices: [String] = []
+        var tripShapes: [String] = []
         var tripIndex: [String: Int] = [:]
         try GTFSCSV.forEach(in: required("trips.txt")) { trip in
             guard let line = lineByRoute[trip["route_id"]], tripIndex[trip["trip_id"]] == nil else { return }
@@ -94,6 +112,7 @@ extension GTFSFeed {
             tripIds.append(trip["trip_id"])
             tripLines.append(line)
             tripServices.append(trip["service_id"])
+            tripShapes.append(trip["shape_id"])
         }
 
         // Their stop times; stop_times.txt is mostly buses, so other rows are skipped unsplit. A stop with no time is skipped.
@@ -110,10 +129,26 @@ extension GTFSFeed {
 
         // Stations: a platform with a parent station counts as that station.
         var stopNames: [String: String] = [:]
+        var stopPlaces: [String: (latitude: Double, longitude: Double)] = [:]
         var parents: [String: String] = [:]
         try GTFSCSV.forEach(in: required("stops.txt")) { stop in
             stopNames[stop["stop_id"]] = stop["stop_name"]
+            if let latitude = Double(stop["stop_lat"]), let longitude = Double(stop["stop_lon"]) {
+                stopPlaces[stop["stop_id"]] = (latitude, longitude)
+            }
             if !stop["parent_station"].isEmpty { parents[stop["stop_id"]] = stop["parent_station"] }
+        }
+
+        // Track shapes (TT-171): shapes.txt is mostly buses, so only the rail trips' shapes are split. Each is simplified
+        // to the points that matter within a few metres, which keeps the copy on device small.
+        let railShapes = Set(tripShapes.filter { !$0.isEmpty })
+        var shapePoints: [String: [(sequence: Int, point: GeoPoint)]] = [:]
+        if let shapesFile = try file("shapes.txt") {
+            GTFSCSV.forEach(in: shapesFile, keeping: (column: "shape_id", keep: { railShapes.contains($0) })) { point in
+                guard let sequence = Int(point["shape_pt_sequence"]), let latitude = Double(point["shape_pt_lat"]),
+                      let longitude = Double(point["shape_pt_lon"]) else { return }
+                shapePoints[point["shape_id"], default: []].append((sequence, GeoPoint(latitude: latitude, longitude: longitude)))
+            }
         }
 
         // Service dates: calendar.txt weekly patterns, then calendar_dates.txt additions (1) and removals (2).
@@ -149,6 +184,8 @@ extension GTFSFeed {
         var stopIndex: [String: Int] = [:]
         var services: [[Int]] = []
         var serviceIndex: [String: Int] = [:]
+        var shapes: [Shape] = []
+        var shapeIndex: [String: Int] = [:]
         var trips: [Trip] = []
         for index in tripIds.indices {
             let ordered = calls[index].sorted { $0.sequence < $1.sequence }
@@ -163,18 +200,25 @@ extension GTFSFeed {
                 if stopIndex[id] == nil {
                     stopIndex[id] = stops.count
                     let name = stopNames[id] ?? ""
-                    stops.append(Stop(id: id, name: name.isEmpty ? id : name))
+                    let place = stopPlaces[id]
+                    stops.append(Stop(id: id, name: name.isEmpty ? id : name, latitude: place?.latitude, longitude: place?.longitude))
                 }
                 indexes.append(stopIndex[id] ?? 0)
             }
+            let shapeId = tripShapes[index]
+            if shapeIndex[shapeId] == nil, let points = shapePoints[shapeId], points.count >= 2 {
+                shapeIndex[shapeId] = shapes.count
+                let track = TrackShape.simplified(points.sorted { $0.sequence < $1.sequence }.map(\.point), tolerance: 3)
+                shapes.append(Shape(id: shapeId, points: track.flatMap { [$0.latitude, $0.longitude] }))
+            }
             trips.append(Trip(
                 id: tripIds[index], line: tripLines[index], service: service, stops: indexes,
-                arrivals: ordered.map(\.arrival), departures: ordered.map(\.departure)
+                arrivals: ordered.map(\.arrival), departures: ordered.map(\.departure), shape: shapeIndex[shapeId]
             ))
         }
         guard !trips.isEmpty else { throw ImportError.noRail }
 
-        self.init(importedAt: importedAt, stops: stops, lines: lines, services: services, trips: trips)
+        self.init(importedAt: importedAt, stops: stops, lines: lines, services: services, trips: trips, shapes: shapes)
     }
 
     /// "25:10:00" as 90,600 seconds; nil when empty or malformed. Hours may pass 24 and may have one digit.

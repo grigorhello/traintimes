@@ -65,6 +65,25 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
     }
 }
 
+extension GTFSScheduleRepository: RideDataProviding {
+    func ridePlan(for ride: Ride) async throws -> RidePlan? {
+        try await store.timetable().ridePlan(for: ride)
+    }
+
+    /// The trip's word in the TripUpdates feed (D36): cancelled, or late by your stop's own estimate, else by the last
+    /// estimate before it, which carries on down the line as GTFS-realtime defines, else by the trip-wide delay.
+    func rideStatus(for ride: Ride) async -> RideStatus {
+        let day = ServiceDay(dateKey: ride.serviceDate)
+        guard let feed = await live?.latest().feed, let update = feed.tripUpdates(on: day)[ride.tripId] else { return .none }
+        if update.isCancelled { return RideStatus(isCancelled: true) }
+        let stops = (try? await store.timetable().stops(of: ride.tripId, from: ride.originId, to: ride.destinationId, on: day)) ?? []
+        let estimated = update.applied(to: stops).reversed().lazy.compactMap { stop in
+            stop.expected.map { $0.timeIntervalSince(stop.scheduled) }
+        }.first
+        return RideStatus(delay: estimated ?? update.delay.map { TimeInterval($0) })
+    }
+}
+
 /// Downloads the GO GTFS feed, imports its rail part and keeps the last good import on device, so the timetable works
 /// offline (TT-130, D35). The first use waits for the download; after that the copy on device answers at once and is
 /// refreshed in the background once it is a week old. A copy that no longer covers today waits for its refresh. A failed
@@ -139,9 +158,11 @@ actor GTFSFeedStore {
         return timetable
     }
 
-    /// A week old, or the feed's last service day has passed.
+    /// A week old, the feed's last service day has passed, or a copy imported before TT-171, which has no track shapes for
+    /// On board.
     static func isDue(_ timetable: GTFSTimetable, now: Date) -> Bool {
-        guard let lastServiceDay = timetable.lastServiceDay, lastServiceDay >= ServiceDay(containing: now) else { return true }
+        guard timetable.feed.shapes != nil, let lastServiceDay = timetable.lastServiceDay, lastServiceDay >= ServiceDay(containing: now)
+        else { return true }
         return now.timeIntervalSince(timetable.feed.importedAt) >= refreshInterval
     }
 

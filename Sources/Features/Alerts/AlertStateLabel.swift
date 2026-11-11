@@ -18,7 +18,7 @@ extension AlertSetupViewModel.SheetState {
         case .settingUp: "alert.state.setting_up"
         case .on: "alert.state.on"
         case .paused: "alert.state.paused"
-        case .notificationsOff: "alert.state.off"
+        case .notificationsOff: "alert.state.not_delivering"
         case .reviewNeeded: "alert.state.review"
         case .couldNotSave: "alert.state.could_not_save"
         }
@@ -30,23 +30,25 @@ extension AlertSetupViewModel.SheetState {
         case .on: "checkmark.circle.fill"
         case .paused: nil
         case .reviewNeeded: "clock.badge.exclamationmark"
-        case .notificationsOff, .couldNotSave: "xmark.octagon.fill"
+        case .notificationsOff: "bell.slash.fill"
+        case .couldNotSave: "xmark.octagon.fill"
         }
     }
 
     var ink: Color {
         switch self {
-        case .settingUp, .paused: TTColor.inkSecondary
+        // Not delivering is quiet: the card above the rows says why (TT-169).
+        case .settingUp, .paused, .notificationsOff: TTColor.inkSecondary
         // Alert rule On states use the accent (requirements' token table, canvas `.phone .state.on`).
         case .on: TTColor.accent
         case .reviewNeeded: TTColor.delayInk
-        case .notificationsOff, .couldNotSave: TTColor.cancelInk
+        case .couldNotSave: TTColor.cancelInk
         }
     }
 }
 
-/// The rule state in words with its icon (canvas `.state`), in footnote: "On" with a checkmark, "Paused", "Review needed ·
-/// usual train has changed".
+/// The rule state in words with its icon (canvas `.state`), in footnote: "On" with a checkmark, "Not delivering" with a
+/// crossed bell, "Paused", "Review needed · usual train has changed".
 struct AlertStateLabel: View {
     let state: AlertSetupViewModel.SheetState
 

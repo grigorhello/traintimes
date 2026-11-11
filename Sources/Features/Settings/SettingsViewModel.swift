@@ -100,6 +100,11 @@ final class SettingsViewModel {
         alerts?.rules.count ?? 0
     }
 
+    /// Alerts switched on and still in force: the number the off card speaks of, as on the Alerts tab (TT-169).
+    var switchedOnCount: Int {
+        alerts?.switchedOnCount(on: ServiceDay(containing: clock.now)) ?? 0
+    }
+
     /// The app's page in the Settings app, where notifications are turned back on.
     var notificationSettingsURL: URL {
         URL(string: UIApplication.openNotificationSettingsURLString)!

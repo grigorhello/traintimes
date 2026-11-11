@@ -11,9 +11,9 @@ final class AlertsViewModel {
 
     struct RuleRow: Identifiable, Equatable {
         enum Accessory: Equatable {
-            /// On, Paused or Setting up: the switch pauses or resumes the rule; it waits while Setting up.
+            /// On, Not delivering, Paused or Setting up: the switch pauses or resumes the rule; it waits while Setting up.
             case toggle(isOn: Bool, isEnabled: Bool)
-            /// Review needed, Could not save or Notifications off: the row opens Alert setup.
+            /// Review needed or Could not save: the row opens Alert setup.
             case chevron
         }
 
@@ -62,19 +62,25 @@ final class AlertsViewModel {
     private let notices: any LineNoticesProviding
     private let clock: any AppClock
     private let toastDuration: Duration
+    private let notificationsOnDelay: Duration
+    private let notificationsOnDuration: Duration
     @ObservationIgnored private var deletedIndex = 0
     @ObservationIgnored private var deleteTask: Task<Void, Never>?
     @ObservationIgnored private var hideTask: Task<Void, Never>?
+    @ObservationIgnored private var notificationsOnTask: Task<Void, Never>?
 
     init(
         rules: AlertRules, updates: AlertUpdates, notices: any LineNoticesProviding, clock: any AppClock,
-        toastDuration: Duration = .seconds(5)
+        toastDuration: Duration = .seconds(5), notificationsOnDelay: Duration = .milliseconds(300),
+        notificationsOnDuration: Duration = .milliseconds(2500)
     ) {
         self.rules = rules
         self.updates = updates
         self.notices = notices
         self.clock = clock
         self.toastDuration = toastDuration
+        self.notificationsOnDelay = notificationsOnDelay
+        self.notificationsOnDuration = notificationsOnDuration
     }
 
     // MARK: Rows
@@ -90,8 +96,8 @@ final class AlertsViewModel {
             .map { _, rule, state in
                 let isOn = switching[rule.id] ?? !rule.paused
                 let accessory: RuleRow.Accessory = switch state {
-                case .on, .paused, .settingUp: .toggle(isOn: isOn, isEnabled: state != .settingUp)
-                case .reviewNeeded, .couldNotSave, .notificationsOff: .chevron
+                case .on, .paused, .settingUp, .notificationsOff: .toggle(isOn: isOn, isEnabled: state != .settingUp)
+                case .reviewNeeded, .couldNotSave: .chevron
                 }
                 return RuleRow(
                     id: rule.id,
@@ -175,13 +181,61 @@ final class AlertsViewModel {
         await rules.restore(rule, at: index)
     }
 
-    /// The permission, the server's rule states and the notifications delivered since the last look.
+    /// The permission, the server's rule states and the notifications delivered since the last look. When the rider has
+    /// turned notifications on since the warning showed, a toast says so (TT-169).
     func refresh() async {
+        let warned = warnsNotificationsOff
         await rules.refresh()
         await updates.refresh()
+        if warned, rules.permission == .allowed { showNotificationsOn() }
+    }
+
+    // MARK: Notifications off (TT-169)
+
+    /// Alerts switched on, as the tab lists them: paused ones and This-trip ones for a past day do not count.
+    var switchedOnCount: Int {
+        listedRules.filter { !$0.paused }.count
+    }
+
+    /// iOS notifications are off while an alert is switched on: a card tops the tab and the tab icon wears a red dot. A
+    /// permission never asked does not count, and neither do paused alerts.
+    var warnsNotificationsOff: Bool {
+        rules.permission == .off && switchedOnCount > 0
+    }
+
+    /// The card's body, and Settings' too: "Your 2 alerts are saved, but they can't reach you."; for one alert, "Your alert
+    /// is saved, but it can't reach you."
+    static func offDetail(count: Int) -> String {
+        count == 1
+            ? String(localized: "alerts.off.detail") : String(format: String(localized: "alerts.off.detail_plural"), count)
+    }
+
+    /// "Notifications are on" with a tick, a moment after the warning cleared because notifications were allowed.
+    private(set) var showsNotificationsOn = false
+
+    private func showNotificationsOn() {
+        notificationsOnTask?.cancel()
+        let delay = notificationsOnDelay, duration = notificationsOnDuration
+        notificationsOnTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.showsNotificationsOn = true
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self.showsNotificationsOn = false
+        }
     }
 
     // MARK: Tab dot
+
+    /// The dot on the Alerts tab icon while another tab shows: red while the notifications-off warning shows, which wins
+    /// over the accent dot; accent while something is new, a notification the router noted (`hasNewUpdate`) or a rule to
+    /// review the rider has not seen. None while Alerts is open: what it says is on the screen.
+    func tabDot(isSelected: Bool, hasNewUpdate: Bool) -> TabBarStyle.Dot? {
+        guard !isSelected else { return nil }
+        if warnsNotificationsOff { return .warning }
+        return hasNewUpdate || showsTabDot ? .accent : nil
+    }
 
     /// The accent dot on the Alerts tab icon: a rule needs review that the rider has not seen on the tab yet.
     var showsTabDot: Bool {
@@ -201,9 +255,7 @@ final class AlertsViewModel {
     /// Every rule except the one just deleted and This-trip rules for a past service day, whose train has gone.
     private var listedRules: [AlertRule] {
         let today = self.today
-        return rules.rules.filter { rule in
-            rule.id != deleted?.id && (rule.kind == .repeating || (rule.trip?.serviceDay ?? today) >= today)
-        }
+        return rules.rules.filter { $0.id != deleted?.id && $0.isCurrent(on: today) }
     }
 
     private var reviewIDs: Set<AlertRule.ID> {
@@ -212,7 +264,10 @@ final class AlertsViewModel {
 
     private func rowState(_ rule: AlertRule) -> RowState {
         if switching[rule.id] != nil { return .settingUp }
-        return RowState(rules.state(of: rule), paused: rule.paused)
+        let state = rules.state(of: rule)
+        // A paused rule sends nothing whatever the permission, so it reads Paused, not Not delivering.
+        if state == .notificationsOff, rule.paused { return .paused }
+        return RowState(state, paused: rule.paused)
     }
 
     private func routeName(_ rule: AlertRule) -> String {
@@ -260,14 +315,13 @@ final class AlertsViewModel {
 }
 
 private extension AlertSetupViewModel.SheetState {
-    /// Review needed and Could not save first, then Setting up, On, Paused and Notifications off.
+    /// Review needed and Could not save first, then Setting up, On and Not delivering together, then Paused.
     var rank: Int {
         switch self {
         case .reviewNeeded, .couldNotSave: 0
         case .settingUp: 1
-        case .on: 2
+        case .on, .notificationsOff: 2
         case .paused: 3
-        case .notificationsOff: 4
         }
     }
 }

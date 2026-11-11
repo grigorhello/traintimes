@@ -3,7 +3,8 @@ import SwiftUI
 /// The Alerts tab (TT-143), as design/frames/alerts.png and alerts-empty.png: the large title with "Add alert", My alerts
 /// with each rule's state, Recent updates and Line notices, each group a card of rows; a group with nothing in it is
 /// hidden, and with no rule the empty card shows. A list, so a rule row swipes left to delete; "Alert deleted · Undo"
-/// shows above the tab bar for 5 s.
+/// shows above the tab bar for 5 s. With notifications off while an alert is switched on, a card tops the list (TT-169, D58)
+/// and the rows that are on read "Not delivering"; when notifications are allowed again the card folds away and a toast says so.
 struct AlertsView: View {
     let viewModel: AlertsViewModel
     /// "Add alert": the Schedule tab, with "Tap the bell on a train".
@@ -17,6 +18,9 @@ struct AlertsView: View {
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openURL) private var openURL
+    /// Counts the times the card's bell should shake: once as the card appears.
+    @State private var shakes = 0
 
     /// Canvas `.rule`: 64 pt minimum row height.
     private static let ruleMinHeight: CGFloat = 64
@@ -31,6 +35,9 @@ struct AlertsView: View {
         let notices = viewModel.noticeRows(formatter)
         List {
             header(showsAdd: !rules.isEmpty)
+            if viewModel.warnsNotificationsOff {
+                notificationsOffCard
+            }
             if rules.isEmpty {
                 emptyState
             } else {
@@ -57,8 +64,11 @@ struct AlertsView: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
         .background(TTColor.canvas)
-        .overlay(alignment: .bottom) { undoToast }
+        .overlay(alignment: .bottom) { toasts }
         .animation(.easeOut(duration: 0.25), value: viewModel.deleted)
+        .animation(.easeOut(duration: 0.25), value: viewModel.showsNotificationsOn)
+        // The card folds away on a spring when notifications are allowed again.
+        .animation(.spring(response: 0.46, dampingFraction: 0.82), value: viewModel.warnsNotificationsOff)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("alerts.root")
     }
@@ -90,6 +100,42 @@ struct AlertsView: View {
             .foregroundStyle(TTColor.inkSecondary)
             .accessibilityAddTraits(.isHeader)
             .plainRow(EdgeInsets(top: top, leading: TTSpace.s5 + TTSpace.s4, bottom: TTSpace.s2, trailing: TTSpace.s5))
+    }
+
+    /// Notifications are off while an alert is switched on (TT-169, D58): the Notifications page's off card, one button, not
+    /// dismissible. Canvas `.al-in > .sg-card`: 2 pt under the title row's gap, and 20 pt above "My alerts".
+    private var notificationsOffCard: some View {
+        SettingsCard {
+            HStack(spacing: 14) {
+                Image(systemName: "bell.slash.fill")
+                    .font(.system(size: TTSize.iconSM))
+                    .foregroundStyle(TTColor.cancelInk)
+                    .settingsBellSwing(trigger: shakes)
+                    .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                    .background(TTColor.cancelFill, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("settings.notifications.status_off").font(TTFont.headline).foregroundStyle(TTColor.ink)
+                    Text(verbatim: AlertsViewModel.offDetail(count: viewModel.switchedOnCount))
+                        .font(TTFont.footnote)
+                        .foregroundStyle(TTColor.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(TTSpace.s4)
+            Button { openURL(AlertSetupViewModel.notificationSettingsURL) } label: {
+                Text("settings.notifications.turn_on_ios").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.ttGlassPrimary)
+            .padding(.horizontal, TTSpace.s4)
+            .padding(.bottom, TTSpace.s4)
+            .accessibilityIdentifier("alerts.turnOnInSettings")
+        }
+        .onAppear { shakes += 1 }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("alerts.notificationsOff")
+        .plainRow(EdgeInsets(top: TTSpace.s2 + 2, leading: TTSpace.s5, bottom: TTSpace.s3, trailing: TTSpace.s5))
     }
 
     /// The bell card, "No alerts yet" and the primary "Add alert", then the footnote (`alerts-empty.png`).
@@ -124,6 +170,8 @@ struct AlertsView: View {
                     .font(TTFont.footnote)
                     .foregroundStyle(TTColor.inkSecondary)
                 AlertStateLabel(state: row.state)
+                    .contentTransition(.opacity)
+                    .animation(.easeOut(duration: 0.2), value: row.state)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("alerts.rule.state")
             }
@@ -232,8 +280,9 @@ struct AlertsView: View {
 
     // MARK: Toast
 
-    /// "Alert deleted" with Undo, for 5 s after a swipe.
-    @ViewBuilder private var undoToast: some View {
+    /// "Alert deleted" with Undo, for 5 s after a swipe; or "Notifications are on" for 2.5 s once the rider has turned them
+    /// on again (TT-169).
+    @ViewBuilder private var toasts: some View {
         if viewModel.deleted != nil {
             Toast(
                 message: String(localized: "alerts.deleted"), systemImage: "trash", tint: TTColor.inkSecondary, actionTitle: "button.undo"
@@ -242,6 +291,10 @@ struct AlertsView: View {
             }
             .padding(.horizontal, TTSpace.s5)
             .padding(.bottom, TTSpace.s2)
+        } else if viewModel.showsNotificationsOn {
+            Toast(message: String(localized: "alerts.notifications_on"), systemImage: "checkmark.circle.fill")
+                .padding(.horizontal, TTSpace.s5)
+                .padding(.bottom, TTSpace.s2)
         }
     }
 }

@@ -26,15 +26,16 @@ final class AlertsViewModelTests: XCTestCase {
 
     func testRowsNameTheTrainDirectionAndDays() async {
         let server = FakeAlertServer()
+        // Saturday's 7:32 AM: the Mon to Fri alert leaves it out, so it keeps an alert of its own (TT-189).
         let tomorrow = AlertRule(
-            id: "tomorrow", kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261106", day: 6), route: AlertsFixtures.oakvilleToUnion
+            id: "tomorrow", kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261107", day: 7), route: AlertsFixtures.oakvilleToUnion
         )
         let rules = await AlertsFixtures.rules(server, on: [tomorrow, AlertsFixtures.today, AlertsFixtures.morning])
         let model = await AlertsFixtures.model(rules)
 
         let rows = model.ruleRows(formatter)
         XCTAssertEqual(rows.map(\.title), ["7:32 AM · Oakville to Union", "8:21 AM · Oakville to Union", "7:32 AM · Oakville to Union"])
-        XCTAssertEqual(rows.map(\.days), ["Mon to Fri", "Today only", "Fri, Nov 6"])
+        XCTAssertEqual(rows.map(\.days), ["Mon to Fri", "Today only", "Sat, Nov 7"])
         XCTAssertEqual(rows.first?.testID, "alerts.rule.repeat.LW-0732-20261105")
     }
 

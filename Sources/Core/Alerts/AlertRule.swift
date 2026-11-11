@@ -57,6 +57,39 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
         line == other.line && origin.id == other.origin.id && destination.id == other.destination.id
             && ServiceDay.minutesIntoServiceDay(scheduledDeparture) == ServiceDay.minutesIntoServiceDay(other.scheduledDeparture)
     }
+
+    /// The alert covers this train on its service day between the route's stations (TT-189, D70): a This-trip alert its own
+    /// train, a Repeat alert its usual train (line and scheduled time of day) on each of its days.
+    func covers(_ trip: Trip, on route: Route) -> Bool {
+        covers(trip.key, departure: trip.scheduledDeparture, line: route.line?.id ?? "", from: route.from.id, to: route.to.id)
+    }
+
+    /// The alert covers the train another alert was made for: the same card, so one of the two is a double (TT-189).
+    func covers(trainOf other: AlertRule) -> Bool {
+        guard let key = other.trip else { return false }
+        return covers(key, departure: other.scheduledDeparture, line: other.line, from: other.origin.id, to: other.destination.id)
+    }
+
+    /// A Repeat alert for this train's usual train (line, stations and scheduled time of day), whichever days it has.
+    func isUsualTrain(of trip: Trip, on route: Route) -> Bool {
+        kind == .repeating && origin.id == route.from.id && destination.id == route.to.id && line == (route.line?.id ?? "")
+            && ServiceDay.minutesIntoServiceDay(scheduledDeparture) == ServiceDay.minutesIntoServiceDay(trip.scheduledDeparture)
+    }
+
+    private func covers(_ key: TripKey, departure: Date, line: String, from: String, to: String) -> Bool {
+        guard origin.id == from, destination.id == to else { return false }
+        return switch kind {
+        case .thisTrip: trip == key
+        case .repeating:
+            weekdays.contains(key.serviceDay.isoWeekday) && self.line == line
+                && ServiceDay.minutesIntoServiceDay(scheduledDeparture) == ServiceDay.minutesIntoServiceDay(departure)
+        }
+    }
+}
+
+extension ServiceDay {
+    /// The day as a Repeat alert's weekdays count it, ISO: 1 is Monday, 7 is Sunday (`weekday` counts from Sunday).
+    var isoWeekday: Int { (weekday + 5) % 7 + 1 }
 }
 
 /// A rule's state in words (§ Alert setup: rule states). On is shown only once the server stored the rule and the device

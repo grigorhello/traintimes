@@ -4,6 +4,9 @@ import Observation
 /// The one-tap bell on each card and its toast (TT-141). With notifications allowed, a tap arms a This-trip alert at once:
 /// "Setting up" while the server stores it, then the filled bell and "Alert on for the 7:32 AM train · Repeat" for 2.5 s
 /// (TT-166); a second tap turns it off ("Alert off"). Without permission, the tap opens the alert setup sheet instead (TT-142).
+///
+/// One alert per card (TT-189, D70): the bell shows and changes the alert that covers its train on that day
+/// (`AlertRules.alert(for:on:)`), so a repeating alert fills the bell on each of its days, and a tap never adds a second one.
 @Observable @MainActor
 final class AlertBellModel {
     enum Bell {
@@ -52,9 +55,9 @@ final class AlertBellModel {
         self.hintDuration = hintDuration
     }
 
-    /// A rule paused on the Alerts tab (TT-143) sends nothing, so its bell is outlined.
+    /// The card's alert (TT-189). A rule paused on the Alerts tab (TT-143) or by the bell sends nothing, so its bell is outlined.
     func bell(for trip: Trip, on route: Route) -> Bell {
-        guard let rule = rules.thisTripRule(for: trip.key, on: route), !rule.paused else { return .off }
+        guard let rule = rules.alert(for: trip, on: route), !rule.paused else { return .off }
         return switch rules.state(of: rule) {
         case .on: .on
         case .settingUp: .settingUp
@@ -62,20 +65,23 @@ final class AlertBellModel {
         }
     }
 
-    /// Arms or turns off the This-trip alert; a paused one is resumed. Returns the alert setup sheet to open when
-    /// notifications are not allowed yet: on the first tap ever, or after the rider turned them off.
+    /// Turns the card's alert off or on (TT-189): an alert that is on goes off (a one-day alert is deleted, a repeating one
+    /// is switched off and keeps its days); one that is off, paused or not saved is switched on again. With no alert on
+    /// the card, a repeating alert for the same usual train takes this day too, else a new This-trip alert is made. Returns
+    /// the alert setup sheet to open when notifications are not allowed yet: on the first tap ever, or after the rider
+    /// turned them off.
     func tap(_ trip: Trip, on route: Route) async -> AlertSetupRequest? {
         guard !busy.contains(trip.key) else { return nil }
         busy.insert(trip.key)
         defer { busy.remove(trip.key) }
 
-        let existing = rules.thisTripRule(for: trip.key, on: route)
+        let existing = rules.alert(for: trip, on: route)
         if let existing {
             switch rules.state(of: existing) {
             case .settingUp:
                 return nil
             case .on where !existing.paused:
-                await rules.delete(existing.id)
+                await turnOff(existing)
                 show(.off, trip: trip, route: route)
                 return nil
             case .on, .notificationsOff, .couldNotSave, .reviewNeeded:
@@ -84,9 +90,9 @@ final class AlertBellModel {
         }
         await rules.refreshPermission()
         guard rules.permission == .allowed else {
-            return AlertSetupRequest(route: route, trip: trip, kind: .thisTrip)
+            return AlertSetupRequest(route: route, trip: trip, kind: existing?.kind ?? .thisTrip)
         }
-        var rule = existing ?? AlertRule(kind: .thisTrip, trip: trip, route: route)
+        var rule = existing ?? newAlert(for: trip, on: route)
         rule.paused = false
         show(.settingUp, trip: trip, route: route)
         await rules.save(rule)
@@ -118,6 +124,27 @@ final class AlertBellModel {
             try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self else { return }
             self.showsHint = false
+        }
+    }
+
+    /// A card with no alert (TT-189): the repeating alert for the same usual train takes this day too, so the train keeps
+    /// one alert; otherwise a new This-trip alert.
+    private func newAlert(for trip: Trip, on route: Route) -> AlertRule {
+        guard var usual = rules.usualAlert(for: trip, on: route) else { return AlertRule(kind: .thisTrip, trip: trip, route: route) }
+        usual.weekdays = Set(usual.weekdays).union([trip.key.serviceDay.isoWeekday]).sorted()
+        return usual
+    }
+
+    /// Off keeps what you set up (TT-189): a one-day alert has nothing to keep and is deleted; a repeating one is switched
+    /// off with its days, so the bell or its switch brings it back.
+    private func turnOff(_ rule: AlertRule) async {
+        switch rule.kind {
+        case .thisTrip:
+            await rules.delete(rule.id)
+        case .repeating:
+            var paused = rule
+            paused.paused = true
+            await rules.save(paused)
         }
     }
 

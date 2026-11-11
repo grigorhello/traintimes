@@ -56,6 +56,7 @@ final class OnBoardTests: XCTestCase {
         // End ride stops the demo ride and closes the sheet; the countdown is back on Schedule.
         app.buttons["trip.endRide"].tap()
         XCTAssertTrue(ride.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(strip.waitForExistence(timeout: 5))
+        // The strip is away for 12 s of each 102 s loop, while the demo train reads Departed.
+        XCTAssertTrue(strip.waitForExistence(timeout: 15))
     }
 }

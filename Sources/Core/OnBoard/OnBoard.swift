@@ -93,12 +93,18 @@ final class OnBoard {
         }
     }
 
-    /// Demo trains › Departure turned on or off (TT-177): the demo window plays from 5:01 PM, or stops.
+    /// Demo trains › Departure turned on or off (TT-177): the demo window plays from 5:01 PM, or stops, with the demo ride
+    /// its "I’m on board" started.
     func setDemoDeparture(_ isOn: Bool) {
         if isOn {
             if departureDemo == nil { departureDemo = makeDeparture() }
         } else {
             departureDemo = nil
+            if demoIsHandOff {
+                demo?.end()
+                demo = nil
+                demoIsHandOff = false
+            }
         }
     }
 

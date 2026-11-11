@@ -15,6 +15,9 @@ struct TripDetailsView: View {
     /// The permission sheet before the first ride's iOS prompt (TT-172).
     @State private var showsIntro = false
     @State private var tick = 0
+    /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey or departure card does
+    /// not show through for the length of the dismissal (TT-177).
+    @State private var closingRide: RideDetails?
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -43,7 +46,7 @@ struct TripDetailsView: View {
         // The ride's countdowns and the train on the rail follow the clock, as does the countdown before departure: the sheet
         // is drawn again each second while riding or live (TT-177).
         let _ = tick
-        let ride = viewModel.rideDetails(formatter)
+        let ride = closingRide ?? viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
         let departure = ride == nil ? viewModel.departureDetails(formatter) : nil
         let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
@@ -477,6 +480,7 @@ struct TripDetailsView: View {
     /// sheet.
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
+            closingRide = ride
             viewModel.endRide()
             dismiss()
         } label: {

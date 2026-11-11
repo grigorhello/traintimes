@@ -53,7 +53,8 @@ final class LiveDepartureTests: XCTestCase {
         XCTAssertEqual(live.phase, .countingDown)
         XCTAssertEqual(live.minutes(at: at(17, 4)), 12)
         XCTAssertEqual(live.delayMinutes, 3)
-        XCTAssertEqual(LiveDeparture(train, now: at(17, 13))?.phase, .boarding)
+        XCTAssertEqual(LiveDeparture(train, now: at(17, 13))?.phase, .countingDown, "3 min to its late time")
+        XCTAssertEqual(LiveDeparture(train, now: at(17, 14))?.phase, .boarding)
         XCTAssertEqual(LiveDeparture(train, now: at(17, 16))?.phase, .departed)
     }
 

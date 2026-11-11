@@ -34,10 +34,14 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
             do {
                 for try await update in CLLocationUpdate.liveUpdates(.otherNavigation) {
                     guard let location = update.location else { continue }
+                    // `isStationary` (iOS 17) is deprecated in the SDK and warnings are errors, so iOS 17 reports no
+                    // stationary fixes: a phone at rest there falls back to the timetable after 60 s.
+                    let isStationary: Bool
+                    if #available(iOS 18, *) { isStationary = update.stationary } else { isStationary = false }
                     let fix = LocationFix(
                         coordinate: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
                         horizontalAccuracy: location.horizontalAccuracy,
-                        isStationary: update.isStationary
+                        isStationary: isStationary
                     )
                     await onFix(fix)
                 }

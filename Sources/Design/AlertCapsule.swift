@@ -69,6 +69,9 @@ struct AlertCapsuleView: View {
     static let radius: CGFloat = 26
     /// The panel's top row: its line and the tick. The tiles start 4 pt inside it.
     private static let panelRowHeight: CGFloat = 68
+    /// The panel's leading inset, and the glyph's box.
+    private static let panelLeading: CGFloat = TTSpace.s4
+    private static let glyphSize: CGFloat = 20
     private static let font = Font.system(size: 15, weight: .semibold)
     /// Words that give way leave in 70 ms; the words that take their place arrive over 140 ms from 110 ms.
     private static let leave = Animation.easeIn(duration: 0.07)
@@ -80,12 +83,13 @@ struct AlertCapsuleView: View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         row
             .frame(width: isOpen ? panelWidth : nil, height: isOpen ? Self.panelHeight : Self.height, alignment: .topLeading)
-            .overlay(alignment: .topTrailing) { doneButton }
-            .overlay(alignment: .topLeading) { tiles }
+            // The panel's line, tick and tiles are laid out at the panel's size whether it is open or not, from the bottom
+            // edge and centre the stage keeps still, so they never travel with the shape: the clip reveals them.
+            .overlay(alignment: .bottom) { panelParts }
             .clipShape(shape)
             .modifier(CapsuleSurface(shape: shape))
             .contentShape(shape)
-            // The shape and everything in it that has no timing of its own.
+            // The shape and the glyph, which have no timing of their own; every fade below is scoped to its opacity.
             .animation(reduceMotion ? TTMotion.fade : TTMotion.morph, value: isOpen)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(isOpen ? "alert.panel" : "alert.capsule")
@@ -96,24 +100,21 @@ struct AlertCapsuleView: View {
             Image(systemName: glyph.systemName)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(glyph.tint)
-                .frame(width: 20, height: 20)
+                .frame(width: Self.glyphSize, height: Self.glyphSize)
                 .padding(.trailing, TTSpace.s2)
                 .accessibilityHidden(true)
             line(words)
-                .opacity(isOpen ? 0 : 1)
-                .animation(isOpen ? Self.leave : Self.arrive, value: isOpen)
+                .animation(isOpen ? Self.leave : Self.arrive) { $0.opacity(isOpen ? 0 : 1) }
                 .accessibilityHidden(isOpen)
-                .overlay(alignment: .leading) { panelLine }
             if let action {
                 pill(action)
                     .padding(.leading, TTSpace.s3)
-                    .opacity(isOpen ? 0 : 1)
-                    .animation(isOpen ? Self.leave : Self.arrive, value: isOpen)
+                    .animation(isOpen ? Self.leave : Self.arrive) { $0.opacity(isOpen ? 0 : 1) }
                     .allowsHitTesting(!isOpen)
                     .accessibilityHidden(isOpen)
             }
         }
-        .padding(.leading, isOpen ? TTSpace.s4 : 18)
+        .padding(.leading, isOpen ? Self.panelLeading : 18)
         .padding(.trailing, action == nil ? 18 : TTSpace.s1)
         .frame(height: isOpen ? Self.panelRowHeight : Self.height)
     }
@@ -128,13 +129,24 @@ struct AlertCapsuleView: View {
             .fixedSize()
     }
 
-    /// The panel's line, over the capsule's words; it cross-fades when a day changes.
+    /// The panel at its full size: the line after the glyph, the tick at the top right and the tiles under them.
+    private var panelParts: some View {
+        Color.clear
+            .frame(width: panelWidth, height: Self.panelHeight)
+            .allowsHitTesting(false)
+            .overlay(alignment: .topLeading) { panelLine }
+            .overlay(alignment: .topLeading) { tiles }
+            .overlay(alignment: .topTrailing) { doneButton }
+    }
+
+    /// The panel's line, where the glyph ends up; it cross-fades when a day changes.
     private var panelLine: some View {
         line(panel?.words ?? "")
             .contentTransition(.opacity)
             .animation(TTMotion.fade, value: panel?.words)
-            .opacity(isOpen ? 1 : 0)
-            .animation(isOpen ? Self.arrive : Self.leave, value: isOpen)
+            .animation(isOpen ? Self.arrive : Self.leave) { $0.opacity(isOpen ? 1 : 0) }
+            .frame(height: Self.panelRowHeight)
+            .padding(.leading, Self.panelLeading + Self.glyphSize + TTSpace.s2)
             .accessibilityHidden(!isOpen)
             .accessibilityIdentifier("alert.panel.days")
     }
@@ -171,8 +183,7 @@ struct AlertCapsuleView: View {
         .buttonStyle(PressScaleStyle())
         .padding(.top, TTSpace.s3)
         .padding(.trailing, TTSpace.s2)
-        .opacity(isOpen ? 1 : 0)
-        .animation(isOpen ? Self.arrive : .easeOut(duration: 0.1), value: isOpen)
+        .animation(isOpen ? Self.arrive : .easeOut(duration: 0.1)) { $0.opacity(isOpen ? 1 : 0) }
         .allowsHitTesting(isOpen)
         .accessibilityLabel(Text("button.done"))
         .accessibilityIdentifier("alert.panel.done")
@@ -189,13 +200,15 @@ struct AlertCapsuleView: View {
         }
         .padding(.horizontal, TTSpace.s3)
         .padding(.top, Self.panelRowHeight - TTSpace.s1)
+        .frame(width: panelWidth, alignment: .topLeading)
         .allowsHitTesting(isOpen)
         .accessibilityHidden(!isOpen)
     }
 }
 
 /// A day tile arriving in the panel: from 6 pt down and 0.94 on `TTMotion.cascade`, fading in over 120 ms, `order` × 20 ms
-/// after the first at 160 ms. Reduce Motion: the fade alone.
+/// after the first at 160 ms. Reduce Motion: the fade alone. Each animation is scoped to its own properties, so the tile's
+/// place never moves on them.
 private struct TileArrival: ViewModifier {
     let isOpen: Bool
     let order: Int
@@ -205,11 +218,12 @@ private struct TileArrival: ViewModifier {
         let delay = 0.16 + 0.02 * Double(order)
         let moves = !isOpen && !reduceMotion
         content
-            .scaleEffect(moves ? 0.94 : 1)
-            .offset(y: moves ? 6 : 0)
-            .animation(isOpen ? TTMotion.cascade.delay(delay) : nil, value: isOpen)
-            .opacity(isOpen ? 1 : 0)
-            .animation(isOpen ? .easeOut(duration: reduceMotion ? 0.18 : 0.12).delay(delay) : .easeIn(duration: 0.07), value: isOpen)
+            .animation(isOpen ? TTMotion.cascade.delay(delay) : nil) {
+                $0.scaleEffect(moves ? 0.94 : 1).offset(y: moves ? 6 : 0)
+            }
+            .animation(isOpen ? .easeOut(duration: reduceMotion ? 0.18 : 0.12).delay(delay) : .easeIn(duration: 0.07)) {
+                $0.opacity(isOpen ? 1 : 0)
+            }
     }
 }
 

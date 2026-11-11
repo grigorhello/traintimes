@@ -191,6 +191,70 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertNil(bells.capsule?.actionKey, "a repeating alert's capsule has no action")
     }
 
+    /// The bell stays on while a day change saves: the alert was on and stays on.
+    func testTheBellStaysOnWhileADayChangeSaves() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        _ = await bells.tap(trip, on: route)
+        bells.repeatTapped()
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
+
+        await server.holdSaves()
+        bells.toggleDay(6)
+        await server.waitUntilHolding()
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+        await server.release()
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5, 6] }
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+    }
+
+    /// A day save that fails while a newer tap waits offers Try again for the newer days, and saves them.
+    func testAFailedDaySaveOffersTheLatestDays() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        _ = await bells.tap(trip, on: route)
+        bells.repeatTapped()
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
+
+        await server.setFailing(true)
+        await server.holdSaves()
+        bells.toggleDay(6)
+        await server.waitUntilHolding()
+        bells.toggleDay(7)
+        await server.release()
+        await eventually { bells.capsule?.kind == .failed(.changeDays) }
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
+
+        await server.setFailing(false)
+        _ = await bells.tryAgain()
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5, 6, 7])
+        XCTAssertEqual(bells.capsule?.repeats, [1, 2, 3, 4, 5, 6, 7])
+    }
+
+    /// A day lit and turned off again before its save failed leaves the panel as it is: what was saved is what was asked.
+    func testADayTakenBackBeforeItsSaveFailedShowsNoFailure() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        _ = await bells.tap(trip, on: route)
+        bells.repeatTapped()
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
+        let rule = try XCTUnwrap(rules.rules.first)
+
+        await server.setFailing(true)
+        await server.holdSaves()
+        bells.toggleDay(6)
+        await server.waitUntilHolding()
+        bells.toggleDay(6)
+        await server.release()
+        await eventually { rules.state(of: rule) == .on }
+        XCTAssertEqual(bells.capsule?.isPanelOpen, true)
+        XCTAssertEqual(bells.capsule?.panelDays, [1, 2, 3, 4, 5])
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
+    }
+
     /// A bell tapped while the panel is open closes it first.
     func testABellTapClosesThePanel() async {
         let rules = AlertFixtures.rules(FakeAlertServer())

@@ -123,7 +123,9 @@ final class AlertBellModel {
         guard let rule = rules.alert(for: trip, on: route), !rule.paused else { return .off }
         return switch rules.state(of: rule) {
         case .on: .on
-        case .settingUp: .settingUp
+        // A day change from the panel keeps the bell on while it saves: the alert was on before and stays on (or goes
+        // back to what was saved, still on).
+        case .settingUp: wanted?.ruleID == rule.id ? .on : .settingUp
         case .notificationsOff, .couldNotSave, .reviewNeeded: .off
         }
     }
@@ -224,8 +226,11 @@ final class AlertBellModel {
             return await tap(trip, on: route)
         case let .changeDays(days, ruleID, trip, route):
             hideTask?.cancel()
-            wanted = WantedDays(ruleID: ruleID, days: days, trip: trip, route: route)
-            guard await saveWantedDays(), let rule = rules.rules.first(where: { $0.id == ruleID }) else { return nil }
+            // Through the one save loop, so it never runs beside a panel's.
+            want(days, ruleID: ruleID, trip: trip, route: route)
+            if let saving = daySaving { await saving.value }
+            // A save that failed again has already said so.
+            guard let rule = rules.rules.first(where: { $0.id == ruleID }), Self.rule(rule, has: days, for: trip) else { return nil }
             show(.on, trip: trip, route: route, repeats: rule.kind == .repeating ? rule.weekdays : [])
             return nil
         }
@@ -341,10 +346,22 @@ final class AlertBellModel {
                 weekdays: asked.days, paused: rule.paused
             )
             guard await rules.commit(candidate) else {
+                // The alert went back to what was saved. What counts now is the latest ask, which may be newer than the
+                // one that failed.
+                let latest = wanted ?? asked
                 wanted = nil
+                guard latest.ruleID == asked.ruleID else {
+                    // Another alert's panel asked meanwhile: carry on with it.
+                    wanted = latest
+                    continue
+                }
+                if let saved = rules.rules.first(where: { $0.id == latest.ruleID }), Self.rule(saved, has: latest.days, for: latest.trip) {
+                    // The rider took the change back before it failed: what was saved is what they want.
+                    return true
+                }
                 show(
-                    .failed(.changeDays), trip: asked.trip, route: asked.route,
-                    retry: .changeDays(asked.days, ruleID: asked.ruleID, asked.trip, asked.route)
+                    .failed(.changeDays), trip: latest.trip, route: latest.route,
+                    retry: .changeDays(latest.days, ruleID: latest.ruleID, latest.trip, latest.route)
                 )
                 return false
             }

@@ -20,6 +20,8 @@ final class AlertRules: WatchedTripsProviding {
     static let installationKey = "alerts.installation"
     /// Rules deleted while the server was unreachable, deleted there on the next call.
     static let pendingDeletesKey = "alerts.pendingDeletes"
+    /// Alerts whose change went back on device after a failed save, to be sent again in their saved version (TT-191).
+    static let pendingSavesKey = "alerts.pendingSaves"
 
     /// Debug builds get sandbox device tokens; TestFlight and the App Store get production ones.
     #if DEBUG
@@ -50,6 +52,7 @@ final class AlertRules: WatchedTripsProviding {
     @ObservationIgnored private var registered: InstallationRegistration?
     @ObservationIgnored private var inFlight: Set<AlertRule.ID> = []
     @ObservationIgnored private var pendingDeletes: [String]
+    @ObservationIgnored private var pendingSaves: [String]
 
     init(
         server: any AlertServer, push: any PushRegistering, permissions: any NotificationPermissionProviding,
@@ -64,6 +67,7 @@ final class AlertRules: WatchedTripsProviding {
         defaults?.set(installation, forKey: Self.installationKey)
         self.installation = installation
         pendingDeletes = defaults?.stringArray(forKey: Self.pendingDeletesKey) ?? []
+        pendingSaves = defaults?.stringArray(forKey: Self.pendingSavesKey) ?? []
         let stored = (defaults?.data(forKey: Self.rulesKey)).flatMap { try? JSONDecoder().decode([Stored].self, from: $0) } ?? []
         rules = stored.map(\.rule)
         for item in stored {
@@ -175,6 +179,9 @@ final class AlertRules: WatchedTripsProviding {
         if let previous, let index = rules.firstIndex(where: { $0.id == id }) {
             rules[index] = previous
             serverStates[id] = previousState ?? .couldNotSave
+            // The failed save may have reached the server with its answer lost: send the saved version again with the
+            // next call, so the server ends with what the rider sees.
+            if !pendingSaves.contains(id) { pendingSaves.append(id) }
         } else {
             rules.removeAll { $0.id == id }
             serverStates[id] = nil
@@ -194,6 +201,7 @@ final class AlertRules: WatchedTripsProviding {
         upsert(rule, state: .settingUp)
         await refreshPermission()
         await retryPendingDeletes()
+        await retryPendingSaves()
         do {
             try await registerIfNeeded()
             do {
@@ -208,6 +216,7 @@ final class AlertRules: WatchedTripsProviding {
                 try? await server.delete(ruleId: rule.id, installation: installation)
                 return
             }
+            pendingSaves.removeAll { $0 == rule.id }
             set(.on, for: rule.id)
         } catch {
             if contains(rule.id) { set(.couldNotSave, for: rule.id) }
@@ -222,6 +231,7 @@ final class AlertRules: WatchedTripsProviding {
         await refreshPermission()
         // A delete the server missed is sent again even when no rule is left, so a deleted alert stops (TT-153).
         await retryPendingDeletes()
+        await retryPendingSaves()
         guard !rules.isEmpty else { return }
         let statuses: [AlertRuleStatus]
         do {
@@ -275,6 +285,7 @@ final class AlertRules: WatchedTripsProviding {
 
     private func removeOnDevice(_ id: AlertRule.ID) {
         rules.removeAll { $0.id == id }
+        pendingSaves.removeAll { $0 == id }
         serverStates[id] = nil
         noTrainDates[id] = nil
         persist()
@@ -360,10 +371,27 @@ final class AlertRules: WatchedTripsProviding {
         }
     }
 
+    /// Sends again each alert whose change went back on device (`commit`), as it is on device now; one being saved is left
+    /// to that save, and one removed meanwhile is dropped. Stops at the first failure (TT-191).
+    private func retryPendingSaves() async {
+        for id in pendingSaves {
+            guard let rule = rules.first(where: { $0.id == id }) else {
+                pendingSaves.removeAll { $0 == id }
+                persist()
+                continue
+            }
+            guard !inFlight.contains(id) else { continue }
+            guard (try? await server.save(rule, installation: installation)) != nil else { return }
+            pendingSaves.removeAll { $0 == id }
+            persist()
+        }
+    }
+
     private func persist() {
         guard let defaults else { return }
         let stored = rules.map { Stored(rule: $0, state: serverStates[$0.id] ?? .couldNotSave) }
         defaults.set(try? JSONEncoder().encode(stored), forKey: Self.rulesKey)
         defaults.set(pendingDeletes, forKey: Self.pendingDeletesKey)
+        defaults.set(pendingSaves, forKey: Self.pendingSavesKey)
     }
 }

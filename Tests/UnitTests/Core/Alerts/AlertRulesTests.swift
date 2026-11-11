@@ -452,6 +452,29 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(rules.state(of: changed), .on)
     }
 
+    /// A change that went back is sent again in its saved version with the next call, in case the failed save reached the
+    /// server after all (its answer lost), so the server ends with what the rider sees.
+    func testAChangeThatWentBackIsSentAgainInItsSavedVersion() async {
+        let server = FakeAlertServer()
+        let defaults = UserDefaults.ephemeral()
+        let rules = AlertFixtures.rules(server, defaults: defaults)
+        let rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+
+        await server.setFailing(true)
+        var off = rule
+        off.paused = true
+        _ = await rules.commit(off)
+        XCTAssertEqual(defaults.stringArray(forKey: AlertRules.pendingSavesKey), [rule.id])
+
+        await server.setFailing(false)
+        await rules.refresh()
+        let saved = await server.saved
+        XCTAssertEqual(saved, [rule, rule])
+        XCTAssertEqual(defaults.stringArray(forKey: AlertRules.pendingSavesKey), [])
+        XCTAssertEqual(rules.state(of: rule), .on)
+    }
+
     /// An alert deleted while the server was unreachable and saved again (Undo) takes back its pending delete.
     func testCommitOfADeletedAlertTakesBackItsPendingDelete() async {
         let server = FakeAlertServer()

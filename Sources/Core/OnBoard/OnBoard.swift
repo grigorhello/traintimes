@@ -13,12 +13,16 @@ final class OnBoard {
     /// The route the ride was started on, for the sheet's header when the strip opens it.
     private(set) var route: Route?
     private let makeDemo: @MainActor () -> (engine: RideEngine, ride: Ride)
+    /// The ride's Live Activity (TT-174), which follows the demo's engine while it plays; nil in previews and tests.
+    private let liveActivity: (any RideActivityFollowing)?
 
     init(
         app: RideEngine?,
+        liveActivity: (any RideActivityFollowing)? = nil,
         makeDemo: @escaping @MainActor () -> (engine: RideEngine, ride: Ride) = { DemoRide.session() }
     ) {
         self.app = app
+        self.liveActivity = liveActivity
         self.makeDemo = makeDemo
     }
 
@@ -69,9 +73,12 @@ final class OnBoard {
             let session = makeDemo()
             demo = session.engine
             await session.engine.start(session.ride)
+            liveActivity?.follow(demo: session.engine)
         } else {
-            demo?.end()
+            guard let playing = demo else { return }
+            playing.end()
             demo = nil
+            liveActivity?.follow(demo: nil)
         }
     }
 
@@ -88,4 +95,11 @@ final class OnBoard {
         route = resolved
         return resolved
     }
+}
+
+/// The ride's Live Activity on the Lock Screen and in the Dynamic Island (TT-174, `RideLiveActivity`): it follows the app's
+/// engine, and the demo's while Demo trains › Ride plays.
+@MainActor
+protocol RideActivityFollowing: AnyObject {
+    func follow(demo engine: RideEngine?)
 }

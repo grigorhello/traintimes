@@ -1,0 +1,112 @@
+import Foundation
+
+// The ride as its Live Activity shows it (TT-174, D67, *Live-Lock*, *Live-Island*): the engine's state turned into the
+// activity's attributes and content state, every word and time formatted here by the one formatter (D17).
+
+extension RideActivityAttributes {
+    /// The activity's fixed part for `ride`: which ride, the line's tile, your stop and how many stops the bar has.
+    init(ride: Ride, plan: RidePlan, line: Line?) {
+        tripId = ride.tripId
+        serviceDate = ride.serviceDate
+        originId = ride.originId
+        destinationId = ride.destinationId
+        lineCode = line?.id ?? "GO"
+        lineColorHex = line.flatMap { GOLineColor.hex[$0.id] ?? $0.colorHex }
+        destinationName = RideDetails.shortName(plan.stops[plan.stops.count - 1].station.name)
+        stopCount = plan.stops.count
+    }
+
+    func shows(_ ride: Ride?) -> Bool {
+        guard let ride else { return false }
+        return shows(tripId: ride.tripId, serviceDate: ride.serviceDate, originId: ride.originId, destinationId: ride.destinationId)
+    }
+}
+
+extension RideActivityAttributes.ContentState {
+    /// The activity at `now` on the engine's clock (Mock time, or the demo ride's own clock). The countdown is anchored on
+    /// the device clock, which timer text runs on: it ends `deviceNow` plus the time left on the engine's clock. Nil for a
+    /// plan with fewer than two stops.
+    init?(plan: RidePlan, state: RideState, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
+        guard let times = RideTimes(plan: plan, state: state) else { return nil }
+        let stops = plan.stops
+        let last = times.last
+        let yours = RideDetails.shortName(stops[last].station.name)
+        let phase: Phase = switch state.phase {
+        case .riding: .riding
+        case .atStation: .atStation
+        case .yourStopNext: .yourStopNext
+        case .arriving: .arriving
+        case .atYourStop, .ended: .atYourStop
+        }
+        let passed = phase == .atYourStop ? last : times.passed
+        let next = min(passed + 1, last)
+        func pair(_ first: String, _ second: String) -> String {
+            String(format: String(localized: "onboard.detail"), first, second)
+        }
+        func name(_ index: Int) -> String {
+            RideDetails.shortName(stops[index].station.name)
+        }
+        let arrival = formatter.time(times.time(at: last))
+        let toYourStop = state.stopsLeft == 1
+            ? String(localized: "onboard.yoursNext")
+            : String(format: String(localized: "live.toYourStop"), yours, arrival, state.stopsLeft)
+
+        let countdownTo: Date?
+        switch phase {
+        case .riding:
+            title = pair(String(localized: "onboard.next"), name(next))
+            detail = toYourStop
+            countdownTo = times.time(at: next)
+        case .atStation:
+            title = pair(String(localized: "onboard.nowAt"), name(passed))
+            detail = toYourStop
+            countdownTo = nil
+        case .yourStopNext:
+            title = pair(String(localized: "onboard.next"), yours)
+            detail = String(localized: "onboard.yoursNext")
+            countdownTo = times.time(at: last)
+        case .arriving:
+            title = String(format: String(localized: "live.arriving"), yours)
+            detail = String(localized: "live.arrivingDetail")
+            countdownTo = times.time(at: last)
+        case .atYourStop:
+            title = String(localized: "onboard.thisIsYours")
+            detail = pair(yours, String(localized: "onboard.complete"))
+            countdownTo = nil
+        }
+        self.phase = phase
+        countdownEnd = countdownTo.map { deviceNow.addingTimeInterval($0.timeIntervalSince(now)) }
+        self.now = String(localized: "onboard.now")
+        time = formatter.time(countdownTo ?? times.time(at: passed))
+        departure = String(format: String(localized: "live.stopTime"), name(0), formatter.time(times.scheduled(at: 0)))
+        self.arrival = String(format: String(localized: "live.stopTime"), yours, arrival)
+        position = switch phase {
+        case .atYourStop: Double(last)
+        case .atStation: Double(passed)
+        case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
+        }
+        compact = phase == .arriving ? String(format: String(localized: "live.arrivingCompact"), yours) : nil
+        button = phase == .atYourStop ? String(localized: "onboard.done") : String(localized: "onboard.end")
+        updated = String(format: String(localized: "live.updated"), formatter.time(now))
+    }
+
+    /// The same activity as far as a rider can tell: the train within 2 % of the bar and the countdown within 15 s, the
+    /// rest the same (the update time aside). The app sends nothing new for such a change, only once a minute to keep it
+    /// fresh.
+    func looksLike(_ other: Self) -> Bool {
+        var mine = self, theirs = other
+        guard abs(mine.position - theirs.position) < 0.02 else { return false }
+        switch (mine.countdownEnd, theirs.countdownEnd) {
+        case (nil, nil): break
+        case let (end?, otherEnd?) where abs(end.timeIntervalSince(otherEnd)) < 15: break
+        default: return false
+        }
+        mine.position = 0
+        theirs.position = 0
+        mine.countdownEnd = nil
+        theirs.countdownEnd = nil
+        mine.updated = ""
+        theirs.updated = ""
+        return mine == theirs
+    }
+}

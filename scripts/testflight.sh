@@ -7,8 +7,9 @@
 #   BUILD_NUMBER                            CFBundleVersion, unique per upload (the workflow's run number)
 #   DRY_RUN=1                               archive without signing and stop: checks that Release compiles
 #
-# Signing: scripts/asc-signing.mjs creates an Apple Distribution certificate and an App Store profile for this run.
-# They are revoked here if the run fails, and by the workflow's second job once the build is processed.
+# Signing: scripts/asc-signing.mjs creates an Apple Distribution certificate and App Store profiles for this run, one for
+# the app and one for its widget extension (TT-174, D67). They are revoked here if the run fails, and by the workflow's
+# second job once the build is processed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -61,7 +62,9 @@ finish() {
   [[ $status -ne 0 && -f "$WORK/state.json" ]] && node scripts/asc-signing.mjs cleanup "$WORK" || true
   security list-keychains -d user -s $OLD_KEYCHAINS || true
   security delete-keychain "$KEYCHAIN" 2>/dev/null || true
-  [[ -n "${PROFILE_UUID:-}" ]] && for dir in "${PROFILE_DIRS[@]}"; do rm -f "$dir/$PROFILE_UUID.mobileprovision"; done
+  for uuid in ${PROFILE_UUID:-} ${WIDGETS_PROFILE_UUID:-}; do
+    for dir in "${PROFILE_DIRS[@]}"; do rm -f "$dir/$uuid.mobileprovision"; done
+  done
   rm -f "$KEY_PATH" "$WORK"/*.pem "$WORK"/*.p12
   exit $status
 }
@@ -72,6 +75,8 @@ trap finish EXIT
 node scripts/asc-signing.mjs setup "$WORK"
 PROFILE_NAME=$(node -p "require('$WORK/state.json').profileName")
 PROFILE_UUID=$(node -p "require('$WORK/state.json').profileUuid")
+WIDGETS_PROFILE_NAME=$(node -p "require('$WORK/state.json').widgetsProfileName")
+WIDGETS_PROFILE_UUID=$(node -p "require('$WORK/state.json').widgetsProfileUuid")
 
 P12_PASSWORD=$(uuidgen)
 /usr/bin/openssl x509 -inform DER -in "$WORK/cert.cer" -out "$WORK/cert.pem"
@@ -87,12 +92,16 @@ security import "$WORK/wwdr.cer" -k "$KEYCHAIN" >/dev/null 2>&1 || true
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 security list-keychains -d user -s "$KEYCHAIN" $OLD_KEYCHAINS
 for dir in "${PROFILE_DIRS[@]}"; do
-  mkdir -p "$dir" && cp "$WORK/profile.mobileprovision" "$dir/$PROFILE_UUID.mobileprovision"
+  mkdir -p "$dir"
+  cp "$WORK/profile.mobileprovision" "$dir/$PROFILE_UUID.mobileprovision"
+  cp "$WORK/widgets.mobileprovision" "$dir/$WIDGETS_PROFILE_UUID.mobileprovision"
 done
 
+# Each target names its profile through TT_APP_PROFILE or TT_WIDGETS_PROFILE (scripts/generate-xcodeproj.rb): a
+# PROVISIONING_PROFILE_SPECIFIER here would give the extension the app's profile.
 xcodebuild archive "${ARCHIVE_ARGS[@]}" \
   DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution" \
-  PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN" \
+  TT_APP_PROFILE="$PROFILE_NAME" TT_WIDGETS_PROFILE="$WIDGETS_PROFILE_NAME" OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" 2>&1 | "${FORMATTER[@]}"
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist")
@@ -109,7 +118,10 @@ cat > "$WORK/ExportOptions.plist" <<PLIST
   <key>signingStyle</key><string>manual</string>
   <key>signingCertificate</key><string>Apple Distribution</string>
   <key>provisioningProfiles</key>
-  <dict><key>ca.traintimes.TrainTimes</key><string>$PROFILE_NAME</string></dict>
+  <dict>
+    <key>ca.traintimes.TrainTimes</key><string>$PROFILE_NAME</string>
+    <key>ca.traintimes.TrainTimes.Widgets</key><string>$WIDGETS_PROFILE_NAME</string>
+  </dict>
   <key>manageAppVersionAndBuildNumber</key><false/>
   <key>uploadSymbols</key><true/>
 </dict>

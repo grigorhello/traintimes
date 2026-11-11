@@ -2,7 +2,7 @@
 # Generates TrainTimes.xcodeproj (TT-101).
 #
 # The project uses Xcode 16 synchronized folders, so adding, moving or deleting a file under
-# Sources/, Resources/, Preview Content/ or Tests/ needs no project change. Re-run this script
+# Sources/, Resources/, Preview Content/, Shared/, Widgets/ or Tests/ needs no project change. Re-run this script
 # only to change targets, build settings or packages, then commit the regenerated project:
 #
 #   gem install xcodeproj   # once
@@ -85,13 +85,17 @@ end
 sources = synced_group(project, 'Sources')
 resources = synced_group(project, 'Resources')
 preview = synced_group(project, 'Preview Content')
+# TT-174 (D67): Shared/ is compiled by the app and the widget extension (the Live Activity's attributes and views);
+# Widgets/ by the extension alone.
+shared = synced_group(project, 'Shared')
+widgets_dir = synced_group(project, 'Widgets')
 tests = project.main_group.new_group('Tests', 'Tests')
 unit_tests_dir = synced_group(project, 'UnitTests', tests)
 ui_tests_dir = synced_group(project, 'UITests', tests)
 
 # App target.
 app = project.new_target(:application, 'TrainTimes', :ios, DEPLOYMENT_TARGET, nil, :swift)
-app.file_system_synchronized_groups << sources << resources << preview
+app.file_system_synchronized_groups << sources << resources << preview << shared
 # TT-131 (D36): Config/App.xcconfig reads the Metrolinx key from Config/Secrets.xcconfig, which git ignores.
 app_xcconfig = project.main_group.new_group('Config', 'Config').new_file('App.xcconfig')
 app.build_configurations.each do |config|
@@ -122,10 +126,13 @@ app.build_configurations.each do |config|
     # D36: MetrolinxAPIKey comes from the METROLINX_API_KEY setting in Config/App.xcconfig (TT-131).
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).
     # TT-171: UIBackgroundModes location keeps a ride's location going in the background (On board).
+    # TT-174: NSSupportsLiveActivities for the ride's Live Activity, and the traintimes:// scheme its taps open.
     'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',
     'CODE_SIGN_STYLE' => 'Automatic',
+    # TT-174: the TestFlight archive names each target's profile (scripts/testflight.sh); empty everywhere else.
+    'PROVISIONING_PROFILE_SPECIFIER' => '$(TT_APP_PROFILE)',
     # TT-142: push notifications (aps-environment) so the app gets an APNs device token for alerts.
     'CODE_SIGN_ENTITLEMENTS' => 'Config/TrainTimes.entitlements',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks'],
@@ -135,6 +142,37 @@ app.build_configurations.each do |config|
   # D20: fixtures never ship in a release build.
   s['EXCLUDED_SOURCE_FILE_NAMES'] = config.name == 'Release' ? '.gitkeep Fixtures.json' : '.gitkeep'
 end
+
+# The widget extension (TT-174, D67): the ride's Live Activity on the Lock Screen and in the Dynamic Island, and later the
+# widgets (TT-181 onward). Embedded in the app; its version follows the app's, as App Store Connect requires.
+widgets = project.new_target(:app_extension, 'TrainTimesWidgets', :ios, DEPLOYMENT_TARGET, nil, :swift)
+widgets.file_system_synchronized_groups << widgets_dir << shared
+widgets.build_configurations.each do |config|
+  s = config.build_settings
+  s.delete('INFOPLIST_FILE')
+  s.merge!(
+    'PRODUCT_NAME' => '$(TARGET_NAME)',
+    'PRODUCT_BUNDLE_IDENTIFIER' => "#{BUNDLE_ID}.Widgets",
+    'MARKETING_VERSION' => '1.0',
+    'CURRENT_PROJECT_VERSION' => '1',
+    'GENERATE_INFOPLIST_FILE' => 'YES',
+    # NSExtensionPointIdentifier com.apple.widgetkit-extension; Xcode merges the generated keys into it.
+    'INFOPLIST_FILE' => 'Config/Widgets-Info.plist',
+    'INFOPLIST_KEY_CFBundleDisplayName' => 'Train Times',
+    'TARGETED_DEVICE_FAMILY' => '1',
+    'CODE_SIGN_STYLE' => 'Automatic',
+    'PROVISIONING_PROFILE_SPECIFIER' => '$(TT_WIDGETS_PROFILE)',
+    'SKIP_INSTALL' => 'YES',
+    'APPLICATION_EXTENSION_API_ONLY' => 'YES',
+    'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks'],
+    'SWIFT_EMIT_LOC_STRINGS' => 'YES',
+    'EXCLUDED_SOURCE_FILE_NAMES' => '.gitkeep'
+  )
+end
+app.add_dependency(widgets)
+embed = app.new_copy_files_build_phase('Embed Foundation Extensions')
+embed.symbol_dst_subfolder_spec = :plug_ins
+embed.add_file_reference(widgets.product_reference, true).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
 # Unit tests (hosted in the app, so Bundle.main is the app bundle).
 unit = project.new_target(:unit_test_bundle, 'TrainTimesTests', :ios, DEPLOYMENT_TARGET, nil, :swift)
@@ -176,6 +214,7 @@ end
 
 project.root_object.attributes['TargetAttributes'] = {
   app.uuid => { 'CreatedOnToolsVersion' => '16.0' },
+  widgets.uuid => { 'CreatedOnToolsVersion' => '16.0' },
   unit.uuid => { 'CreatedOnToolsVersion' => '16.0', 'TestTargetID' => app.uuid },
   ui.uuid => { 'CreatedOnToolsVersion' => '16.0', 'TestTargetID' => app.uuid }
 }
@@ -195,7 +234,7 @@ build_file.product_ref = product
 unit.frameworks_build_phase.files << build_file
 
 # new_target links Foundation.framework from a pinned SDK path; SwiftUI apps import it implicitly.
-[app, unit, ui].each do |target|
+[app, widgets, unit, ui].each do |target|
   target.frameworks_build_phase.files.select { |f| f.display_name == 'Foundation.framework' }.each(&:remove_from_project)
 end
 project.frameworks_group.recursive_children.select { |c| c.display_name == 'Foundation.framework' }.each(&:remove_from_project)
@@ -206,10 +245,15 @@ project.frameworks_group.remove_from_project
 project.main_group.children.delete(project.products_group)
 project.main_group.children << project.products_group
 
-# Stable object ids, so regenerating the project produces a readable diff. The second pass is needed because the
-# first one hashes target dependencies while the targets still carry random ids.
-project.predictabilize_uuids
-project.predictabilize_uuids
+# Stable object ids, so regenerating the project produces a readable diff. An object's id comes from the first path
+# that reaches it, and each pass hashes target dependencies with the ids the previous pass gave. The widget extension
+# (TT-174) goes first while the ids are made: reached through the app, its id would hang on the app's, which hangs on
+# its own, and never settle. Three passes for the chain unit tests → app → extension, then the usual order back.
+project.targets.delete(widgets)
+project.targets.unshift(widgets)
+3.times { project.predictabilize_uuids }
+project.targets.delete(widgets)
+project.targets.insert(1, widgets)
 project.save
 
 # Shared scheme: build the app, run both test bundles.

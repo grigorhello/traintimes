@@ -276,6 +276,45 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertTrue(notifications.pending.isEmpty)
     }
 
+    func testEndRideBeforeTheRestoreRemovesTheEarlierLaunchsNotifications() async throws {
+        // TT-174: End ride on the Live Activity can open a stopped app and drop the saved ride before it is restored. The
+        // notifications the earlier launch scheduled belong to no ride now, so they go once the restore finds none.
+        let relaunch = try await savedRide()
+        relaunch.engine.end()
+        await relaunch.engine.restore()
+        relaunch.nudge.restoreFinished()
+        XCTAssertNil(relaunch.engine.ride)
+        XCTAssertEqual(relaunch.notifications.removedAll, 1)
+    }
+
+    func testARestoredRideKeepsItsNotifications() async throws {
+        let relaunch = try await savedRide()
+        await relaunch.engine.restore()
+        relaunch.nudge.restoreFinished()
+        await until { relaunch.notifications.pending.count == 2 }
+        XCTAssertEqual(relaunch.notifications.removedAll, 0)
+        XCTAssertEqual(relaunch.notifications.pending.count, 2)
+    }
+
+    /// A ride started and saved on device, then the app's engine and nudge as the next launch makes them, not restored yet.
+    private func savedRide() async throws -> (engine: RideEngine, nudge: ArrivalNudge, notifications: FakeRideNotifications) {
+        let defaults = UserDefaults.ephemeral()
+        let plan = try OnBoardFixtures.plan()
+        func makeEngine(at time: Date) -> RideEngine {
+            RideEngine(
+                data: FakeRideData(plan: plan), location: FakeLocation(authorized: true), clock: TestClock(now: time),
+                defaults: defaults, tickInterval: nil
+            )
+        }
+        let first = makeEngine(at: t(11, 30))
+        await first.start(ride)
+        let engine = makeEngine(at: t(11, 31))
+        let notifications = FakeRideNotifications()
+        let nudge = ArrivalNudge(notifications: notifications, feedback: FakeArrivalFeedback())
+        nudge.follow(engine)
+        return (engine, nudge, notifications)
+    }
+
     // MARK: Haptics
 
     func testTheArrivingPatternIsThreeStrongTapsThenAFadingRumble() throws {

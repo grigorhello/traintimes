@@ -93,6 +93,36 @@ final class TrainDetectorTests: XCTestCase {
         XCTAssertEqual(onBoard.detection, .idle)
     }
 
+    /// The ride's Live Activity (TT-174) follows the demo engine the question's Yes starts, and lets it go when Demo trains
+    /// › Ride is turned off.
+    func testTheLiveActivityFollowsTheDemoRideFromYes() async throws {
+        let day = self.day
+        let clock = startClock()
+        let activity = FollowingSpy()
+        let onBoard = OnBoard(
+            app: nil,
+            liveActivity: activity,
+            makeDemo: { moment in
+                let rideClock = TestClock(now: moment ?? day.gtfsTime(DemoRide.startSeconds))
+                return (engine: DemoRide.engine(on: day, clock: rideClock, tickInterval: nil), ride: DemoRide.ride(on: day))
+            },
+            makeDemoDetector: { DemoRide.detector(on: day, clock: clock, tickInterval: nil) }
+        )
+        await onBoard.setDemo(true)
+        try await askDemo(onBoard, clock: clock)
+        XCTAssertTrue(activity.followed.isEmpty, "Nothing to follow while the question waits")
+        guard case .asking(let question) = onBoard.detection else { return XCTFail("The demo asks on Schedule") }
+
+        await onBoard.accept(try XCTUnwrap(question.trains.first))
+        let engine = try XCTUnwrap(onBoard.demo)
+        XCTAssertEqual(activity.followed.count, 1)
+        XCTAssertTrue(activity.followed.first! === engine)
+
+        await onBoard.setDemo(false)
+        XCTAssertEqual(activity.followed.count, 2)
+        XCTAssertNil(activity.followed.last!, "Back to the app's engine")
+    }
+
     func testDemoNoSilencesTheTrain() async throws {
         let day = self.day
         let clock = startClock()
@@ -153,5 +183,15 @@ final class TrainDetectorTests: XCTestCase {
             detector.receive(LocationFix(coordinate: shape.point(at: plan.scheduledAlong(at: clock.now)), horizontalAccuracy: 5))
         }
         return detector
+    }
+}
+
+/// Records what the Live Activity was told to follow.
+@MainActor
+private final class FollowingSpy: RideActivityFollowing {
+    private(set) var followed: [RideEngine?] = []
+
+    func follow(demo engine: RideEngine?) {
+        followed.append(engine)
     }
 }

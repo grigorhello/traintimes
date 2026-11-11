@@ -17,6 +17,8 @@ protocol RideNotificationScheduling: AnyObject {
     func add(_ notification: RideNotification)
     /// Removes pending notifications; one already delivered stays in Notification Center.
     func remove(ids: [String])
+    /// Removes every pending ride notification, also ones an earlier launch scheduled.
+    func removeAll()
 }
 
 /// The ride's notifications in Notification Center: Time Sensitive (the entitlement in `Config/TrainTimes.entitlements`,
@@ -39,6 +41,20 @@ final class SystemRideNotifications: RideNotificationScheduling {
 
     func remove(ids: [String]) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    func removeAll() {
+        Task {
+            let ids = await Self.pendingRideIds()
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
+        }
+    }
+
+    /// The pending requests that are the ride's (`ArrivalNudge.id(_:)`), not the alert server's.
+    private nonisolated static func pendingRideIds() async -> [String] {
+        await UNUserNotificationCenter.current().pendingNotificationRequests().map(\.identifier).filter {
+            $0.hasPrefix(ArrivalNudge.idPrefix)
+        }
     }
 }
 
@@ -115,6 +131,14 @@ final class ArrivalNudge {
               let destination = engine.plan?.stops.last?.station else { return }
         pending = [:]
         handle(.update(state), ride: ride, destination: destination, now: engine.now)
+    }
+
+    /// At launch, once the engine's saved ride is restored. With no ride, pending ride notifications are an earlier
+    /// launch's, for a ride that is over: End ride on the Live Activity can open a stopped app and drop the saved ride
+    /// before it is restored (TT-174), so the nudge never saw it end. They go.
+    func restoreFinished() {
+        guard engine?.ride == nil, ride == nil else { return }
+        notifications.removeAll()
     }
 
     /// Stops following and removes the pending notifications (Demo trains › Ride turned off).
@@ -222,9 +246,12 @@ final class ArrivalNudge {
         ride = nil
     }
 
+    /// Every ride notification's identifier starts with it.
+    nonisolated static let idPrefix = "onboard."
+
     /// One identifier per moment and ride, so a moved estimate replaces the pending notification.
     func id(_ moment: Moment) -> String {
-        guard let ride else { return "onboard.\(moment.rawValue)" }
-        return "onboard.\(moment.rawValue).\(ride.tripId).\(ride.serviceDate)"
+        guard let ride else { return "\(Self.idPrefix)\(moment.rawValue)" }
+        return "\(Self.idPrefix)\(moment.rawValue).\(ride.tripId).\(ride.serviceDate)"
     }
 }

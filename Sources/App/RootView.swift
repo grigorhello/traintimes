@@ -25,6 +25,9 @@ struct RootView: View {
     @State private var alertsModel: AlertsViewModel
     /// On board (TT-172): the app's ride engine, or the demo ride's; shared by Trip details and the ride strip.
     @State private var onBoard: OnBoard
+    /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
+    @State private var opensRide = false
+    private let liveActivity: RideLiveActivity?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -43,7 +46,8 @@ struct RootView: View {
         bells: AlertBellModel? = nil,
         alertUpdates: AlertUpdates? = nil,
         ride: RideEngine? = nil,
-        nudge: ArrivalNudge? = nil
+        nudge: ArrivalNudge? = nil,
+        liveActivity: RideLiveActivity? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.bellToastDuration,
@@ -82,11 +86,12 @@ struct RootView: View {
         let rules = bells.rules
         _onBoard = State(
             initialValue: OnBoard(
-                app: ride, detector: TrainDetector.app(dependencies),
+                app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
                 nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
                 requestNotifications: { await rules.requestPermission() }
             )
         )
+        self.liveActivity = liveActivity
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -197,7 +202,35 @@ struct RootView: View {
         // review and notifications may have arrived (TT-143).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
+            liveActivity?.sceneDidBecomeActive()
             await refreshAlerts()
+        }
+        // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
+        .onOpenURL { url in
+            switch RideActivityLink(url) {
+            case .open:
+                opensRide = true
+                Task {
+                    await openRideFromActivity()
+                    // A tap on an activity whose ride is not coming back opens nothing later on.
+                    try? await Task.sleep(for: .seconds(15))
+                    opensRide = false
+                }
+            case .end:
+                // Like End ride on the sheet: the ride ends, and its Trip details closes if it is open.
+                let ride = onBoard.activeRide
+                onBoard.end()
+                if router.presentedSheet == .tripDetails, let ride, tripDetails?.key == ride.tripKey {
+                    router.dismissSheet()
+                }
+            case nil:
+                break
+            }
+        }
+        .onChange(of: onBoard.activeRide) {
+            guard opensRide, onBoard.activeRide != nil else { return }
+            Task { await openRideFromActivity() }
         }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
@@ -283,6 +316,14 @@ struct RootView: View {
     /// Demo trains › Ride is on, in a build that shows Settings › Testing.
     private var playsDemoRide: Bool {
         demoTrains == .ride
+    }
+
+    /// The Live Activity's tap: Trip details on the ride, at once, or once a ride restored at launch is back (TT-174).
+    private func openRideFromActivity() async {
+        guard opensRide, onBoard.activeRide != nil else { return }
+        opensRide = false
+        router.showSchedule()
+        await openRide()
     }
 
     /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).

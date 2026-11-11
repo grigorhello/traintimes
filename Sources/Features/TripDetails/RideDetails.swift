@@ -237,9 +237,9 @@ struct RideStrip: Equatable {
     }
 }
 
-/// The ride's times as the card and the strip read them: the timetable moved by the ride's delay (never earlier, GO
-/// trains do not leave early), and which stop the train last passed.
-private struct RideTimes {
+/// The ride's times as the card, the strip and the Live Activity (TT-174) read them: the timetable moved by the ride's
+/// delay (never earlier, GO trains do not leave early), and which stop the train last passed.
+struct RideTimes {
     let plan: RidePlan
     let last: Int
     /// Seconds late at your stop, from the engine's expected arrival; 0 or more.

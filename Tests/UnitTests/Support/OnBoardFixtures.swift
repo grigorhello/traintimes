@@ -148,6 +148,14 @@ final class FakeRideNotifications: RideNotificationScheduling {
         removed += ids
         for id in ids { pending[id] = nil }
     }
+
+    /// How many times every pending ride notification was removed.
+    private(set) var removedAll = 0
+
+    func removeAll() {
+        removedAll += 1
+        pending = [:]
+    }
 }
 
 /// The taps and the chime in nudge tests: counts each.

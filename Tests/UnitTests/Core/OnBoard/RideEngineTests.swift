@@ -335,6 +335,20 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(relaunched.engine.state?.nextStop?.id, "LO")
     }
 
+    /// TT-174: the Live Activity's End ride can open a stopped app before its restore has finished: the ride stays ended.
+    func testEndRideBeforeTheRestoreFinishedKeepsTheRideEnded() async throws {
+        let defaults = UserDefaults.ephemeral()
+        let first = try rig(at: t(11, 30), defaults: defaults)
+        await first.engine.start(ride)
+        let relaunched = try rig(at: t(11, 31), authorized: true, defaults: defaults)
+        relaunched.engine.end()
+        await relaunched.engine.restore()
+        XCTAssertNil(relaunched.engine.ride)
+        XCTAssertNil(relaunched.engine.state)
+        XCTAssertFalse(relaunched.location.isUpdating)
+        XCTAssertNil(defaults.data(forKey: RideEngine.storageKey))
+    }
+
     /// A ride restored long after your stop ends at once.
     func testARideRestoredLongAfterYourStopEnds() async throws {
         let defaults = UserDefaults.ephemeral()

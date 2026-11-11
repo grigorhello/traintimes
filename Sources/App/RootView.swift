@@ -29,7 +29,7 @@ struct RootView: View {
     @State private var opensRide = false
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
-    private let detection: BackgroundDetection?
+    private let backgroundDetection: BackgroundDetection?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -86,7 +86,7 @@ struct RootView: View {
         )
         _onBoard = State(initialValue: OnBoard(app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity))
         self.liveActivity = liveActivity
-        self.detection = detection
+        backgroundDetection = detection
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -202,8 +202,8 @@ struct RootView: View {
             // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
             liveActivity?.sceneDidBecomeActive()
             // Schedule's detection takes over from a background check, and a Not me tapped meanwhile counts (TT-176).
-            detection?.appDidBecomeActive()
-            detection?.refresh()
+            backgroundDetection?.appDidBecomeActive()
+            backgroundDetection?.refresh()
             await refreshAlerts()
         }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
@@ -235,13 +235,13 @@ struct RootView: View {
         // The first ride that reaches its stop makes the "Detect my train" offer due (TT-176); it shows over Schedule once
         // nothing else is up, after a sheet that just closed has gone.
         .onChange(of: onBoard.engine?.state?.phase) { _, phase in
-            if phase == .atYourStop { detection?.rideReachedYourStop() }
+            if phase == .atYourStop { backgroundDetection?.rideReachedYourStop() }
         }
         .task(id: offersDetection) {
             guard offersDetection else { return }
             try? await Task.sleep(for: .milliseconds(700))
             guard offersDetection, !Task.isCancelled else { return }
-            detection?.offerShown()
+            backgroundDetection?.offerShown()
             router.present(.detectOffer)
         }
         // Start On board, or a tap, on the background question (TT-176): acted on once the app is active, so the ride's Live
@@ -334,8 +334,8 @@ struct RootView: View {
 
     /// The "Detect my train" offer is due and Schedule shows in the foreground with nothing over it (TT-176).
     private var offersDetection: Bool {
-        detection?.offerDue == true && scenePhase == .active && router.selectedTab == .schedule && router.presentedSheet == nil
-            && schedule.route != nil
+        backgroundDetection?.offerDue == true && scenePhase == .active && router.selectedTab == .schedule
+            && router.presentedSheet == nil && schedule.route != nil
     }
 
     /// The background question's answer, once the app is active.
@@ -346,7 +346,7 @@ struct RootView: View {
     /// Turn on, on the offer: iOS asks for Always, then for notifications if never asked (the question is one), and the
     /// sheet closes once they are answered.
     private func turnOnDetection() async {
-        if await detection?.turnOn() == true { await alerts.requestPermission() }
+        if await backgroundDetection?.turnOn() == true { await alerts.requestPermission() }
         router.dismissSheet()
     }
 

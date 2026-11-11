@@ -67,6 +67,8 @@ final class TripDetailsViewModel {
     let key: TripKey
     /// A This-trip alert rule covers this trip: "Manage alert" in place of "Alert me" (TT-142).
     let hasAlert: Bool
+    /// On board (TT-172): "I'm on board" and ride mode. Nil where the sheet needs no ride (previews, most tests).
+    let onBoard: OnBoard?
 
     /// Nil until loaded, or when the trip is not on the route that day.
     private(set) var departure: Departure?
@@ -83,16 +85,21 @@ final class TripDetailsViewModel {
     /// The route's trips from the last load, resolved again at the current clock before each reload.
     @ObservationIgnored private var trips: [Trip] = []
     @ObservationIgnored private var live = LiveSnapshot.empty
+    /// The sheet follows a ride: it opened on this trip's running ride, or "I'm on board" started one here. Only then
+    /// does a ride that ended at your stop stay on screen as Ride complete.
+    private var followsRide: Bool
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
-        maps: any MapsOpening = SystemMapsOpener()
+        onBoard: OnBoard? = nil, maps: any MapsOpening = SystemMapsOpener()
     ) {
         self.route = route
         self.key = key
         self.repository = repository
         self.clock = clock
         self.hasAlert = hasAlert
+        self.onBoard = onBoard
+        followsRide = onBoard?.isRunning(key) ?? false
         self.maps = maps
         now = clock.now
     }
@@ -222,6 +229,61 @@ final class TripDetailsViewModel {
             lastUpdated.map { String(format: String(localized: "freshness.offline"), formatter.time($0)) }
                 ?? String(localized: "schedule.offline")
         }
+    }
+
+    // MARK: On board (TT-172)
+
+    /// "I'm on board" shows from this long before the train leaves your station.
+    static let boardingLead: TimeInterval = 20 * 60
+
+    /// The button's window: from 20 min before the train leaves your station until it reaches your stop.
+    static func isInBoardingWindow(departure: Date, arrival: Date, now: Date) -> Bool {
+        now >= departure.addingTimeInterval(-boardingLead) && now < arrival
+    }
+
+    /// The sheet shows the ride: this trip's ride runs, or the ride it followed ended at your stop (Ride complete until
+    /// the sheet closes). Opened again later, the sheet shows the trip.
+    var isRiding: Bool {
+        guard let onBoard else { return false }
+        return onBoard.isRunning(key) || (followsRide && onBoard.endedAtYourStop(key))
+    }
+
+    /// "I'm on board": a ride can start, and this train runs today, is not cancelled and is in its window.
+    var showsOnBoardButton: Bool {
+        guard let onBoard, onBoard.canStart, !isRiding, isToday, let departure, departure.isUsable else { return false }
+        return Self.isInBoardingWindow(
+            departure: departure.departureTime, arrival: departure.expectedArrival ?? departure.trip.scheduledArrival, now: now
+        )
+    }
+
+    /// The first "I'm on board" shows the app's sheet, then the iOS prompt.
+    var needsLocationIntro: Bool { onBoard?.asksForLocation ?? false }
+
+    /// The footnote under the stops while the button shows.
+    var onBoardHint: String {
+        String(format: String(localized: "onboard.hint"), RideDetails.shortName(route.to.name))
+    }
+
+    /// Your stop's short name, for the permission sheet.
+    var destinationName: String { RideDetails.shortName(route.to.name) }
+
+    func rideDetails(_ formatter: some TimeFormatting) -> RideDetails? {
+        guard isRiding else { return nil }
+        return onBoard?.details(for: key, formatter: formatter)
+    }
+
+    /// "I'm on board" (or Continue on the permission sheet): the ride starts, and location is asked here.
+    @discardableResult
+    func startRide() async -> Bool {
+        guard let onBoard else { return false }
+        let started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
+        if started { followsRide = true }
+        return started
+    }
+
+    /// End ride, or Done at your stop.
+    func endRide() {
+        onBoard?.end()
     }
 
     /// Loads, then reloads on the timetable's foreground refresh interval while the sheet is open, so the sheet moves

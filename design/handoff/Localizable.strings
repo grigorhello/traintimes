@@ -78,6 +78,42 @@
 "trip.footnote_scheduled" = "Arrival times are scheduled.";
 "trip.footnote_cancelled" = "This train is cancelled. Times are the timetable's.";
 
+/* On board (TT-172): Trip details while riding, the ride strip on Schedule, the location sheet. %@ is a station or a time from the one formatter. */
+"onboard.button" = "I’m on board";
+"onboard.end" = "End ride";
+"onboard.done" = "Done";
+"onboard.next" = "Next stop";
+"onboard.nextYours" = "Next stop · yours";
+"onboard.nowAt" = "Now at";
+"onboard.arriving" = "Arriving at your stop";
+"onboard.thisIsYours" = "This is your stop";
+"onboard.yourStop" = "Your stop";
+"onboard.complete" = "Ride complete";
+"onboard.now" = "Now";
+"onboard.minutes" = "%d min";
+"onboard.detail" = "%@ · %@";
+"onboard.yoursNext" = "Your stop is next";
+"onboard.getReady" = "Get ready to step off";
+"onboard.stops" = "%d stops to %@";
+"onboard.stops_one" = "1 stop to %@";
+"onboard.isNext" = "%@ is next";
+"onboard.atYours" = "You are at %@";
+"onboard.live.phone" = "Live · your location";
+"onboard.live.feed" = "Live · GO train data";
+"onboard.live.timetable" = "Timetable";
+"onboard.strip" = "On board · %@ train";
+"onboard.stripNext" = "Next stop %@";
+"onboard.footnote" = "A tap about 1 min before %@ and again when the train stops. Location is used only during this ride.";
+"onboard.hint" = "On board shows your stops as you ride and taps you about 1 minute before %@. It works from 20 minutes before departure until you arrive.";
+"loc.title" = "See your stops as you ride";
+"loc.subtitle" = "Train Times follows the train with your location, only while you’re on board.";
+"loc.point.next" = "**Which station is next,** and how long to yours.";
+"loc.point.tap" = "**A tap about 1 minute before %@,** even with AirPods in and the phone in your pocket.";
+"loc.point.stops" = "**Stops by itself** when you arrive. Your location never leaves the phone.";
+"loc.note" = "iOS will ask next. Choose “While Using the App”. You’ll see the blue location mark at the top while a ride is on.";
+"loc.continue" = "Continue";
+"loc.later" = "Not now";
+
 /* Status badges */
 "status.on_time" = "On time";
 "status.delayed" = "Delayed %d min";
@@ -225,10 +261,12 @@
 "settings.demo_trains.delays" = "Delays";
 "settings.demo_trains.offline" = "Offline";
 "settings.demo_trains.platform" = "Platform";
+"settings.demo_trains.ride" = "Ride";
 "settings.demo_trains.off_detail" = "Your route's real timetable.";
 "settings.demo_trains.delays_detail" = "The next train late, one cancelled, the rest on time, plus a line notice.";
 "settings.demo_trains.offline_detail" = "The saved timetable, as if there were no connection.";
 "settings.demo_trains.platform_detail" = "The next train leaves in 8 min with no platform posted yet.";
+"settings.demo_trains.ride_detail" = "Plays the 5:32 to 5:43 PM ride from Union to Clarkson. Open it from the strip on Schedule.";
 "settings.mock_time" = "Mock time";
 "settings.mock_time.early" = "Early morning";
 "settings.mock_time.late" = "Late evening";

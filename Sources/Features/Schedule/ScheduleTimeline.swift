@@ -412,15 +412,17 @@ struct DepartureCardView: View {
         return card.isDelayed ? TTColor.delayInk : TTColor.ink
     }
 
-    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141). Dimmed while Setting up.
+    /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141), with the pop (TT-166). Dimmed
+    /// while Setting up.
     private var bellButton: some View {
         let label = bell == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label")
-        return IconButton(
-            systemName: bell == .on ? "bell.fill" : "bell",
+        return AlertBellButton(
+            isOn: bell == .on,
             label: Text(verbatim: String(format: label, card.trainName)),
+            glyph: Self.bellGlyph,
+            target: Self.bellTarget,
             action: onBell
         )
-        .sized(glyph: Self.bellGlyph, target: Self.bellTarget)
         .disabled(bell == .settingUp)
         .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
     }

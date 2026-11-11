@@ -19,6 +19,8 @@ struct RootView: View {
     @State private var bells: AlertBellModel
     /// The alert setup sheet for a train (TT-142), made each time it opens.
     @State private var alertSetup: AlertSetupViewModel?
+    /// From opening the alert setup sheet until it is gone: a bell whose alert it changed pops after it (TT-166).
+    @State private var holdsBellPop = false
     /// The Alerts tab (TT-143): the rules, recent updates and the saved route's line notices.
     @State private var alertsModel: AlertsViewModel
     private let stations: any StationRepository
@@ -40,7 +42,8 @@ struct RootView: View {
         alertUpdates: AlertUpdates? = nil
     ) {
         let bells = bells ?? AlertBellModel(
-            rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.toastDuration
+            rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.bellToastDuration,
+            hintDuration: alertDependencies.toastDuration
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
@@ -128,7 +131,8 @@ struct RootView: View {
                 }
                 .tag(AppTab.settings)
         }
-        .sheet(item: $router.presentedSheet) { sheet in
+        // A sheet that replaces another (Trip details, then Alert setup) dismisses the first while the second is up.
+        .sheet(item: $router.presentedSheet, onDismiss: { if router.presentedSheet == nil { holdsBellPop = false } }) { sheet in
             switch sheet {
             case .tripDetails:
                 if let tripDetails {
@@ -154,6 +158,7 @@ struct RootView: View {
         // The first route saved on device, with a light haptic (TT-120).
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
         .environment(\.timeFormatter, settings.timeFormatter)
+        .environment(\.holdsBellPop, holdsBellPop)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
@@ -204,6 +209,7 @@ struct RootView: View {
     /// The alert setup sheet for a train (TT-142).
     private func openAlertSetup(_ request: AlertSetupRequest) {
         alertSetup = AlertSetupViewModel(request: request, rules: alerts)
+        holdsBellPop = true
         router.present(.alertSetup)
     }
 

@@ -7,7 +7,8 @@ final class AlertSetupTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Trip details › Alert me › Enable alerts › Allow › On, and the sheet turns into Manage alert.
+    /// Trip details › Alert me › Enable alerts › Allow › On: the check, a 0.3 s hold and the sheet closes by itself with the
+    /// card's bell on (TT-166); opened again, the sheet manages the alert: On, Manage alert and Delete alert.
     @MainActor
     func testEnableAsksPermissionThenOn() {
         let app = XCUIApplication.onFixtures()
@@ -24,11 +25,16 @@ final class AlertSetupTests: XCTestCase {
             allow.tap()
         }
 
-        // "Setting up" while the permission and the save are in flight, then On.
+        // "Setting up" while the permission and the save are in flight, then On: the sheet closes and the bell is on.
+        let sheet = app.descendants(matching: .any).matching(identifier: "sheet.alertSetup").firstMatch
+        XCTAssertTrue(wait(for: sheet, predicate: "exists == false"))
+        let bell = app.buttons["schedule.bell.LW-0732-20261105"]
+        XCTAssertTrue(wait(for: bell, predicate: "label == 'Alert on for 7:32 AM train'"))
+
+        openAlertSetup(app)
         let state = app.descendants(matching: .any).matching(identifier: "alert.state").firstMatch
         XCTAssertTrue(state.waitForExistence(timeout: 10))
-        let on = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "On"), object: state)
-        XCTAssertEqual(XCTWaiter().wait(for: [on], timeout: 10), .completed)
+        XCTAssertTrue(wait(for: state, predicate: "label == 'On'"))
         XCTAssertTrue(app.staticTexts["Manage alert"].exists)
         XCTAssertTrue(app.buttons["alert.delete"].exists)
     }
@@ -49,7 +55,12 @@ final class AlertSetupTests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "alert.state").firstMatch.exists)
     }
 
-    /// The 7:32 AM card, then its Trip details "Alert me".
+    private func wait(for element: XCUIElement, predicate: String) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: 10) == .completed
+    }
+
+    /// The 7:32 AM card, then its Trip details "Alert me" (or "Manage alert").
     @MainActor
     private func openAlertSetup(_ app: XCUIApplication) {
         let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch

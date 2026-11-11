@@ -42,6 +42,9 @@ final class ScheduleStatesSnapshotTests: XCTestCase {
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
             .environment(\.skeletonPulses, false)
+            // The swap button draws its solid fallback: its dark glass is drawn differently from one run to the next and
+            // failed these dark states on several branches (TT-166). The tab bar stays glass (glassSnapshotPrecision).
+            .environment(\.rendersGlass, false)
         layOutOnce(view)
         assertSnapshot(
             of: view,

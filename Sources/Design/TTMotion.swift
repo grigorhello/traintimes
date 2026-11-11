@@ -39,6 +39,12 @@ enum TTMotion {
     static let toastCurve = Curve(response: 0.45, damping: 0.68)
     /// The Enable alerts check popping in from 0.6 (TT-166).
     static let confirmCurve = Curve(response: 0.35, damping: 0.50)
+    /// The Trip details journey card riding 12 pt down into place as the sheet's content arrives (TT-167).
+    static let cardCurve = Curve(response: 0.42, damping: 0.72)
+    /// Each Trip details stop row riding 10 pt down into place, `stopDelay` after the first (TT-167).
+    static let stopsCurve = Curve(response: 0.40, damping: 0.70)
+    /// The Trip details alert button growing from 0.9, `buttonDelay` after the card (TT-167).
+    static let growCurve = Curve(response: 0.45, damping: 0.60)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }
@@ -46,6 +52,16 @@ enum TTMotion {
     static var pop: Animation { popCurve.animation }
     static var toast: Animation { toastCurve.animation }
     static var confirm: Animation { confirmCurve.animation }
+    static var card: Animation { cardCurve.animation }
+    static var stops: Animation { stopsCurve.animation }
+    static var grow: Animation { growCurve.animation }
+    /// An arriving element fading in while its spring moves it: the Trip details card, stop rows and button (TT-167).
+    static var appear: Animation { .easeOut(duration: 0.15) }
+    /// When Trip details stop row `index` starts, after the first: 24 ms apart, and from the ninth row on with the eighth,
+    /// so a long trip is still by about 0.7 s (TT-167).
+    static func stopDelay(_ index: Int) -> Double { 0.024 * Double(min(max(index, 0), 8)) }
+    /// The Trip details alert button starts 120 ms after the card and the first stop (TT-167).
+    static let buttonDelay = 0.12
     /// The bell's swell to 1.3 before `pop`; the glyph swaps at its top (TT-166).
     static var swell: Animation { .easeOut(duration: 0.1) }
     /// Status changes, and every transform-free stand-in under Reduce Motion.

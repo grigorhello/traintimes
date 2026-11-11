@@ -1,7 +1,8 @@
 import XCTest
 
 /// The one-tap bell (TT-141): with notifications allowed a tap arms the alert, the toast confirms it and the bell reads
-/// On; a second tap turns it off. Without permission the tap opens the alert setup sheet.
+/// On; a second tap turns it off. Permission from the bell (TT-190): the first tap asks iOS at once, with no sheet of ours;
+/// Don't Allow saves nothing and the toast says "Notifications are off" with Turn on.
 final class AlertBellTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -32,17 +33,52 @@ final class AlertBellTests: XCTestCase {
         XCTAssertTrue(wait(for: bell, label: "Alert for 7:32 AM train"))
     }
 
+    /// The first tap ever is the request: the iOS dialog through SpringBoard, Allow, and the alert is on. It runs on the
+    /// real permission, so on a simulator that already allowed notifications the dialog does not come and the bell simply
+    /// turns on (iOS asks once per install; a simulator that refused before fails here until the app is reinstalled).
     @MainActor
-    func testBellWithoutPermissionOpensAlertSetup() {
+    func testFirstTapAsksIOSAndAllowTurnsTheAlertOn() {
         let app = XCUIApplication.onFixtures()
-        app.launchEnvironment["TT_NOTIFICATIONS"] = "notAsked"
+        app.launchEnvironment["TT_TOAST_SECONDS"] = "60"
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
         app.launch()
 
         let bell = app.buttons["schedule.bell.LW-0732-20261105"]
-        XCTAssertTrue(bell.waitForExistence(timeout: 10))
+        XCTAssertTrue(bell.waitForExistence(timeout: 20))
         bell.tap()
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sheet.alertSetup").firstMatch.waitForExistence(timeout: 5))
+
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 15) {
+            allow.tap()
+        }
+        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
+        XCTAssertTrue(app.staticTexts["Alert on for the 7:32 AM train"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "sheet.alertSetup").firstMatch.exists, "no sheet of ours")
+    }
+
+    /// Don't Allow saves nothing: the bell stays an outline, the toast says "Notifications are off" with Turn on, and the
+    /// Alerts tab is still empty. The dialog's answer comes from `TT_NOTIFICATIONS=deny`: a real Don't Allow would stay on
+    /// the simulator for every later test, since iOS asks once per install and a UI test cannot reset it.
+    @MainActor
+    func testDontAllowSavesNothingAndExplains() {
+        let app = XCUIApplication.onFixtures()
+        app.launchEnvironment["TT_NOTIFICATIONS"] = "deny"
+        app.launchEnvironment["TT_TOAST_SECONDS"] = "60"
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
+        app.launch()
+
+        let bell = app.buttons["schedule.bell.LW-0732-20261105"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 20))
+        bell.tap()
+
+        XCTAssertTrue(app.staticTexts["Notifications are off"].waitForExistence(timeout: 30))
+        let turnOn = app.buttons["toast.action"]
+        XCTAssertTrue(turnOn.waitForExistence(timeout: 15))
+        XCTAssertEqual(turnOn.label, "Turn on")
+        XCTAssertEqual(bell.label, "Alert for 7:32 AM train")
+
+        app.tabBars.buttons["Alerts"].tap()
+        XCTAssertTrue(app.staticTexts["No alerts yet"].waitForExistence(timeout: 15))
     }
 
     private func wait(for element: XCUIElement, label: String) -> Bool {

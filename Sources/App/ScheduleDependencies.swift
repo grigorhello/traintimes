@@ -42,7 +42,8 @@ struct ScheduleDependencies {
         let mocked = MockTimeClock(base: clock)
         return ScheduleDependencies(
             repository: DemoScheduleRepository(
-                base: repository, clock: mocked, mode: { DemoTrains.stored }, isMockTime: { MockTime.stored != nil }
+                base: repository, clock: mocked, mode: { DemoTrains.stored }, isMockTime: { MockTime.stored != nil },
+                mockLive: { MockLive.stored }
             ),
             stations: stations,
             clock: mocked,

@@ -342,6 +342,19 @@ final class ScheduleViewModel {
         )
     }
 
+    /// Before departure (TT-177, D69): today's alerted train in its window that leaves first, while it counts down; once it
+    /// has left, the watched-trip strip takes over.
+    var liveDeparture: LiveDeparture? {
+        guard isToday, let route else { return nil }
+        let live = LiveDeparture.earliest(in: departures, now: now) { watchedTrips.isAlerted($0.trip, on: route) }
+        return live?.phase == .departed ? nil : live
+    }
+
+    /// The countdown strip's text, times from the one formatter the view passes in.
+    func departureStrip(_ formatter: some TimeFormatting) -> DepartureStrip? {
+        liveDeparture.map { DepartureStrip($0, now: now, hasPlatformSource: hasPlatformSource, formatter: formatter) }
+    }
+
     /// Swiped away: that train's strip stays hidden while the app runs.
     func dismissWatchedStrip(_ id: TripKey) {
         dismissedWatchedTrips.insert(id)

@@ -13,6 +13,10 @@ enum DemoTrains: String, CaseIterable, Sendable {
     /// A ride on board from Union to Clarkson, 5:32 to 5:43 PM, six times as fast, on its own clock (TT-172, D63,
     /// `DemoRide`): the ride strip on Schedule opens it. The timetable stays as it is.
     case ride
+    /// The last 17 minutes before the 5:13 PM train leaves Union, with an alert on it, ten times as fast and over again, on
+    /// its own clock (TT-177, D69, `DemoDeparture`): the countdown strip on Schedule opens it, and "I’m on board" hands over
+    /// into the demo ride. The timetable stays as it is.
+    case departure
 
     static let key = "settings.demoTrains"
 

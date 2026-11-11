@@ -267,6 +267,7 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertFalse(model.showsOnBoardButton)
         XCTAssertNotNil(model.rideDetails(formatter))
         XCTAssertEqual(model.onBoard?.route, model.route)
+        XCTAssertFalse(model.ridesInPlace, "started from the journey card: the rows rise (TT-172)")
     }
 
     func testOnceAnsweredTheButtonStartsWithoutTheSheet() async throws {

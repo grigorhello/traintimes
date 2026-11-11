@@ -4,6 +4,9 @@ import SwiftUI
 /// rail, and the footnote. The rows rise into place when the sheet opens on a ride.
 struct RideContent: View {
     let ride: RideDetails
+    /// False when the ride takes the departure card's place (TT-177, D69): the rows are there in the same update, with
+    /// no rise, so the sheet never shows empty between the two.
+    var risesIn = true
 
     @Environment(\.playsRideMotion) private var playsMotion
     @State private var hasRisen = false
@@ -37,7 +40,7 @@ struct RideContent: View {
     }
 
     /// Snapshots draw the rows in place.
-    private var settled: Bool { hasRisen || !playsMotion }
+    private var settled: Bool { hasRisen || !playsMotion || !risesIn }
 }
 
 /// A row of the ride rising into place: 16 pt up and 0.97 to 1, on `RideMotion.rise` after its stagger; a fade with Reduce
@@ -398,33 +401,6 @@ private struct TrainMarker: View {
                 .frame(width: 28, height: 28)
                 .shadow(color: TTColor.accent.opacity(0.22), radius: 1, x: 0, y: 1)
         }
-    }
-}
-
-/// The canvas's train front: a body with a window and two lamps cut out, and the rail under it, in a 100 unit box.
-struct TrainGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        let scale = min(rect.width, rect.height) / 100
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: rect.minX + x * scale, y: rect.minY + y * scale)
-        }
-        func box(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> CGRect {
-            CGRect(origin: point(x, y), size: CGSize(width: width * scale, height: height * scale))
-        }
-        var path = Path()
-        path.addPath(
-            Path(
-                roundedRect: box(18, 18, 64, 62),
-                cornerRadii: RectangleCornerRadii(
-                    topLeading: 18 * scale, bottomLeading: 10 * scale, bottomTrailing: 10 * scale, topTrailing: 18 * scale
-                )
-            )
-        )
-        path.addPath(Path(roundedRect: box(28, 30, 44, 22), cornerRadius: 5 * scale))
-        path.addEllipse(in: box(30, 60, 12, 12))
-        path.addEllipse(in: box(58, 60, 12, 12))
-        path.addPath(Path(roundedRect: box(24, 86, 52, 7), cornerRadius: 3.5 * scale))
-        return path
     }
 }
 

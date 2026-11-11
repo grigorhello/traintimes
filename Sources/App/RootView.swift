@@ -25,6 +25,9 @@ struct RootView: View {
     @State private var alertsModel: AlertsViewModel
     /// On board (TT-172): the app's ride engine, or the demo ride's; shared by Trip details and the ride strip.
     @State private var onBoard: OnBoard
+    /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
+    @State private var opensRide = false
+    private let liveActivity: RideLiveActivity?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -42,7 +45,9 @@ struct RootView: View {
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
         alertUpdates: AlertUpdates? = nil,
-        ride: RideEngine? = nil
+        ride: RideEngine? = nil,
+        nudge: ArrivalNudge? = nil,
+        liveActivity: RideLiveActivity? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), actionDuration: alertDependencies.capsuleActionDuration,
@@ -76,7 +81,17 @@ struct RootView: View {
                 toastDuration: alertDependencies.toastDuration
             )
         )
-        _onBoard = State(initialValue: OnBoard(app: ride))
+        // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; a started ride
+        // asks for notifications through the alert rules, as "Enable alerts" does (D66).
+        let rules = bells.rules
+        _onBoard = State(
+            initialValue: OnBoard(
+                app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
+                nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
+                requestNotifications: { await rules.requestPermission() }
+            )
+        )
+        self.liveActivity = liveActivity
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -97,7 +112,8 @@ struct RootView: View {
                         bells: bells,
                         onAlertSetup: { openAlertSetup($0) },
                         onBoard: onBoard,
-                        onOpenRide: { Task { await openRide() } }
+                        onOpenRide: { Task { await openRide() } },
+                        onOpenDeparture: { openDeparture($0) }
                     )
                 }
             }
@@ -167,8 +183,18 @@ struct RootView: View {
         .environment(\.holdsBellPop, holdsBellPop)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
-        // Demo trains › Ride (TT-172): the demo ride plays from 5:32 PM while it is on, in TestFlight and Debug builds only.
-        .task(id: playsDemoRide) { await onBoard.setDemo(playsDemoRide) }
+        // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
+        // ride asks its question first (TT-175) and plays from the Yes; the demo departure plays from 5:01 PM. Leaving
+        // Departure also stops the ride it handed over to.
+        .task(id: demoTrains) {
+            onBoard.setDemoDeparture(demoTrains == .departure)
+            await onBoard.setDemo(demoTrains == .ride)
+        }
+        // Train detection (TT-175) watches only while Schedule (or Trip details over it) is open in the foreground.
+        .task(id: detection) {
+            guard let route = detection.route else { return }
+            await onBoard.detect(on: route, demo: detection.demo)
+        }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
@@ -176,7 +202,35 @@ struct RootView: View {
         // review and notifications may have arrived (TT-143).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
+            liveActivity?.sceneDidBecomeActive()
             await refreshAlerts()
+        }
+        // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
+        .onOpenURL { url in
+            switch RideActivityLink(url) {
+            case .open:
+                opensRide = true
+                Task {
+                    await openRideFromActivity()
+                    // A tap on an activity whose ride is not coming back opens nothing later on.
+                    try? await Task.sleep(for: .seconds(15))
+                    opensRide = false
+                }
+            case .end:
+                // Like End ride on the sheet: the ride ends, and its Trip details closes if it is open.
+                let ride = onBoard.activeRide
+                onBoard.end()
+                if router.presentedSheet == .tripDetails, let ride, tripDetails?.key == ride.tripKey {
+                    router.dismissSheet()
+                }
+            case nil:
+                break
+            }
+        }
+        .onChange(of: onBoard.activeRide) {
+            guard opensRide, onBoard.activeRide != nil else { return }
+            Task { await openRideFromActivity() }
         }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
@@ -224,7 +278,8 @@ struct RootView: View {
     /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on its alert's kind (This trip when it has
     /// none), so Manage opens the train's one alert (TT-189).
     private func openAlertSetup(for details: TripDetailsViewModel) {
-        guard let trip = details.departure?.trip else { return }
+        // The demo departure's train is made up: its bell sets nothing.
+        guard details.demoDeparture == nil, let trip = details.departure?.trip else { return }
         let kind = alerts.alert(for: trip, on: details.route)?.kind ?? .thisTrip
         openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: kind))
     }
@@ -237,9 +292,38 @@ struct RootView: View {
         router.present(.tripDetails)
     }
 
-    /// Demo trains › Ride is on, in a build that shows Settings › Testing (an App Store build ignores a stored value).
+    /// Demo trains, in a build that shows Settings › Testing (an App Store build ignores a stored value).
+    private var demoTrains: DemoTrains {
+        BuildChannel.showsTesting ? settings.demoTrains : .off
+    }
+
+    /// The countdown strip (TT-177): the alerted train's Trip details, or the demo departure's on its own route.
+    private func openDeparture(_ key: TripKey) {
+        if let demo = onBoard.departureDemo, demo.key == key {
+            openTrip(key, on: demo.route)
+        } else {
+            openTrip(key)
+        }
+    }
+
+    /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's
+    /// question plays.
+    private var detection: DetectionRun {
+        let watches = scenePhase == .active && router.selectedTab == .schedule
+        return DetectionRun(route: watches ? schedule.route : nil, demo: playsDemoRide)
+    }
+
+    /// Demo trains › Ride is on, in a build that shows Settings › Testing.
     private var playsDemoRide: Bool {
-        BuildChannel.showsTesting && settings.demoTrains == .ride
+        demoTrains == .ride
+    }
+
+    /// The Live Activity's tap: Trip details on the ride, at once, or once a ride restored at launch is back (TT-174).
+    private func openRideFromActivity() async {
+        guard opensRide, onBoard.activeRide != nil else { return }
+        opensRide = false
+        router.showSchedule()
+        await openRide()
     }
 
     /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).
@@ -269,6 +353,12 @@ struct RootView: View {
     private func show(_ route: Route) {
         Task { await schedule.show(route) }
     }
+}
+
+/// Train detection's run: the route while Schedule shows in the foreground (nil stops it), and Demo trains › Ride.
+private struct DetectionRun: Hashable {
+    let route: Route?
+    let demo: Bool
 }
 
 #Preview {

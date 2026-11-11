@@ -24,12 +24,14 @@ struct Card<Content: View>: View {
 }
 
 /// A card on a sheet's canvas ground (TT-163, D56): a surface in a 26 pt radius, the `Card` shadow in light and a 0.5 pt
-/// white 8 % inner edge in dark. Fills the width; the caller sets the padding.
+/// white 8 % inner edge in dark. Fills the width; the caller sets the padding. Train detection's strip and question on
+/// Schedule use it with their own radii (TT-175).
 private struct SheetCard: ViewModifier {
+    var cornerRadius: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: TTRadius.xl)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TTColor.surface, in: shape)
@@ -39,7 +41,7 @@ private struct SheetCard: ViewModifier {
 }
 
 extension View {
-    func ttSheetCard() -> some View { modifier(SheetCard()) }
+    func ttSheetCard(cornerRadius: CGFloat = TTRadius.xl) -> some View { modifier(SheetCard(cornerRadius: cornerRadius)) }
 }
 
 /// The one line that states the data mode (D14). Times are formatted by the one time formatter.

@@ -42,6 +42,8 @@ final class SettingsViewModel {
     private let alerts: AlertRules?
     /// The app's clock (with Mock time off, the device or fixture clock): Mock time starts from its "now".
     private let clock: any AppClock
+    /// "Detect my train" (TT-176), the switch on the Notifications page; nil hides it (fixture runs, most tests).
+    private let detection: BackgroundDetection?
 
     init(
         settings: AppSettings,
@@ -49,7 +51,8 @@ final class SettingsViewModel {
         appInfo: AppInfo = .main,
         showsTesting: Bool = BuildChannel.showsTesting,
         clock: any AppClock = SystemClock(),
-        alerts: AlertRules? = nil
+        alerts: AlertRules? = nil,
+        detection: BackgroundDetection? = nil
     ) {
         self.settings = settings
         self.showsTesting = showsTesting
@@ -57,6 +60,7 @@ final class SettingsViewModel {
         self.appInfo = appInfo
         self.clock = clock
         self.alerts = alerts
+        self.detection = detection
     }
 
     var appearance: Appearance {
@@ -135,6 +139,34 @@ final class SettingsViewModel {
         } else {
             _ = await permissions.request()
         }
+        await refreshPermission()
+    }
+
+    // MARK: Detect my train (TT-176)
+
+    /// The switch shows: the app can detect trains (not in fixture runs).
+    var showsDetection: Bool { detection != nil }
+
+    /// "Detect my train": on asks iOS for Always (and for notifications if never asked), and goes back off without Always;
+    /// off stops the wake-ups at once.
+    var detectsTrain: Bool {
+        get { detection?.isOn ?? false }
+        set {
+            guard let detection, newValue != detection.isOn else { return }
+            if newValue {
+                Task { await turnOnDetection() }
+            } else {
+                detection.turnOff()
+            }
+        }
+    }
+
+    /// Three Not me in a week turned it off: a line under the switch says so.
+    var detectionWasTurnedOff: Bool { detection?.wasTurnedOff ?? false }
+
+    func turnOnDetection() async {
+        guard let detection, await detection.turnOn() else { return }
+        if let alerts { await alerts.requestPermission() }
         await refreshPermission()
     }
 

@@ -68,6 +68,11 @@ Schedule and status data: Metrolinx open data. Times may differ from station dis
 
 Captions in order: Your next GO train, in 11 min · Delays drawn as reported · Watch a train with one tap · Alerts for the trains you watch · Cancelled, said plainly. iPhone only (the app is iPhone only, so no iPad set). App Store Connect needs the 6.9-inch size (1320 × 2868, iPhone 17 Pro Max simulator); the iPhone 17 Pro's 1206 × 2622 is not an accepted size. No GO Transit or Metrolinx marks in any screenshot.
 
+## Before submitting: privacy label and App Review notes (TT-154)
+
+- **App Privacy › Location (TT-171, TT-176, D60, D73):** Precise Location and Coarse Location, used for App Functionality, not linked to the user, not used for tracking. Location is used on the phone to follow a ride and to notice a GO train, and never leaves it.
+- **App Review notes, background location (TT-176, D73):** "Train Times uses location in the background only for features the rider turns on. During a ride the rider starts (On board), it follows the train to show the next station and tap before the rider's stop. With "Detect my train" (Settings › Notifications, off by default, opt-in with location Always), significant location changes wake the app and, near a GO line between 5 AM and 1 AM, GPS runs for at most 12 minutes to match the phone to a train; on a match it posts a notification asking "On the 5:13 PM train?". Nothing starts without the rider's tap, and location never leaves the phone."
+
 ## TestFlight builds (TT-154, D47)
 
 One-time setup, done by the account holder or an Admin in App Store Connect and GitHub:

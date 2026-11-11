@@ -50,7 +50,10 @@ struct StationPickerPanel: View {
 
     var body: some View {
         ViewThatFits(in: .vertical) {
-            groups
+            // A list that could fit is measured whole; a longer one (every station, about 70) only ever scrolls, so it is not
+            // built a second time just to be measured (TT-196). A lazy stack was tried and dropped: on iOS 26 SwiftUI built
+            // its rows on a background render thread, which trapped Swift 6's main-actor check while typing.
+            if rowCount <= Self.measuredRows { groups }
             ScrollView {
                 groups
                     .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
@@ -95,7 +98,23 @@ struct StationPickerPanel: View {
 
     // MARK: Groups
 
+    /// The most rows that can fit above the keyboard (or above the home indicator, with no software keyboard) and more.
+    private static let measuredRows = 14
+
+    private var rowCount: Int {
+        viewModel.suggestedRoutes.count + viewModel.yourStations.count + viewModel.allStations.count
+    }
+
     private var groups: some View {
+        VStack(alignment: .leading, spacing: 0) { groupRows }
+            .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The rows ride down 24 pt as one block, on a bouncier spring than the clip that reveals them.
+            .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -PickerMotion.rideDistance)
+            .animation(PickerMotion.ride, value: settled)
+    }
+
+    @ViewBuilder private var groupRows: some View {
         let routes = viewModel.suggestedRoutes
         let yours = viewModel.yourStations
         let all = viewModel.allStations
@@ -105,40 +124,33 @@ struct StationPickerPanel: View {
         let yoursBase = routes.count
         let allBase = yoursBase + yours.count
         let allGlyph: Glyph = viewModel.pickingField == .from ? .ring : .pin
-        return VStack(alignment: .leading, spacing: 0) {
-            if !routes.isEmpty {
-                header("route.recent", order: 0)
-                ForEach(Array(routes.enumerated()), id: \.element) { index, route in
-                    VStack(alignment: .leading, spacing: 0) {
-                        if index > 0 { hairline }
-                        routeRow(route)
-                    }
-                    .fallsIn(order: index, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
-                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
+        if !routes.isEmpty {
+            header("route.recent", order: 0)
+            ForEach(Array(routes.enumerated()), id: \.element) { index, route in
+                VStack(alignment: .leading, spacing: 0) {
+                    if index > 0 { hairline }
+                    routeRow(route)
                 }
-            }
-            if !yours.isEmpty {
-                header("stations.yours", order: yoursBase)
-                stationRows(yours, idPrefix: "station.yours.", glyph: .clock, base: yoursBase)
-            }
-            if !all.isEmpty {
-                header(allTitle, order: allBase)
-                stationRows(all, idPrefix: "station.", glyph: allGlyph, base: allBase)
-            }
-            if viewModel.hasNoMatch {
-                Text("stations.none")
-                    .font(TTFont.body)
-                    .foregroundStyle(TTColor.inkSecondary)
-                    .padding(.horizontal, Self.inset)
-                    .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
-                    .accessibilityIdentifier("stations.none")
+                .fallsIn(order: index, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
+                .transition(.opacity.animation(.easeOut(duration: 0.15)))
             }
         }
-        .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // The rows ride down 24 pt as one block, on a bouncier spring than the clip that reveals them.
-        .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -PickerMotion.rideDistance)
-        .animation(PickerMotion.ride, value: settled)
+        if !yours.isEmpty {
+            header("stations.yours", order: yoursBase)
+            stationRows(yours, idPrefix: "station.yours.", glyph: .clock, base: yoursBase)
+        }
+        if !all.isEmpty {
+            header(allTitle, order: allBase)
+            stationRows(all, idPrefix: "station.", glyph: allGlyph, base: allBase)
+        }
+        if viewModel.hasNoMatch {
+            Text("stations.none")
+                .font(TTFont.body)
+                .foregroundStyle(TTColor.inkSecondary)
+                .padding(.horizontal, Self.inset)
+                .frame(maxWidth: .infinity, minHeight: Self.rowHeight, alignment: .leading)
+                .accessibilityIdentifier("stations.none")
+        }
     }
 
     /// A 13 pt ink-secondary group title: 12 pt above and 4 pt below.

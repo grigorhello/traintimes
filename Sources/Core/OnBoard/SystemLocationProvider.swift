@@ -7,10 +7,17 @@ import CoreLocation
 /// both again at launch. Fixes stay on the phone.
 @MainActor
 final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManagerDelegate {
+    /// A ride keeps its updates in the background; train detection (TT-175) watches only while Schedule is open.
+    private let keepsInBackground: Bool
     private var manager: CLLocationManager?
     private var session: CLBackgroundActivitySession?
     private var updates: Task<Void, Never>?
     private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(keepsInBackground: Bool = true) {
+        self.keepsInBackground = keepsInBackground
+        super.init()
+    }
 
     var isAuthorized: Bool {
         Self.allows(locationManager().authorizationStatus)
@@ -32,7 +39,7 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
 
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void) {
         stopUpdates()
-        session = CLBackgroundActivitySession()
+        session = keepsInBackground ? CLBackgroundActivitySession() : nil
         // Read off the main actor; each fix is copied into a `LocationFix` before it goes back to the ride.
         updates = Task.detached {
             do {

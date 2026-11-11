@@ -164,9 +164,12 @@ struct DemoRideRig {
         let start = DemoRideRig.time(17, 32)
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
-        let onBoard = OnBoard(app: nil) {
-            (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day))
-        }
+        // No question first (TT-175): the ride starts as Demo trains › Ride turns on.
+        let onBoard = OnBoard(
+            app: nil,
+            makeDemo: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            makeDemoDetector: nil
+        )
         await onBoard.setDemo(true)
         let rig = DemoRideRig(clock: clock, onBoard: onBoard)
         if moment != start { rig.drive(to: moment) }

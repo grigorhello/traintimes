@@ -68,8 +68,10 @@ struct RideStripView: View {
     }
 }
 
-/// The ride strip while a ride runs, else `otherwise` (the watched-trip strip). It drops in 12 pt from under the day strip,
-/// from 0.97, on `RideMotion.rise` (a fade with Reduce Motion), and its countdown follows the ride's clock each second.
+/// The strip under the day strip: the ride strip while a ride runs, train detection's question or checking strip (TT-175),
+/// else `otherwise` (the watched-trip strip). The ride strip drops in 12 pt from under the day strip, from 0.97, on
+/// `RideMotion.rise`; the question lands from −10 pt and 0.97 on `RideMotion.press`, and its Yes folds it into the ride
+/// strip on `RideMotion.fold`. Reduce Motion fades. The ride strip's countdown follows the ride's clock each second.
 struct RideStripSlot<Otherwise: View>: View {
     let onBoard: OnBoard?
     var onOpen: () -> Void = {}
@@ -77,11 +79,20 @@ struct RideStripSlot<Otherwise: View>: View {
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The question was showing before this change: its Yes folds into the ride strip.
+    @State private var wasAsking = false
+
+    private enum Content: Equatable {
+        case riding, asking, checking, otherwise
+    }
 
     var body: some View {
-        let isRiding = onBoard?.activeRide != nil
+        let detection = onBoard?.detection ?? .idle
+        let strip = checkingStrip(detection)
+        let content = showing(detection, strip: strip)
         Group {
-            if isRiding {
+            switch content {
+            case .riding:
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     if let strip = onBoard?.strip(formatter: formatter) {
                         RideStripView(strip: strip, onOpen: onOpen)
@@ -89,13 +100,54 @@ struct RideStripSlot<Otherwise: View>: View {
                 }
                 .padding(.horizontal, TTSpace.s5)
                 .padding(.top, -2)
-                .transition(
-                    reduceMotion ? .opacity : .offset(y: -12).combined(with: .scale(scale: 0.97)).combined(with: .opacity)
-                )
-            } else {
+                .transition(drop(by: -12))
+            case .asking:
+                if case .asking(let question) = detection {
+                    TrainQuestionCard(
+                        question: TrainQuestion(question, formatter: formatter),
+                        onYes: { train in Task { if await onBoard?.accept(train) == true { onOpen() } } },
+                        onNo: { onBoard?.decline() }
+                    )
+                    .padding(.horizontal, TTSpace.s5)
+                    .padding(.top, -2)
+                    .transition(drop(by: -10))
+                }
+            case .checking:
+                if let strip {
+                    DetectionStripView(strip: strip)
+                        .padding(.horizontal, TTSpace.s5)
+                        .padding(.top, -2)
+                        .transition(reduceMotion ? .opacity : .offset(y: -6).combined(with: .opacity))
+                }
+            case .otherwise:
                 otherwise
             }
         }
-        .animation(reduceMotion ? TTMotion.fade : RideMotion.rise, value: isRiding)
+        .animation(animation(for: content), value: content)
+        .onChange(of: content) { wasAsking = content == .asking }
+    }
+
+    private func checkingStrip(_ detection: TrainMatcher.State) -> DetectionStrip? {
+        guard case .checking(let progress) = detection else { return nil }
+        return DetectionStrip(progress, formatter: formatter)
+    }
+
+    private func showing(_ detection: TrainMatcher.State, strip: DetectionStrip?) -> Content {
+        if onBoard?.activeRide != nil { return .riding }
+        if case .asking = detection { return .asking }
+        return strip == nil ? .otherwise : .checking
+    }
+
+    private func drop(by offset: CGFloat) -> AnyTransition {
+        reduceMotion ? .opacity : .offset(y: offset).combined(with: .scale(scale: 0.97, anchor: .top)).combined(with: .opacity)
+    }
+
+    private func animation(for content: Content) -> Animation {
+        if reduceMotion { return TTMotion.fade }
+        switch content {
+        case .riding: return wasAsking ? RideMotion.fold : RideMotion.rise
+        case .asking: return RideMotion.press
+        case .checking, .otherwise: return RideMotion.rise
+        }
     }
 }

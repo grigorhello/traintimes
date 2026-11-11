@@ -39,9 +39,10 @@ enum TTMotion {
     static let popCurve = Curve(response: 0.35, damping: 0.45)
     /// The selected day's accent tile gliding to the tapped day (TT-164, D61).
     static let glideCurve = Curve(response: 0.45, damping: 0.72)
-    /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D61).
+    /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D61); the day
+    /// panel's tiles arriving from 6 pt down and 0.94 (TT-191).
     static let cascadeCurve = Curve(response: 0.44, damping: 0.62)
-    /// The bell's toast rising 32 pt into place (TT-166).
+    /// The bell's toast rising 32 pt into place (TT-166); the alert capsule rising 12 pt from 0.94 since TT-191.
     static let toastCurve = Curve(response: 0.45, damping: 0.68)
     /// The Enable alerts check popping in from 0.6 (TT-166).
     static let confirmCurve = Curve(response: 0.35, damping: 0.50)
@@ -51,6 +52,12 @@ enum TTMotion {
     static let stopsCurve = Curve(response: 0.40, damping: 0.70)
     /// The Trip details alert button growing from 0.9, `buttonDelay` after the card (TT-167).
     static let growCurve = Curve(response: 0.45, damping: 0.60)
+    /// The alert capsule growing into the day panel, with no overshoot (TT-191, D71).
+    static let morphCurve = Curve(response: 0.42, damping: 1.0)
+    /// A day tile lit in the day panel, pressing in from 0.92 (TT-191).
+    static let tilePressCurve = Curve(response: 0.30, damping: 0.75)
+    /// A card's bell turned off: the outline settling from 0.86, quiet on purpose (TT-191).
+    static let settleCurve = Curve(response: 0.40, damping: 0.70)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }
@@ -63,6 +70,7 @@ enum TTMotion {
     static var card: Animation { cardCurve.animation }
     static var stops: Animation { stopsCurve.animation }
     static var grow: Animation { growCurve.animation }
+    static var morph: Animation { morphCurve.animation }
     /// An arriving element fading in while its spring moves it: the Trip details card, stop rows and button (TT-167).
     static var appear: Animation { .easeOut(duration: 0.15) }
     /// When Trip details stop row `index` starts, after the first: 24 ms apart, and from the ninth row on with the eighth,

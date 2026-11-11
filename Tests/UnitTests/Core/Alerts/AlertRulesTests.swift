@@ -413,4 +413,74 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(deleted, [first.id])
         XCTAssertEqual(saved.map(\.id), [first.id, second.id, first.id])
     }
+
+    // MARK: Commit (TT-191, D71)
+
+    /// A new alert the server cannot take is gone on device, its delete queued in case it got there.
+    func testCommitOfANewAlertThatFailsLeavesNothingAndQueuesItsDelete() async {
+        let server = FakeAlertServer()
+        await server.setFailing(true)
+        let defaults = UserDefaults.ephemeral()
+        let rules = AlertFixtures.rules(server, defaults: defaults)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+
+        let kept = await rules.commit(rule)
+        XCTAssertFalse(kept)
+        XCTAssertEqual(rules.rules, [])
+        XCTAssertEqual(defaults.stringArray(forKey: AlertRules.pendingDeletesKey), [rule.id])
+    }
+
+    /// A change the server cannot take goes back to the last saved version and its state.
+    func testCommitOfAChangeThatFailsGoesBackToWhatWasSaved() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+
+        await server.setFailing(true)
+        var changed = rule
+        changed.weekdays = [1, 2, 3, 4, 5, 6]
+        let kept = await rules.commit(changed)
+        XCTAssertFalse(kept)
+        XCTAssertEqual(rules.rules, [rule])
+        XCTAssertEqual(rules.state(of: rule), .on)
+
+        await server.setFailing(false)
+        let keptNow = await rules.commit(changed)
+        XCTAssertTrue(keptNow)
+        XCTAssertEqual(rules.rules, [changed])
+        XCTAssertEqual(rules.state(of: changed), .on)
+    }
+
+    /// An alert deleted while the server was unreachable and saved again (Undo) takes back its pending delete.
+    func testCommitOfADeletedAlertTakesBackItsPendingDelete() async {
+        let server = FakeAlertServer()
+        let defaults = UserDefaults.ephemeral()
+        let rules = AlertFixtures.rules(server, defaults: defaults)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        await rules.save(rule)
+        await server.setFailing(true)
+        await rules.delete(rule.id)
+        XCTAssertEqual(defaults.stringArray(forKey: AlertRules.pendingDeletesKey), [rule.id])
+
+        await server.setFailing(false)
+        let kept = await rules.commit(rule)
+        XCTAssertTrue(kept)
+        XCTAssertEqual(rules.rules, [rule])
+        XCTAssertEqual(defaults.stringArray(forKey: AlertRules.pendingDeletesKey), [])
+    }
+
+    /// The bell's delete is gone on device before it returns; the server's part runs on.
+    func testDeleteInBackgroundRemovesTheAlertOnDeviceAtOnce() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let rule = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(), route: route)
+        await rules.save(rule)
+
+        let delete = rules.deleteInBackground(rule.id)
+        XCTAssertEqual(rules.rules, [])
+        await delete.value
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, [rule.id])
+    }
 }

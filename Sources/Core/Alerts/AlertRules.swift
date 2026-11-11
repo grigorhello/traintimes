@@ -152,12 +152,42 @@ final class AlertRules: WatchedTripsProviding {
     /// already in flight for the rule sends nothing more. Doubles it leaves are merged away afterwards (TT-189).
     func save(_ candidate: AlertRule) async {
         var rule = candidate
-        if !contains(rule.id), let existing = matching(candidate) { rule.id = existing.id }
+        rule.id = storedID(of: candidate)
         guard !inFlight.contains(rule.id) else { return }
         inFlight.insert(rule.id)
         await send(rule)
         inFlight.remove(rule.id)
         if mergeDoubles() { await retryPendingDeletes() }
+    }
+
+    /// Saves a change from the bell or its capsule with nothing half-kept (TT-191, D71). When the server cannot take it, a
+    /// stored alert goes back to what was saved (its last version and state) and a new one goes away, deleted on the server
+    /// with the next call in case it got there. A removed alert saved again (Undo) takes back its pending delete. False
+    /// when the change went back; a save already in flight for the alert sends nothing more and counts as kept.
+    @discardableResult
+    func commit(_ candidate: AlertRule) async -> Bool {
+        let id = storedID(of: candidate)
+        let previous = rules.first { $0.id == id }
+        let previousState = serverStates[id]
+        if previous == nil { pendingDeletes.removeAll { $0 == id } }
+        await save(candidate)
+        guard contains(id), serverStates[id] == .couldNotSave, !inFlight.contains(id) else { return true }
+        if let previous, let index = rules.firstIndex(where: { $0.id == id }) {
+            rules[index] = previous
+            serverStates[id] = previousState ?? .couldNotSave
+        } else {
+            rules.removeAll { $0.id == id }
+            serverStates[id] = nil
+            pendingDeletes.append(id)
+        }
+        persist()
+        return false
+    }
+
+    /// The id a candidate is saved under: its own when stored, else that of the alert it is saved over (`matching`).
+    private func storedID(of candidate: AlertRule) -> AlertRule.ID {
+        guard !contains(candidate.id), let existing = matching(candidate) else { return candidate.id }
+        return existing.id
     }
 
     private func send(_ rule: AlertRule) async {
@@ -232,10 +262,25 @@ final class AlertRules: WatchedTripsProviding {
     /// Removes the rule on device at once and on the server; if the server cannot be reached, it is deleted there on the
     /// next call.
     func delete(_ id: AlertRule.ID) async {
+        removeOnDevice(id)
+        await deleteOnServer(id)
+    }
+
+    /// The same delete, gone on device before it returns, with the server's part left running: the bell's capsule and
+    /// its Undo answer at once, and Undo waits for the returned task so its save lands after the delete (TT-191).
+    func deleteInBackground(_ id: AlertRule.ID) -> Task<Void, Never> {
+        removeOnDevice(id)
+        return Task { await deleteOnServer(id) }
+    }
+
+    private func removeOnDevice(_ id: AlertRule.ID) {
         rules.removeAll { $0.id == id }
         serverStates[id] = nil
         noTrainDates[id] = nil
         persist()
+    }
+
+    private func deleteOnServer(_ id: AlertRule.ID) async {
         do {
             try await server.delete(ruleId: id, installation: installation)
         } catch {

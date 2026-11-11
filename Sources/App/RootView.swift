@@ -45,8 +45,8 @@ struct RootView: View {
         ride: RideEngine? = nil
     ) {
         let bells = bells ?? AlertBellModel(
-            rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.bellToastDuration,
-            hintDuration: alertDependencies.toastDuration
+            rules: alertDependencies.rules(settings: settings), actionDuration: alertDependencies.capsuleActionDuration,
+            plainDuration: alertDependencies.capsulePlainDuration, hintDuration: alertDependencies.toastDuration
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,

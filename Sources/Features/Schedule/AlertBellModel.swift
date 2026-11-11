@@ -44,18 +44,6 @@ final class AlertBellModel {
             case hint
         }
 
-        /// The glyph at the capsule's start: the filled bell, the outline, the exclamation mark, the crossed bell or the
-        /// tick.
-        var glyph: CapsuleGlyph {
-            switch self {
-            case .on: .bellOn
-            case .off, .hint: .bellOff
-            case .failed: .failed
-            case .notificationsOff: .notificationsOff
-            case .notificationsOn: .confirmed
-            }
-        }
-
         enum Failure: Equatable {
             case turnOn
             case changeDays
@@ -537,6 +525,19 @@ final class AlertBellModel {
 }
 
 // MARK: Words
+
+extension AlertBellModel.Capsule.Kind {
+    /// The glyph at the capsule's start: the filled bell, the outline, the exclamation mark, the crossed bell or the tick.
+    var glyph: CapsuleGlyph {
+        switch self {
+        case .on: .bellOn
+        case .off, .hint: .bellOff
+        case .failed: .failed
+        case .notificationsOff: .notificationsOff
+        case .notificationsOn: .confirmed
+        }
+    }
+}
 
 extension AlertBellModel.Capsule {
     /// The capsule's one line (the spec board's Words). A one-day alert for a train on another day than `today` names the

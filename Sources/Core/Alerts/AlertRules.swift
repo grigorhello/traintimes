@@ -14,7 +14,7 @@ import Observation
 /// allowed: with permission off it shows Notifications off, but is still saved, so allowing notifications later needs no
 /// resync. A rule the server could not take stays on device as Could not save; saving it again retries with the same id.
 @Observable @MainActor
-final class AlertRules: WatchedTripsProviding {
+final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     /// JSON, read once at launch, so UI tests can clear it with `-alerts.rules ""`.
     static let rulesKey = "alerts.rules"
     static let installationKey = "alerts.installation"
@@ -48,6 +48,8 @@ final class AlertRules: WatchedTripsProviding {
     /// Nil keeps everything in memory (previews and tests that do not check storage).
     private let defaults: UserDefaults?
     @ObservationIgnored private var registered: InstallationRegistration?
+    /// The Live Activity push-to-start token, sent with the registration once iOS issues it (TT-178).
+    @ObservationIgnored private var startToken: String?
     @ObservationIgnored private var inFlight: Set<AlertRule.ID> = []
     @ObservationIgnored private var pendingDeletes: [String]
 
@@ -300,11 +302,42 @@ final class AlertRules: WatchedTripsProviding {
         let token = try await push.deviceToken()
         let twentyFourHour = settings?.timeFormatter.usesTwentyFourHour ?? false
         let registration = InstallationRegistration(
-            deviceToken: token, timeFormat: twentyFourHour ? "24h" : "12h", environment: Self.apnsEnvironment
+            deviceToken: token, timeFormat: twentyFourHour ? "24h" : "12h", environment: Self.apnsEnvironment, startToken: startToken
         )
         guard registration != registered else { return }
         try await server.register(registration, installation: installation)
         registered = registration
+    }
+
+    // MARK: Live Activity tokens (TT-178)
+
+    /// iOS issued (or changed) the push-to-start token: the server gets it with the registration, now if the rider has an
+    /// alert (only alerted trains go live), else with the first save.
+    func reportStartToken(_ token: String) async {
+        guard token != startToken else { return }
+        startToken = token
+        guard !rules.isEmpty else { return }
+        try? await registerIfNeeded()
+    }
+
+    /// A before-departure activity's start, update token or hand-off. An unreachable server misses it: the server then
+    /// starts its own activity or sends nothing to this one, and the app keeps its activity up to date while it runs.
+    @discardableResult
+    func report(_ activity: LiveActivityReport) async -> Bool {
+        guard !rules.isEmpty else { return true }
+        do {
+            try await registerIfNeeded()
+            do {
+                try await server.report(activity, installation: installation)
+            } catch AlertServerError.unknownInstallation {
+                registered = nil
+                try await registerIfNeeded()
+                try await server.report(activity, installation: installation)
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func retryPendingDeletes() async {

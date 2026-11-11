@@ -138,6 +138,12 @@ final class RideEngine {
     /// A ride can start: the app has the GO feed's trips (fixture runs have none).
     var canStart: Bool { data != nil }
 
+    /// The stops a ride on that train would have, without starting it: the before-departure Live Activity is made with the
+    /// ride's stop count, so the hand-off keeps it (TT-178).
+    func plan(for ride: Ride) async -> RidePlan? {
+        try? await data?.ridePlan(for: ride)
+    }
+
     /// The rider has not answered the When In Use prompt yet: the first "I'm on board" shows the app's sheet before
     /// `start(_:)` asks (TT-172).
     var asksForLocation: Bool { location.canAsk }

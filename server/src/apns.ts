@@ -23,6 +23,16 @@ export interface Push {
   data: Record<string, string>;
 }
 
+/** A Live Activity push (TT-178): start, update or end, to a push-to-start token or an activity's update token. */
+export interface LiveActivityPush {
+  token: string;
+  environment: ApnsEnvironment;
+  /** The whole body, `aps` with `event`, `content-state` and the rest (src/activity.ts). */
+  payload: object;
+  /** Epoch milliseconds after which APNs drops it. */
+  expiration: number;
+}
+
 /**
  * - sent: APNs accepted it.
  * - unregistered: 410, the app is no longer on the device, so its installation is removed (rule 9).
@@ -81,19 +91,40 @@ export class ApnsClient {
   }
 
   async send(push: Push, now: number): Promise<PushResult> {
+    // Default sound and interruption level; no critical or time-sensitive alerts in v1.
+    return this.post(push.token, push.environment, 'alert', this.config.topic, push.expiration, now, {
+      aps: { alert: { title: push.title, body: push.body }, sound: 'default' },
+      ...push.data,
+    });
+  }
+
+  /** A Live Activity push: its own push type and topic, priority 10 (TT-178). */
+  async sendLiveActivity(push: LiveActivityPush, now: number): Promise<PushResult> {
+    const topic = `${this.config.topic}.push-type.liveactivity`;
+    return this.post(push.token, push.environment, 'liveactivity', topic, push.expiration, now, push.payload);
+  }
+
+  private async post(
+    token: string,
+    environment: ApnsEnvironment,
+    pushType: 'alert' | 'liveactivity',
+    topic: string,
+    expiration: number,
+    now: number,
+    body: object,
+  ): Promise<PushResult> {
     let response: Response;
     try {
-      response = await this.fetch(`${HOSTS[push.environment]}/3/device/${push.token}`, {
+      response = await this.fetch(`${HOSTS[environment]}/3/device/${token}`, {
         method: 'POST',
         headers: {
           authorization: `bearer ${await this.providerToken(now)}`,
-          'apns-topic': this.config.topic,
-          'apns-push-type': 'alert',
+          'apns-topic': topic,
+          'apns-push-type': pushType,
           'apns-priority': '10',
-          'apns-expiration': String(Math.floor(push.expiration / 1000)),
+          'apns-expiration': String(Math.floor(expiration / 1000)),
         },
-        // Default sound and interruption level; no critical or time-sensitive alerts in v1.
-        body: JSON.stringify({ aps: { alert: { title: push.title, body: push.body }, sound: 'default' }, ...push.data }),
+        body: JSON.stringify(body),
       });
     } catch (error) {
       console.warn('APNs request failed', error);

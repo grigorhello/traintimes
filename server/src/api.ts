@@ -1,8 +1,10 @@
 // The app's API: register the device token, then save, list and delete alert rules. Keyed by an anonymous
 // installation id; no account (D5, rule 9).
 //
-//   PUT    /v1/installations/:installation                 { deviceToken, timeFormat, environment }
+//   PUT    /v1/installations/:installation                 { deviceToken, timeFormat, environment, startToken? }
 //   DELETE /v1/installations/:installation
+//   PUT    /v1/installations/:installation/activities      { tripId, serviceDate, originId, destinationId, token?,
+//                                                           handedOff? }
 //   GET    /v1/installations/:installation/rules
 //   PUT    /v1/installations/:installation/rules/:rule     { kind, tripId, serviceDate, line, scheduledDeparture,
 //                                                           origin: { id, name }, destination: { id, name },
@@ -22,6 +24,8 @@ const noContent = () => new Response(null, { status: 204 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RULE_ID = /^[A-Za-z0-9._:-]{1,100}$/;
 const TOKEN = /^[0-9a-f]{64,200}$/i;
+/** Live Activity tokens, push-to-start and update (TT-178): hex, longer than a device token. */
+const ACTIVITY_TOKEN = /^[0-9a-f]{32,400}$/i;
 const DATE = /^\d{8}$/;
 
 function text(value: unknown, field: string, max = 100): string {
@@ -90,13 +94,16 @@ export function deleteInstallation(db: D1Database, installation: string) {
   return db.batch([
     db.prepare('DELETE FROM rules WHERE installation_id = ?').bind(installation),
     db.prepare('DELETE FROM watches WHERE installation_id = ?').bind(installation),
+    db.prepare('DELETE FROM activities WHERE installation_id = ?').bind(installation),
+    db.prepare('DELETE FROM start_tokens WHERE installation_id = ?').bind(installation),
     db.prepare('DELETE FROM installations WHERE id = ?').bind(installation),
   ]);
 }
 
 export async function handleRequest(request: Request, db: D1Database, now: number): Promise<Response> {
   const path = new URL(request.url).pathname.split('/').filter(Boolean);
-  if (path[0] !== 'v1' || path[1] !== 'installations' || !path[2] || path.length > 5 || (path.length >= 4 && path[3] !== 'rules')) {
+  const isActivities = path.length === 4 && path[3] === 'activities';
+  if (path[0] !== 'v1' || path[1] !== 'installations' || !path[2] || path.length > 5 || (path.length >= 4 && path[3] !== 'rules' && !isActivities)) {
     return json(404, { error: 'notFound' });
   }
   if (!UUID.test(path[2])) return json(400, { error: 'invalid', field: 'installation' });
@@ -110,6 +117,9 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       if (!TOKEN.test(token)) throw new BadRequest('deviceToken');
       const timeFormat = oneOf(input.timeFormat, ['12h', '24h'] as const, 'timeFormat');
       const environment = oneOf(input.environment ?? 'production', ['production', 'sandbox'] as const, 'environment');
+      // The push-to-start token comes with the registration once iOS issues it (iOS 17.2+); left out, the stored one stays.
+      const startToken = input.startToken === undefined ? undefined : text(input.startToken, 'startToken', 400);
+      if (startToken !== undefined && !ACTIVITY_TOKEN.test(startToken)) throw new BadRequest('startToken');
       await db
         .prepare(
           `INSERT INTO installations (id, device_token, environment, time_format, last_seen) VALUES (?, ?, ?, ?, ?)
@@ -118,13 +128,43 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
         )
         .bind(installation, token.toLowerCase(), environment, timeFormat, now)
         .run();
+      if (startToken !== undefined) {
+        await db
+          .prepare('INSERT INTO start_tokens (installation_id, token) VALUES (?, ?) ON CONFLICT (installation_id) DO UPDATE SET token = excluded.token')
+          .bind(installation, startToken.toLowerCase())
+          .run();
+      }
+      return noContent();
+    }
+    if (isActivities && method === 'PUT') {
+      // The app started a before-departure activity, has its update token, or its ride took it over (TT-178).
+      const input = await body(request);
+      const tripId = text(input.tripId, 'tripId');
+      const serviceDate = text(input.serviceDate, 'serviceDate');
+      if (!DATE.test(serviceDate)) throw new BadRequest('serviceDate');
+      const originId = text(input.originId, 'originId');
+      const destinationId = text(input.destinationId, 'destinationId');
+      const token = input.token === undefined ? null : text(input.token, 'token', 400);
+      if (token !== null && !ACTIVITY_TOKEN.test(token)) throw new BadRequest('token');
+      const handedOff = input.handedOff === undefined ? false : input.handedOff;
+      if (typeof handedOff !== 'boolean') throw new BadRequest('handedOff');
+      if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
+      await db
+        .prepare(
+          `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (installation_id, key) DO UPDATE SET token = COALESCE(excluded.token, activities.token),
+             state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff' ELSE activities.state END,
+             version = activities.version + 1`,
+        )
+        .bind(installation, `${serviceDate}|${tripId}|${originId}|${destinationId}`, serviceDate, token?.toLowerCase() ?? null, handedOff ? 'handedOff' : 'started')
+        .run();
       return noContent();
     }
     if (path.length === 3 && method === 'DELETE') {
       await deleteInstallation(db, installation);
       return noContent();
     }
-    if (path.length === 4 && method === 'GET') {
+    if (path.length === 4 && !isActivities && method === 'GET') {
       if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
       const rows = await db
         .prepare('SELECT * FROM rules WHERE installation_id = ? ORDER BY updated_at DESC')

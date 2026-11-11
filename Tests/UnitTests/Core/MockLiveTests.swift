@@ -5,7 +5,7 @@ import XCTest
 /// as the real feed, so the live states show on a phone before the Metrolinx key arrives.
 @MainActor
 final class MockLiveTests: XCTestCase {
-    private func repository(
+    private func make(
         _ live: MockLive, demo: DemoTrains = .off, now: Date? = nil
     ) throws -> (repository: DemoScheduleRepository, base: FixtureScheduleRepository, now: Date) {
         let base = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
@@ -17,7 +17,7 @@ final class MockLiveTests: XCTestCase {
     }
 
     private func resolved(_ live: MockLive, now: Date? = nil) async throws -> (departures: [Departure], freshness: Freshness) {
-        let (repository, base, now) = try repository(live, now: now)
+        let (repository, base, now) = try make(live, now: now)
         let trips = try await repository.trips(for: base.route, on: base.serviceDay)
         let snapshot = try await repository.liveStatus(for: base.route, on: base.serviceDay)
         let freshness = Freshness(snapshot, now: now)
@@ -43,7 +43,7 @@ final class MockLiveTests: XCTestCase {
         guard case .delayed(22, _) = byTime[3].status else { return XCTFail("Expected 22 min late, got \(byTime[3].status)") }
         XCTAssertTrue(departures.allSatisfy { if case .published = $0.trip.platform { true } else { false } })
 
-        let (repository, base, _) = try repository(.mixed)
+        let (repository, base, _) = try make(.mixed)
         let notices = try await repository.lineNotices(for: try XCTUnwrap(base.route.line))
         XCTAssertEqual(notices.count, 1)
     }
@@ -87,7 +87,7 @@ final class MockLiveTests: XCTestCase {
 
     /// Trip details' stops carry the delay, so the stop list reads Expected.
     func testStopsCarryTheDelay() async throws {
-        let (repository, base, _) = try repository(.mixed)
+        let (repository, base, _) = try make(.mixed)
         let trips = try await base.trips(for: base.route, on: base.serviceDay).sorted { $0.scheduledDeparture < $1.scheduledDeparture }
         let stops = try await repository.stops(for: trips[0].key, on: base.route)
         XCTAssertFalse(stops.isEmpty)
@@ -96,7 +96,7 @@ final class MockLiveTests: XCTestCase {
 
     /// Demo trains Delays, Offline and Platform make their own live status and win over Live data.
     func testDemoTrainsThatMakeLiveStatusWin() async throws {
-        let (repository, base, _) = try repository(.onTime, demo: .offline)
+        let (repository, base, _) = try make(.onTime, demo: .offline)
         let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
         XCTAssertTrue(live.isOffline)
     }

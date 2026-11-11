@@ -71,6 +71,23 @@ Accessibility pass, website and required pages, App Store listing, acceptance QA
 | 30 | TT-153 · Acceptance QA and the three-second test | [#30](https://github.com/grigorhello/traintimes/issues/30) | P0 | 2 | TT-150 (#27), TT-144 (#26) |
 | 31 | TT-154 · Ship to TestFlight and the App Store | [#31](https://github.com/grigorhello/traintimes/issues/31) | P0 | 2 | TT-152 (#29), TT-153 (#30), TT-151 (#28) |
 
+### On board (live mode)
+
+Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live-Spec* is the source of truth) and moved it into v1 the same night (D60). Order = build step; size in days. The order against other open tickets is up to each implementation thread.
+
+| # | Ticket | Issue | Priority | Size | Blocked by |
+|---|---|---|---|---|---|
+| 48 | TT-171 · Ride engine: track shapes, position on the line, ride state, background location | [#95](https://github.com/grigorhello/traintimes/issues/95) | P1 | 1 | Nothing (TT-130 merged) |
+| 49 | TT-172 · On board in Trip details: ride card, train on the rail, "I'm on board", ride strip and demo ride | [#96](https://github.com/grigorhello/traintimes/issues/96) | P1 | 1.5 | TT-171 (#95) |
+| 50 | TT-173 · Arriving nudge: taps before your stop, sound and Time Sensitive notifications | [#97](https://github.com/grigorhello/traintimes/issues/97) | P1 | 0.5 | TT-171 (#95), TT-172 (#96) |
+| 51 | TT-174 · Ride Live Activity and Dynamic Island (widget extension) | [#98](https://github.com/grigorhello/traintimes/issues/98) | P1 | 1 | TT-172 (#96) |
+| 52 | TT-175 · Train detection in the app: match the phone to a train and ask | [#99](https://github.com/grigorhello/traintimes/issues/99) | P1 | 1 | TT-172 (#96) |
+| 53 | TT-176 · Train detection in the background: "Detect my train" (Always) | [#100](https://github.com/grigorhello/traintimes/issues/100) | P2 | 1.5 | TT-175 (#99), TT-174 (#98) |
+| 54 | TT-177 · Before departure in the app: countdown for an alerted train, platform, Boarding now | [#101](https://github.com/grigorhello/traintimes/issues/101) | P1 | 1 | TT-172 (#96) |
+| 55 | TT-178 · Before-departure Live Activity started by the alert server (push-to-start) | [#102](https://github.com/grigorhello/traintimes/issues/102) | P1 | 1.5 | TT-174 (#98), TT-177 (#101) |
+| 56 | TT-179 · Train positions endpoint on the alert server (GET /trains) | [#103](https://github.com/grigorhello/traintimes/issues/103) | P2 | 0.5 | The Metrolinx key (Q1) |
+| 57 | TT-180 · On board: test on real GO rides | [#104](https://github.com/grigorhello/traintimes/issues/104) | P1 | 1 | Grigor on a GO train; first check after TT-172 (#96) |
+
 ## TestFlight feedback tickets
 
 Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub issue and a Notion card (Order after 31) for visibility, and ships in a new TestFlight build.

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Settings › Testing › Demo trains › Ride (TT-172, D61): the 5:13 PM Lakeshore West train from Union to Clarkson, played
+/// Settings › Testing › Demo trains › Ride (TT-172, D63): the 5:13 PM Lakeshore West train from Union to Clarkson, played
 /// from 5:32 to 5:43 PM today, so the ride's moments (riding, at a station, your stop next, arriving, at your stop) can be
 /// checked on the simulator with no train. It runs on a ride engine of its own with a clock of its own, six times as fast,
 /// and a location track that keeps to the timetable; it keeps nothing on device and leaves the app's engine alone.

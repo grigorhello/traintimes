@@ -7,8 +7,8 @@ import XCTest
 /// Screen: the Lock Screen card riding (5:32 PM), arriving (5:42) and stale; the island compact, compact arriving, minimal,
 /// expanded, expanded arriving and expanded at your stop. The system draws the island's black shape and the Lock Screen's
 /// rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone (compact trailing about 52 pt, the
-/// expanded island at most 160 pt tall), so content that would be cut off is cut off here too. The countdown is stopped at
-/// the moment the content was made.
+/// expanded island at most 160 pt tall, 374 pt wide, its centre region 166 pt wide, as measured on the simulator), so
+/// content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -83,7 +83,7 @@ final class RideActivitySnapshotTests: XCTestCase {
             Spacer()
         }
         .padding(.top, 11)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Wallpaper())
     }
@@ -112,9 +112,11 @@ final class RideActivitySnapshotTests: XCTestCase {
         return VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
                 RideActivityTile(attributes: moment.attributes, size: .large, edge: style.tileEdge)
+                // The centre region's width on the iPhone 17 Pro, under the camera between the two corners.
                 RideActivityTitle(state: moment.state, style: style)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: 166, alignment: .leading)
                     .padding(.top, 28)
+                Spacer(minLength: 0)
                 RideActivityCountdownStack(state: moment.state, style: style)
             }
             RideActivityExpandedBottom(attributes: moment.attributes, state: moment.state, style: style)

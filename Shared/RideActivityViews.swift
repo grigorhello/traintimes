@@ -124,15 +124,19 @@ struct RideActivityTitle: View {
     let style: RideActivityStyle
 
     var body: some View {
+        // One line each, shrunk to fit rather than cut off: the expanded island's centre is narrow for "Next stop · St.
+        // Catharines".
         VStack(alignment: .leading, spacing: 1) {
             Text(title)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(style.isStale ? state.updated : state.detail)
                 .font(.system(size: 13))
                 .tracking(-0.1)
                 .monospacedDigit()
                 .foregroundStyle(style.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 
@@ -360,7 +364,7 @@ struct RideActivityExpandedBottom: View {
     let style: RideActivityStyle
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             RideActivityBar(stopCount: attributes.stopCount, position: state.position, style: style)
             HStack(spacing: 12) {
                 RideActivityArrival(attributes: attributes, state: state, style: style, fontSize: 13)
@@ -372,11 +376,14 @@ struct RideActivityExpandedBottom: View {
                         .lineLimit(1)
                         .foregroundStyle(style.tint)
                         .padding(.horizontal, 14)
-                        .frame(height: 28)
+                        .frame(height: 26)
                         // Circular ends: a continuous capsule's outline shows a notch at each end on iOS 26.
                         .background(Capsule(style: .circular).strokeBorder(style.tint, lineWidth: 1.5))
                 }
+                // iOS masks the island's content inside its rounded corner: 4 pt in and up keeps the outline whole.
+                .padding(.trailing, 4)
             }
+            .padding(.bottom, 4)
         }
     }
 }

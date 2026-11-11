@@ -91,7 +91,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(content.phase, .arriving)
         XCTAssertTrue(content.isAlert)
         XCTAssertEqual(content.title, "Arriving at Clarkson")
-        XCTAssertEqual(content.detail, "Your stop · doors in about a minute")
+        XCTAssertEqual(content.detail, "Your stop · doors in a minute")
         XCTAssertEqual(try secondsLeft(content), 40, accuracy: 5)
         XCTAssertGreaterThan(content.position, 4)
         XCTAssertLessThan(content.position, 5)

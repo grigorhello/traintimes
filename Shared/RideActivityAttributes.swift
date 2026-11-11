@@ -30,7 +30,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var phase: Phase
         /// "Next stop · Port Credit", "Now at · Mimico", "Arriving at Clarkson", "This is your stop".
         var title: String
-        /// "Clarkson 5:43 PM · 2 stops", "Your stop · doors in about a minute".
+        /// "Clarkson 5:43 PM · 2 stops", "Your stop · doors in a minute".
         var detail: String
         /// The countdown runs on the device to this time (timer text, no updates needed); nil shows `now` instead.
         var countdownEnd: Date?

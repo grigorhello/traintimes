@@ -203,7 +203,12 @@ struct RootView: View {
                     opensRide = false
                 }
             case .end:
+                // Like End ride on the sheet: the ride ends, and its Trip details closes if it is open.
+                let ride = onBoard.activeRide
                 onBoard.end()
+                if router.presentedSheet == .tripDetails, let ride, tripDetails?.key == ride.tripKey {
+                    router.dismissSheet()
+                }
             case nil:
                 break
             }

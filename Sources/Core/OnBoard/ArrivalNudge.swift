@@ -96,7 +96,12 @@ final class ArrivalNudge {
         let events = engine.events()
         following = Task { [weak self, weak engine] in
             for await event in events {
-                guard let self, let engine else { return }
+                guard let self else { return }
+                guard let engine else {
+                    // The engine is gone (a demo ride dropped), so its ride is over: what it scheduled goes.
+                    self.cancel()
+                    return
+                }
                 guard let ride = engine.ride, let destination = engine.plan?.stops.last?.station else { continue }
                 self.handle(event, ride: ride, destination: destination, now: engine.now)
             }

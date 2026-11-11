@@ -68,12 +68,14 @@ struct RideStripView: View {
     }
 }
 
-/// What the strip under the day strip shows (TT-175): the ride strip, train detection's question or checking strip, or
-/// the watched-trip strip.
+/// What the strip under the day strip shows (TT-175): the ride strip, train detection's question or checking strip, the
+/// alerted train's countdown before it leaves (TT-177), or the watched-trip strip.
 enum RideStripContent: Equatable {
-    case riding, asking, checking, otherwise
+    case riding, asking, checking, departure, otherwise
 
-    init(isRiding: Bool, detection: TrainMatcher.State) {
+    /// `departs`: the countdown strip has a train. The ride and train detection's strips win over it, since they follow
+    /// the rider's phone moving with a train.
+    init(isRiding: Bool, detection: TrainMatcher.State, departs: Bool = false) {
         if isRiding {
             self = .riding
             return
@@ -81,27 +83,32 @@ enum RideStripContent: Equatable {
         switch detection {
         case .asking: self = .asking
         case .checking(let progress) where progress.line != nil: self = .checking
-        default: self = .otherwise
+        default: self = departs ? .departure : .otherwise
         }
     }
 
-    @MainActor init(_ onBoard: OnBoard?) {
-        self.init(isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle)
+    @MainActor init(_ onBoard: OnBoard?, departs: Bool = false) {
+        self.init(isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle, departs: departs)
     }
 }
 
 /// The strip under the day strip: the ride strip while a ride runs, train detection's question or checking strip (TT-175),
-/// else `otherwise` (the watched-trip strip). The ride strip drops in 12 pt from under the day strip, from 0.97, on
+/// the alerted train's countdown before it leaves (TT-177, the demo's while Demo trains › Departure plays), else
+/// `otherwise` (the watched-trip strip). The ride strip drops in 12 pt from under the day strip, from 0.97, on
 /// `RideMotion.rise`; the question lands from −10 pt and 0.97 on `RideMotion.press`, and its Yes folds it into the ride
-/// strip on `RideMotion.fold`. Reduce Motion fades. The ride strip's countdown follows the ride's clock each second.
+/// strip on `RideMotion.fold`; the countdown grows in from 0.97 on `DepartureMotion.grow`. Reduce Motion fades. The ride
+/// strip's and the countdown's digits follow their clocks each second.
 ///
-/// The three strips share one top-aligned `ZStack`, which stays while one replaces another, so the leaving strip fades
-/// where it was and the arriving one lands over it (the animation is on the stack, which a `Group` would have handed to
-/// the inserted strip, too late for its transition). `otherwise` stays a direct child of the header, as before. Schedule
-/// moves the timeline with the strip (`rideStripMotion(_:)`).
+/// The strips share one top-aligned `ZStack`, which stays while one replaces another, so the leaving strip fades where it
+/// was and the arriving one lands over it (the animation is on the stack, which a `Group` would have handed to the
+/// inserted strip, too late for its transition). `otherwise` stays a direct child of the header, as before. Schedule
+/// moves the timeline with the strip (`rideStripMotion(_:departs:)`).
 struct RideStripSlot<Otherwise: View>: View {
     let onBoard: OnBoard?
     var onOpen: () -> Void = {}
+    /// Before departure (TT-177): the alerted train's countdown; nil shows none.
+    var departure: DepartureStrip?
+    var onOpenDeparture: (TripKey) -> Void = { _ in }
     @ViewBuilder var otherwise: Otherwise
 
     @Environment(\.timeFormatter) private var formatter
@@ -110,18 +117,31 @@ struct RideStripSlot<Otherwise: View>: View {
     @State private var wasAsking = false
 
     var body: some View {
+        if onBoard?.departureDemo != nil {
+            // The demo departure runs ten times as fast: its strip is read again each second.
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                slot(departure: onBoard?.demoDepartureStrip(formatter: formatter))
+            }
+        } else {
+            slot(departure: departure)
+        }
+    }
+
+    private func slot(departure: DepartureStrip?) -> some View {
         let detection = onBoard?.detection ?? .idle
-        let content = RideStripContent(isRiding: onBoard?.activeRide != nil, detection: detection)
-        Group {
+        let content = RideStripContent(
+            isRiding: onBoard?.activeRide != nil, detection: detection, departs: departure != nil
+        )
+        return Group {
             if content == .otherwise {
                 otherwise
             } else {
                 ZStack(alignment: .top) {
-                    strip(content, detection: detection)
+                    strip(content, detection: detection, departure: departure)
                 }
                 .padding(.horizontal, TTSpace.s5)
                 .padding(.top, -2)
-                .transition(content == .checking ? checkingTransition : drop(by: -12))
+                .transition(transition(for: content))
             }
         }
         .animation(animation(for: content), value: content)
@@ -129,7 +149,7 @@ struct RideStripSlot<Otherwise: View>: View {
     }
 
     @ViewBuilder
-    private func strip(_ content: RideStripContent, detection: TrainMatcher.State) -> some View {
+    private func strip(_ content: RideStripContent, detection: TrainMatcher.State, departure: DepartureStrip?) -> some View {
         switch content {
         case .riding:
             TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -152,13 +172,30 @@ struct RideStripSlot<Otherwise: View>: View {
                 DetectionStripView(strip: strip)
                     .transition(checkingTransition)
             }
+        case .departure:
+            if let departure {
+                DepartureStripView(strip: departure) { onOpenDeparture(departure.key) }
+                    .transition(growTransition)
+            }
         case .otherwise:
             EmptyView()
         }
     }
 
+    private func transition(for content: RideStripContent) -> AnyTransition {
+        switch content {
+        case .checking: return checkingTransition
+        case .departure: return growTransition
+        default: return drop(by: -12)
+        }
+    }
+
     private var checkingTransition: AnyTransition {
         reduceMotion ? .opacity : .offset(y: -6).combined(with: .opacity)
+    }
+
+    private var growTransition: AnyTransition {
+        reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .top).combined(with: .opacity)
     }
 
     private func drop(by offset: CGFloat) -> AnyTransition {
@@ -170,6 +207,7 @@ struct RideStripSlot<Otherwise: View>: View {
         switch content {
         case .riding: return wasAsking ? RideMotion.fold : RideMotion.rise
         case .asking: return RideMotion.press
+        case .departure: return DepartureMotion.grow
         case .checking, .otherwise: return RideMotion.rise
         }
     }
@@ -179,17 +217,18 @@ extension View {
     /// Moves what sits under the header (the timeline) with the strip under the day strip when it changes, on
     /// `RideMotion.fold` (a fade with Reduce Motion), so a strip or the question no longer pushes the timeline down in one
     /// frame. The strip itself keeps its own spring (`RideStripSlot`). Only this modifier reads the strip's state, so a change
-    /// does not redraw the screen it wraps.
-    func rideStripMotion(_ onBoard: OnBoard?) -> some View {
-        modifier(RideStripMotion(onBoard: onBoard))
+    /// does not redraw the screen it wraps. `departs`: the countdown strip shows (TT-177).
+    func rideStripMotion(_ onBoard: OnBoard?, departs: Bool = false) -> some View {
+        modifier(RideStripMotion(onBoard: onBoard, departs: departs))
     }
 }
 
 private struct RideStripMotion: ViewModifier {
     let onBoard: OnBoard?
+    let departs: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.animation(reduceMotion ? TTMotion.fade : RideMotion.fold, value: RideStripContent(onBoard))
+        content.animation(reduceMotion ? TTMotion.fade : RideMotion.fold, value: RideStripContent(onBoard, departs: departs))
     }
 }

@@ -23,6 +23,13 @@ final class OnBoard {
     /// The demo question; nil starts the demo ride at once (ride tests).
     private let makeDemoDetector: (@MainActor () -> TrainDetector)?
     @ObservationIgnored private var isAccepting = false
+    /// Demo trains › Departure (TT-177): the demo's before-departure window while it plays. It keeps playing under the
+    /// demo ride its "I’m on board" starts, and shows again once that ride is ended.
+    private(set) var departureDemo: DemoDeparture.Session?
+    /// The demo ride was started by the demo departure's "I’m on board": End ride stops it.
+    private var demoIsHandOff = false
+    private let makeDeparture: @MainActor () -> DemoDeparture.Session
+    private let makeHandOff: @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride)
     /// The app engine's arriving nudge (TT-173), which `AppDelegate` makes and follows from launch.
     private let nudge: ArrivalNudge?
     /// The demo ride's nudge, made each time a demo ride starts.
@@ -36,6 +43,10 @@ final class OnBoard {
         detector: TrainDetector? = nil,
         makeDemo: @escaping @MainActor (Date?) -> (engine: RideEngine, ride: Ride) = { DemoRide.session(from: $0) },
         makeDemoDetector: (@MainActor () -> TrainDetector)? = { DemoRide.detector() },
+        makeDeparture: @escaping @MainActor () -> DemoDeparture.Session = { DemoDeparture.session() },
+        makeHandOff: @escaping @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride) = {
+            DemoRide.session(continuing: $0)
+        },
         nudge: ArrivalNudge? = nil,
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
         requestNotifications: @escaping @MainActor () async -> Void = {}
@@ -44,6 +55,8 @@ final class OnBoard {
         self.detector = detector
         self.makeDemo = makeDemo
         self.makeDemoDetector = makeDemoDetector
+        self.makeDeparture = makeDeparture
+        self.makeHandOff = makeHandOff
         self.nudge = nudge
         self.makeDemoNudge = makeDemoNudge
         self.requestNotifications = requestNotifications
@@ -53,7 +66,11 @@ final class OnBoard {
     var engine: RideEngine? { demo ?? app }
 
     /// "I'm on board" can start a ride: the app has the GO feed's trips (fixture runs have none) and no demo plays.
-    var canStart: Bool { demo == nil && !playsDemo && app?.canStart == true }
+    var canStart: Bool { (demo == nil || handOffEnded) && !playsDemo && app?.canStart == true }
+
+    /// The demo departure's ride ended on its own, 10 min after its last stop (TT-177): it no longer stands in for the
+    /// app's engine, so a real ride (train detection's Yes, "I’m on board") can start.
+    private var handOffEnded: Bool { demoIsHandOff && activeRide == nil }
 
     /// The first "I'm on board" shows the app's sheet before the iOS prompt.
     var asksForLocation: Bool { app?.asksForLocation ?? false }
@@ -79,6 +96,10 @@ final class OnBoard {
     /// notifications if they were never asked, for the arriving notifications (TT-173). False when it did not start.
     @discardableResult
     func start(_ ride: Ride, on route: Route) async -> Bool {
+        if handOffEnded {
+            demo = nil
+            demoIsHandOff = false
+        }
         guard let app, demo == nil else { return false }
         let started = await app.start(ride)
         guard started else { return false }
@@ -88,9 +109,14 @@ final class OnBoard {
         return true
     }
 
-    /// End ride, or Done at your stop.
+    /// End ride, or Done at your stop. A demo ride the demo departure started stops with it, so the departure shows again.
     func end() {
         engine?.end()
+        if demoIsHandOff {
+            dropDemoNudge()
+            demo = nil
+            demoIsHandOff = false
+        }
     }
 
     /// Demo trains › Ride turned on or off: the demo's question plays when Schedule shows (its ride starts on Yes), or
@@ -104,11 +130,11 @@ final class OnBoard {
             followDemo(session.engine)
             await session.engine.start(session.ride)
         } else {
-            demoNudge?.stop()
-            demoNudge = nil
+            dropDemoNudge()
             demo?.end()
             demo = nil
             demoDetector = nil
+            demoIsHandOff = false
         }
     }
 
@@ -117,6 +143,50 @@ final class OnBoard {
         demoNudge?.stop()
         demoNudge = makeDemoNudge()
         demoNudge?.follow(engine)
+    }
+
+    /// The demo ride is dropped: its nudge stops and removes what it scheduled.
+    private func dropDemoNudge() {
+        demoNudge?.stop()
+        demoNudge = nil
+    }
+
+    /// Demo trains › Departure turned on or off (TT-177): the demo window plays from 5:01 PM, or stops, with the demo ride
+    /// its "I’m on board" started.
+    func setDemoDeparture(_ isOn: Bool) {
+        if isOn {
+            if departureDemo == nil { departureDemo = makeDeparture() }
+        } else {
+            departureDemo = nil
+            if demoIsHandOff {
+                dropDemoNudge()
+                demo?.end()
+                demo = nil
+                demoIsHandOff = false
+            }
+        }
+    }
+
+    /// "I’m on board" in the demo departure: the demo ride starts from the demo's time. It takes the sheet over only once
+    /// it runs, in one update, so the departure card turns into the ride with nothing between them. False when no demo
+    /// departure plays or the ride did not start.
+    @discardableResult
+    func handOffDemo() async -> Bool {
+        guard let session = departureDemo else { return false }
+        let handOff = makeHandOff(session)
+        // Its own arriving nudge (TT-173), following before the ride starts so it sees the first update.
+        let handOffNudge = makeDemoNudge()
+        handOffNudge?.follow(handOff.engine)
+        guard await handOff.engine.start(handOff.ride) else {
+            handOffNudge?.stop()
+            return false
+        }
+        demoNudge?.stop()
+        demoNudge = handOffNudge
+        demo?.end()
+        demo = handOff.engine
+        demoIsHandOff = true
+        return true
     }
 
     // MARK: Train detection (TT-175)

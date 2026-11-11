@@ -107,7 +107,8 @@ struct RootView: View {
                         bells: bells,
                         onAlertSetup: { openAlertSetup($0) },
                         onBoard: onBoard,
-                        onOpenRide: { Task { await openRide() } }
+                        onOpenRide: { Task { await openRide() } },
+                        onOpenDeparture: { openDeparture($0) }
                     )
                 }
             }
@@ -177,9 +178,13 @@ struct RootView: View {
         .environment(\.holdsBellPop, holdsBellPop)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
-        // Demo trains › Ride (TT-172): the demo plays while it is on, in TestFlight and Debug builds only: its question first
-        // (TT-175), then the ride from the question's Yes.
-        .task(id: playsDemoRide) { await onBoard.setDemo(playsDemoRide) }
+        // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
+        // ride asks its question first (TT-175) and plays from the Yes; the demo departure plays from 5:01 PM. Leaving
+        // Departure also stops the ride it handed over to.
+        .task(id: demoTrains) {
+            onBoard.setDemoDeparture(demoTrains == .departure)
+            await onBoard.setDemo(demoTrains == .ride)
+        }
         // Train detection (TT-175) watches only while Schedule (or Trip details over it) is open in the foreground.
         .task(id: detection) {
             guard let route = detection.route else { return }
@@ -240,7 +245,8 @@ struct RootView: View {
     /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on its alert's kind (This trip when it has
     /// none), so Manage opens the train's one alert (TT-189).
     private func openAlertSetup(for details: TripDetailsViewModel) {
-        guard let trip = details.departure?.trip else { return }
+        // The demo departure's train is made up: its bell sets nothing.
+        guard details.demoDeparture == nil, let trip = details.departure?.trip else { return }
         let kind = alerts.alert(for: trip, on: details.route)?.kind ?? .thisTrip
         openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: kind))
     }
@@ -253,6 +259,20 @@ struct RootView: View {
         router.present(.tripDetails)
     }
 
+    /// Demo trains, in a build that shows Settings › Testing (an App Store build ignores a stored value).
+    private var demoTrains: DemoTrains {
+        BuildChannel.showsTesting ? settings.demoTrains : .off
+    }
+
+    /// The countdown strip (TT-177): the alerted train's Trip details, or the demo departure's on its own route.
+    private func openDeparture(_ key: TripKey) {
+        if let demo = onBoard.departureDemo, demo.key == key {
+            openTrip(key, on: demo.route)
+        } else {
+            openTrip(key)
+        }
+    }
+
     /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's
     /// question plays.
     private var detection: DetectionRun {
@@ -260,9 +280,9 @@ struct RootView: View {
         return DetectionRun(route: watches ? schedule.route : nil, demo: playsDemoRide)
     }
 
-    /// Demo trains › Ride is on, in a build that shows Settings › Testing (an App Store build ignores a stored value).
+    /// Demo trains › Ride is on, in a build that shows Settings › Testing.
     private var playsDemoRide: Bool {
-        BuildChannel.showsTesting && settings.demoTrains == .ride
+        demoTrains == .ride
     }
 
     /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).

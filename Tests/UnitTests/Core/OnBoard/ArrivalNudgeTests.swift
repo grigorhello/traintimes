@@ -235,6 +235,47 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertTrue(notifications.pending.isEmpty)
     }
 
+    func testEndingTheDemoDeparturesRideRemovesItsPendingNotifications() async {
+        // Demo trains › Departure's "I’m on board" (TT-177): the hand-off ride gets its own nudge, and End ride drops that
+        // ride's engine, so what the nudge scheduled must go with it.
+        let notifications = FakeRideNotifications()
+        let day = DepartureRig.day
+        let clock = TestClock(now: DepartureRig.time(17, 10))
+        let onBoard = OnBoard(
+            app: nil,
+            makeDeparture: { DemoDeparture.Session(day: day, clock: clock) },
+            makeHandOff: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            makeDemoNudge: { ArrivalNudge(notifications: notifications, feedback: FakeArrivalFeedback(), rate: DemoRide.speed) }
+        )
+        onBoard.setDemoDeparture(true)
+        let handedOff = await onBoard.handOffDemo()
+        XCTAssertTrue(handedOff)
+        await until { notifications.pending.count == 2 }
+        XCTAssertEqual(notifications.pending.count, 2)
+
+        onBoard.end()
+        await until { notifications.pending.isEmpty }
+        XCTAssertTrue(notifications.pending.isEmpty)
+        XCTAssertNil(onBoard.activeRide)
+    }
+
+    func testADroppedRideEngineLeavesNothingPending() async {
+        let notifications = FakeRideNotifications()
+        let nudge = ArrivalNudge(notifications: notifications, feedback: FakeArrivalFeedback(), rate: DemoRide.speed)
+        let day = DemoRideRig.day
+        var engine: RideEngine? = DemoRide.engine(on: day, clock: TestClock(now: DemoRideRig.time(17, 32)), tickInterval: nil)
+        nudge.follow(engine!)
+        await engine?.start(DemoRide.ride(on: day))
+        await until { notifications.pending.count == 2 }
+        XCTAssertEqual(notifications.pending.count, 2)
+
+        // Dropped without its last events being read, as a demo ride is.
+        engine?.end()
+        engine = nil
+        await until { notifications.pending.isEmpty }
+        XCTAssertTrue(notifications.pending.isEmpty)
+    }
+
     // MARK: Haptics
 
     func testTheArrivingPatternIsThreeStrongTapsThenAFadingRumble() throws {

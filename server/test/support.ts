@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import type { Push, PushResult } from '../src/apns.ts';
+import type { LiveActivityPush, Push, PushResult } from '../src/apns.ts';
 import { saveTimetable } from '../src/monitor.ts';
 import { decodeFeed, type Feed } from '../src/realtime.ts';
 import { importTimetables } from '../src/timetable.ts';
@@ -76,6 +76,14 @@ export class FakeApns {
 
   async send(push: Push): Promise<PushResult> {
     this.pushes.push(push);
+    return this.answers.shift() ?? this.result;
+  }
+
+  /** Live Activity pushes (TT-178), answered from the same queue. */
+  activityPushes: LiveActivityPush[] = [];
+
+  async sendLiveActivity(push: LiveActivityPush): Promise<PushResult> {
+    this.activityPushes.push(push);
     return this.answers.shift() ?? this.result;
   }
 }

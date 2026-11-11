@@ -55,6 +55,27 @@ CREATE TABLE IF NOT EXISTS timetables (
   imported_at INTEGER NOT NULL
 );
 
+-- The before-departure Live Activity (TT-178, D74). New tables only, so running this file again on the deployed
+-- database adds them and leaves the rest as it is.
+-- Each installation's push-to-start token (iOS 17.2+), sent with its registration.
+CREATE TABLE IF NOT EXISTS start_tokens (
+  installation_id TEXT PRIMARY KEY,
+  token TEXT NOT NULL               -- hex
+);
+
+-- Each watched trip's activity, started by the server (push-to-start) or by the app, so it is started once.
+CREATE TABLE IF NOT EXISTS activities (
+  installation_id TEXT NOT NULL,
+  key TEXT NOT NULL,                -- the watch's key: service date, trip id, origin and destination
+  service_date TEXT NOT NULL,
+  token TEXT,                       -- the activity's update token from the app, hex; NULL until the app reports it
+  state TEXT NOT NULL DEFAULT 'started', -- 'started', 'ended', or 'handedOff' (the app's ride took the activity over)
+  shown TEXT,                       -- what it last showed (src/activity.ts signature), so updates go only on a change
+  version INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (installation_id, key)
+);
+
 -- A minute cycle reads only the rules whose watch window is open and one day's watches (Workers Free plan, D43).
 CREATE INDEX IF NOT EXISTS rules_departure ON rules (departure);
 CREATE INDEX IF NOT EXISTS watches_service_date ON watches (service_date);
+CREATE INDEX IF NOT EXISTS activities_service_date ON activities (service_date);

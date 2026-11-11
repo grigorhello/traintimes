@@ -17,12 +17,26 @@ export const strings = {
   'notif.skip.body': 'Skips %@, as reported at %@. Open to see the next trains.',
   'notif.rule.title': 'Your usual train has changed',
   'notif.rule.body': 'Review your %@ weekday alert.',
+  // The before-departure Live Activity (TT-178, src/activity.ts).
+  'depart.live.title': 'Your %@ train is live',
+  'depart.checkBoard': 'Check the board',
+  'depart.in': 'departs',
+  'depart.delayed': 'Delayed %d min',
+  'depart.boarding': 'Boarding now',
+  'depart.departed': 'Departed %@',
+  'depart.arrives': 'Arrives %@',
+  'status.on_time': 'On time',
+  'status.scheduled': 'Scheduled',
+  'onboard.detail': '%@ · %@',
+  'onboard.button': 'I’m on board',
+  'live.stopTime': '%1$@ %2$@',
+  'live.updated': 'Updated %@',
 } as const;
 
-/** Fills `%@` and `%d` in order, as `String(format:)` does in the app. */
+/** Fills `%@` and `%d` in order, and `%1$@` by position, as `String(format:)` does in the app. */
 export function format(template: string, ...args: (string | number)[]): string {
   let next = 0;
-  return template.replace(/%[@d]/g, () => String(args[next++]));
+  return template.replace(/%(?:(\d+)\$)?[@d]/g, (_, position?: string) => String(args[position ? Number(position) - 1 : next++]));
 }
 
 export interface Notice {

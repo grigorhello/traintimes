@@ -8,12 +8,17 @@ TT-140, decisions D38 and D43. A Cloudflare Worker with a D1 database, on the fr
 | `src/upload.ts` | The daily timetable upload, checked against the workflow's GitHub OIDC token |
 | `src/monitor.ts` | The minute cycle, storing the timetable, and retention |
 | `src/alerts.ts` | The alert rules (thresholds, updates, coalescing, window, expiry) |
-| `src/copy.ts` | Notification copy, word for word from `design/handoff/Localizable.strings` |
+| `src/activity.ts` | The before-departure Live Activity's content and its start, update and end payloads (TT-178, D74) |
+| `src/copy.ts` | Notification and Live Activity copy, word for word from `design/handoff/Localizable.strings` |
 | `src/realtime.ts` | GTFS-realtime decoder and live mapping, ported from the app (D36) |
 | `src/timetable.ts` | GTFS zip import and repeating-rule resolution |
 | `src/apns.ts` | APNs with a .p8 key |
 | `schema.sql` | The D1 tables |
 | `scripts/push-timetable.ts` | Reads the GTFS zip and uploads the timetable; run by `.github/workflows/server-timetable.yml` |
+
+## Live Activity (TT-178, D74)
+
+The app sends its push-to-start token with the registration (`startToken`) and reports each before-departure activity to `PUT /v1/installations/:id/activities` (its update token, and `handedOff` once "I’m on board" turned it into the ride). For each alerted train whose installation has a push-to-start token, the minute cycle sends `event: start` 30 min before the expected departure (topic `ca.traintimes.TrainTimes.push-type.liveactivity`, the alert "Your 5:13 PM train is live"), once; `update` only when what the rider sees changes; and `end` 2 min after the train left, or at once when it is cancelled. Nothing more once the app reports the hand-off. These sends count toward the cycle's 45. GO's feeds post no platforms, so the server's activity always says "Check the board"; without live status it counts down on the timetable ("Scheduled"). The same .p8 key signs these pushes; nothing more to set up at Apple.
 
 ## Free plan
 
@@ -38,9 +43,9 @@ The replays in `test/replay.test.ts` run the server end to end on the TT-131 sam
 
 ## Deployed
 
-Set up on 2026-11-08 on Grigor's Cloudflare account (Workers Free plan) at https://alerts.traintimes.ca, the address the app uses (`HTTPAlertServer`): the D1 database `traintimes-alerts` (id in `wrangler.toml`, schema applied), the Worker with both crons, the APNs secrets and the custom domain. Until the Metrolinx key is added (step 6) it runs but sends nothing.
+Set up on 2026-11-08 on Grigor's Cloudflare account (Workers Free plan) at https://alerts.traintimes.ca, the address the app uses (`HTTPAlertServer`): the D1 database `traintimes-alerts` (id in `wrangler.toml`, schema applied), the Worker with both crons, the APNs secrets and the custom domain. Until the Metrolinx key is added (step 6) it sends no alerts; since TT-178 it does start, update and end the before-departure Live Activity on the timetable for app builds that send a push-to-start token.
 
-To deploy a change, run `npx wrangler deploy` (step 4) or have a Claude session upload the bundle through the Cloudflare connector, keeping the secrets (`keep_bindings: ["secret_text"]`).
+To deploy a change, run `npx wrangler deploy` (step 4) or have a Claude session upload the bundle through the Cloudflare connector, keeping the secrets (`keep_bindings: ["secret_text"]`). When `schema.sql` changed, apply it first (`npx wrangler d1 execute traintimes-alerts --remote --file schema.sql`): it only adds the tables and indexes that are missing.
 
 ## Set up and deploy (once)
 

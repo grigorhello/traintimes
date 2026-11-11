@@ -350,6 +350,13 @@ final class ScheduleViewModel {
         return live?.phase == .departed ? nil : live
     }
 
+    /// The Live Activity's train (TT-178, D74): the same train at `now`, the app's clock to the second, and still for the 2
+    /// min after it left, while the activity says "Departed".
+    func activityDeparture(at now: Date) -> LiveDeparture? {
+        guard isToday, let route else { return nil }
+        return LiveDeparture.earliest(in: departures, now: now) { watchedTrips.isAlerted($0.trip, on: route) }
+    }
+
     /// The countdown strip's text, times from the one formatter the view passes in.
     func departureStrip(_ formatter: some TimeFormatting) -> DepartureStrip? {
         liveDeparture.map { DepartureStrip($0, now: now, hasPlatformSource: hasPlatformSource, formatter: formatter) }

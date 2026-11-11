@@ -3,7 +3,8 @@ import SwiftUI
 /// The to-scale timeline (TT-113): rail, gridlines, Now line, markers and cards, placed by the TT-111 layout. The left column
 /// holds the gridline times only, never a train's own time, which its card shows (D49). Across, it follows the canvas `.tl`
 /// geometry: labels end at 52 pt, the rail is centred on 62 pt and cards start at 82 pt. Everything but the cards is
-/// decoration and hidden from assistive tech.
+/// decoration and hidden from assistive tech. A new set of trains cascades in, each card with its rail marks, and the Now dot
+/// pulses on the way back to Now (TT-164, D60).
 struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting
@@ -11,6 +12,10 @@ struct ScheduleTimeline: View {
     /// Each card's bell (TT-141).
     var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
     var onBell: (TripKey) -> Void = { _ in }
+    /// The cards' cascade, at rest unless a new set of trains has just been shown.
+    var entrance: MotionRun = .rest
+    /// When the Now dot's pulse started; nil at rest.
+    var pulse: Date?
 
     /// The right edge of the label column.
     private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
@@ -30,20 +35,22 @@ struct ScheduleTimeline: View {
         let layout = viewModel.layout
         let cards = viewModel.cards(formatter)
         let places = Dictionary(layout.cards.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // The cascade starts with the first card where the timeline opens (Now on today, the first train on another day).
+        let orders = layout.cascadeOrder(scrolledTo: viewModel.isToday ? layout.initialScrollOffset : 0)
         ZStack(alignment: .topLeading) {
             Group {
                 gridlines(layout)
                 rail(layout)
-                delayBars(cards, places)
-                connectors(cards, places)
+                delayBars(cards, places, orders)
+                connectors(cards, places, orders)
                 // The Now line runs behind the cards; its dot and label stay on the rail, above the markers.
                 if let nowY = layout.nowY { nowRule(at: nowY) }
             }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
-            cardViews(cards, places)
+            cardViews(cards, places, orders)
             Group {
-                markers(cards, places)
+                markers(cards, places, orders)
                 if let nowY = layout.nowY { nowMarker(at: nowY) }
             }
             .accessibilityHidden(true)
@@ -55,12 +62,15 @@ struct ScheduleTimeline: View {
 
     // MARK: Cards
 
-    private func cardViews(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
+    private func cardViews(
+        _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
+    ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
                 DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
+                .cascadeEntrance(entrance, order: orders[card.id] ?? 0)
                 .padding(.leading, Self.cardX)
                 .padding(.trailing, TTSpace.s5)
                 .offset(y: place.top)
@@ -129,38 +139,49 @@ struct ScheduleTimeline: View {
     // MARK: Markers
 
     /// 4 pt amber bar down the rail from a delayed train's scheduled marker to its expected one: its length is the delay.
-    private func delayBars(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
+    private func delayBars(
+        _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
+    ) -> some View {
         ForEach(cards) { card in
             if let bar = places[card.id]?.delayBar {
                 Capsule()
                     .fill(TTColor.delayInk)
                     .frame(width: Self.delayBarWidth, height: bar.upperBound - bar.lowerBound)
+                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX - Self.delayBarWidth / 2, y: bar.lowerBound)
             }
         }
     }
 
     /// 2 pt line from each marker to its card, in the marker's colour.
-    private func connectors(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
+    private func connectors(
+        _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
+    ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
                 Rectangle()
                     .fill(card.isCancelled ? TTColor.cancelInk : TTColor.accent)
                     .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
+                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
             }
         }
     }
 
-    /// Each train's marker on the rail; a delayed train also keeps a hollow amber marker at its scheduled time.
-    private func markers(_ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card]) -> some View {
+    /// Each train's marker on the rail; a delayed train also keeps a hollow amber marker at its scheduled time. They fade in
+    /// with their card's cascade.
+    private func markers(
+        _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
+    ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
                 if let scheduledY = place.scheduledMarkerY {
                     ring(TTColor.delayInk)
+                        .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
                         .centred(x: Self.railX, y: scheduledY)
                 }
                 marker(for: card)
+                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
                     .centred(x: Self.railX, y: place.markerY)
             }
         }
@@ -205,12 +226,26 @@ struct ScheduleTimeline: View {
             .centred(y: y)
     }
 
-    /// The Now dot on the rail and the "Now" label.
+    /// The Now dot on the rail and the "Now" label. On the way back to Now the dot pulses once (`NowPulse`): it swells and a
+    /// 2 pt ring spreads from it and fades. At rest there is no ring.
     @ViewBuilder private func nowMarker(at y: CGFloat) -> some View {
-        Circle()
-            .fill(TTColor.accent)
-            .frame(width: Self.nowDot, height: Self.nowDot)
+        TimelineView(.animation(paused: pulse == nil)) { context in
+            let pose = pulse.map { NowPulse.pose(at: context.date.timeIntervalSince($0)) } ?? NowPulse.rest
+            ZStack {
+                if pose.ringOpacity > 0 {
+                    Circle()
+                        .strokeBorder(TTColor.accent, lineWidth: Self.railWidth)
+                        .frame(width: Self.nowDot + 2 * Self.railWidth, height: Self.nowDot + 2 * Self.railWidth)
+                        .scaleEffect(pose.ringScale)
+                        .opacity(pose.ringOpacity)
+                }
+                Circle()
+                    .fill(TTColor.accent)
+                    .frame(width: Self.nowDot, height: Self.nowDot)
+                    .scaleEffect(pose.dotScale)
+            }
             .centred(x: Self.railX, y: y)
+        }
         label(Text("button.now"), at: y, weight: .semibold)
             .foregroundStyle(TTColor.accent)
     }

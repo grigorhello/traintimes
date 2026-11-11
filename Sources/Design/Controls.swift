@@ -9,12 +9,20 @@ struct DayCell: View {
     var isSelected = false
     /// Today's tile; it only shows when the tile is not the selected one.
     var isToday = false
+    /// False where the strip draws the selected day's accent tile itself, under the tiles, so that it can glide from day
+    /// to day (TT-164, D60): the selected tile is then see-through.
+    var drawsSelection = true
     let action: () -> Void
 
     /// Canvas `.gday`.
     static let size = CGSize(width: 60, height: 48)
 
     private var showsToday: Bool { isToday && !isSelected }
+
+    private var fill: Color {
+        guard isSelected else { return TTColor.surface }
+        return drawsSelection ? TTColor.accent : .clear
+    }
 
     var body: some View {
         Button(action: action) {
@@ -28,8 +36,10 @@ struct DayCell: View {
                     .foregroundStyle(isSelected ? TTColor.onAccent : showsToday ? TTColor.accent : TTColor.ink)
             }
             .frame(width: Self.size.width, height: Self.size.height)
-            .background(isSelected ? TTColor.accent : TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.md))
+            .background(fill, in: RoundedRectangle(cornerRadius: TTRadius.md))
             .shadow(color: .black.opacity(colorScheme == .dark || isSelected ? 0 : 0.06), radius: 1, x: 0, y: 1)
+            // The text and the tile cross-fade when the selection moves.
+            .animation(.easeOut(duration: 0.2), value: isSelected)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])

@@ -1,0 +1,76 @@
+import XCTest
+@testable import TrainTimes
+
+/// When Schedule asks for its motion (TT-164, D60): the cascade for a new set of trains only, the Now pulse on the Schedule
+/// tab and once after the launch's scroll settles, and the cascade's order counted from the first card in view.
+@MainActor
+final class ScheduleMotionStateTests: XCTestCase {
+    private let thursday = ServiceDay(year: 2026, month: 11, day: 5)
+    private let measured = TimelineCardSize(height: 118, anchor: 33)
+
+    /// A day tapped, the route swapped or picked, the first load and back to Today from another day all cascade.
+    func testANewSetOfTrainsCascades() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.entranceRequest, 1, "The first load")
+        await model.select(model.days[1])
+        XCTAssertEqual(model.entranceRequest, 2, "A day tapped")
+        await model.swap()
+        XCTAssertEqual(model.entranceRequest, 3, "The route swapped")
+        await model.backToNow()
+        XCTAssertEqual(model.entranceRequest, 4, "Back to Today from another day")
+        await model.show(try XCTUnwrap(model.route))
+        XCTAssertEqual(model.entranceRequest, 5, "A route picked")
+    }
+
+    /// The same trains never cascade again: a refresh, a minute tick, the tab on Today, the midnight turn.
+    func testTheSameTrainsNeverCascade() async throws {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleMotionStateTests.self))
+        let clock = TestClock(now: thursday.date(hour: 23, minute: 58))
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.entranceRequest, 1)
+        await model.refresh()
+        clock.advance(minutes: 1)
+        model.tick()
+        await model.backToNow()
+        XCTAssertEqual(model.entranceRequest, 1)
+        clock.advance(minutes: 2)
+        await model.rollOverIfNeeded()
+        XCTAssertEqual(model.selectedDay, thursday.adding(days: 1), "The day turned")
+        XCTAssertEqual(model.entranceRequest, 1, "The midnight turn does not cascade")
+    }
+
+    /// Tapping the Schedule tab again pulses the Now dot each time.
+    func testTheScheduleTabPulsesNow() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        await model.backToNow()
+        XCTAssertEqual(model.nowPulse, 1)
+        await model.select(model.days[1])
+        await model.backToNow()
+        XCTAssertEqual(model.nowPulse, 2)
+    }
+
+    /// The launch pulses Now once, when its scroll has settled on the measured cards; a later settle does not.
+    func testTheLaunchPulsesNowOnceItsScrollHasSettled() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.nowPulse, 0, "Not before every card is measured")
+        for id in model.departures.map(\.id) { model.setCardSize(measured, for: id) }
+        XCTAssertEqual(model.settleRequest, 1)
+        XCTAssertEqual(model.nowPulse, 1)
+        await model.select(model.days[1])
+        for id in model.departures.map(\.id) { model.setCardSize(measured, for: id) }
+        XCTAssertEqual(model.settleRequest, 2)
+        XCTAssertEqual(model.nowPulse, 1, "Only the launch's settle pulses")
+    }
+
+    /// The stagger starts with the first card in view where the timeline opens; the cards above it count as the first.
+    func testTheCascadeCountsFromTheFirstCardInView() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        let cards = model.layout.cards
+        XCTAssertEqual(cards.count, 4)
+        let fromTop = model.layout.cascadeOrder(scrolledTo: 0)
+        XCTAssertEqual(cards.map { fromTop[$0.id] }, [0, 1, 2, 3])
+        let pastFirst = model.layout.cascadeOrder(scrolledTo: cards[0].bottom + 1)
+        XCTAssertEqual(cards.map { pastFirst[$0.id] }, [0, 0, 1, 2])
+    }
+}

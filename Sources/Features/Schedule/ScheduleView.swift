@@ -4,7 +4,9 @@ import SwiftUI
 /// opens the picker under the card, in place, D54), the day strip carousel, a status row only while loading, offline or
 /// stale, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and
 /// cards (TT-113). The header is a top inset over one full-height scroll view, so the timeline scrolls under the glass
-/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now.
+/// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now. Motion (TT-164,
+/// D60): the selected day's tile glides to a tapped day, which presses and springs back; a new set of trains cascades in;
+/// the Now dot pulses on the way back to Now.
 struct ScheduleView: View {
     @Environment(\.scenePhase) private var scenePhase
     let viewModel: ScheduleViewModel
@@ -28,6 +30,14 @@ struct ScheduleView: View {
     /// The station picker, made each time a station row is tapped; open while `isPickingStation` (TT-161, D54).
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playsScheduleMotion) private var playsMotion
+    /// The last `entranceRequest` the cards have cascaded for, and when that cascade started (nil at rest).
+    @State private var entranceSeen: Int
+    @State private var entranceStart: Date?
+    /// When the Now dot's pulse started (nil at rest).
+    @State private var pulseStart: Date?
+    /// Taps on each day tile, by tile id: each one replays that tile's press.
+    @State private var dayTaps: [Int: Int] = [:]
 
     /// `picker` opens Schedule with the picker already made, for previews and snapshots.
     init(
@@ -46,6 +56,8 @@ struct ScheduleView: View {
         self.bells = bells
         self.onAlertSetup = onAlertSetup
         _picker = State(initialValue: picker)
+        // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
+        _entranceSeen = State(initialValue: viewModel.entranceRequest)
     }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
@@ -71,6 +83,43 @@ struct ScheduleView: View {
                 guard scenePhase == .active else { return }
                 await viewModel.pollLiveStatus()
             }
+            .onChange(of: viewModel.entranceRequest) { startEntrance() }
+            .onChange(of: viewModel.nowPulse) { startPulse() }
+    }
+
+    // MARK: Motion (TT-164, D60)
+
+    /// The cards' cascade: pending from the frame the new trains are on screen until the start is taken just after it.
+    private var entrance: MotionRun {
+        MotionRun(start: entranceStart, pending: playsMotion && viewModel.entranceRequest != entranceSeen)
+    }
+
+    private func startEntrance() {
+        entranceSeen = viewModel.entranceRequest
+        guard playsMotion else { return }
+        let start = Date()
+        entranceStart = start
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(CascadeMotion.duration))
+            // A newer cascade has its own start.
+            if entranceStart == start { entranceStart = nil }
+        }
+    }
+
+    private func startPulse() {
+        guard playsMotion, !reduceMotion else { return }
+        let start = Date()
+        pulseStart = start
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(NowPulse.duration))
+            if pulseStart == start { pulseStart = nil }
+        }
+    }
+
+    /// The tapped day presses (not under Reduce Motion), then the day is selected.
+    private func tapDay(_ tile: StripTile) {
+        if playsMotion, !reduceMotion { dayTaps[tile.id, default: 0] += 1 }
+        Task { await viewModel.select(tile.day) }
     }
 
     // MARK: Header
@@ -295,14 +344,17 @@ struct ScheduleView: View {
                         weekday: tile.id == 0 ? String(localized: "button.today") : tile.day.weekdayShort,
                         day: "\(tile.day.day)",
                         isSelected: tile.day == viewModel.selectedDay,
-                        isToday: tile.id == 0
+                        isToday: tile.id == 0,
+                        drawsSelection: false
                     ) {
-                        Task { await viewModel.select(tile.day) }
+                        tapDay(tile)
                     }
                     .accessibilityIdentifier("schedule.day.\(tile.id)")
+                    .modifier(DayPress(trigger: dayTaps[tile.id, default: 0]))
                 }
             }
             .scrollTargetLayout()
+            .background(alignment: .leading) { selectionTile }
             // Room for the tile shadow inside the clipped strip.
             .padding(.vertical, Self.shadowRoom)
         }
@@ -365,6 +417,22 @@ struct ScheduleView: View {
     /// Tiles that show whole at the start of the strip.
     private static let fullTiles = 5
 
+    /// The selected day's accent tile, one shape under the tiles (which leave the selected one see-through), so that it
+    /// glides from the old day to the new one on `TTMotion.glide`, passing under the days between, as on the board. Placed by
+    /// the tile's index: the lazy strip may not have built the old day's tile to match a geometry to. It glides only when
+    /// the selected day changes, so the strip shifting at midnight moves it with the tiles. Reduce Motion: it jumps.
+    @ViewBuilder private var selectionTile: some View {
+        if let index = viewModel.stripIndex(of: viewModel.selectedDay) {
+            RoundedRectangle(cornerRadius: TTRadius.md)
+                .fill(TTColor.accent)
+                .frame(width: DayCell.size.width, height: DayCell.size.height)
+                .offset(x: CGFloat(index + ScheduleViewModel.pastDayCount) * (DayCell.size.width + TTSpace.s2))
+                .animation(playsMotion && !reduceMotion ? TTMotion.glide : nil, value: viewModel.selectedDay)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     // MARK: Timeline
 
     /// The to-scale timeline (TT-111 layout, TT-113 drawing), its loading skeleton, or an empty state card (TT-115).
@@ -378,15 +446,19 @@ struct ScheduleView: View {
                     ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
                 case .timeline:
                     ScheduleTimeline(
-                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:)
+                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:),
+                        entrance: entrance, pulse: pulseStart
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
                     )
+                // The empty states only fade in with a new set of trains, never cascade.
                 case .noTrains(let title, let message, let showDay):
                     noTrains(title: title, message: message, showDay: showDay)
+                        .cascadeEntrance(entrance, order: 0, moves: false)
                 case .noConnection:
                     noConnection
+                        .cascadeEntrance(entrance, order: 0, moves: false)
                 }
             }
         }
@@ -521,6 +593,30 @@ struct ScheduleView: View {
         .padding(.horizontal, TTSpace.s5)
         .padding(.top, TTSpace.s3)
     }
+}
+
+/// The tapped day pressing to 0.90 and springing back past 1 on `TTMotion.press`: the screen's one bouncy moment (TT-164,
+/// D60). Played from the tap itself rather than the button's pressed state, which a quick tap in a scroll view may never
+/// draw; holding a tile still shows the usual 0.97 press.
+private struct DayPress: ViewModifier {
+    let trigger: Int
+
+    func body(content: Content) -> some View {
+        // Plain values, so the Sendable keyframe closure captures these and not the modifier.
+        let pressed = 0.90, spring = TTMotion.pressCurve.spring
+        return content.keyframeAnimator(initialValue: PressValues(), trigger: trigger) { view, values in
+            view.scaleEffect(values.scale)
+        } keyframes: { _ in
+            KeyframeTrack(\.scale) {
+                LinearKeyframe(pressed, duration: 0.001)
+                SpringKeyframe(1, duration: 0.75, spring: spring)
+            }
+        }
+    }
+}
+
+private struct PressValues {
+    var scale = 1.0
 }
 
 #Preview {

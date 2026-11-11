@@ -104,6 +104,29 @@ final class RouteTests: XCTestCase {
         requireGone(panel(app), "stations.panel", in: app)
     }
 
+    /// Acceptance (TT-165): the swap button swaps the route at the tap, the names trade places and the button stays
+    /// hittable through the motion, so a second tap (which may land while the first motion still plays) swaps them back.
+    /// The motion itself is checked by the unit tests and the key-frame snapshots.
+    @MainActor
+    func testSwapTradesTheStationsAndTheButtonIsReadyAgain() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noRecents
+        app.launch()
+
+        let schedule = scheduleStations(app)
+        require(schedule.from, "schedule.from", in: app)
+        XCTAssertEqual(schedule.from.value as? String, "Oakville")
+        XCTAssertEqual(schedule.to.value as? String, "Union")
+
+        let swap = app.buttons["schedule.swap"]
+        for (from, to) in [("Union", "Oakville"), ("Oakville", "Union")] {
+            swap.tap()
+            wait(for: [expectation(for: NSPredicate(format: "value == %@", from), evaluatedWith: schedule.from)], timeout: 5)
+            XCTAssertEqual(schedule.to.value as? String, to)
+            wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 5)
+        }
+    }
+
     /// Waits for `element`; on a miss fails with what is on screen, so a red CI log says what the picker looked like.
     @MainActor
     private func require(

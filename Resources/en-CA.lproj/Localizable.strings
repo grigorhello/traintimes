@@ -278,7 +278,7 @@
 "settings.demo_trains.delays_detail" = "The next train late, one cancelled, the rest on time, plus a line notice.";
 "settings.demo_trains.offline_detail" = "The saved timetable, as if there were no connection.";
 "settings.demo_trains.platform_detail" = "The next train leaves in 8 min with no platform posted yet.";
-"settings.demo_trains.ride_detail" = "Asks on Schedule if you’re on the 5:13 PM train, then plays the ride to Clarkson from your Yes. Open it from the strip.";
+"settings.demo_trains.ride_detail" = "Asks on Schedule if you’re on the 5:13 PM train, then plays your ride to Clarkson.";
 "settings.mock_time" = "Mock time";
 "settings.mock_time.early" = "Early morning";
 "settings.mock_time.late" = "Late evening";

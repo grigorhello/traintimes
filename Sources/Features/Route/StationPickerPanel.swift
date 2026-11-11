@@ -50,12 +50,12 @@ struct StationPickerPanel: View {
 
     var body: some View {
         ViewThatFits(in: .vertical) {
-            // A list that could fit is measured whole; a longer one (every station, about 70) only ever scrolls, and its rows
-            // are built lazily, as they come into view: building and animating all of them twice, measured and shown,
-            // stalled the main thread while the picker opened (TT-196).
-            if rowCount <= Self.measuredRows { groups(lazy: false) }
+            // A list that could fit is measured whole; a longer one (every station, about 70) only ever scrolls, so it is not
+            // built a second time just to be measured (TT-196). A lazy stack was tried and dropped: on iOS 26 SwiftUI built
+            // its rows on a background render thread, which trapped Swift 6's main-actor check while typing.
+            if rowCount <= Self.measuredRows { groups }
             ScrollView {
-                groups(lazy: true)
+                groups
                     .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
                         isAtTop = $0
                     }
@@ -105,19 +105,13 @@ struct StationPickerPanel: View {
         viewModel.suggestedRoutes.count + viewModel.yourStations.count + viewModel.allStations.count
     }
 
-    private func groups(lazy: Bool) -> some View {
-        Group {
-            if lazy {
-                LazyVStack(alignment: .leading, spacing: 0) { groupRows }
-            } else {
-                VStack(alignment: .leading, spacing: 0) { groupRows }
-            }
-        }
-        .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // The rows ride down 24 pt as one block, on a bouncier spring than the clip that reveals them.
-        .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -PickerMotion.rideDistance)
-        .animation(PickerMotion.ride, value: settled)
+    private var groups: some View {
+        VStack(alignment: .leading, spacing: 0) { groupRows }
+            .padding(.bottom, TTSpace.s1 + TTSpace.s1 / 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The rows ride down 24 pt as one block, on a bouncier spring than the clip that reveals them.
+            .offset(y: settled || !animatesEntrance || reduceMotion ? 0 : -PickerMotion.rideDistance)
+            .animation(PickerMotion.ride, value: settled)
     }
 
     @ViewBuilder private var groupRows: some View {
@@ -178,11 +172,7 @@ struct StationPickerPanel: View {
     }
 
     private func stationRows(_ rows: [RouteFormViewModel.StationRow], idPrefix: String, glyph: Glyph, base: Int) -> some View {
-        // Keyed by group and station: Union Station GO can be under Your stations and All stations at once, and a lazy stack
-        // draws a duplicate id as an empty row (TT-196).
-        ForEach(rows.enumerated().map { KeyedRow(key: idPrefix + $0.element.id, index: $0.offset, row: $0.element) }) { item in
-            let index = item.index
-            let row = item.row
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
             VStack(alignment: .leading, spacing: 0) {
                 if index > 0 { hairline }
                 stationRow(row, id: idPrefix + row.station.id, glyph: glyph)
@@ -191,15 +181,6 @@ struct StationPickerPanel: View {
             // A row that appears while typing fades in over 150 ms.
             .transition(.opacity.animation(.easeOut(duration: 0.15)))
         }
-    }
-
-    /// A station row with its group's id prefix, the key a lazy stack needs to be unique across groups.
-    private struct KeyedRow: Identifiable {
-        let key: String
-        let index: Int
-        let row: RouteFormViewModel.StationRow
-
-        var id: String { key }
     }
 
     /// The glyph in front of a station row: a clock for Your stations, a ring (From) or a pin (To) for the rest.

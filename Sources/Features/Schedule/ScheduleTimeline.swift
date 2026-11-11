@@ -70,7 +70,7 @@ struct ScheduleTimeline: View {
                 DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
-                .cascadeEntrance(entrance, order: orders[card.id] ?? 0)
+                .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
                 .padding(.leading, Self.cardX)
                 .padding(.trailing, TTSpace.s5)
                 .offset(y: place.top)

@@ -38,6 +38,31 @@ final class ScheduleMotionStateTests: XCTestCase {
         await model.rollOverIfNeeded()
         XCTAssertEqual(model.selectedDay, thursday.adding(days: 1), "The day turned")
         XCTAssertEqual(model.entranceRequest, 1, "The midnight turn does not cascade")
+        XCTAssertEqual(model.daySelection, 0, "Nor does the accent tile glide at midnight")
+    }
+
+    /// The accent tile glides only to a day the rider picks, or back to Today from the Schedule tab.
+    func testOnlyAPickedDayGlides() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.daySelection, 0)
+        await model.select(model.days[1])
+        XCTAssertEqual(model.daySelection, 1, "A day tapped")
+        await model.select(model.days[1])
+        XCTAssertEqual(model.daySelection, 1, "The selected day tapped again")
+        await model.backToNow()
+        XCTAssertEqual(model.daySelection, 2, "Back to Today from another day")
+        await model.backToNow()
+        XCTAssertEqual(model.daySelection, 2, "The tab on Today")
+    }
+
+    /// A past day's cards only fade in.
+    func testPastDaysOnlyFade() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertFalse(model.isPastDay)
+        await model.select(model.days[1])
+        XCTAssertFalse(model.isPastDay)
+        await model.select(try XCTUnwrap(model.pastDays.last))
+        XCTAssertTrue(model.isPastDay)
     }
 
     /// Trains that replace "Loading timetable" after a failed first load cascade, even from a refresh; the next refresh does not.

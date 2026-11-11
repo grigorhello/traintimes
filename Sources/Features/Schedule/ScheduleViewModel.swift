@@ -58,6 +58,9 @@ final class ScheduleViewModel {
     /// from another day. The cards cascade in (TT-164, D60). A minute tick, a status change, a refresh or poll and the
     /// midnight turn never bump it.
     private(set) var entranceRequest = 0
+    /// Bumped when the rider picks a day or the Schedule tab takes them back to Today: the accent tile glides there. The
+    /// midnight turn and a Mock time jump move the selection without it, so nothing slides at midnight (TT-164, D60).
+    private(set) var daySelection = 0
     /// Bumped when the Schedule tab is tapped again, and once when the launch's scroll has settled: the Now dot pulses.
     private(set) var nowPulse = 0
     /// The launch's scroll request pulses Now once it settles.
@@ -106,6 +109,8 @@ final class ScheduleViewModel {
     /// the rest of the app keeps (TT-159, D52).
     var today: ServiceDay { ServiceDay(calendarDayContaining: clock.now) }
     var isToday: Bool { selectedDay == today }
+    /// A past day's cards only fade in; the cascade's drop is for today and later (TT-164, D60).
+    var isPastDay: Bool { selectedDay < today }
     /// The day strip, Today first, running to the schedule's last service day (every day of the GTFS calendar, up to
     /// `maxDayCount`). Today always shows.
     var days: [ServiceDay] {
@@ -385,6 +390,7 @@ final class ScheduleViewModel {
     func select(_ day: ServiceDay) async {
         guard day != selectedDay else { return }
         selectedDay = day
+        daySelection += 1
         await loadNewTrains()
         requestScroll()
     }
@@ -395,6 +401,7 @@ final class ScheduleViewModel {
         knownToday = today
         if !isToday {
             selectedDay = today
+            daySelection += 1
             await loadNewTrains()
         }
         requestScroll()

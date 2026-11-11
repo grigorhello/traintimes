@@ -118,7 +118,8 @@ struct ScheduleView: View {
 
     /// The tapped day presses (not under Reduce Motion), then the day is selected.
     private func tapDay(_ tile: StripTile) {
-        if playsMotion, !reduceMotion { dayTaps[tile.id, default: 0] += 1 }
+        // The selected tile's accent shape is drawn apart from it, so pressing it would shrink only its label.
+        if playsMotion, !reduceMotion, tile.day != viewModel.selectedDay { dayTaps[tile.id, default: 0] += 1 }
         Task { await viewModel.select(tile.day) }
     }
 
@@ -420,14 +421,15 @@ struct ScheduleView: View {
     /// The selected day's accent tile, one shape under the tiles (which leave the selected one see-through), so that it
     /// glides from the old day to the new one on `TTMotion.glide`, passing under the days between, as on the board. Placed by
     /// the tile's index: the lazy strip may not have built the old day's tile to match a geometry to. It glides only when
-    /// the selected day changes, so the strip shifting at midnight moves it with the tiles. Reduce Motion: it jumps.
+    /// the rider picks a day (`daySelection`), so the strip shifting at midnight moves it with the tiles. Reduce Motion: it
+    /// jumps.
     @ViewBuilder private var selectionTile: some View {
         if let index = viewModel.stripIndex(of: viewModel.selectedDay) {
             RoundedRectangle(cornerRadius: TTRadius.md)
                 .fill(TTColor.accent)
                 .frame(width: DayCell.size.width, height: DayCell.size.height)
                 .offset(x: CGFloat(index + ScheduleViewModel.pastDayCount) * (DayCell.size.width + TTSpace.s2))
-                .animation(playsMotion && !reduceMotion ? TTMotion.glide : nil, value: viewModel.selectedDay)
+                .animation(playsMotion && !reduceMotion ? TTMotion.glide : nil, value: viewModel.daySelection)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

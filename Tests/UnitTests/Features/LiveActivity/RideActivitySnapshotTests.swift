@@ -79,11 +79,13 @@ final class RideActivitySnapshotTests: XCTestCase {
     private func departureLockScreen() throws -> some View {
         let pending = try departure(DepartureRig.time(17, 1))
         let late = try departure(DepartureRig.time(17, 5))
+        let boarding = try departure(DepartureRig.time(17, 14, 30))
+        let departed = try departure(DepartureRig.time(17, 16, 30))
         return VStack(spacing: 14) {
             lockCard(pending, isStale: false)
             lockCard(late, isStale: false)
-            lockCard(try departure(DepartureRig.time(17, 14, 30)), isStale: false)
-            lockCard(try departure(DepartureRig.time(17, 16, 30)), isStale: false)
+            lockCard(boarding, isStale: false)
+            lockCard(departed, isStale: false)
             lockCard(late, isStale: true)
             Spacer()
         }
@@ -133,12 +135,13 @@ final class RideActivitySnapshotTests: XCTestCase {
     private func departureIsland() throws -> some View {
         let pending = try departure(DepartureRig.time(17, 1))
         let late = try departure(DepartureRig.time(17, 5))
+        let boarding = try departure(DepartureRig.time(17, 14, 30))
         return VStack(spacing: 18) {
             compact(pending)
             compact(late)
             expandedDeparture(pending)
             expandedDeparture(late)
-            expandedDeparture(try departure(DepartureRig.time(17, 14, 30)))
+            expandedDeparture(boarding)
             Spacer()
         }
         .padding(.top, 11)

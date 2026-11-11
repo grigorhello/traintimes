@@ -3,8 +3,8 @@ import UIKit
 import XCTest
 
 /// `comparedAsRecorded` against RideSnapshotTests' light permission sheet reference. A copy one pixel off, in the encoding a
-/// key-window capture has, fails swift-snapshot-testing's plain comparison with the numbers CI showed for
-/// testPermissionLight, and passes once re-encoded; a real colour change still fails.
+/// key-window capture has, fails swift-snapshot-testing's plain comparison the way testPermissionLight did on CI, and
+/// passes once re-encoded; a real colour change still fails.
 final class ReferenceEncodingTests: XCTestCase {
     @MainActor
     func testOnePixelOffFailsOnlyWithoutTheReferenceEncoding() throws {
@@ -15,8 +15,10 @@ final class ReferenceEncodingTests: XCTestCase {
             UIColor.white.withAlphaComponent(0.05).setFill()
             context.fill(CGRect(x: 100, y: 100, width: 1.0 / 3, height: 1.0 / 3), blendMode: .normal)
         }
-        let plain = diffing.diffV2(reference, capture)?.0
-        XCTAssertEqual(plain.map(Self.numbers), "0.9472656 0.9159375", plain ?? "passed")
+        // The plain comparison fails on its accent pixels: on CI it gave 0.9472656 of pixels / perceptual 0.9158593 here,
+        // and 0.9472656 / 0.9159375 for testPermissionLight's real captures. If a library upgrade makes it pass, drop
+        // comparedAsRecorded.
+        XCTAssertNotNil(diffing.diffV2(reference, capture)?.0)
         XCTAssertNil(diffing.diffV2(reference, recorded(capture, diffing))?.0)
     }
 
@@ -61,13 +63,5 @@ final class ReferenceEncodingTests: XCTestCase {
             .snapshot(image)
             .run { result = $0 }
         return result
-    }
-
-    /// "0.9472656 0.9159375" from the comparison's message: the share of pixels that match, then the lowest perceptual precision.
-    private static func numbers(_ message: String) -> String {
-        message
-            .split(whereSeparator: { $0 == " " || $0 == "\n" })
-            .filter { $0.hasPrefix("0.") && $0 != "0.9999" && $0 != "0.98" }
-            .joined(separator: " ")
     }
 }

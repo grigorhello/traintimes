@@ -44,7 +44,8 @@ final class ScheduleSnapshotTests: XCTestCase {
             line: line
         )
         if let failure {
-            XCTFail(failure.replacingOccurrences(of: "\n", with: " | "), line: line)
+            let diagnostics = snapshotDiagnostics(of: view, style: style, file: #filePath, testName: testName)
+            XCTFail(failure.replacingOccurrences(of: "\n", with: " | ") + " | " + diagnostics, line: line)
         }
     }
 }

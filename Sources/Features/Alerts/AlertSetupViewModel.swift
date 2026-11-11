@@ -29,12 +29,27 @@ final class AlertSetupViewModel {
     /// The tap that started the save was on a new rule: the sheet keeps "Alert for this train" while it sets up, as in
     /// permission-prompt.png, although the rule is already kept on device.
     private var isEnabling = false
+    /// "Enable alerts" saved a new rule that is On: the button shows the check, the sheet holds `confirmHold` and closes
+    /// (TT-166). It stays set while the sheet goes, so the sheet does not turn into Manage alert on its way out.
+    private(set) var isConfirmed = false
+    /// The hold after the check is over: the sheet closes.
+    private(set) var isFinished = false
+
+    /// Kavsoft's hold after a confirming action, before moving on (the Motion board).
+    static let confirmHold: Duration = .milliseconds(300)
 
     private let rules: AlertRules
+    /// Waits out `confirmHold`; tests pass their own.
+    private let hold: @Sendable (Duration) async -> Void
 
-    init(request: AlertSetupRequest, rules: AlertRules) {
+    init(
+        request: AlertSetupRequest,
+        rules: AlertRules,
+        hold: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+    ) {
         self.request = request
         self.rules = rules
+        self.hold = hold
         kind = request.kind
         let repeating = rules.matching(AlertRule(kind: .repeating, trip: request.trip, route: request.route))
         weekdays = repeating.map { Set($0.weekdays) } ?? Self.workdays
@@ -46,7 +61,7 @@ final class AlertSetupViewModel {
         rules.matching(AlertRule(kind: kind, trip: request.trip, route: request.route))
     }
 
-    var isManaging: Bool { isWorking ? !isEnabling : rule != nil }
+    var isManaging: Bool { isWorking || isConfirmed ? !isEnabling : rule != nil }
 
     var title: String {
         isManaging ? String(localized: "alert.sheet.manage_title") : String(localized: "alert.sheet.title")
@@ -103,12 +118,12 @@ final class AlertSetupViewModel {
     }
 
     /// "Enable alerts", "Save" or "Try again": asks for notification permission the first time, then saves the rule on
-    /// device and on the server whatever the answer. Saving the same train again updates its rule.
+    /// device and on the server whatever the answer. Saving the same train again updates its rule. A new rule that is On
+    /// confirms with the check, then the sheet closes after the hold (TT-166); any other outcome stays on the sheet.
     func save() async {
-        guard canSave else { return }
+        guard canSave, !isConfirmed else { return }
         isEnabling = rule == nil
         isWorking = true
-        defer { isWorking = false }
         await rules.requestPermission()
         let existing = rule
         await rules.save(
@@ -121,6 +136,11 @@ final class AlertSetupViewModel {
                 paused: existing?.paused ?? false
             )
         )
+        isWorking = false
+        guard isEnabling, state == .on else { return }
+        isConfirmed = true
+        await hold(Self.confirmHold)
+        isFinished = true
     }
 
     func delete() async {

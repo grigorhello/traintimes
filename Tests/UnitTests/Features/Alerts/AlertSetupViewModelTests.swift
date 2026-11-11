@@ -40,22 +40,56 @@ final class AlertSetupViewModelTests: XCTestCase {
     func testEnableAsksPermissionOnceThenOn() async {
         let server = FakeAlertServer()
         let permission = AskingPermission(answer: .allowed)
-        let model = AlertSetupViewModel(request: Self.request(), rules: Self.rules(server, permission))
+        let rules = Self.rules(server, permission)
+        let model = AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold)
 
         await model.save()
         XCTAssertEqual(model.state, .on)
-        XCTAssertEqual(model.title, "Manage alert")
-        XCTAssertEqual(model.buttonTitle, "Save")
+        XCTAssertTrue(model.isFinished)
         let requests = await permission.requests
         XCTAssertEqual(requests, 1)
 
-        // Saving again updates the same rule and does not ask again.
-        await model.save()
+        // Opened again, the sheet manages the rule: saving updates the same rule, does not ask again and stays open.
+        let manage = AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold)
+        XCTAssertEqual(manage.title, "Manage alert")
+        XCTAssertEqual(manage.buttonTitle, "Save")
+        await manage.save()
+        XCTAssertFalse(manage.isConfirmed)
+        XCTAssertFalse(manage.isFinished)
+        XCTAssertEqual(manage.state, .on)
         let saved = await server.saved
         XCTAssertEqual(saved.count, 2)
         XCTAssertEqual(saved[0].id, saved[1].id)
         let requestsAfter = await permission.requests
         XCTAssertEqual(requestsAfter, 1)
+    }
+
+    /// TT-166: a new alert that turns On shows the check, keeps the sheet's title and button while it holds 0.3 s, then
+    /// the sheet closes; it never turns into Manage alert on the way out, and taps during the hold send nothing.
+    func testEnableConfirmsAndHoldsBeforeClosing() async {
+        let server = FakeAlertServer()
+        let hold = HeldHold()
+        let model = AlertSetupViewModel(request: Self.request(), rules: AlertFixtures.rules(server), hold: { await hold.wait($0) })
+
+        let save = Task { await model.save() }
+        await hold.waitUntilHolding()
+        XCTAssertTrue(model.isConfirmed)
+        XCTAssertFalse(model.isFinished)
+        XCTAssertEqual(model.state, .on)
+        XCTAssertEqual(model.title, "Alert for this train")
+        XCTAssertEqual(model.buttonTitle, "Enable alerts")
+        XCTAssertFalse(model.isManaging)
+        let durations = await hold.durations
+        XCTAssertEqual(durations, [.milliseconds(300)])
+        await model.save()
+
+        await hold.release()
+        await save.value
+        XCTAssertTrue(model.isFinished)
+        XCTAssertTrue(model.isConfirmed)
+        XCTAssertEqual(model.title, "Alert for this train")
+        let saved = await server.saved
+        XCTAssertEqual(saved.count, 1)
     }
 
     /// TT-153: launch and coming back to the app read the permission but never show the iOS dialog; only Enable alerts
@@ -77,6 +111,9 @@ final class AlertSetupViewModelTests: XCTestCase {
         await model.save()
         XCTAssertEqual(model.state, .notificationsOff)
         XCTAssertTrue(model.isManaging)
+        // The sheet stays open on the red panel: no check (TT-166).
+        XCTAssertFalse(model.isConfirmed)
+        XCTAssertFalse(model.isFinished)
         // The rule is still saved, so allowing notifications later needs no new save.
         let saved = await server.saved
         XCTAssertEqual(saved.count, 1)
@@ -111,28 +148,30 @@ final class AlertSetupViewModelTests: XCTestCase {
 
         await model.save()
         XCTAssertEqual(model.state, .couldNotSave)
+        XCTAssertFalse(model.isConfirmed)
         XCTAssertEqual(rules.rules.count, 1)
         let id = rules.rules.first?.id
 
+        // Try again saves the rule kept on device: the sheet stays open and says On, as before TT-166.
         await server.setFailing(false)
         await model.save()
         XCTAssertEqual(model.state, .on)
+        XCTAssertFalse(model.isFinished)
         XCTAssertEqual(rules.rules.map(\.id), [id].compactMap { $0 })
     }
 
     func testThisTripAndRepeatAreSeparateRules() async {
         let rules = AlertFixtures.rules(FakeAlertServer())
-        let model = AlertSetupViewModel(request: Self.request(), rules: rules)
-        await model.save()
+        await AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold).save()
 
+        // Opened again (the sheet closed after Enable alerts): This trip manages the rule, Repeat is a new alert.
+        let model = AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold)
+        XCTAssertTrue(model.isManaging)
         model.kind = .repeating
         XCTAssertFalse(model.isManaging)
         XCTAssertEqual(model.title, "Alert for this train")
         await model.save()
         XCTAssertEqual(rules.rules.count, 2)
-
-        model.kind = .thisTrip
-        XCTAssertTrue(model.isManaging)
     }
 
     func testSameUsualTrainOnAnotherDayUpdatesTheRepeatRule() async {
@@ -169,12 +208,36 @@ final class AlertSetupViewModelTests: XCTestCase {
 
     // MARK: Helpers
 
+    /// The check's hold, over at once.
+    static let noHold: @Sendable (Duration) async -> Void = { _ in }
+
     static func request(_ kind: AlertRule.Kind = .thisTrip) -> AlertSetupRequest {
         AlertSetupRequest(route: AlertFixtures.route, trip: AlertFixtures.trip(), kind: kind)
     }
 
     static func rules(_ server: FakeAlertServer, _ permission: any NotificationPermissionProviding) -> AlertRules {
         AlertRules(server: server, push: FixturePushRegistration(), permissions: permission, defaults: nil)
+    }
+}
+
+/// The Enable alerts check's hold (TT-166): records how long the sheet asks to wait and keeps it waiting until the test
+/// releases it.
+actor HeldHold {
+    private(set) var durations: [Duration] = []
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    func wait(_ duration: Duration) async {
+        durations.append(duration)
+        await withCheckedContinuation { held.append($0) }
+    }
+
+    func waitUntilHolding() async {
+        while held.isEmpty { await Task.yield() }
+    }
+
+    func release() {
+        held.forEach { $0.resume() }
+        held = []
     }
 }
 

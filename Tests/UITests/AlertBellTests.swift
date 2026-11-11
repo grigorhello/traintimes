@@ -12,7 +12,7 @@ final class AlertBellTests: XCTestCase {
         let app = XCUIApplication.onFixtures()
         app.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
         // The first UI test of a run launches a cold simulator, and on a slow runner reading the toast can take longer
-        // than its 5 s, so the toast stays up for the test, and the waits below allow for such a runner (PR #90: the
+        // than its 2.5 s, so the toast stays up for the test, and the waits below allow for such a runner (PR #90: the
         // bell's label took more than 10 s to read).
         app.launchEnvironment["TT_TOAST_SECONDS"] = "60"
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts

@@ -2,8 +2,8 @@ import Foundation
 import Observation
 
 /// The one-tap bell on each card and its toast (TT-141). With notifications allowed, a tap arms a This-trip alert at once:
-/// "Setting up" while the server stores it, then the filled bell and "Alert on for the 7:32 AM train · Repeat" for 5 s;
-/// a second tap turns it off ("Alert off"). Without permission, the tap opens the alert setup sheet instead (TT-142).
+/// "Setting up" while the server stores it, then the filled bell and "Alert on for the 7:32 AM train · Repeat" for 2.5 s
+/// (TT-166); a second tap turns it off ("Alert off"). Without permission, the tap opens the alert setup sheet instead (TT-142).
 @Observable @MainActor
 final class AlertBellModel {
     enum Bell {
@@ -14,7 +14,7 @@ final class AlertBellModel {
         case on
     }
 
-    /// The toast above the tab bar. A new one replaces the last and restarts its 5 s.
+    /// The toast above the tab bar. A new one replaces the last and restarts its 2.5 s.
     struct AlertToast: Equatable, Identifiable {
         enum Kind: Equatable {
             case settingUp
@@ -38,16 +38,18 @@ final class AlertBellModel {
     /// "Tap the bell on a train" for 5 s, after the Alerts tab's "Add alert" (TT-143).
     private(set) var showsHint = false
     private let toastDuration: Duration
+    private let hintDuration: Duration
     /// Trains whose tap is being handled, so repeated taps send one request.
     @ObservationIgnored private var busy: Set<TripKey> = []
     @ObservationIgnored private var toastCount = 0
     @ObservationIgnored private var hideTask: Task<Void, Never>?
     @ObservationIgnored private var hintTask: Task<Void, Never>?
 
-    /// A toast shows for 5 s.
-    init(rules: AlertRules, toastDuration: Duration = .seconds(5)) {
+    /// A toast shows for 2.5 s (TT-166, the Motion board), the hint for 5 s.
+    init(rules: AlertRules, toastDuration: Duration = .milliseconds(2500), hintDuration: Duration = .seconds(5)) {
         self.rules = rules
         self.toastDuration = toastDuration
+        self.hintDuration = hintDuration
     }
 
     /// A rule paused on the Alerts tab (TT-143) sends nothing, so its bell is outlined.
@@ -107,11 +109,11 @@ final class AlertBellModel {
         return AlertSetupRequest(route: toast.route, trip: toast.trip, kind: .repeating)
     }
 
-    /// The hint the Alerts tab's "Add alert" leaves on Schedule, for as long as a toast shows.
+    /// The hint the Alerts tab's "Add alert" leaves on Schedule, for 5 s.
     func showHint() {
         showsHint = true
         hintTask?.cancel()
-        let duration = toastDuration
+        let duration = hintDuration
         hintTask = Task { [weak self] in
             try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self else { return }

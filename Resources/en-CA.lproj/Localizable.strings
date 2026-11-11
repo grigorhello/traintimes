@@ -240,6 +240,11 @@
 "notif.rule.body" = "Review your %@ weekday alert.";
 "notif.line.title" = "%@ notice";
 "notif.line.body" = "%@, as reported at %@. Your %@ train is still expected.";
+/* On board (TT-173): the phone's own Time Sensitive notifications before and at your stop, not sent by the server. %@ is your stop. */
+"notif.arriving.title" = "Arriving at %@ in 1 min";
+"notif.arriving.body" = "Your stop is next. Get ready to step off.";
+"notif.here.title" = "This is %@";
+"notif.here.body" = "Your stop. Doors are open.";
 
 /* Settings (TT-168, D57) */
 "button.back" = "Back";

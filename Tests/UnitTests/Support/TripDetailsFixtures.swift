@@ -159,8 +159,10 @@ struct DemoRideRig {
         DemoRideRig.day.gtfsTime(hours * 3600 + minutes * 60 + seconds)
     }
 
-    /// The demo started at 5:32 PM and moved on to `moment`.
-    static func started(at moment: Date = DemoRideRig.time(17, 32)) async -> DemoRideRig {
+    /// The demo started at 5:32 PM and moved on to `moment`, with the arriving nudge `makeNudge` gives (none by default).
+    static func started(
+        at moment: Date = DemoRideRig.time(17, 32), makeNudge: @escaping @MainActor () -> ArrivalNudge? = { nil }
+    ) async -> DemoRideRig {
         let start = DemoRideRig.time(17, 32)
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
@@ -168,7 +170,8 @@ struct DemoRideRig {
         let onBoard = OnBoard(
             app: nil,
             makeDemo: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
-            makeDemoDetector: nil
+            makeDemoDetector: nil,
+            makeDemoNudge: makeNudge
         )
         await onBoard.setDemo(true)
         let rig = DemoRideRig(clock: clock, onBoard: onBoard)

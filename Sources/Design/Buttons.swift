@@ -138,23 +138,41 @@ struct GlassIconButton: View {
     let systemName: String
     let label: LocalizedStringKey
     var tint: Color = TTColor.accent
-    /// The glyph turned by this many degrees inside the button (the swap arrows, TT-165).
-    var glyphDegrees = 0.0
+    /// The glyph turned by this many degrees, set on every frame (the swap arrows, TT-165, D59). Such a button draws its
+    /// glyph over the glass rather than in it, and its glass does not react to touch: interactive glass eases what it holds
+    /// and its own size on a spring of its own, which put the arrows about 130 ms behind the clock and hid the press.
+    var glyphDegrees: Double?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
-                .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
-                .opacity(isEnabled ? 1 : 0.55)
-                .rotationEffect(.degrees(glyphDegrees))
-                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                .ttGlass(in: Circle())
-                .contentShape(Circle())
+            if let glyphDegrees {
+                Color.clear
+                    .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                    .ttGlass(in: Circle(), interactive: false)
+                    .overlay {
+                        glyph
+                            .rotationEffect(.degrees(glyphDegrees))
+                            // The angle comes from the clock: the press's ease must not catch it on the frame the tap lifts.
+                            .transaction { $0.animation = nil }
+                    }
+                    .contentShape(Circle())
+            } else {
+                glyph
+                    .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                    .ttGlass(in: Circle())
+                    .contentShape(Circle())
+            }
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityLabel(Text(label))
+    }
+
+    private var glyph: some View {
+        Image(systemName: systemName)
+            .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
+            .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
+            .opacity(isEnabled ? 1 : 0.55)
     }
 }
 
@@ -169,6 +187,9 @@ private struct GlassBackground<S: Shape>: ViewModifier {
     @Environment(\.rendersGlass) private var rendersGlass
     let tint: Color?
     let shape: S
+    /// Off for a control whose content follows the clock (the swap button, D59): interactive glass swells on touch and
+    /// eases its content and size on its own spring.
+    var interactive = true
 
     func body(content: Content) -> some View {
         if #available(iOS 26, *), rendersGlass {
@@ -180,15 +201,17 @@ private struct GlassBackground<S: Shape>: ViewModifier {
 
     @available(iOS 26, *)
     private var glass: Glass {
-        if let tint { Glass.regular.tint(tint).interactive() } else { Glass.regular.interactive() }
+        let glass = tint.map { Glass.regular.tint($0) } ?? Glass.regular
+        return interactive ? glass.interactive() : glass
     }
 }
 
 extension View {
     /// Liquid Glass in `shape` on iOS 26 and later; a raised surface on earlier systems (D49). Only for controls that
     /// float over content: cards and tiles stay solid.
-    func ttGlass(in shape: some Shape) -> some View {
-        modifier(GlassBackground(tint: nil, shape: shape))
+    /// `interactive: false` keeps the glass still under a touch (the swap button, D59).
+    func ttGlass(in shape: some Shape, interactive: Bool = true) -> some View {
+        modifier(GlassBackground(tint: nil, shape: shape, interactive: interactive))
     }
 
     /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.

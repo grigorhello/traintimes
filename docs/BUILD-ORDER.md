@@ -87,6 +87,7 @@ Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live
 | 55 | TT-178 · Before-departure Live Activity started by the alert server (push-to-start) | [#102](https://github.com/grigorhello/traintimes/issues/102) | P1 | 1.5 | TT-174 (#98), TT-177 (#101) |
 | 56 | TT-179 · Train positions endpoint on the alert server (GET /trains) | [#103](https://github.com/grigorhello/traintimes/issues/103) | P2 | 0.5 | The Metrolinx key (Q1) |
 | 57 | TT-180 · On board: test on real GO rides | [#104](https://github.com/grigorhello/traintimes/issues/104) | P1 | 1 | Grigor on a GO train; first check after TT-172 (#96) |
+| 65 | TT-188 · Directions link on Trip details: open Apple Maps to the departure station | [#116](https://github.com/grigorhello/traintimes/issues/116) | P2 | 1 | TT-163 (#83) |
 
 ## TestFlight feedback tickets
 

@@ -18,6 +18,7 @@
 "button.close" = "Close";
 "button.alert_me" = "Alert me";
 "button.manage_alert" = "Manage alert";
+"button.directions" = "Directions";
 "button.try_again" = "Try again";
 "button.undo" = "Undo";
 "button.delete" = "Delete";

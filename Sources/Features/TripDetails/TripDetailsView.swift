@@ -28,6 +28,11 @@ struct TripDetailsView: View {
     private static let dotHalo: CGFloat = 2
     private static let skippedGlyph: CGFloat = 14
     private static let alertHeight: CGFloat = 52
+    /// With the Directions link (TT-188): the ring sits on the name line, 12 pt from the row's top, and the time 4 pt down.
+    private static let directionsRingTop: CGFloat = 12
+    private static let directionsTimeTop: CGFloat = 4
+    private static let directionsGlyph: CGFloat = 15
+    private static let directionsGap: CGFloat = 5
     /// 16 + the 52 pt button + 24 pt above the sheet's bottom edge; 40 pt when there is no button.
     private static let bottomInsetWithButton: CGFloat = 92
     private static let bottomInset: CGFloat = 40
@@ -114,9 +119,13 @@ struct TripDetailsView: View {
     private func journey(_ details: TripDetails) -> some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: TTSpace.s3) {
-                journeyMarkers
+                journeyMarkers(ringOnNameLine: details.showsDirections)
                 VStack(spacing: 0) {
-                    stationRow(details.origin, time: details.departure, isStruck: details.isCancelled)
+                    if details.showsDirections {
+                        directionsRow(details.origin, time: details.departure)
+                    } else {
+                        stationRow(details.origin, time: details.departure, isStruck: details.isCancelled)
+                    }
                     metaRow(details)
                     stationRow(details.destination, time: details.arrival, isStruck: details.isCancelled)
                 }
@@ -141,14 +150,16 @@ struct TripDetailsView: View {
         .ttSheetCard()
     }
 
-    /// The ring centred on the first row, the three dots beside the meta row, the pin centred on the second row.
-    private var journeyMarkers: some View {
+    /// The ring centred on the first row (on its name line when the Directions link is under the name), the three dots
+    /// beside the meta row, the pin centred on the second row.
+    private func journeyMarkers(ringOnNameLine: Bool) -> some View {
         let size = RouteMarkers.Size.regular
         return VStack(spacing: 0) {
             Circle()
                 .strokeBorder(TTColor.inkSecondary, lineWidth: size.ringStroke)
                 .frame(width: size.ring, height: size.ring)
-                .frame(height: Self.stationRow)
+                .padding(.top, ringOnNameLine ? Self.directionsRingTop : 0)
+                .frame(height: Self.stationRow, alignment: ringOnNameLine ? .top : .center)
             VStack(spacing: size.gap) {
                 ForEach(0..<size.dots, id: \.self) { _ in
                     Circle().fill(TTColor.inkTertiary).frame(width: size.dot, height: size.dot)
@@ -166,30 +177,67 @@ struct TripDetailsView: View {
 
     private func stationRow(_ name: String, time: TripDetails.Time, isStruck: Bool) -> some View {
         HStack(spacing: TTSpace.s2) {
-            Text(verbatim: name)
-                .font(TTFont.headline)
-                .foregroundStyle(TTColor.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            stationName(name)
             Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(time.value)
-                    .font(TTFont.route)
-                    .monospacedDigit()
-                    .strikethrough(isStruck)
-                    .foregroundStyle(isStruck ? TTColor.inkTertiary : time.isLate ? TTColor.delayInk : TTColor.ink)
-                if let scheduled = time.scheduled {
-                    Text(scheduled)
-                        .font(TTFont.footnote)
-                        .monospacedDigit()
-                        .strikethrough()
-                        .foregroundStyle(TTColor.inkTertiary)
-                }
-            }
-            .lineLimit(1)
-            .fixedSize()
+            timeStack(time, isStruck: isStruck)
         }
         .frame(height: Self.stationRow)
+    }
+
+    /// The departure row with the Directions link under the name (TT-188, D64): the name and the link are one button the
+    /// full height of the row's left side, and the time lines up with the name.
+    private func directionsRow(_ name: String, time: TripDetails.Time) -> some View {
+        HStack(alignment: .top, spacing: TTSpace.s2) {
+            Button { viewModel.openDirections() } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    stationName(name)
+                    HStack(spacing: Self.directionsGap) {
+                        Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.system(size: Self.directionsGlyph, weight: .semibold))
+                            .accessibilityHidden(true)
+                        Text("button.directions")
+                            .font(TTFont.subhead.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(TTColor.accent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(DimOnPressStyle())
+            .accessibilityIdentifier("trip.directions")
+            timeStack(time, isStruck: false)
+                .padding(.top, Self.directionsTimeTop)
+        }
+        .frame(height: Self.stationRow)
+    }
+
+    private func stationName(_ name: String) -> some View {
+        Text(verbatim: name)
+            .font(TTFont.headline)
+            .foregroundStyle(TTColor.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
+
+    /// The time, with the struck scheduled time under it when the train runs late.
+    private func timeStack(_ time: TripDetails.Time, isStruck: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            Text(time.value)
+                .font(TTFont.route)
+                .monospacedDigit()
+                .strikethrough(isStruck)
+                .foregroundStyle(isStruck ? TTColor.inkTertiary : time.isLate ? TTColor.delayInk : TTColor.ink)
+            if let scheduled = time.scheduled {
+                Text(scheduled)
+                    .font(TTFont.footnote)
+                    .monospacedDigit()
+                    .strikethrough()
+                    .foregroundStyle(TTColor.inkTertiary)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
     }
 
     /// "in 20 min · Platform — · Express" on the left, the trip length on the right.
@@ -377,6 +425,13 @@ struct TripDetailsView: View {
         .accessibilityIdentifier("trip.alert")
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
+    }
+}
+
+/// The Directions link dims while pressed, as the canvas's link does.
+private struct DimOnPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.45 : 1)
     }
 }
 

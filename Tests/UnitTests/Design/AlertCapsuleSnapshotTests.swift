@@ -5,11 +5,11 @@ import XCTest
 
 /// Every alert capsule state and the day panel (TT-191, D71) against the Alerts-Spec board's States and Words, light and
 /// dark, on the canvas: Alert on with Repeat, a repeating alert on, Alert off with Undo, a repeating alert off on all days,
-/// the three failures with Try again, Notifications are off with Turn on and the hint; the panel with Mon to Fri lit and
+/// the three failures with Try again, Notifications are off with Turn on, Notifications are on and the hint; the panel with Mon to Fri lit and
 /// with no day lit. Glass is off, as in the other control snapshots.
 final class AlertCapsuleSnapshotTests: XCTestCase {
-    @MainActor func testCapsulesLight() { snap(Capsules(), height: 640, .light) }
-    @MainActor func testCapsulesDark() { snap(Capsules(), height: 640, .dark) }
+    @MainActor func testCapsulesLight() { snap(Capsules(), height: 720, .light) }
+    @MainActor func testCapsulesDark() { snap(Capsules(), height: 720, .dark) }
     @MainActor func testDayPanelLight() { snap(Panels(), height: 300, .light) }
     @MainActor func testDayPanelDark() { snap(Panels(), height: 300, .dark) }
 
@@ -33,10 +33,11 @@ private enum CapsuleFixtures {
     static let formatter = TimeFormatter(format: .twelveHour)
     static let trip = AlertFixtures.trip()
     static let today = trip.key.serviceDay
+    static let tripless: [AlertBellModel.Capsule.Kind] = [.hint, .notificationsOff, .notificationsOn]
 
     static func capsule(_ kind: AlertBellModel.Capsule.Kind, repeats: [Int] = [], panelDays: [Int]? = nil) -> AlertBellModel.Capsule {
         AlertBellModel.Capsule(
-            id: 1, kind: kind, trip: kind == .hint ? nil : trip, route: AlertFixtures.route, repeats: repeats, panelDays: panelDays
+            id: 1, kind: kind, trip: tripless.contains(kind) ? nil : trip, route: AlertFixtures.route, repeats: repeats, panelDays: panelDays
         )
     }
 
@@ -64,6 +65,7 @@ private struct Capsules: View {
             CapsuleFixtures.view(CapsuleFixtures.capsule(.failed(.changeDays)))
             CapsuleFixtures.view(CapsuleFixtures.capsule(.failed(.turnOff)))
             CapsuleFixtures.view(CapsuleFixtures.capsule(.notificationsOff))
+            CapsuleFixtures.view(CapsuleFixtures.capsule(.notificationsOn))
             CapsuleFixtures.view(CapsuleFixtures.capsule(.hint))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

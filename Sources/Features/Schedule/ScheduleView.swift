@@ -622,7 +622,7 @@ struct ScheduleView: View {
         case .notificationsOff:
             bells.dismissCapsule()
             openURL(AlertSetupViewModel.notificationSettingsURL)
-        case .hint:
+        case .notificationsOn, .hint:
             break
         }
     }
@@ -634,6 +634,7 @@ struct ScheduleView: View {
         case .off, .hint: .bellOff
         case .failed: .failed
         case .notificationsOff: .notificationsOff
+        case .notificationsOn: .confirmed
         }
     }
 

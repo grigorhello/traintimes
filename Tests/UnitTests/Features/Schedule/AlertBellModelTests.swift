@@ -360,6 +360,16 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertNil(bells.capsule)
     }
 
+    func testNotificationsOffHasTurnOnAndNotificationsOnNoAction() {
+        let bells = AlertBellModel(rules: AlertFixtures.rules(FakeAlertServer()))
+        bells.showNotifications(on: false)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOff)
+        XCTAssertEqual(bells.capsule?.actionKey, "capsule.turn_on")
+        bells.showNotifications(on: true)
+        XCTAssertEqual(bells.capsule?.kind, .notificationsOn)
+        XCTAssertNil(bells.capsule?.actionKey)
+    }
+
     func testTheHintShowsForItsTime() async throws {
         let bells = AlertBellModel(rules: AlertFixtures.rules(FakeAlertServer()), hintDuration: .milliseconds(50))
         bells.showHint()
@@ -386,6 +396,7 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(words(.failed(.changeDays), trip), "Couldn’t change days")
         XCTAssertEqual(words(.failed(.turnOff), trip), "Couldn’t turn alert off")
         XCTAssertEqual(words(.notificationsOff, trip), "Notifications are off")
+        XCTAssertEqual(words(.notificationsOn, trip), "Notifications are on")
         XCTAssertEqual(AlertBellModel.Capsule(id: 1, kind: .hint, trip: nil, route: nil).words(formatter, today: today), "Tap the bell on a train")
     }
 

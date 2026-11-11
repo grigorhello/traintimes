@@ -35,6 +35,8 @@ final class AlertBellModel {
             case failed(Failure)
             /// "Notifications are off" with Turn on, which opens the app's page in iOS Settings (TT-190 shows it).
             case notificationsOff
+            /// "Notifications are on", with the tick, once they are back on (TT-190 shows it).
+            case notificationsOn
             /// "Tap the bell on a train", after the Alerts tab's "Add alert" (TT-143).
             case hint
         }
@@ -63,7 +65,7 @@ final class AlertBellModel {
             switch kind {
             case .on: repeats.isEmpty
             case .off, .failed, .notificationsOff: true
-            case .hint: false
+            case .notificationsOn, .hint: false
             }
         }
     }
@@ -239,6 +241,11 @@ final class AlertBellModel {
         }
     }
 
+    /// "Notifications are off" with Turn on, or "Notifications are on" (TT-190 decides when).
+    func showNotifications(on: Bool) {
+        show(on ? .notificationsOn : .notificationsOff, trip: nil, route: nil)
+    }
+
     /// The hint the Alerts tab's "Add alert" leaves on Schedule, for 5 s.
     func showHint() {
         show(.hint, trip: nil, route: nil)
@@ -405,6 +412,8 @@ extension AlertBellModel.Capsule {
             return String(localized: "capsule.failed_off")
         case .notificationsOff:
             return String(localized: "capsule.notifications_off")
+        case .notificationsOn:
+            return String(localized: "alerts.notifications_on")
         case .hint:
             return String(localized: "alerts.add_hint")
         }
@@ -430,7 +439,7 @@ extension AlertBellModel.Capsule {
         case .off: "button.undo"
         case .failed: "button.try_again"
         case .notificationsOff: "capsule.turn_on"
-        case .hint: nil
+        case .notificationsOn, .hint: nil
         }
     }
 }

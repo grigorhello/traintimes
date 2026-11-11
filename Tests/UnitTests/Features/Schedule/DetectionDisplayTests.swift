@@ -45,4 +45,21 @@ final class DetectionDisplayTests: XCTestCase {
         let question = TrainQuestion(DetectionFixtures.question(), formatter: TimeFormatter(format: .twentyFourHour))
         XCTAssertEqual(question.title, "On the 17:13 train?")
     }
+
+    // MARK: What the strip under the day strip shows
+
+    func testRideStripContentFollowsTheRideAndDetection() {
+        let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
+        let asking = TrainMatcher.State.asking(DetectionFixtures.question())
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle), .otherwise)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking), .checking)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: asking), .asking)
+        // A ride wins over a question left up.
+        XCTAssertEqual(RideStripContent(isRiding: true, detection: asking), .riding)
+    }
+
+    func testNoCheckingStripWithoutALine() {
+        let progress = TrainMatcher.Progress(line: nil, since: nil, train: nil, stops: 0)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: .checking(progress)), .otherwise)
+    }
 }

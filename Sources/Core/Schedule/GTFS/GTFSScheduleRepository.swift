@@ -84,6 +84,27 @@ extension GTFSScheduleRepository: RideDataProviding {
     }
 }
 
+extension GTFSScheduleRepository: TrainCandidatesProviding {
+    /// The trips between the route's two stations, either way, that run at `time` (from 2 min before they leave the first
+    /// until they could reach the last running 15 min late) and have a track (TT-175).
+    func candidates(on route: Route, at time: Date) async -> [TrainCandidate] {
+        guard let timetable = try? await store.timetable() else { return [] }
+        let day = ServiceDay(containing: time)
+        var trains: [TrainCandidate] = []
+        for stretch in [route, Route(from: route.to, to: route.from, line: route.line)] {
+            for call in timetable.directCalls(from: stretch.from.id, to: stretch.to.id, on: day) {
+                guard time >= call.departures[call.from].addingTimeInterval(-2 * 60),
+                      time <= call.arrivals[call.to].addingTimeInterval(TrainMatcher.latestDelay) else { continue }
+                let trip = TripKey(serviceDay: day, tripId: call.tripId)
+                let ride = Ride(trip: trip, from: stretch.from.id, to: stretch.to.id)
+                guard let plan = timetable.ridePlan(for: ride), plan.track != nil else { continue }
+                trains.append(TrainCandidate(trip: trip, route: stretch, plan: plan))
+            }
+        }
+        return trains
+    }
+}
+
 /// Downloads the GO GTFS feed, imports its rail part and keeps the last good import on device, so the timetable works
 /// offline (TT-130, D35). The first use waits for the download; after that the copy on device answers at once and is
 /// refreshed in the background once it is a week old. A copy that no longer covers today waits for its refresh. A failed

@@ -114,6 +114,11 @@ struct TrackShape: Sendable, Equatable {
         return points.indices.filter { keep[$0] }.map { points[$0] }
     }
 
+    /// Metres between two places (TT-175, the phone's speed).
+    static func distance(_ a: GeoPoint, _ b: GeoPoint) -> Double {
+        segment(a, b).length
+    }
+
     /// `b` seen from `a` in metres east (x) and north (y), on a flat frame at their mean latitude.
     private static func segment(_ a: GeoPoint, _ b: GeoPoint) -> (x: Double, y: Double, length: Double) {
         let metresPerDegree = 111_195.08

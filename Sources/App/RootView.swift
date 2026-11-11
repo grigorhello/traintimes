@@ -76,7 +76,7 @@ struct RootView: View {
                 toastDuration: alertDependencies.toastDuration
             )
         )
-        _onBoard = State(initialValue: OnBoard(app: ride))
+        _onBoard = State(initialValue: OnBoard(app: ride, detector: TrainDetector.app(dependencies)))
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -167,8 +167,14 @@ struct RootView: View {
         .environment(\.holdsBellPop, holdsBellPop)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
-        // Demo trains › Ride (TT-172): the demo ride plays from 5:32 PM while it is on, in TestFlight and Debug builds only.
+        // Demo trains › Ride (TT-172): the demo plays while it is on, in TestFlight and Debug builds only: its question first
+        // (TT-175), then the ride from the question's Yes.
         .task(id: playsDemoRide) { await onBoard.setDemo(playsDemoRide) }
+        // Train detection (TT-175) watches only while Schedule (or Trip details over it) is open in the foreground.
+        .task(id: detection) {
+            guard let route = detection.route else { return }
+            await onBoard.detect(on: route, demo: detection.demo)
+        }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
@@ -237,6 +243,13 @@ struct RootView: View {
         router.present(.tripDetails)
     }
 
+    /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's
+    /// question plays.
+    private var detection: DetectionRun {
+        let watches = scenePhase == .active && router.selectedTab == .schedule
+        return DetectionRun(route: watches ? schedule.route : nil, demo: playsDemoRide)
+    }
+
     /// Demo trains › Ride is on, in a build that shows Settings › Testing (an App Store build ignores a stored value).
     private var playsDemoRide: Bool {
         BuildChannel.showsTesting && settings.demoTrains == .ride
@@ -269,6 +282,12 @@ struct RootView: View {
     private func show(_ route: Route) {
         Task { await schedule.show(route) }
     }
+}
+
+/// Train detection's run: the route while Schedule shows in the foreground (nil stops it), and Demo trains › Ride.
+private struct DetectionRun: Hashable {
+    let route: Route?
+    let demo: Bool
 }
 
 #Preview {

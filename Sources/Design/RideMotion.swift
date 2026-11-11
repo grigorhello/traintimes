@@ -11,11 +11,14 @@ enum RideMotion {
     static let pressCurve = TTMotion.Curve(response: 0.40, damping: 0.50)
     /// Your stop's pin turning into the tick.
     static let tickCurve = TTMotion.Curve(response: 0.35, damping: 0.50)
+    /// "Yes, on board" folding the question card into the ride strip (TT-175); the card lands on `pressCurve`.
+    static let foldCurve = TTMotion.Curve(response: 0.46, damping: 0.82)
 
     static var rise: Animation { riseCurve.animation }
     static var glide: Animation { glideCurve.animation }
     static var press: Animation { pressCurve.animation }
     static var tick: Animation { tickCurve.animation }
+    static var fold: Animation { foldCurve.animation }
     /// Your stop's tint and the card's tint cross-fading.
     static var tint: Animation { .easeOut(duration: 0.25) }
 
@@ -39,9 +42,11 @@ extension EnvironmentValues {
 }
 
 /// The Live dot (Live-Spec): 8 pt in the accent, with two rings spreading from it 0.9 s apart while the train's position
-/// is measured; grey and still on the timetable. Reduce Motion: the dot breathes.
+/// is measured; grey and still on the timetable; grey and rippling while train detection checks (TT-175). Reduce Motion:
+/// the dot breathes.
 struct LiveDot: View {
     var isLive = true
+    var isChecking = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsRideMotion) private var playsMotion
 
@@ -50,8 +55,8 @@ struct LiveDot: View {
     private static let spread = 3.1
 
     var body: some View {
-        let colour = isLive ? TTColor.accent : TTColor.inkTertiary
-        let animates = isLive && playsMotion
+        let colour = isLive && !isChecking ? TTColor.accent : TTColor.inkTertiary
+        let animates = (isLive || isChecking) && playsMotion
         TimelineView(.animation(minimumInterval: nil, paused: !animates)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             Circle()

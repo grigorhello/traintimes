@@ -114,6 +114,19 @@
 "loc.continue" = "Continue";
 "loc.later" = "Not now";
 
+/* Train detection (TT-175, D68): the checking strip and the question on Schedule. %@ is a line, a station, or a time from the one formatter. */
+"detect.checking" = "Moving along %@";
+"detect.matching" = "Matching your train…";
+"detect.since" = "since %@";
+"detect.looksLike" = "Looks like the %@ train";
+"detect.stops" = "%d of 2 stops";
+"detect.question" = "On the %@ train?";
+"detect.either" = "%@ or %@";
+"detect.why" = "Your phone has moved with it since %@ and stopped with it at %@ and %@.";
+"detect.whyOne" = "Your phone has moved with it since %@ and stopped with it at %@.";
+"detect.yes" = "Yes, on board";
+"detect.no" = "No";
+
 /* Status badges */
 "status.on_time" = "On time";
 "status.delayed" = "Delayed %d min";
@@ -266,7 +279,7 @@
 "settings.demo_trains.delays_detail" = "The next train late, one cancelled, the rest on time, plus a line notice.";
 "settings.demo_trains.offline_detail" = "The saved timetable, as if there were no connection.";
 "settings.demo_trains.platform_detail" = "The next train leaves in 8 min with no platform posted yet.";
-"settings.demo_trains.ride_detail" = "Plays the 5:32 to 5:43 PM ride from Union to Clarkson. Open it from the strip on Schedule.";
+"settings.demo_trains.ride_detail" = "Asks on Schedule if you’re on the 5:13 PM train, then plays your ride to Clarkson.";
 "settings.mock_time" = "Mock time";
 "settings.mock_time.early" = "Early morning";
 "settings.mock_time.late" = "Late evening";

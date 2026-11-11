@@ -1,30 +1,34 @@
 import XCTest
 
-/// TT-172: Demo trains › Ride plays a ride from Union to Clarkson. The ride strip on Schedule opens Trip details in ride
-/// mode; closing the sheet keeps the ride, and End ride ends it and the strip goes.
+/// TT-172, TT-175: Demo trains › Ride first asks on Schedule "On the 5:13 PM train?" (about 25 s after launch), and its Yes
+/// starts the ride from Union to Clarkson and opens Trip details in ride mode. Closing the sheet keeps the ride and the
+/// strip opens it again; End ride ends it and the strip goes.
 final class OnBoardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
     @MainActor
-    func testDemoRideOpensRideModeAndEndRideEndsIt() {
+    func testDemoQuestionYesStartsTheRideAndEndRideEndsIt() {
         let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "ride"]
         app.launch()
 
+        let question = app.descendants(matching: .any).matching(identifier: "schedule.question").firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 60))
         let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
-        XCTAssertTrue(strip.waitForExistence(timeout: 10))
-        XCTAssertTrue(strip.label.contains("On board"), strip.label)
+        XCTAssertFalse(strip.exists, "No ride starts before the tap")
 
-        strip.tap()
+        app.buttons["schedule.question.yes"].tap()
         let card = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "Yes opens Trip details in ride mode")
 
-        // Closing the sheet keeps the ride: the strip is still there and opens it again.
+        // Closing the sheet keeps the ride: the strip has taken the question's place and opens it again.
         app.buttons["trip.close"].tap()
         XCTAssertTrue(card.waitForNonExistence(timeout: 5))
         XCTAssertTrue(strip.waitForExistence(timeout: 5))
+        XCTAssertTrue(strip.label.contains("On board"), strip.label)
+        XCTAssertFalse(question.exists)
         strip.tap()
         XCTAssertTrue(card.waitForExistence(timeout: 5))
 

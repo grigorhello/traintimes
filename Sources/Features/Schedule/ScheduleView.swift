@@ -74,6 +74,8 @@ struct ScheduleView: View {
     var body: some View {
         timeline
             .safeAreaInset(edge: .top, spacing: 0) { header }
+            // The timeline moves with the strip under the day strip instead of jumping (TT-175).
+            .rideStripMotion(onBoard)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }

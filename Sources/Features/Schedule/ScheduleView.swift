@@ -59,6 +59,7 @@ struct ScheduleView: View {
             .background(TTColor.canvas)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { alertToast }
+            // The cards' bell states ease as before; the toast keeps its words from it (`RisingToast`).
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
             // A light haptic when an alert turns on (TT-141).
@@ -448,24 +449,38 @@ struct ScheduleView: View {
 
     /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
     /// "Alert off", or "Could not save" with Try again; else "Tap the bell on a train" after the Alerts tab's "Add alert".
-    /// It rises on a spring and drops away as it goes (TT-166).
-    @ViewBuilder private var alertToast: some View {
-        let motion = AnyTransition.ttToast(reduceMotion: reduceMotion)
-        if let bells, bells.toast == nil, bells.showsHint {
-            Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell", transition: motion)
-                .padding(.horizontal, TTSpace.s5)
-                .padding(.bottom, TTSpace.s2)
-        } else if let bells, let toast = bells.toast {
-            // One toast whose words change in place: Setting up turns into Alert on or Could not save without a second
-            // toast rising through the first (TT-166). It only rises when none was up, and drops away when none follows.
-            let look = toastLook(toast, bells: bells)
-            Toast(
-                message: look.message, systemImage: look.systemImage, tint: look.tint, actionTitle: look.actionTitle,
-                transition: motion, action: look.action
-            )
+    /// One toast whose words change in place, so Setting up turns into Alert on without a second toast rising through the
+    /// first. It rises on a spring and drops away as it goes (`RisingToast`, TT-166).
+    private var alertToast: some View {
+        RisingToast(item: toastItem) { item in
+            Group {
+                switch item {
+                case .hint:
+                    Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell", transition: .identity)
+                case .alert(let toast):
+                    if let bells {
+                        let look = toastLook(toast, bells: bells)
+                        Toast(
+                            message: look.message, systemImage: look.systemImage, tint: look.tint,
+                            actionTitle: look.actionTitle, transition: .identity, action: look.action
+                        )
+                    }
+                }
+            }
             .padding(.horizontal, TTSpace.s5)
             .padding(.bottom, TTSpace.s2)
         }
+    }
+
+    private enum ToastItem: Equatable {
+        case hint
+        case alert(AlertBellModel.AlertToast)
+    }
+
+    private var toastItem: ToastItem? {
+        guard let bells else { return nil }
+        if let toast = bells.toast { return .alert(toast) }
+        return bells.showsHint ? .hint : nil
     }
 
     /// What the alert toast says for each kind: its words, icon, tint and action.

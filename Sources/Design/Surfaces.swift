@@ -96,7 +96,7 @@ struct Toast: View {
     var systemImage: String?
     var tint: Color = TTColor.accent
     var actionTitle: LocalizedStringKey?
-    /// How it comes and goes; Schedule's bell toast rises on a spring (`ttToast`, TT-166).
+    /// How it comes and goes; Schedule's toast passes `.identity` and moves inside `RisingToast` (TT-166).
     var transition: AnyTransition = .opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25))
     var action: () -> Void = {}
 
@@ -135,52 +135,80 @@ struct Toast: View {
     }
 }
 
-extension AnyTransition {
-    /// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast`, with the spring's small bounce, while
-    /// it fades in over 0.15 s, and leaves dropping 16 pt as it fades over 0.2 s easeIn. Each way is one modifier with its
-    /// own animation: two transitions combined, each with its own curve, let the screen's `.animation` drive the offset
-    /// (the simulator showed a 0.25 s easeOut with no bounce). Reduce Motion keeps the fades only.
-    static func ttToast(reduceMotion: Bool) -> AnyTransition {
-        guard !reduceMotion else {
-            return .asymmetric(
-                insertion: .opacity.animation(.easeOut(duration: 0.15)),
-                removal: .opacity.animation(.easeIn(duration: 0.2))
-            )
+/// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast`, with the spring's small bounce, while it
+/// fades in over 0.15 s, and leaves dropping 16 pt as it fades over 0.2 s easeIn. A new item while one is up changes the
+/// words in place, with no cross-fade and no second toast. Reduce Motion keeps the fades only.
+///
+/// The motion is driven from its own state, each property with its own `.animation(_:value:)`, not by a transition: a
+/// custom transition moved the toast on the spring but left its opacity unanimated on the simulator (it rose almost
+/// invisible and vanished without fading), and two combined transitions let the screen's `.animation` drive the offset.
+/// The content draws no transition of its own (`Toast(transition: .identity)`).
+struct RisingToast<Item: Equatable, Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let item: Item?
+    let content: (Item) -> Content
+
+    /// What is on screen: it outlives `item` while the toast drops away.
+    @State private var shown: Item?
+    @State private var phase: Phase
+
+    /// A toast already up when the screen first draws stands at rest (as in the snapshot tests); later ones rise.
+    init(item: Item?, @ViewBuilder content: @escaping (Item) -> Content) {
+        self.item = item
+        self.content = content
+        _shown = State(initialValue: item)
+        _phase = State(initialValue: item == nil ? .below : .rest)
+    }
+
+    private enum Phase { case below, rest, gone }
+
+    var body: some View {
+        ZStack {
+            if let shown {
+                content(shown)
+                    // The words change in place at once, whatever animation the screen runs.
+                    .transaction { $0.animation = nil }
+                    .offset(y: offset)
+                    .animation(phase == .gone ? .easeIn(duration: 0.2) : TTMotion.toast, value: phase)
+                    .opacity(phase == .rest ? 1 : 0)
+                    .animation(phase == .gone ? .easeIn(duration: 0.2) : .easeOut(duration: 0.15), value: phase)
+                    .transition(.identity)
+                    .onAppear { phase = .rest }
+            }
         }
-        // `TTMotion.toast` 0.15 s in (about 0.77): the rise's fade ends there, as on the canvas.
-        let opaqueAt = TTMotion.toastCurve.progress(at: 0.15)
-        return .asymmetric(
-            insertion: .modifier(
-                active: ToastSlide(progress: 0, distance: 32, opaqueAt: opaqueAt),
-                identity: ToastSlide(progress: 1, distance: 32, opaqueAt: opaqueAt)
-            )
-            .animation(TTMotion.toast),
-            removal: .modifier(
-                active: ToastSlide(progress: 0, distance: 16, opaqueAt: 1),
-                identity: ToastSlide(progress: 1, distance: 16, opaqueAt: 1)
-            )
-            .animation(.easeIn(duration: 0.2))
-        )
-    }
-}
-
-/// The toast `distance` pt below its place and transparent at 0, in place at 1: one progress moves it and fades it, fully
-/// opaque from `opaqueAt` on. A spring may carry it a little past 1, which is the bounce.
-private struct ToastSlide: ViewModifier, Animatable {
-    var progress: Double
-    let distance: CGFloat
-    let opaqueAt: Double
-
-    // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
-    nonisolated var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
+        .onChange(of: item) { _, new in show(new) }
+        // Off screen once the drop has run.
+        .task(id: phase) {
+            guard phase == .gone else { return }
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            shown = nil
+            phase = .below
+        }
     }
 
-    func body(content: Content) -> some View {
-        content
-            .offset(y: distance * (1 - progress))
-            .opacity(min(1, max(0, progress / opaqueAt)))
+    private var offset: CGFloat {
+        guard !reduceMotion else { return 0 }
+        switch phase {
+        case .below: return 32
+        case .rest: return 0
+        case .gone: return 16
+        }
+    }
+
+    private func show(_ new: Item?) {
+        guard let new else {
+            if shown != nil { phase = .gone }
+            return
+        }
+        if shown == nil {
+            // Drawn 32 pt low and transparent first; `onAppear` sets it rising.
+            phase = .below
+            shown = new
+        } else {
+            shown = new
+            if phase == .gone { phase = .rest }
+        }
     }
 }
 

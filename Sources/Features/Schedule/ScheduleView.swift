@@ -22,6 +22,8 @@ struct ScheduleView: View {
     var onBoard: OnBoard?
     /// A tap on the ride strip: Trip details in ride mode.
     var onOpenRide: () -> Void = {}
+    /// A tap on the countdown strip before departure (TT-177): its Trip details. Nil opens the trip on the route shown.
+    var onOpenDeparture: ((TripKey) -> Void)?
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
@@ -43,7 +45,8 @@ struct ScheduleView: View {
         onAlertSetup: @escaping (AlertSetupRequest) -> Void = { _ in },
         picker: RouteFormViewModel? = nil,
         onBoard: OnBoard? = nil,
-        onOpenRide: @escaping () -> Void = {}
+        onOpenRide: @escaping () -> Void = {},
+        onOpenDeparture: ((TripKey) -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.stations = stations
@@ -53,6 +56,7 @@ struct ScheduleView: View {
         self.onAlertSetup = onAlertSetup
         self.onBoard = onBoard
         self.onOpenRide = onOpenRide
+        self.onOpenDeparture = onOpenDeparture
         _picker = State(initialValue: picker)
     }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
@@ -101,7 +105,12 @@ struct ScheduleView: View {
             }
             // The ride strip takes the watched-trip strip's place while a ride runs (Live-Schedule). Its own view reads the
             // ride, so the ride's every-second changes redraw the strip alone.
-            RideStripSlot(onBoard: onBoard, onOpen: onOpenRide) {
+            RideStripSlot(
+                onBoard: onBoard, onOpen: onOpenRide, departure: viewModel.departureStrip(formatter),
+                onOpenDeparture: { key in
+                    if let onOpenDeparture { onOpenDeparture(key) } else { onOpenTrip(key) }
+                }
+            ) {
                 if let strip = viewModel.watchedStrip(formatter) {
                     WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
                         withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }

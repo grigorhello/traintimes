@@ -102,6 +102,25 @@ final class AlertRules: WatchedTripsProviding {
         rules.contains { $0.kind == .thisTrip && $0.trip == trip && !$0.paused && state(of: $0) == .on }
     }
 
+    /// Before departure (TT-177, D69): the train goes live because the rider set an alert for it between the route's
+    /// stations: a This-trip rule for it, or a Repeat rule whose usual train it is on its service day (same line and time of
+    /// day, on one of the rule's weekdays). A paused rule does not count; any other state does, so the countdown also runs
+    /// with notifications off (Live-Spec).
+    func isAlerted(_ trip: Trip, on route: Route) -> Bool {
+        let minutes = ServiceDay.minutesIntoServiceDay(trip.scheduledDeparture)
+        // ISO weekday, 1 is Monday; `ServiceDay.weekday` counts from Sunday.
+        let weekday = (trip.key.serviceDay.weekday + 5) % 7 + 1
+        return rules.contains { rule in
+            guard !rule.paused, rule.origin.id == route.from.id, rule.destination.id == route.to.id else { return false }
+            return switch rule.kind {
+            case .thisTrip: rule.trip == trip.key
+            case .repeating:
+                rule.weekdays.contains(weekday) && rule.line == (route.line?.id ?? "")
+                    && ServiceDay.minutesIntoServiceDay(rule.scheduledDeparture) == minutes
+            }
+        }
+    }
+
     /// The stored rule the candidate would duplicate: the same train for This trip, the same usual train for Repeat
     /// (line, stations and scheduled time of day), so enabling it again updates that rule.
     func matching(_ candidate: AlertRule) -> AlertRule? {

@@ -291,4 +291,48 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(deleted, [first.id])
         XCTAssertEqual(saved.map(\.id), [first.id, second.id, first.id])
     }
+
+    // MARK: Before departure (TT-177)
+
+    func testThisTripAlertsOnlyThatTrainBetweenItsStations() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let trip = AlertFixtures.trip()
+        await rules.save(AlertRule(kind: .thisTrip, trip: trip, route: route))
+
+        XCTAssertTrue(rules.isAlerted(trip, on: route))
+        XCTAssertFalse(rules.isAlerted(AlertFixtures.trip("LW-0758-20261105", departure: "12:58"), on: route))
+        XCTAssertFalse(rules.isAlerted(trip, on: AlertFixtures.route(("UN", "Union"), ("OA", "Oakville"))))
+    }
+
+    func testARepeatAlertsItsUsualTrainOnItsWeekdays() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        // 7:32 AM, Monday to Friday, set up on Thursday Nov 5.
+        await rules.save(AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5]))
+
+        XCTAssertTrue(rules.isAlerted(AlertFixtures.trip("LW-0732-20261106", day: 6), on: route), "Friday")
+        XCTAssertFalse(rules.isAlerted(AlertFixtures.trip("LW-0732-20261107", day: 7), on: route), "Saturday")
+        XCTAssertTrue(rules.isAlerted(AlertFixtures.trip("LW-0732-20261109", day: 9), on: route), "Monday")
+        XCTAssertFalse(rules.isAlerted(AlertFixtures.trip("LW-0758-20261106", day: 6, departure: "12:58"), on: route), "another time")
+    }
+
+    func testAPausedRuleAlertsNothing() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let trip = AlertFixtures.trip()
+        await rules.save(AlertRule(kind: .thisTrip, trip: trip, route: route, paused: true))
+        await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [4], paused: true))
+
+        XCTAssertFalse(rules.isAlerted(trip, on: route))
+    }
+
+    func testAnAlertCountsWithNotificationsOff() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server, permission: .off)
+        let trip = AlertFixtures.trip()
+        await rules.save(AlertRule(kind: .thisTrip, trip: trip, route: route))
+
+        XCTAssertTrue(rules.isAlerted(trip, on: route))
+    }
 }

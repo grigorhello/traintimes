@@ -40,10 +40,12 @@ struct TripDetailsView: View {
     private static let bottomFadeOpacity = 0.72
 
     var body: some View {
-        // The ride's countdowns and the train on the rail follow the clock: the sheet is drawn again each second while riding.
+        // The ride's countdowns and the train on the rail follow the clock, as does the countdown before departure: the sheet
+        // is drawn again each second while riding or live (TT-177).
         let _ = tick
         let ride = viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
+        let departure = ride == nil ? viewModel.departureDetails(formatter) : nil
         let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
         let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
         ZStack(alignment: .bottom) {
@@ -55,6 +57,8 @@ struct TripDetailsView: View {
                     Group {
                         if let ride {
                             RideContent(ride: ride)
+                        } else if let departure, let details {
+                            departureContent(departure, details: details)
                         } else if let details {
                             content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
                         }
@@ -85,9 +89,10 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
-        .task(id: viewModel.isRiding) {
-            while viewModel.isRiding, !Task.isCancelled {
+        .task(id: viewModel.followsClock) {
+            while viewModel.followsClock, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
+                viewModel.tick()
                 tick &+= 1
             }
         }
@@ -137,6 +142,19 @@ struct TripDetailsView: View {
         VStack(alignment: .leading, spacing: 0) {
             journey(details)
             stops(details, hint: hint)
+                .padding(.top, TTSpace.s5)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Before departure (TT-177)
+
+    /// *Live-Depart-Trip*: the departure card in the journey card's place; the stop list as it was, with the window's
+    /// footnote.
+    private func departureContent(_ departure: DepartureDetails, details: TripDetails) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            LiveDepartureCard(departure: departure)
+            stops(details, hint: departure.footnote)
                 .padding(.top, TTSpace.s5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

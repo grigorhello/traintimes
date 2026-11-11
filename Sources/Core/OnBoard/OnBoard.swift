@@ -12,14 +12,27 @@ final class OnBoard {
     private(set) var demo: RideEngine?
     /// The route the ride was started on, for the sheet's header when the strip opens it.
     private(set) var route: Route?
+    /// Demo trains › Departure (TT-177): the demo's before-departure window while it plays. It keeps playing under the
+    /// demo ride its "I’m on board" starts, and shows again once that ride is ended.
+    private(set) var departureDemo: DemoDeparture.Session?
+    /// The demo ride was started by the demo departure's "I’m on board": End ride stops it.
+    private var demoIsHandOff = false
     private let makeDemo: @MainActor () -> (engine: RideEngine, ride: Ride)
+    private let makeDeparture: @MainActor () -> DemoDeparture.Session
+    private let makeHandOff: @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride)
 
     init(
         app: RideEngine?,
-        makeDemo: @escaping @MainActor () -> (engine: RideEngine, ride: Ride) = { DemoRide.session() }
+        makeDemo: @escaping @MainActor () -> (engine: RideEngine, ride: Ride) = { DemoRide.session() },
+        makeDeparture: @escaping @MainActor () -> DemoDeparture.Session = { DemoDeparture.session() },
+        makeHandOff: @escaping @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride) = {
+            DemoRide.session(continuing: $0)
+        }
     ) {
         self.app = app
         self.makeDemo = makeDemo
+        self.makeDeparture = makeDeparture
+        self.makeHandOff = makeHandOff
     }
 
     /// The demo's engine while it plays, else the app's.
@@ -57,9 +70,13 @@ final class OnBoard {
         return started
     }
 
-    /// End ride, or Done at your stop.
+    /// End ride, or Done at your stop. A demo ride the demo departure started stops with it, so the departure shows again.
     func end() {
         engine?.end()
+        if demoIsHandOff {
+            demo = nil
+            demoIsHandOff = false
+        }
     }
 
     /// Demo trains › Ride turned on or off: the demo starts from 5:32 PM, or stops and leaves the app's engine as it was.
@@ -72,7 +89,31 @@ final class OnBoard {
         } else {
             demo?.end()
             demo = nil
+            demoIsHandOff = false
         }
+    }
+
+    /// Demo trains › Departure turned on or off (TT-177): the demo window plays from 5:01 PM, or stops.
+    func setDemoDeparture(_ isOn: Bool) {
+        if isOn {
+            if departureDemo == nil { departureDemo = makeDeparture() }
+        } else {
+            departureDemo = nil
+        }
+    }
+
+    /// "I’m on board" in the demo departure: the demo ride starts from the demo's time. It takes the sheet over only once
+    /// it runs, in one update, so the departure card turns into the ride with nothing between them. False when no demo
+    /// departure plays or the ride did not start.
+    @discardableResult
+    func handOffDemo() async -> Bool {
+        guard let session = departureDemo else { return false }
+        let handOff = makeHandOff(session)
+        guard await handOff.engine.start(handOff.ride) else { return false }
+        demo?.end()
+        demo = handOff.engine
+        demoIsHandOff = true
+        return true
     }
 
     /// The route to open the ride's Trip details on: the demo's, the one it was started on, else its two stations' (a ride

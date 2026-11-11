@@ -104,6 +104,14 @@ enum DemoRide {
         let clock = DemoRideClock(start: day.gtfsTime(startSeconds), realStart: realStart, speed: speed)
         return (engine(on: day, clock: clock), ride(on: day))
     }
+
+    /// The demo departure's "I’m on board" (TT-177): the same train, ridden from the departure demo's time on, six times as
+    /// fast.
+    @MainActor
+    static func session(continuing departure: DemoDeparture.Session, realStart: Date = Date()) -> (engine: RideEngine, ride: Ride) {
+        let clock = DemoRideClock(start: departure.now, realStart: realStart, speed: speed)
+        return (engine(on: departure.day, clock: clock), ride(on: departure.day))
+    }
 }
 
 /// The demo ride's clock: 5:32 PM when the demo starts, running `speed` times as fast as the real clock from then.

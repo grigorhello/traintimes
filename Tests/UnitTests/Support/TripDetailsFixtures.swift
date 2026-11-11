@@ -193,3 +193,53 @@ struct DemoRideRig {
         )
     }
 }
+
+/// Demo trains › Departure (TT-177) on Friday, Nov 27, on a clock the test moves: the 5:13 PM train counting down from
+/// 5:01 PM, Platform 7 posted at 5:03, 3 min late from 5:04, Boarding now from 5:14, Departed at 5:16. "I’m on board" hands
+/// over into the demo ride on the same clock, with no timer.
+@MainActor
+struct DepartureRig {
+    nonisolated static let day = OnBoardFixtures.friday
+
+    let clock: TestClock
+    let onBoard: OnBoard
+
+    nonisolated static func time(_ hours: Int, _ minutes: Int, _ seconds: Int = 0) -> Date {
+        DepartureRig.day.gtfsTime(hours * 3600 + minutes * 60 + seconds)
+    }
+
+    /// The demo departure playing, at `moment`.
+    static func started(at moment: Date = DepartureRig.time(17, 1)) -> DepartureRig {
+        let clock = TestClock(now: moment)
+        let day = DepartureRig.day
+        let onBoard = OnBoard(
+            app: nil,
+            makeDeparture: { DemoDeparture.Session(day: day, clock: clock) },
+            makeHandOff: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) }
+        )
+        onBoard.setDemoDeparture(true)
+        return DepartureRig(clock: clock, onBoard: onBoard)
+    }
+
+    var key: TripKey { TripKey(serviceDay: DepartureRig.day, tripId: DemoRide.tripId) }
+
+    /// Trip details on the demo train, as its strip opens it, loaded.
+    func tripDetails() async -> TripDetailsViewModel {
+        let model = TripDetailsViewModel(
+            route: DemoRide.route,
+            key: key,
+            repository: StubScheduleRepository(tripList: [], live: .empty, stopList: []),
+            clock: clock,
+            hasAlert: true,
+            onBoard: onBoard
+        )
+        await model.load()
+        return model
+    }
+
+    /// Moves the clock and lets the open sheet follow it, as its tick does each second.
+    func move(to time: Date, _ model: TripDetailsViewModel) {
+        clock.set(time)
+        model.tick()
+    }
+}

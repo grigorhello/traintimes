@@ -16,6 +16,8 @@ final class BackgroundRig {
     let notifier = FakeDetectionNotifier()
     var route: Route? = DemoRide.route
     var isRiding = false
+    /// The app in front, or inactive: no wake-up checks then.
+    var isInForeground = false
     private(set) var detection: BackgroundDetection!
 
     /// At `time` (5:18:20 PM, 40 s before Exhibition, by default).
@@ -31,6 +33,7 @@ final class BackgroundRig {
             defaults: defaults,
             route: { [weak self] in self?.route },
             isRiding: { [weak self] in self?.isRiding ?? false },
+            isInForeground: { [weak self] in self?.isInForeground ?? false },
             makeDetector: { [unowned self] in
                 TrainDetector(
                     candidates: DemoCandidates(train: DemoRide.candidate(on: Self.day)),

@@ -29,10 +29,11 @@ struct SettingsNotificationsPage: View {
                 statusCard.settingsRise(order: 0)
                 kindsList.settingsRise(order: 1)
                 myAlertsCard.padding(.top, TTSpace.s1).settingsRise(order: 2)
+                SettingsNote(text: "settings.notifications.footnote").settingsRise(order: 3)
+                // Under the alerts' footnote, which is about alerts only (TT-176).
                 if viewModel.showsDetection {
-                    detectCard.padding(.top, TTSpace.s1).settingsRise(order: 3)
+                    detectCard.padding(.top, TTSpace.s1).settingsRise(order: 4)
                 }
-                SettingsNote(text: "settings.notifications.footnote").settingsRise(order: 4)
             }
         }
         .task { await viewModel.refreshPermission() }

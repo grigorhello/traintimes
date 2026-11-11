@@ -198,6 +198,25 @@ final class BackgroundDetectionTests: XCTestCase {
         XCTAssertFalse(rig.detection.isChecking)
     }
 
+    func testNothingChecksWhileTheAppIsInFront() async throws {
+        // A wake-up with the app in front, as the cached one iOS sends when the wake-ups start: Schedule's detection runs.
+        let inFront = BackgroundRig.on()
+        inFront.isInForeground = true
+        let wake = await inFront.detection.wake(try inFront.wakeFix())
+        XCTAssertEqual(wake, .busy)
+        XCTAssertFalse(inFront.gps.isUpdating)
+
+        // A check that started in the background ends at its next tick once the app is in front.
+        let rig = BackgroundRig.on()
+        _ = await rig.detection.wake(try rig.wakeFix())
+        XCTAssertTrue(rig.gps.isUpdating)
+        rig.isInForeground = true
+        rig.clock.advance(seconds: 1)
+        await rig.detection.tick()
+        XCTAssertFalse(rig.gps.isUpdating)
+        XCTAssertFalse(rig.detection.isChecking)
+    }
+
     // MARK: The question
 
     func testARidingTrackLeadsToTheNotification() async throws {

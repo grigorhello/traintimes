@@ -15,6 +15,9 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
     /// The iOS 18 `CLServiceSession`, kept as `Any` so iOS 17 builds.
     private var serviceSession: Any?
     private var waiters: [CheckedContinuation<Void, Never>] = []
+    /// The status when Always was asked for: the delegate also hears the current status when the manager is made, which
+    /// is no answer.
+    private var askedFrom: CLAuthorizationStatus?
     /// The app went inactive after the request: the dialog is up, so the wait ends when the app is active again.
     private var resignedForDialog = false
     private var observers: [NSObjectProtocol] = []
@@ -36,6 +39,7 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
             resignedForDialog = false
+            askedFrom = manager.authorizationStatus
             watchDialog()
             manager.requestAlwaysAuthorization()
             Task { [weak self] in
@@ -81,8 +85,8 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
-            // The delegate also hears the current status when it is set; only an answer ends the wait.
-            guard status != .notDetermined else { return }
+            // The delegate also hears the current status when the manager is made; only a change, an answer, ends the wait.
+            guard status != .notDetermined, status != self.askedFrom else { return }
             self.finishWaiting()
         }
     }
@@ -118,6 +122,7 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
     private func finishWaiting() {
         let waiting = waiters
         waiters = []
+        askedFrom = nil
         for waiter in waiting { waiter.resume() }
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []

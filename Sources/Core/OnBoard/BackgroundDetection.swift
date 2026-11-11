@@ -153,7 +153,7 @@ final class BackgroundDetection {
         /// The switch is off, or Always is not allowed.
         case off
         case quietHours
-        /// A ride or a check runs already.
+        /// A ride or a check runs already, or the app is in front, where Schedule's own detection runs (D68).
         case busy
         /// No route saved yet.
         case noRoute
@@ -179,6 +179,7 @@ final class BackgroundDetection {
     private let defaults: UserDefaults
     private let route: @MainActor () -> Route?
     private let isRiding: @MainActor () -> Bool
+    private let isInForeground: @MainActor () -> Bool
     private let makeDetector: @MainActor () -> TrainDetector
     private let tickInterval: Duration?
     @ObservationIgnored private var offered: Bool
@@ -187,7 +188,9 @@ final class BackgroundDetection {
     @ObservationIgnored private var loop: Task<Void, Never>?
 
     /// `tickInterval` nil runs no timer: tests call `tick()`. `makeDetector` makes each check's matcher, on the GPS that
-    /// runs in the background.
+    /// runs in the background. `isInForeground` is true while the app is not in the background (in front, or inactive at
+    /// launch or under a system dialog): a wake-up then, also the cached one iOS sends when the wake-ups start, checks
+    /// nothing.
     init(
         location: any WakeLocationProviding,
         candidates: any TrainCandidatesProviding,
@@ -196,6 +199,7 @@ final class BackgroundDetection {
         defaults: UserDefaults,
         route: @escaping @MainActor () -> Route?,
         isRiding: @escaping @MainActor () -> Bool,
+        isInForeground: @escaping @MainActor () -> Bool = { false },
         makeDetector: @escaping @MainActor () -> TrainDetector,
         tickInterval: Duration? = .seconds(1)
     ) {
@@ -206,6 +210,7 @@ final class BackgroundDetection {
         self.defaults = defaults
         self.route = route
         self.isRiding = isRiding
+        self.isInForeground = isInForeground
         self.makeDetector = makeDetector
         self.tickInterval = tickInterval
         isOn = defaults.bool(forKey: DetectionStore.enabledKey)
@@ -304,12 +309,12 @@ final class BackgroundDetection {
         guard isOn, location.allowsAlways else { return .off }
         let now = clock.now
         guard !Self.isQuiet(at: now) else { return .quietHours }
-        guard !isChecking, !isRiding() else { return .busy }
+        guard !isChecking, !isRiding(), !isInForeground() else { return .busy }
         guard let route = route() else { return .noRoute }
         guard Self.isMoving(fix) else { return .standing }
         let trains = await candidates.candidates(on: route, at: now)
         guard Self.isNear(fix, trains) else { return .awayFromLine }
-        guard isOn, !isChecking, !isRiding() else { return .busy }
+        guard isOn, !isChecking, !isRiding(), !isInForeground() else { return .busy }
         await startCheck(on: route, at: now)
         return .check
     }
@@ -319,11 +324,12 @@ final class BackgroundDetection {
         endCheck()
     }
 
-    /// The check's timer: the matcher's, then the question, or the end at 12 minutes, at 1 AM or when a ride starts.
+    /// The check's timer: the matcher's, then the question, or the end at 12 minutes, at 1 AM, when a ride starts or when
+    /// the app comes to the front.
     func tick() async {
         guard isChecking, let detector else { return }
         if postIfAsking(detector) { return }
-        guard isOn, !isRiding(), let deadline, clock.now < deadline else { return endCheck() }
+        guard isOn, !isRiding(), !isInForeground(), let deadline, clock.now < deadline else { return endCheck() }
         await detector.tick()
         _ = postIfAsking(detector)
     }

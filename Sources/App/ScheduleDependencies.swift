@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// What the Schedule tab and the route form read: GO Transit's GTFS feed, its GTFS-realtime TripUpdates and Alerts feeds
 /// when the app is built with the Metrolinx key, and the device clock in the app (TT-130, TT-131, TT-132, D35 to D37);
@@ -108,6 +109,7 @@ extension BackgroundDetection {
             defaults: .standard,
             route: { UserDefaultsRouteStore().route },
             isRiding: { ride.ride != nil && ride.state?.phase != .ended },
+            isInForeground: { UIApplication.shared.applicationState != .background },
             makeDetector: {
                 TrainDetector(candidates: candidates, location: BackgroundFixes(), clock: clock, defaults: .standard, tickInterval: nil)
             }

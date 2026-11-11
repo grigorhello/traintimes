@@ -95,6 +95,7 @@ Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live
 | 70 | TT-193 · Alerts tab, simplified: rows that open in place, rows that need you, Recent and an empty state with the next trains | [#129](https://github.com/grigorhello/traintimes/issues/129) | P1 | 3 | TT-191 (#127) |
 | 71 | TT-194 · Remove the old Alert setup sheet, its view model, tests, snapshots and strings | [#130](https://github.com/grigorhello/traintimes/issues/130) | P1 | 1 | TT-190, TT-191, TT-192, TT-193 |
 | 72 | TT-195 · Mock live data in Settings › Testing, to test live states on a real iPhone before the Metrolinx key | [#136](https://github.com/grigorhello/traintimes/issues/136) | P1 | 1 | Nothing |
+| 73 | TT-196 · Smooth swap-to-X motion when a station field opens the picker | [#137](https://github.com/grigorhello/traintimes/issues/137) | P1 | 0.5 | Nothing (TT-161, TT-165 merged) |
 
 ## TestFlight feedback tickets
 

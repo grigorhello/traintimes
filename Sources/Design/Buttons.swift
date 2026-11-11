@@ -138,31 +138,14 @@ struct GlassIconButton: View {
     let systemName: String
     let label: LocalizedStringKey
     var tint: Color = TTColor.accent
-    /// The glyph turned by this many degrees, set on every frame (the swap arrows, TT-165, D59). Such a button draws its
-    /// glyph over the glass rather than in it, and its glass does not react to touch: interactive glass eases what it holds
-    /// and its own size on a spring of its own, which put the arrows about 130 ms behind the clock and hid the press.
-    var glyphDegrees: Double?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            if let glyphDegrees {
-                Color.clear
-                    .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                    .ttGlass(in: Circle(), interactive: false)
-                    .overlay {
-                        glyph
-                            .rotationEffect(.degrees(glyphDegrees))
-                            // The angle comes from the clock: the press's ease must not catch it on the frame the tap lifts.
-                            .transaction { $0.animation = nil }
-                    }
-                    .contentShape(Circle())
-            } else {
-                glyph
-                    .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                    .ttGlass(in: Circle())
-                    .contentShape(Circle())
-            }
+            glyph
+                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                .ttGlass(in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityLabel(Text(label))
@@ -187,8 +170,8 @@ private struct GlassBackground<S: Shape>: ViewModifier {
     @Environment(\.rendersGlass) private var rendersGlass
     let tint: Color?
     let shape: S
-    /// Off for a control whose content follows the clock (the swap button, D59): interactive glass swells on touch and
-    /// eases its content and size on its own spring.
+    /// Off for a control whose content follows the clock (the route card's swap button and X, D59, TT-196): interactive
+    /// glass swells on touch and eases its content and size on its own spring.
     var interactive = true
 
     func body(content: Content) -> some View {

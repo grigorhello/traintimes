@@ -136,16 +136,51 @@ struct Toast: View {
 }
 
 extension AnyTransition {
-    /// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast` while it fades in over 0.15 s, and
-    /// leaves dropping 16 pt as it fades over 0.2 s easeIn. Reduce Motion keeps the fades only.
+    /// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast`, with the spring's small bounce, while
+    /// it fades in over 0.15 s, and leaves dropping 16 pt as it fades over 0.2 s easeIn. Each way is one modifier with its
+    /// own animation: two transitions combined, each with its own curve, let the screen's `.animation` drive the offset
+    /// (the simulator showed a 0.25 s easeOut with no bounce). Reduce Motion keeps the fades only.
     static func ttToast(reduceMotion: Bool) -> AnyTransition {
-        let fadeIn = AnyTransition.opacity.animation(.easeOut(duration: 0.15))
-        let fadeOut = AnyTransition.opacity.animation(.easeIn(duration: 0.2))
-        guard !reduceMotion else { return .asymmetric(insertion: fadeIn, removal: fadeOut) }
+        guard !reduceMotion else {
+            return .asymmetric(
+                insertion: .opacity.animation(.easeOut(duration: 0.15)),
+                removal: .opacity.animation(.easeIn(duration: 0.2))
+            )
+        }
+        // `TTMotion.toast` 0.15 s in (about 0.77): the rise's fade ends there, as on the canvas.
+        let opaqueAt = TTMotion.toastCurve.progress(at: 0.15)
         return .asymmetric(
-            insertion: fadeIn.combined(with: .offset(y: 32).animation(TTMotion.toast)),
-            removal: fadeOut.combined(with: .offset(y: 16).animation(.easeIn(duration: 0.2)))
+            insertion: .modifier(
+                active: ToastSlide(progress: 0, distance: 32, opaqueAt: opaqueAt),
+                identity: ToastSlide(progress: 1, distance: 32, opaqueAt: opaqueAt)
+            )
+            .animation(TTMotion.toast),
+            removal: .modifier(
+                active: ToastSlide(progress: 0, distance: 16, opaqueAt: 1),
+                identity: ToastSlide(progress: 1, distance: 16, opaqueAt: 1)
+            )
+            .animation(.easeIn(duration: 0.2))
         )
+    }
+}
+
+/// The toast `distance` pt below its place and transparent at 0, in place at 1: one progress moves it and fades it, fully
+/// opaque from `opaqueAt` on. A spring may carry it a little past 1, which is the bounce.
+private struct ToastSlide: ViewModifier, Animatable {
+    var progress: Double
+    let distance: CGFloat
+    let opaqueAt: Double
+
+    // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: distance * (1 - progress))
+            .opacity(min(1, max(0, progress / opaqueAt)))
     }
 }
 

@@ -154,25 +154,26 @@ struct AlertSetupView: View {
     }
 
     /// "Enable alerts", or once the new alert is On the check popping in from 0.6 on `TTMotion.confirm` (TT-166, D62); the
-    /// title keeps its place, so the button does not change size. Reduce Motion cross-fades.
+    /// title keeps its place, so the button does not change size. Each property has its own animation beside it: as a
+    /// transition the check lost most of its overshoot, and the title faded in the disabled grey on the green pill.
+    /// Reduce Motion cross-fades.
     private var enableLabel: some View {
-        ZStack {
+        let confirmed = viewModel.isConfirmed
+        return ZStack {
             Text(viewModel.buttonTitle)
-                .opacity(viewModel.isConfirmed ? 0 : 1)
-                .animation(.easeOut(duration: 0.15), value: viewModel.isConfirmed)
-            if viewModel.isConfirmed {
-                Image(systemName: "checkmark")
-                    .accessibilityHidden(true)
-                    .transition(checkEntrance)
-            }
+                // Its colour (and the check's) turns with the pill at once, rather than easing from the disabled grey.
+                .transaction { $0.animation = nil }
+                .opacity(confirmed ? 0 : 1)
+                .animation(.easeOut(duration: 0.15), value: confirmed)
+            Image(systemName: "checkmark")
+                .transaction { $0.animation = nil }
+                .scaleEffect(confirmed || reduceMotion ? 1 : 0.6)
+                .animation(TTMotion.confirm, value: confirmed)
+                .opacity(confirmed ? 1 : 0)
+                .animation(reduceMotion ? TTMotion.fade : .easeOut(duration: 0.15), value: confirmed)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
-        .animation(TTMotion.confirm, value: viewModel.isConfirmed)
-    }
-
-    private var checkEntrance: AnyTransition {
-        guard !reduceMotion else { return .opacity.animation(TTMotion.fade) }
-        return .scale(scale: 0.6).animation(TTMotion.confirm).combined(with: .opacity.animation(.easeOut(duration: 0.15)))
     }
 
     /// Canvas: cancel-fill panel, 12 pt radius, the cancel icon beside "Notifications off" and the sentence.

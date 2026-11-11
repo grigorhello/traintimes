@@ -65,7 +65,7 @@ final class DepartureSnapshotTests: XCTestCase {
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
-            ),
+            ).comparedAsRecorded,
             file: #filePath,
             testName: testName,
             line: line

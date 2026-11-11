@@ -42,7 +42,8 @@ struct RootView: View {
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
         alertUpdates: AlertUpdates? = nil,
-        ride: RideEngine? = nil
+        ride: RideEngine? = nil,
+        nudge: ArrivalNudge? = nil
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), toastDuration: alertDependencies.bellToastDuration,
@@ -76,7 +77,15 @@ struct RootView: View {
                 toastDuration: alertDependencies.toastDuration
             )
         )
-        _onBoard = State(initialValue: OnBoard(app: ride))
+        // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; "I'm on board"
+        // asks for notifications through the alert rules, as "Enable alerts" does (D66).
+        let rules = bells.rules
+        _onBoard = State(
+            initialValue: OnBoard(
+                app: ride, nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
+                requestNotifications: { await rules.requestPermission() }
+            )
+        )
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock

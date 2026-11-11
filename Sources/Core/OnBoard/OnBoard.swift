@@ -13,13 +13,26 @@ final class OnBoard {
     /// The route the ride was started on, for the sheet's header when the strip opens it.
     private(set) var route: Route?
     private let makeDemo: @MainActor () -> (engine: RideEngine, ride: Ride)
+    /// The app engine's arriving nudge (TT-173), which `AppDelegate` makes and follows from launch.
+    private let nudge: ArrivalNudge?
+    /// The demo ride's nudge, made each time the demo starts.
+    @ObservationIgnored private var demoNudge: ArrivalNudge?
+    private let makeDemoNudge: @MainActor () -> ArrivalNudge?
+    /// The notification prompt through the alert rules (D41, D66), after "I'm on board" started a ride.
+    private let requestNotifications: @MainActor () async -> Void
 
     init(
         app: RideEngine?,
-        makeDemo: @escaping @MainActor () -> (engine: RideEngine, ride: Ride) = { DemoRide.session() }
+        makeDemo: @escaping @MainActor () -> (engine: RideEngine, ride: Ride) = { DemoRide.session() },
+        nudge: ArrivalNudge? = nil,
+        makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
+        requestNotifications: @escaping @MainActor () async -> Void = {}
     ) {
         self.app = app
         self.makeDemo = makeDemo
+        self.nudge = nudge
+        self.makeDemoNudge = makeDemoNudge
+        self.requestNotifications = requestNotifications
     }
 
     /// The demo's engine while it plays, else the app's.
@@ -48,13 +61,17 @@ final class OnBoard {
         return state.phase == .ended && state.endReason == .arrived
     }
 
-    /// "I'm on board": starts the ride on the app's engine, where location is asked. False when it did not start.
+    /// "I'm on board": starts the ride on the app's engine, where location is asked, then asks for notifications if they
+    /// were never asked, for the arriving notifications (TT-173). False when it did not start.
     @discardableResult
     func start(_ ride: Ride, on route: Route) async -> Bool {
         guard let app, demo == nil else { return false }
         let started = await app.start(ride)
-        if started { self.route = route }
-        return started
+        guard started else { return false }
+        self.route = route
+        await requestNotifications()
+        nudge?.replan()
+        return true
     }
 
     /// End ride, or Done at your stop.
@@ -68,8 +85,12 @@ final class OnBoard {
             guard demo == nil else { return }
             let session = makeDemo()
             demo = session.engine
+            demoNudge = makeDemoNudge()
+            demoNudge?.follow(session.engine)
             await session.engine.start(session.ride)
         } else {
+            demoNudge?.stop()
+            demoNudge = nil
             demo?.end()
             demo = nil
         }

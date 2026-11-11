@@ -12,8 +12,10 @@ struct AlertDependencies {
     let defaults: UserDefaults?
     /// The notifications Notification Center still shows, for Recent updates (TT-143); none in fixture runs.
     var delivered: any DeliveredNotificationsProviding = FixedDeliveredNotifications()
-    /// How long the bell's toast and the Alerts tab's undo toast show (TT-141, TT-143).
+    /// How long the Alerts tab's undo toast and Schedule's "Tap the bell on a train" show (TT-143).
     var toastDuration: Duration = .seconds(5)
+    /// How long the bell's toast shows (TT-141; 2.5 s since TT-166).
+    var bellToastDuration: Duration = .milliseconds(2500)
 
     static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> AlertDependencies {
         #if DEBUG
@@ -28,9 +30,10 @@ struct AlertDependencies {
                 permissions: permissions,
                 defaults: environment["TT_FIXTURES"] != nil ? .standard : nil
             )
-            // A slow CI runner can take longer than 5 s to read the toast after a tap.
+            // A slow CI runner can take longer than 2.5 s to read the toast after a tap.
             if let seconds = environment["TT_TOAST_SECONDS"].flatMap(Int.init) {
                 dependencies.toastDuration = .seconds(seconds)
+                dependencies.bellToastDuration = .seconds(seconds)
             }
             return dependencies
         }

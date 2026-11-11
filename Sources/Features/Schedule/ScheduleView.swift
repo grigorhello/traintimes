@@ -448,32 +448,42 @@ struct ScheduleView: View {
 
     /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
     /// "Alert off", or "Could not save" with Try again; else "Tap the bell on a train" after the Alerts tab's "Add alert".
+    /// It rises on a spring and drops away as it goes (TT-166).
     @ViewBuilder private var alertToast: some View {
+        let motion = AnyTransition.ttToast(reduceMotion: reduceMotion)
         if let bells, bells.toast == nil, bells.showsHint {
-            Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell")
+            Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell", transition: motion)
                 .padding(.horizontal, TTSpace.s5)
                 .padding(.bottom, TTSpace.s2)
         } else if let bells, let toast = bells.toast {
             Group {
                 switch toast.kind {
                 case .settingUp:
-                    Toast(message: String(localized: "alert.state.setting_up"), systemImage: "clock", tint: TTColor.inkSecondary)
+                    Toast(
+                        message: String(localized: "alert.state.setting_up"), systemImage: "clock", tint: TTColor.inkSecondary,
+                        transition: motion
+                    )
                 case .on:
                     Toast(
                         message: String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
                         systemImage: "bell.fill",
-                        actionTitle: "alert.repeat"
+                        actionTitle: "alert.repeat",
+                        transition: motion
                     ) {
                         if let request = bells.repeatRequest() { onAlertSetup(request) }
                     }
                 case .off:
-                    Toast(message: String(localized: "alert.toast_off"), systemImage: "bell.slash", tint: TTColor.inkSecondary)
+                    Toast(
+                        message: String(localized: "alert.toast_off"), systemImage: "bell.slash", tint: TTColor.inkSecondary,
+                        transition: motion
+                    )
                 case .couldNotSave:
                     Toast(
                         message: String(localized: "alert.could_not_save"),
                         systemImage: "xmark.circle.fill",
                         tint: TTColor.cancelInk,
-                        actionTitle: "button.try_again"
+                        actionTitle: "button.try_again",
+                        transition: motion
                     ) {
                         tapBell(toast.trip, on: toast.route)
                     }

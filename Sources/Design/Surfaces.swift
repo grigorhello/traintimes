@@ -96,6 +96,8 @@ struct Toast: View {
     var systemImage: String?
     var tint: Color = TTColor.accent
     var actionTitle: LocalizedStringKey?
+    /// How it comes and goes; Schedule's bell toast rises on a spring (`ttToast`, TT-166).
+    var transition: AnyTransition = .opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25))
     var action: () -> Void = {}
 
     /// The canvas toast's radius and padding.
@@ -127,9 +129,23 @@ struct Toast: View {
         .padding(Self.insets)
         .background(TTColor.surface, in: RoundedRectangle(cornerRadius: Self.radius))
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.14), radius: 15, x: 0, y: -6)
-        .transition(.opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25)))
+        .transition(transition)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("toast")
+    }
+}
+
+extension AnyTransition {
+    /// Schedule's toast (TT-166, D60): it rises 32 pt into place on `TTMotion.toast` while it fades in over 0.15 s, and
+    /// leaves dropping 16 pt as it fades over 0.2 s easeIn. Reduce Motion keeps the fades only.
+    static func ttToast(reduceMotion: Bool) -> AnyTransition {
+        let fadeIn = AnyTransition.opacity.animation(.easeOut(duration: 0.15))
+        let fadeOut = AnyTransition.opacity.animation(.easeIn(duration: 0.2))
+        guard !reduceMotion else { return .asymmetric(insertion: fadeIn, removal: fadeOut) }
+        return .asymmetric(
+            insertion: fadeIn.combined(with: .offset(y: 32).animation(TTMotion.toast)),
+            removal: fadeOut.combined(with: .offset(y: 16).animation(.easeIn(duration: 0.2)))
+        )
     }
 }
 

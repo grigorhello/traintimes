@@ -13,9 +13,9 @@ struct ScheduleTimeline: View {
     var bell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
     var onBell: (TripKey) -> Void = { _ in }
     /// The cards' cascade, at rest unless a new set of trains has just been shown.
-    var entrance: MotionRun = .rest
-    /// When the Now dot's pulse started; nil at rest.
-    var pulse: Date?
+    var cascade: CascadeCue = .rest
+    /// When the Now dot's pulse started, read by the dot alone; nil draws it at rest.
+    var motion: ScheduleMotionClock?
 
     /// The right edge of the label column.
     private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
@@ -70,7 +70,7 @@ struct ScheduleTimeline: View {
                 DepartureCardView(card: card, bell: bell(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }) { size in
                     viewModel.setCardSize(size, for: card.id)
                 }
-                .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
+                .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
                 .padding(.leading, Self.cardX)
                 .padding(.trailing, TTSpace.s5)
                 .offset(y: place.top)
@@ -147,7 +147,7 @@ struct ScheduleTimeline: View {
                 Capsule()
                     .fill(TTColor.delayInk)
                     .frame(width: Self.delayBarWidth, height: bar.upperBound - bar.lowerBound)
-                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
+                    .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX - Self.delayBarWidth / 2, y: bar.lowerBound)
             }
         }
@@ -162,7 +162,7 @@ struct ScheduleTimeline: View {
                 Rectangle()
                     .fill(card.isCancelled ? TTColor.cancelInk : TTColor.accent)
                     .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
-                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
+                    .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
             }
         }
@@ -177,11 +177,11 @@ struct ScheduleTimeline: View {
             if let place = places[card.id] {
                 if let scheduledY = place.scheduledMarkerY {
                     ring(TTColor.delayInk)
-                        .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
+                        .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                         .centred(x: Self.railX, y: scheduledY)
                 }
                 marker(for: card)
-                    .cascadeEntrance(entrance, order: orders[card.id] ?? 0, moves: false)
+                    .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                     .centred(x: Self.railX, y: place.markerY)
             }
         }
@@ -229,23 +229,8 @@ struct ScheduleTimeline: View {
     /// The Now dot on the rail and the "Now" label. On the way back to Now the dot pulses once (`NowPulse`): it swells and a
     /// 2 pt ring spreads from it and fades. At rest there is no ring.
     @ViewBuilder private func nowMarker(at y: CGFloat) -> some View {
-        TimelineView(.animation(paused: pulse == nil)) { context in
-            let pose = pulse.map { NowPulse.pose(at: context.date.timeIntervalSince($0)) } ?? NowPulse.rest
-            ZStack {
-                if pose.ringOpacity > 0 {
-                    Circle()
-                        .strokeBorder(TTColor.accent, lineWidth: Self.railWidth)
-                        .frame(width: Self.nowDot + 2 * Self.railWidth, height: Self.nowDot + 2 * Self.railWidth)
-                        .scaleEffect(pose.ringScale)
-                        .opacity(pose.ringOpacity)
-                }
-                Circle()
-                    .fill(TTColor.accent)
-                    .frame(width: Self.nowDot, height: Self.nowDot)
-                    .scaleEffect(pose.dotScale)
-            }
+        NowDot(motion: motion, size: Self.nowDot, ring: Self.railWidth)
             .centred(x: Self.railX, y: y)
-        }
         label(Text("button.now"), at: y, weight: .semibold)
             .foregroundStyle(TTColor.accent)
     }
@@ -495,5 +480,32 @@ private extension View {
     func centred(x: CGFloat? = nil, y: CGFloat) -> some View {
         frame(width: x == nil ? nil : 0, height: 0)
             .offset(x: x ?? 0, y: y)
+    }
+}
+
+/// The Now dot, pulsing from the clock's `pulseStart`. A view of its own, so a pulse redraws the dot alone.
+private struct NowDot: View {
+    let motion: ScheduleMotionClock?
+    let size: CGFloat
+    let ring: CGFloat
+
+    var body: some View {
+        let start = motion?.pulseStart
+        TimelineView(.animation(paused: start == nil)) { context in
+            let pose = start.map { NowPulse.pose(at: context.date.timeIntervalSince($0)) } ?? NowPulse.rest
+            ZStack {
+                if pose.ringOpacity > 0 {
+                    Circle()
+                        .strokeBorder(TTColor.accent, lineWidth: ring)
+                        .frame(width: size + 2 * ring, height: size + 2 * ring)
+                        .scaleEffect(pose.ringScale)
+                        .opacity(pose.ringOpacity)
+                }
+                Circle()
+                    .fill(TTColor.accent)
+                    .frame(width: size, height: size)
+                    .scaleEffect(pose.dotScale)
+            }
+        }
     }
 }

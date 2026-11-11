@@ -4,6 +4,7 @@ import SwiftUI
 /// is selected, turns accent with a semibold label. Solid surface, never glass.
 struct DayCell: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let weekday: String
     let day: String
     var isSelected = false
@@ -16,6 +17,10 @@ struct DayCell: View {
 
     /// Canvas `.gday`.
     static let size = CGSize(width: 60, height: 48)
+    /// The tile turning, at once to the eye, but as an animation, so that it turns in the same frame as the accent's glide
+    /// starts (TT-164): a slow frame after the tap (the new trains being built) then still shows the old selection, where
+    /// a tile turned straight away covered the accent that had not moved yet and left no day selected.
+    private static let turn = Animation.linear(duration: 0.01)
 
     private var showsToday: Bool { isToday && !isSelected }
 
@@ -41,6 +46,8 @@ struct DayCell: View {
             .frame(width: Self.size.width, height: Self.size.height)
             .background(fill, in: RoundedRectangle(cornerRadius: TTRadius.md))
             .shadow(color: .black.opacity(colorScheme == .dark || isSelected ? 0 : 0.06), radius: 1, x: 0, y: 1)
+            // Reduce Motion: the accent jumps, so the tile turns with it at once.
+            .animation(reduceMotion ? nil : Self.turn, value: isSelected)
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])

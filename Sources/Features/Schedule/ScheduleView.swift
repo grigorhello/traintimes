@@ -35,11 +35,8 @@ struct ScheduleView: View {
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsScheduleMotion) private var playsMotion
-    /// The last `entranceRequest` the cards have cascaded for, and when that cascade started (nil at rest).
-    @State private var entranceSeen: Int
-    @State private var entranceStart: Date?
-    /// When the Now dot's pulse started (nil at rest).
-    @State private var pulseStart: Date?
+    /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
+    @State private var motion: ScheduleMotionClock
     /// Taps on each day tile, by tile id: each one replays that tile's press.
     @State private var dayTaps: [Int: Int] = [:]
 
@@ -65,7 +62,7 @@ struct ScheduleView: View {
         self.onOpenRide = onOpenRide
         _picker = State(initialValue: picker)
         // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
-        _entranceSeen = State(initialValue: viewModel.entranceRequest)
+        _motion = State(initialValue: ScheduleMotionClock(cascadeSeen: viewModel.entranceRequest))
     }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
@@ -99,11 +96,11 @@ struct ScheduleView: View {
     // MARK: Motion (TT-164, D61)
 
     /// The cards' cascade: pending (every card at its first pose, unseen) from the tap that asks for new trains until the
-    /// start is taken, just after the frame that puts them on screen.
-    private var entrance: MotionRun {
-        MotionRun(
-            start: entranceStart,
-            pending: playsMotion && (viewModel.entranceRequest != entranceSeen || viewModel.awaitsNewTrains)
+    /// start is taken, just after the frame that puts them on screen. The cards work it out from the clock themselves, so
+    /// the start and the end redraw them alone.
+    private var cascade: CascadeCue {
+        CascadeCue(
+            clock: motion, request: viewModel.entranceRequest, awaitsNewTrains: viewModel.awaitsNewTrains, plays: playsMotion
         )
     }
 
@@ -111,18 +108,19 @@ struct ScheduleView: View {
     /// can take a moment, and a start taken before it would skip the cascade's first frames.
     private func startEntrance() {
         let request = viewModel.entranceRequest
+        let motion = motion
         guard playsMotion else {
-            entranceSeen = request
+            motion.cascadeSeen = request
             return
         }
         Task { @MainActor in
             // A newer request takes its own start.
             guard request == viewModel.entranceRequest else { return }
             let start = Date()
-            entranceSeen = request
-            entranceStart = start
+            motion.cascadeSeen = request
+            motion.cascadeStart = start
             try? await Task.sleep(for: .seconds(CascadeMotion.duration))
-            if entranceStart == start { entranceStart = nil }
+            if motion.cascadeStart == start { motion.cascadeStart = nil }
         }
     }
 
@@ -130,12 +128,13 @@ struct ScheduleView: View {
     private func startPulse() {
         guard playsMotion, !reduceMotion else { return }
         let pulse = viewModel.nowPulse
+        let motion = motion
         Task { @MainActor in
             guard pulse == viewModel.nowPulse else { return }
             let start = Date()
-            pulseStart = start
+            motion.pulseStart = start
             try? await Task.sleep(for: .seconds(NowPulse.duration))
-            if pulseStart == start { pulseStart = nil }
+            if motion.pulseStart == start { motion.pulseStart = nil }
         }
     }
 
@@ -378,7 +377,7 @@ struct ScheduleView: View {
                         tapDay(tile)
                     }
                     .accessibilityIdentifier("schedule.day.\(tile.id)")
-                    .modifier(DayPress(trigger: dayTaps[tile.id, default: 0]))
+                    .dayPress(dayTaps[tile.id, default: 0], animated: playsMotion && !reduceMotion)
                 }
             }
             .scrollTargetLayout()
@@ -476,7 +475,7 @@ struct ScheduleView: View {
                 case .timeline:
                     ScheduleTimeline(
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:),
-                        entrance: entrance, pulse: pulseStart
+                        cascade: cascade, motion: motion
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
@@ -484,10 +483,10 @@ struct ScheduleView: View {
                 // The empty states only fade in with a new set of trains, never cascade.
                 case .noTrains(let title, let message, let showDay):
                     noTrains(title: title, message: message, showDay: showDay)
-                        .cascadeEntrance(entrance, order: 0, moves: false)
+                        .cascadeEntrance(cascade, order: 0, moves: false)
                 case .noConnection:
                     noConnection
-                        .cascadeEntrance(entrance, order: 0, moves: false)
+                        .cascadeEntrance(cascade, order: 0, moves: false)
                 }
             }
         }
@@ -643,31 +642,6 @@ struct ScheduleView: View {
         .padding(.horizontal, TTSpace.s5)
         .padding(.top, TTSpace.s3)
     }
-}
-
-/// The tapped day pressing to 0.90 and springing back past 1 on `TTMotion.press`: the screen's one bouncy moment (TT-164,
-/// D61). Played from the tap itself rather than the button's pressed state, which a quick tap in a scroll view may never
-/// draw; holding a tile still shows the usual 0.97 press.
-private struct DayPress: ViewModifier {
-    let trigger: Int
-
-    func body(content: Content) -> some View {
-        // Plain values, so the Sendable keyframe closure captures these and not the modifier.
-        let pressed = 0.90, spring = TTMotion.pressCurve.spring
-        return content.keyframeAnimator(initialValue: PressValues(), trigger: trigger) { view, values in
-            view.scaleEffect(values.scale)
-        } keyframes: { _ in
-            KeyframeTrack(\.scale) {
-                LinearKeyframe(pressed, duration: 0.001)
-                // From rest: left to itself the spring keeps the 1 ms ramp's speed and throws the tile through zero.
-                SpringKeyframe(1, duration: 0.75, spring: spring, startVelocity: 0)
-            }
-        }
-    }
-}
-
-private struct PressValues {
-    var scale = 1.0
 }
 
 #Preview {

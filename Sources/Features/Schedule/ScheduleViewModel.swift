@@ -62,6 +62,10 @@ final class ScheduleViewModel {
     /// cascade's first pose (TT-164, D61). A count, so a load overtaken by a newer one does not end the wait early.
     private(set) var newTrainsLoading = 0
     var awaitsNewTrains: Bool { newTrainsLoading > 0 }
+    /// New trains have kept the timeline empty for `slowNewTrains`, so it shows the loading timeline until they land: today's
+    /// trains wait for live status, which can take the network's time (up to 10 s on a dead connection, D36).
+    private(set) var newTrainsAreSlow = false
+    static let slowNewTrains: Duration = .milliseconds(400)
     /// The last scroll request jumps instead of gliding: new trains replaced the cards, so the timeline moves at once and
     /// they cascade in where they land (TT-164, D61).
     private(set) var scrollJumps = false
@@ -157,7 +161,7 @@ final class ScheduleViewModel {
     var content: Content {
         guard let route else { return .loading }
         guard route.line != nil else { return .noConnection }
-        guard freshness != nil else { return .loading }
+        guard freshness != nil, !(awaitsNewTrains && newTrainsAreSlow) else { return .loading }
         guard departures.isEmpty else { return .timeline }
         return .noTrains(
             title: String(format: String(localized: "schedule.no_trains.title"), selectedDay.weekdayName),
@@ -458,7 +462,15 @@ final class ScheduleViewModel {
     /// A load for another day or route: the old cards hide at once and the new ones cascade in once it lands.
     private func loadNewTrains() async {
         newTrainsLoading += 1
-        defer { newTrainsLoading -= 1 }
+        let slow = Task {
+            try? await Task.sleep(for: Self.slowNewTrains)
+            if !Task.isCancelled { newTrainsAreSlow = true }
+        }
+        defer {
+            slow.cancel()
+            newTrainsLoading -= 1
+            if newTrainsLoading == 0 { newTrainsAreSlow = false }
+        }
         await load(newTrains: true)
     }
 
@@ -541,7 +553,10 @@ final class ScheduleViewModel {
         return nil
     }
 
+    /// Set only when it changes: each new card reports its size once, mostly the standard one the layout already used, and
+    /// setting an equal layout would still redraw every card (a day of cards took a moment in a Debug build, TT-164).
     private func relayout() {
-        layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
+        let layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
+        if layout != self.layout { self.layout = layout }
     }
 }

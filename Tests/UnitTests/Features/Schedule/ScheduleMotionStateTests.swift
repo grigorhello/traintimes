@@ -89,6 +89,44 @@ final class ScheduleMotionStateTests: XCTestCase {
         XCTAssertFalse(model.awaitsNewTrains, "Shown once the trains land")
     }
 
+    /// New trains that keep the timeline empty for long (today's wait for live status on a slow network) show the loading
+    /// timeline until they land; a quick load never shows it.
+    func testSlowNewTrainsShowTheLoadingTimeline() async throws {
+        let repository = GatedRepository()
+        let route = Route(
+            from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO"),
+            line: Line(id: "LW", name: "Lakeshore West", colorHex: "#98002e")
+        )
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
+        await model.loadIfNeeded()
+        let shown = model.content
+        await model.select(model.days[1])
+        XCTAssertFalse(model.newTrainsAreSlow, "A quick load")
+        await repository.close()
+        let selecting = Task { await model.select(model.days[2]) }
+        await repository.held()
+        XCTAssertEqual(model.content, shown, "Hidden by the cascade's wait at first, not loading")
+        try await Task.sleep(for: ScheduleViewModel.slowNewTrains + .milliseconds(200))
+        XCTAssertEqual(model.content, .loading, "Loading once the wait is long")
+        await repository.open()
+        await selecting.value
+        XCTAssertFalse(model.newTrainsAreSlow)
+        XCTAssertNotEqual(model.content, .loading, "The trains landed")
+    }
+
+    /// A card measured at the size the layout already gave it leaves the layout as it is, so the cards are not all redrawn;
+    /// another size moves it.
+    func testACardMeasuredAtTheStandardSizeLeavesTheLayoutAlone() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        let card = try XCTUnwrap(model.departures.first)
+        let flag = ChangeFlag()
+        withObservationTracking { _ = model.layout } onChange: { MainActor.assumeIsolated { flag.changed = true } }
+        model.setCardSize(.standard, for: card.id)
+        XCTAssertFalse(flag.changed, "The same layout")
+        model.setCardSize(TimelineCardSize(height: 160, anchor: 33), for: card.id)
+        XCTAssertTrue(flag.changed, "A taller card moves the others")
+    }
+
     /// A past day's cards only fade in.
     func testPastDaysOnlyFade() async throws {
         let model = try await ScheduleViewModel.loadedFixture()
@@ -150,6 +188,11 @@ final class ScheduleMotionStateTests: XCTestCase {
         let pastFirst = model.layout.cascadeOrder(scrolledTo: cards[0].bottom + 1)
         XCTAssertEqual(cards.map { pastFirst[$0.id] }, [0, 0, 1, 2])
     }
+}
+
+/// Set when an observed property changes; the observation's callback runs on the main actor, during the change.
+@MainActor private final class ChangeFlag {
+    var changed = false
 }
 
 /// No timetable until `connect()`, like a first launch without a connection (TT-130).

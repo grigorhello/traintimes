@@ -95,4 +95,31 @@ final class ScheduleMotionTests: XCTestCase {
         XCTAssertEqual(MotionRun(pending: true).elapsed(at: now), 0)
         XCTAssertEqual(MotionRun(start: now.addingTimeInterval(-0.25)).elapsed(at: now) ?? 0, 0.25, accuracy: 1e-6)
     }
+
+    /// The cards wait unseen at their first pose from the request until its start is taken, and while new trains are still
+    /// awaited; with motion off, or no clock, they are at rest.
+    @MainActor func testTheCascadeCueIsPendingUntilItsStartIsTaken() {
+        let clock = ScheduleMotionClock(cascadeSeen: 1)
+        XCTAssertEqual(CascadeCue(clock: clock, request: 1, plays: true).run, .rest)
+        XCTAssertTrue(CascadeCue(clock: clock, request: 2, plays: true).run.pending, "A new request")
+        XCTAssertTrue(CascadeCue(clock: clock, request: 1, awaitsNewTrains: true, plays: true).run.pending, "Trains awaited")
+        XCTAssertFalse(CascadeCue(clock: clock, request: 2, plays: false).run.pending, "Motion off")
+        XCTAssertEqual(CascadeCue.rest.run, .rest)
+        let start = Date()
+        clock.cascadeSeen = 2
+        clock.cascadeStart = start
+        XCTAssertEqual(CascadeCue(clock: clock, request: 2, plays: true).run, MotionRun(start: start))
+    }
+
+    /// Each tap plays one press: 0.90 at once, back past 1 to about 1.016, at rest by 0.75 s and on every whole tap count.
+    func testThePressDipsAndSpringsBackPastOne() {
+        XCTAssertEqual(DayPressMotion.scale(presses: 0), 1)
+        XCTAssertEqual(DayPressMotion.scale(presses: 3), 1)
+        XCTAssertEqual(DayPressMotion.scale(presses: 3.0001), 0.90, accuracy: 0.001)
+        XCTAssertEqual(DayPressMotion.scale(at: DayPressMotion.duration), 1)
+        let samples = (1..<750).map { DayPressMotion.scale(at: Double($0) / 1000) }
+        XCTAssertEqual(samples.max() ?? 0, 1.0163, accuracy: 0.002)
+        XCTAssertGreaterThanOrEqual(samples.min() ?? 0, 0.90)
+        XCTAssertEqual(DayPressMotion.scale(presses: 3.9999), 1, accuracy: 0.002)
+    }
 }

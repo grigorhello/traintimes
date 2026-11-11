@@ -88,6 +88,12 @@ Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live
 | 56 | TT-179 · Train positions endpoint on the alert server (GET /trains) | [#103](https://github.com/grigorhello/traintimes/issues/103) | P2 | 0.5 | The Metrolinx key (Q1) |
 | 57 | TT-180 · On board: test on real GO rides | [#104](https://github.com/grigorhello/traintimes/issues/104) | P1 | 1 | Grigor on a GO train; first check after TT-172 (#96) |
 | 65 | TT-188 · Directions link on Trip details: open Apple Maps to the departure station | [#116](https://github.com/grigorhello/traintimes/issues/116) | P2 | 1 | TT-163 (#83) |
+| 66 | TT-189 · One alert per train card: one lookup for the bell, Trip details, the watched-trip strip and Live mode | [#125](https://github.com/grigorhello/traintimes/issues/125) | P1 | 2 | Nothing (TT-166, TT-172 merged) |
+| 67 | TT-190 · Permission from the bell: iOS asks on the first tap, a refusal shows Notifications are off · Turn on | [#126](https://github.com/grigorhello/traintimes/issues/126) | P1 | 1.5 | TT-189 (#125) |
+| 68 | TT-191 · Glass alert capsule and day panel on Schedule, with Repeat, Undo and Try again | [#127](https://github.com/grigorhello/traintimes/issues/127) | P1 | 3 | TT-189 (#125); in parallel with TT-190 |
+| 69 | TT-192 · Trip details alert bar: Alert me turns on in place, Alert on with Repeat, day panel in the sheet | [#128](https://github.com/grigorhello/traintimes/issues/128) | P1 | 2 | TT-191 (#127), TT-190 (#126) |
+| 70 | TT-193 · Alerts tab, simplified: rows that open in place, rows that need you, Recent and an empty state with the next trains | [#129](https://github.com/grigorhello/traintimes/issues/129) | P1 | 3 | TT-191 (#127) |
+| 71 | TT-194 · Remove the old Alert setup sheet, its view model, tests, snapshots and strings | [#130](https://github.com/grigorhello/traintimes/issues/130) | P1 | 1 | TT-190, TT-191, TT-192, TT-193 |
 
 ## TestFlight feedback tickets
 
@@ -106,5 +112,6 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 41 | TT-164 · Schedule motion: day-change glide, card cascade, Now pulse | [#89](https://github.com/grigorhello/traintimes/issues/89) | P1 | 2 | Grigor, 2026-11-10, D61 |
 | 42 | TT-165 · Swap button animation: the station names trade places | [#91](https://github.com/grigorhello/traintimes/issues/91) | P1 | 2 | Grigor, 2026-11-10, D59 |
 | 43 | TT-166 · Bell pop, toast spring and the Enable-alerts confirmation | [#92](https://github.com/grigorhello/traintimes/issues/92) | P2 | 1 | Grigor, 2026-11-10, D62 |
+| 44 | TT-167 · Trip details: staged appearance of the journey card and stops | [#93](https://github.com/grigorhello/traintimes/issues/93) | P2 | 1 | Grigor, 2026-11-10, D65 |
 | 45 | TT-168 · Settings redesign: five-row main view, glass switches, Notifications, About and Testing pages | [#85](https://github.com/grigorhello/traintimes/issues/85) | P1 | 8 | Grigor, 2026-11-10, D57 |
 | 46 | TT-169 · Notifications-off warning: red dot on the Alerts tab and a fix card in Alerts | [#86](https://github.com/grigorhello/traintimes/issues/86) | P1 | 3 | Grigor, 2026-11-10, D58 |

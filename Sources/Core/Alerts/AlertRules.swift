@@ -5,6 +5,11 @@ import Observation
 /// (D5, D38). The bell (TT-141), the alert setup sheet (TT-142), the Alerts tab (TT-143) and the watched-trip strip
 /// (TT-144) share one instance.
 ///
+/// One alert per train card (TT-189, D70): `alert(for:on:)`, the alert that covers a train on its day, is the one lookup the
+/// bell, Trip details, the watched-trip strip and Live mode read. Repeat saved for a train with a one-day alert changes that
+/// alert under its id, and a one-day alert that a switched-on repeating alert also covers is merged away (at launch and
+/// after each save).
+///
 /// A rule shows On only once the server stored it and the device token is registered, and only while notifications are
 /// allowed: with permission off it shows Notifications off, but is still saved, so allowing notifications later needs no
 /// resync. A rule the server could not take stays on device as Could not save; saving it again retries with the same id.
@@ -65,6 +70,8 @@ final class AlertRules: WatchedTripsProviding {
             // A save cut short by the app quitting never reached On.
             serverStates[item.rule.id] = item.state == .settingUp ? .couldNotSave : item.state
         }
+        // Doubles kept by an older build go now; the server hears with the next call.
+        mergeDoubles()
     }
 
     /// The rule's state in words. On needs notifications allowed; otherwise it reads Notifications off.
@@ -90,47 +97,39 @@ final class AlertRules: WatchedTripsProviding {
         noTrainDates[rule.id] == String(day.dateKey)
     }
 
-    /// The This-trip rule for a train between the route's stations.
-    func thisTripRule(for trip: TripKey, on route: Route) -> AlertRule? {
-        rules.first { $0.kind == .thisTrip && $0.trip == trip && $0.origin.id == route.from.id && $0.destination.id == route.to.id }
+    /// The one lookup (TT-189, D70): the alert that covers this train on its day between the route's stations, a This-trip
+    /// alert for it or a Repeat alert for its usual train on one of its days. A card has one alert; while an older build's
+    /// double is still stored, the alert that works wins (switched on and saved), then the switched-on one, then the
+    /// repeating one.
+    func alert(for trip: Trip, on route: Route) -> AlertRule? {
+        rules.filter { $0.covers(trip, on: route) }.min { rank($0) < rank($1) }
     }
 
-    /// The watched-trip strip's question (TT-144, D39): a trip is watched while a This-trip rule for it is On and not
-    /// paused, as the filled bell shows. A Repeat rule's usual train cannot be named by a trip id alone; TT-142 adds it
-    /// with Repeat.
-    func isWatched(_ trip: TripKey) -> Bool {
-        rules.contains { $0.kind == .thisTrip && $0.trip == trip && !$0.paused && state(of: $0) == .on }
+    /// The repeating alert for this train's usual train, whichever days it has: a bell on a day it leaves out adds that day
+    /// to it rather than making a second alert (TT-189).
+    func usualAlert(for trip: Trip, on route: Route) -> AlertRule? {
+        rules.first { $0.isUsualTrain(of: trip, on: route) }
     }
 
-    /// Before departure (TT-177, D69): the train goes live because the rider set an alert for it between the route's
-    /// stations: a This-trip rule for it, or a Repeat rule whose usual train it is on its service day (same line and time of
-    /// day, on one of the rule's weekdays). A paused rule does not count; any other state does, so the countdown also runs
-    /// with notifications off (Live-Spec).
+    /// The watched-trip strip's question (TT-144, D39) and the filled bell's: the train's alert is switched on and On.
+    func isWatched(_ trip: Trip, on route: Route) -> Bool {
+        guard let rule = alert(for: trip, on: route) else { return false }
+        return !rule.paused && state(of: rule) == .on
+    }
+
+    /// Trip details' "Manage alert" and its bell: the train has an alert that is switched on, whatever its saved state.
     func isAlerted(_ trip: Trip, on route: Route) -> Bool {
-        let minutes = ServiceDay.minutesIntoServiceDay(trip.scheduledDeparture)
-        // ISO weekday, 1 is Monday; `ServiceDay.weekday` counts from Sunday.
-        let weekday = (trip.key.serviceDay.weekday + 5) % 7 + 1
-        return rules.contains { rule in
-            guard !rule.paused, rule.origin.id == route.from.id, rule.destination.id == route.to.id else { return false }
-            return switch rule.kind {
-            case .thisTrip: rule.trip == trip.key
-            case .repeating:
-                rule.weekdays.contains(weekday) && rule.line == (route.line?.id ?? "")
-                    && ServiceDay.minutesIntoServiceDay(rule.scheduledDeparture) == minutes
-            }
-        }
+        alert(for: trip, on: route).map { !$0.paused } ?? false
     }
 
-    /// The stored rule the candidate would duplicate: the same train for This trip, the same usual train for Repeat
-    /// (line, stations and scheduled time of day), so enabling it again updates that rule.
+    /// The stored alert a candidate is saved over, so enabling it again updates that alert: the one-day alert for the same
+    /// train; for Repeat, the repeating alert of the same usual train (line, stations and scheduled time of day), else the
+    /// one-day alert for the candidate's own train, so Repeat changes that alert under its id (TT-189). A one-day candidate
+    /// never takes over a repeating alert's days; on a day one covers it is merged away after the save.
     func matching(_ candidate: AlertRule) -> AlertRule? {
-        rules.first { rule in
-            guard rule.kind == candidate.kind else { return false }
-            return switch rule.kind {
-            case .thisTrip: rule.trip == candidate.trip && rule.origin.id == candidate.origin.id && rule.destination.id == candidate.destination.id
-            case .repeating: rule.isSameUsualTrain(as: candidate)
-            }
-        }
+        let oneDay = rules.first { $0.kind == .thisTrip && $0.covers(trainOf: candidate) }
+        guard candidate.kind == .repeating else { return oneDay }
+        return rules.first { $0.kind == .repeating && $0.isSameUsualTrain(as: candidate) } ?? oneDay
     }
 
     /// Reads the permission again, on coming back to the foreground or before a save.
@@ -149,13 +148,19 @@ final class AlertRules: WatchedTripsProviding {
     }
 
     /// Saves the rule on device and on the server: Setting up, then On (or Notifications off), or Could not save.
-    /// A rule that duplicates a stored one updates it; a save already in flight for the rule sends nothing more.
+    /// A stored rule's id updates that rule; a new one for a card that has an alert updates that alert (`matching`). A save
+    /// already in flight for the rule sends nothing more. Doubles it leaves are merged away afterwards (TT-189).
     func save(_ candidate: AlertRule) async {
         var rule = candidate
-        if let existing = matching(candidate) { rule.id = existing.id }
+        if !contains(rule.id), let existing = matching(candidate) { rule.id = existing.id }
         guard !inFlight.contains(rule.id) else { return }
         inFlight.insert(rule.id)
-        defer { inFlight.remove(rule.id) }
+        await send(rule)
+        inFlight.remove(rule.id)
+        if mergeDoubles() { await retryPendingDeletes() }
+    }
+
+    private func send(_ rule: AlertRule) async {
         upsert(rule, state: .settingUp)
         await refreshPermission()
         await retryPendingDeletes()
@@ -193,9 +198,10 @@ final class AlertRules: WatchedTripsProviding {
             statuses = try await server.rules(installation: installation)
         } catch AlertServerError.unknownInstallation {
             // The server dropped this installation (APNs reported its token gone): register again and save each rule
-            // again, so none reads On while nothing watches it (TT-153).
+            // again, so none reads On while nothing watches it (TT-153). A rule merged away or deleted meanwhile is skipped,
+            // so the loop never puts it back (TT-189).
             registered = nil
-            for rule in rules where !inFlight.contains(rule.id) { await save(rule) }
+            for rule in rules where contains(rule.id) && !inFlight.contains(rule.id) { await save(rule) }
             return
         } catch {
             return
@@ -247,6 +253,33 @@ final class AlertRules: WatchedTripsProviding {
 
     private func contains(_ id: AlertRule.ID) -> Bool {
         rules.contains { $0.id == id }
+    }
+
+    /// Which of two alerts on one card wins (`alert(for:on:)`): the one that works, then the switched-on one, then Repeat.
+    private func rank(_ rule: AlertRule) -> (Int, Int) {
+        let works = !rule.paused && serverStates[rule.id] == .on
+        return (works ? 0 : rule.paused ? 2 : 1, rule.kind == .repeating ? 0 : 1)
+    }
+
+    /// Merges doubles (TT-189): a one-day alert whose train a repeating alert also covers, while that one is switched on and
+    /// saved, alerts nothing more, so it goes on device at once and on the server with the next call. Rules being saved are
+    /// left alone. True when one went.
+    @discardableResult
+    private func mergeDoubles() -> Bool {
+        let covering = rules.filter { $0.kind == .repeating && !$0.paused && serverStates[$0.id] == .on }
+        let doubles = rules.filter { rule in
+            rule.kind == .thisTrip && !inFlight.contains(rule.id) && covering.contains { $0.covers(trainOf: rule) }
+        }
+        guard !doubles.isEmpty else { return false }
+        let ids = Set(doubles.map(\.id))
+        rules.removeAll { ids.contains($0.id) }
+        for id in ids {
+            serverStates[id] = nil
+            noTrainDates[id] = nil
+        }
+        pendingDeletes.append(contentsOf: doubles.map(\.id))
+        persist()
+        return true
     }
 
     private func upsert(_ rule: AlertRule, state: AlertRuleState) {

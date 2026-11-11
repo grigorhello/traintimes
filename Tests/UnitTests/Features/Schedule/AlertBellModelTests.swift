@@ -34,7 +34,7 @@ final class AlertBellModelTests: XCTestCase {
         let rules = AlertFixtures.rules(server)
         let bells = AlertBellModel(rules: rules)
         _ = await bells.tap(trip, on: route)
-        var rule = try XCTUnwrap(rules.thisTripRule(for: trip.key, on: route))
+        var rule = try XCTUnwrap(rules.alert(for: trip, on: route))
         rule.paused = true
         await rules.save(rule)
         XCTAssertEqual(bells.bell(for: trip, on: route), .off)
@@ -103,6 +103,67 @@ final class AlertBellModelTests: XCTestCase {
 
         XCTAssertEqual(bells.repeatRequest(), AlertSetupRequest(route: route, trip: trip, kind: .repeating))
         XCTAssertNil(bells.toast)
+    }
+
+    // MARK: One alert per card (TT-189)
+
+    /// A repeating alert fills the bell on each of its days; a tap switches it off, days kept, and the next tap brings it
+    /// back. Never a second alert.
+    func testARepeatingAlertFillsTheBellOnItsDaysAndATapSwitchesItOffKeepingItsDays() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
+        let id = try XCTUnwrap(rules.rules.first?.id)
+        let friday = AlertFixtures.trip("LW-0732-20261106", day: 6)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .on)
+        XCTAssertEqual(bells.bell(for: friday, on: route), .on)
+        XCTAssertEqual(bells.bell(for: AlertFixtures.trip("LW-0732-20261107", day: 7), on: route), .off, "Saturday")
+
+        _ = await bells.tap(friday, on: route)
+        XCTAssertEqual(bells.toast?.kind, .off)
+        XCTAssertEqual(bells.bell(for: friday, on: route), .off)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off, "every day is off")
+        XCTAssertEqual(rules.rules.map(\.id), [id])
+        XCTAssertEqual(rules.rules.first?.paused, true)
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
+
+        _ = await bells.tap(trip, on: route)
+        XCTAssertEqual(bells.toast?.kind, .on)
+        XCTAssertEqual(bells.bell(for: friday, on: route), .on)
+        XCTAssertEqual(rules.rules.map(\.id), [id])
+        XCTAssertEqual(rules.rules.first?.paused, false)
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, [])
+    }
+
+    /// A bell on a day the repeating alert leaves out adds that day to it.
+    func testABellOnADayTheRepeatingAlertLeavesOutAddsThatDay() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 3, 4, 5]))
+        let saturday = AlertFixtures.trip("LW-0732-20261107", day: 7)
+
+        _ = await bells.tap(saturday, on: route)
+
+        XCTAssertEqual(rules.rules.count, 1)
+        XCTAssertEqual(rules.rules.first?.kind, .repeating)
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5, 6])
+        XCTAssertEqual(bells.bell(for: saturday, on: route), .on)
+        XCTAssertEqual(bells.toast?.kind, .on)
+    }
+
+    /// Without permission the sheet opens on the card's own alert, so a repeating one opens on Repeat.
+    func testWithoutPermissionTheSheetOpensOnTheCardsAlert() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server, permission: .off)
+        await rules.save(AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [4]))
+        let bells = AlertBellModel(rules: rules)
+
+        let request = await bells.tap(trip, on: route)
+        XCTAssertEqual(request, AlertSetupRequest(route: route, trip: trip, kind: .repeating))
+        XCTAssertEqual(rules.rules.count, 1)
     }
 
     func testTheToastHidesAfterItsTime() async throws {

@@ -317,12 +317,13 @@ final class ScheduleViewModel {
 
     /// The watched train that has left, for the strip above the timeline (TT-144): today only, from the moment its live
     /// departure time has passed, as Trip details says "Departed" (D32), until 10 min after its arrival (estimated, else
-    /// scheduled) or until swiped away. The latest such train when there are several.
+    /// scheduled) or until swiped away. The latest such train when there are several. Watched means the train's own alert
+    /// (TT-189), so a repeating alert's train counts on each of its days.
     var watchedDeparture: Departure? {
-        guard isToday else { return nil }
+        guard isToday, let route else { return nil }
         return departures.last { departure in
             guard let departed = departure.expectedDeparture, departed <= now,
-                  !dismissedWatchedTrips.contains(departure.id), watchedTrips.isWatched(departure.id) else { return false }
+                  !dismissedWatchedTrips.contains(departure.id), watchedTrips.isWatched(departure.trip, on: route) else { return false }
             let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
             return now < arrival.addingTimeInterval(Self.watchedStripAfterArrival)
         }

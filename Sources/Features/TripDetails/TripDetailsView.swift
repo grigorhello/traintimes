@@ -153,6 +153,9 @@ struct TripDetailsView: View {
                 .padding(.top, TTSpace.s5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // A live time or status that changes later cross-fades; nothing bounces (TT-167).
+        .contentTransition(.opacity)
+        .animation(TTMotion.fade, value: details)
     }
 
     // MARK: Before departure (TT-177)
@@ -165,6 +168,8 @@ struct TripDetailsView: View {
                 departure: departure,
                 onDirections: viewModel.directionsStation != nil ? { viewModel.openDirections() } : nil
             )
+            // The card arrives first, as the journey card does (TT-167, D65).
+            .stagedEntrance(rise: 12, on: TTMotion.card)
             stops(details, hint: departure.footnote)
                 .padding(.top, TTSpace.s5)
         }
@@ -206,6 +211,8 @@ struct TripDetailsView: View {
         }
         .padding(.horizontal, TTSpace.s4)
         .ttSheetCard()
+        // The staged entrance (TT-167, D65): the card first, riding 12 pt down into place as the sheet's content arrives.
+        .stagedEntrance(rise: 12, on: TTMotion.card)
     }
 
     /// The ring centred on the first row (on its name line when the Directions link is under the name), the three dots
@@ -378,6 +385,7 @@ struct TripDetailsView: View {
             VStack(spacing: 0) {
                 ForEach(Array(details.stops.enumerated()), id: \.element.id) { index, stop in
                     stopRow(stop, isFirst: index == 0, isStruck: details.isTrainCancelled)
+                        .stagedEntrance(rise: 10, on: TTMotion.stops, delay: TTMotion.stopDelay(index))
                 }
             }
             .background(alignment: .topLeading) { rail(stops: details.stops.count) }
@@ -393,6 +401,8 @@ struct TripDetailsView: View {
                 .padding(.horizontal, TTSpace.s1)
                 .padding(.top, 10)
         }
+        // The list's card, rail and words fade in with the journey card while the rows ripple in (TT-167).
+        .stagedEntrance()
     }
 
     /// The 2 pt rail from just under the origin ring to just above the destination pin's head, down the marker column.
@@ -482,6 +492,8 @@ struct TripDetailsView: View {
         }
         .buttonStyle(PressScaleStyle())
         .accessibilityIdentifier("trip.alert")
+        // Last, from 120 ms: it grows from 0.9 as it fades in (TT-167).
+        .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
     }
@@ -523,6 +535,8 @@ struct TripDetailsView: View {
             .buttonStyle(PressScaleStyle())
             .accessibilityIdentifier("trip.onboard")
         }
+        // Arrives like the alert button it stands in for (TT-167).
+        .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
     }

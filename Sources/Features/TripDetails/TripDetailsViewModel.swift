@@ -65,12 +65,20 @@ struct TripDetails: Hashable {
 final class TripDetailsViewModel {
     let route: Route
     let key: TripKey
-    /// A This-trip alert rule covers this trip: "Manage alert" in place of "Alert me" (TT-142).
-    let hasAlert: Bool
+    /// The train has an alert that is switched on: "Manage alert" in place of "Alert me" (TT-142), and the filled bell
+    /// beside "I'm on board" (TT-172). Read from the alert rules' one lookup once the trip is loaded, so a repeating alert
+    /// counts on each of its days and a change shows at once (TT-189); without them (previews, tests) the value passed in.
+    var hasAlert: Bool {
+        // The demo departure plays an alerted train (TT-177).
+        if demoDeparture != nil { return true }
+        guard let alerts, let trip = departure?.trip else { return fixedHasAlert }
+        return alerts.isAlerted(trip, on: route)
+    }
     /// On board (TT-172): "I'm on board" and ride mode. Nil where the sheet needs no ride (previews, most tests).
     let onBoard: OnBoard?
-    /// The alert rules (TT-177): the alerted train that leaves first shows the departure card from 30 min before it
-    /// leaves. Nil shows none.
+    private let fixedHasAlert: Bool
+    /// The alert rules (TT-189): `hasAlert`, and the alerted train that leaves first shows the departure card from 30 min
+    /// before it leaves (TT-177). Nil keeps `hasAlert` at the value passed in and shows no departure card.
     private let alerts: (any WatchedTripsProviding)?
 
     /// Nil until loaded, or when the trip is not on the route that day.
@@ -109,7 +117,7 @@ final class TripDetailsViewModel {
         self.key = key
         self.repository = repository
         self.clock = clock
-        self.hasAlert = hasAlert
+        fixedHasAlert = hasAlert
         self.onBoard = onBoard
         self.alerts = alerts
         followsRide = onBoard?.isRunning(key) ?? false

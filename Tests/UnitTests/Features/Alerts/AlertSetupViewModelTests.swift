@@ -160,18 +160,23 @@ final class AlertSetupViewModelTests: XCTestCase {
         XCTAssertEqual(rules.rules.map(\.id), [id].compactMap { $0 })
     }
 
-    func testThisTripAndRepeatAreSeparateRules() async {
+    /// TT-189: one alert per train. Repeat on a train with a This-trip alert changes that alert under its id.
+    func testRepeatChangesTheTrainsOneAlertUnderItsId() async throws {
         let rules = AlertFixtures.rules(FakeAlertServer())
         await AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold).save()
+        let id = try XCTUnwrap(rules.rules.first?.id)
 
-        // Opened again (the sheet closed after Enable alerts): This trip manages the rule, Repeat is a new alert.
+        // Opened again (the sheet closed after Enable alerts): This trip manages the alert, Repeat would change it.
         let model = AlertSetupViewModel(request: Self.request(), rules: rules, hold: Self.noHold)
         XCTAssertTrue(model.isManaging)
         model.kind = .repeating
         XCTAssertFalse(model.isManaging)
         XCTAssertEqual(model.title, "Alert for this train")
+        XCTAssertEqual(model.weekdays, AlertSetupViewModel.workdays)
         await model.save()
-        XCTAssertEqual(rules.rules.count, 2)
+        XCTAssertEqual(rules.rules.map(\.id), [id])
+        XCTAssertEqual(rules.rules.first?.kind, .repeating)
+        XCTAssertTrue(model.isFinished)
     }
 
     func testSameUsualTrainOnAnotherDayUpdatesTheRepeatRule() async {

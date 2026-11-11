@@ -226,19 +226,19 @@ struct RootView: View {
         router.present(.alertSetup)
     }
 
-    /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on This trip.
+    /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on its alert's kind (This trip when it has
+    /// none), so Manage opens the train's one alert (TT-189).
     private func openAlertSetup(for details: TripDetailsViewModel) {
         // The demo departure's train is made up: its bell sets nothing.
         guard details.demoDeparture == nil, let trip = details.departure?.trip else { return }
-        openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: .thisTrip))
+        let kind = alerts.alert(for: trip, on: details.route)?.kind ?? .thisTrip
+        openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: kind))
     }
 
     private func openTrip(_ key: TripKey, on route: Route? = nil) {
         guard let route = route ?? schedule.route else { return }
         tripDetails = TripDetailsViewModel(
-            route: route, key: key, repository: repository, clock: clock,
-            hasAlert: alerts.thisTripRule(for: key, on: route) != nil || key == onBoard.departureDemo?.key,
-            onBoard: onBoard, alerts: alerts
+            route: route, key: key, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts
         )
         router.present(.tripDetails)
     }

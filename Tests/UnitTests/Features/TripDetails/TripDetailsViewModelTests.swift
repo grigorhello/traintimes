@@ -33,6 +33,29 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertTrue(details.showsDirections)
     }
 
+    /// TT-189: the button reads the train's one alert from the alert rules, live: a repeating alert covering this train's
+    /// day says Manage alert at once, and switched off it says Alert me again.
+    func testTheAlertButtonReadsTheTrainsAlert() async throws {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        let model = TripDetailsViewModel(
+            route: repository.route, key: TripKey(serviceDay: repository.serviceDay, tripId: TripDetailsViewModel.fixtureTripId),
+            repository: repository, clock: FixedClock(now: repository.now), alerts: rules
+        )
+        await model.load()
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Alert me")
+
+        let trip = try XCTUnwrap(model.departure?.trip)
+        var alert = AlertRule(kind: .repeating, trip: trip, route: repository.route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(alert)
+        XCTAssertTrue(model.hasAlert)
+        XCTAssertEqual(model.details(formatter)?.alertButton, "Manage alert")
+
+        alert.paused = true
+        await rules.save(alert)
+        XCTAssertFalse(model.hasAlert)
+    }
+
     /// Delayed: both times are the expected ones in delay-ink, the scheduled ones struck under them.
     func testDelayedStrikesTheScheduledTimes() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(.delayed, hasAlert: true)

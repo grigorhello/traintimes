@@ -52,13 +52,13 @@ final class AlertSetupViewModel {
         self.hold = hold
         kind = request.kind
         let repeating = rules.matching(AlertRule(kind: .repeating, trip: request.trip, route: request.route))
-        weekdays = repeating.map { Set($0.weekdays) } ?? Self.workdays
+        weekdays = repeating.flatMap { $0.kind == .repeating ? Set($0.weekdays) : nil } ?? Self.workdays
     }
 
-    /// The stored rule for this train and the selected kind: the sheet is in Manage mode. A This-trip and a Repeat rule
-    /// for the same train are separate rules.
+    /// The train's alert while the selected kind is its kind: the sheet is in Manage mode. Repeat saved on a train with a
+    /// This-trip alert changes that alert under its id (`AlertRules.save`, TT-189), so the train keeps one alert.
     var rule: AlertRule? {
-        rules.matching(AlertRule(kind: kind, trip: request.trip, route: request.route))
+        rules.matching(AlertRule(kind: kind, trip: request.trip, route: request.route)).flatMap { $0.kind == kind ? $0 : nil }
     }
 
     var isManaging: Bool { isWorking || isConfirmed ? !isEnabling : rule != nil }

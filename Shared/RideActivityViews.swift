@@ -102,7 +102,7 @@ struct RideActivityCountdown: View {
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
     let fontSize: CGFloat
-    /// Wide enough for "29:59".
+    /// Wide enough for "29:59": a narrower frame cuts "12:00" to "12:…".
     let width: CGFloat
     @Environment(\.rideActivityPausedAt) private var pausedAt
 
@@ -167,7 +167,7 @@ struct RideActivityCountdownStack: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
-            RideActivityCountdown(state: state, style: style, fontSize: 28, width: 76)
+            RideActivityCountdown(state: state, style: style, fontSize: 28, width: 92)
                 .frame(height: 32)
             Text(state.time)
                 .font(.system(size: 12))
@@ -429,7 +429,7 @@ struct RideActivityCompactTrailing: View {
                 .frame(height: 24)
                 .background(RideActivityStyle.alertGreen, in: Capsule())
         } else {
-            RideActivityCountdown(state: state, style: style, fontSize: 15, width: 42)
+            RideActivityCountdown(state: state, style: style, fontSize: 15, width: 48)
         }
     }
 }
@@ -505,7 +505,7 @@ struct RideActivityDepartureTitle: View {
                         Capsule()
                             .fill(style.secondary.opacity(0.5))
                             .frame(width: 18, height: 9)
-                        Text(detail(String(state.detail.dropFirst(platform.count))))
+                        Text(detail(String(state.detail.dropFirst(platform.count)).trimmingCharacters(in: .whitespaces)))
                     }
                 } else {
                     Text(detail(state.detail))
@@ -538,7 +538,7 @@ struct RideActivityDepartureTitle: View {
     private func detail(_ line: String) -> AttributedString {
         var text = AttributedString(line)
         let tint: Color? = style.isStale ? nil : state.late ? RideActivityStyle.amber : state.phase == .boarding ? RideActivityStyle.mint : nil
-        if let tint, let dot = text.range(of: " · ") {
+        if let tint, let dot = text.range(of: "· ") {
             text[dot.upperBound...].foregroundColor = tint
         }
         return text
@@ -610,19 +610,19 @@ struct RideActivityDepartureBottom: View {
     }
 }
 
-/// The compact island's trailing side before departure: a clock before the countdown tells it from a ride.
+/// The compact island's trailing side before departure: the countdown, in amber while late (a clock glyph beside it left
+/// "29:59" no room in the 52 pt region); a clock once the train has left.
 struct RideActivityDepartureCompactTrailing: View {
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
 
     var body: some View {
-        HStack(spacing: 2) {
+        if state.phase == .departed {
             Image(systemName: "clock")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(style.tint)
-            if state.phase != .departed {
-                RideActivityCountdown(state: state, style: style, fontSize: 14, width: 38)
-            }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(style.secondary)
+        } else {
+            RideActivityCountdown(state: state, style: style, fontSize: 15, width: 48)
         }
     }
 }

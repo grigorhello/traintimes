@@ -21,7 +21,7 @@ final class DetectionSnapshotTests: XCTestCase {
     private var checking: some View {
         screen {
             ForEach([0, 1], id: \.self) { stops in
-                if let strip = DetectionStrip(DetectionFixtures.progress(stops: stops), formatter: formatter) {
+                if let strip = DetectionStrip(DetectionFixtures.progress(stops: stops), formatter: self.formatter) {
                     DetectionStripView(strip: strip)
                 }
             }

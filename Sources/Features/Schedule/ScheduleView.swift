@@ -609,7 +609,8 @@ struct ScheduleView: View {
                     onDone: { bells.closePanel() }
                 )
             },
-            panelWidth: panelWidth
+            panelWidth: panelWidth,
+            reservesPanelSpace: true
         )
         // A finger on the capsule holds it.
         .simultaneousGesture(

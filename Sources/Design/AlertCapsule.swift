@@ -61,6 +61,10 @@ struct AlertCapsuleView: View {
     var panel: Panel?
     /// The day panel's width: the tab bar's, the screen less 20 pt on each side.
     var panelWidth: CGFloat = 350
+    /// Takes the open panel's room in layout even while it is a capsule, drawn at its bottom centre, so the view's own place
+    /// never changes and the shape grows in place (on the simulator a capsule whose size changed jumped to the panel's
+    /// top-left corner at once, its place laid out outside this view's animation, and only then grew).
+    var reservesPanelSpace = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -89,6 +93,10 @@ struct AlertCapsuleView: View {
             .clipShape(shape)
             .modifier(CapsuleSurface(shape: shape))
             .contentShape(shape)
+            .frame(
+                width: reservesPanelSpace ? panelWidth : nil, height: reservesPanelSpace ? Self.panelHeight : nil,
+                alignment: .bottom
+            )
             // The shape and the glyph, which have no timing of their own; every fade below is scoped to its opacity.
             .animation(reduceMotion ? TTMotion.fade : TTMotion.morph, value: isOpen)
             .accessibilityElement(children: .contain)
@@ -271,7 +279,8 @@ struct DayTile: View {
                 .animation(.easeOut(duration: isOn ? 0.12 : 0.15), value: isOn)
                 .contentShape(RoundedRectangle(cornerRadius: TTRadius.md, style: .continuous))
         }
-        .buttonStyle(.plain)
+        // No press highlight: the plain style's dimming read as a brighter fill on the glass that faded back after the tap.
+        .buttonStyle(UnpressedStyle())
         .keyframeAnimator(initialValue: 1.0, trigger: presses) { content, scale in
             content.scaleEffect(scale)
         } keyframes: { _ in
@@ -284,6 +293,13 @@ struct DayTile: View {
         .accessibilityLabel(Text(verbatim: AlertDays.fullName(day)))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("alert.day.\(day)")
+    }
+}
+
+/// A button drawn the same pressed or not; the tile's own fill and press are its feedback.
+private struct UnpressedStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
 

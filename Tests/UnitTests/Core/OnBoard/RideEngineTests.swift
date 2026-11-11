@@ -254,6 +254,28 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(rig.engine.state?.endReason, .arrived)
     }
 
+    /// A fix at your stop after the timetable placed the arrival keeps that arrival, and the offset the first fix there
+    /// made: standing at Clarkson does not read as running later and later.
+    func testAFixAtYourStopKeepsTheTimetablesArrival() async throws {
+        let rig = try rig(at: t(11, 45))
+        await rig.engine.start(ride)
+        let distances = try XCTUnwrap(rig.plan.track).stopDistances
+        rig.location.send(try OnBoardFixtures.fix(along: distances[4], plan: rig.plan))
+        rig.clock.set(t(11, 53))
+        rig.engine.update()
+        XCTAssertEqual(rig.engine.state?.source, .timetable)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+
+        let atClarkson = try OnBoardFixtures.fix(along: distances[5], plan: rig.plan)
+        rig.clock.set(t(11, 54))
+        rig.location.send(atClarkson)
+        let arrival = try XCTUnwrap(rig.engine.state?.expectedArrival)
+        rig.clock.set(t(12, 0))
+        rig.location.send(atClarkson)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+        XCTAssertEqual(rig.engine.state?.expectedArrival, arrival, "Standing at Clarkson is not running later")
+    }
+
     /// The arriving tap comes once a ride: the timetable's while the phone was silent counts, and a fix that brings the
     /// train back to Port Credit, 6 min late, does not make a second one.
     func testTheArrivingTapComesOnce() async throws {

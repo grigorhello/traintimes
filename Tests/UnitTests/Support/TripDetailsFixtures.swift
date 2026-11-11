@@ -118,3 +118,78 @@ extension TripDetailsViewModel {
         return model
     }
 }
+
+extension TripDetailsViewModel {
+    /// The 7:32 AM fixture train at 7:21 AM, 11 min before it leaves, with On board (TT-172): an app engine that can start a
+    /// ride on the sample Union to Clarkson plan (any trip gets it) and asks for location through `location`.
+    @MainActor
+    static func onBoardFixture(
+        minutesLater: Int = 0, hasAlert: Bool = false, location: FakeLocation? = nil
+    ) async throws -> TripDetailsViewModel {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
+        let clock = FixedClock(now: repository.now.addingTimeInterval(TimeInterval(minutesLater * 60)))
+        let engine = RideEngine(
+            data: FakeRideData(plan: try OnBoardFixtures.plan()), location: location ?? FakeLocation(), clock: clock, defaults: nil,
+            tickInterval: nil
+        )
+        let model = TripDetailsViewModel(
+            route: repository.route,
+            key: TripKey(serviceDay: repository.serviceDay, tripId: fixtureTripId),
+            repository: repository,
+            clock: clock,
+            hasAlert: hasAlert,
+            onBoard: OnBoard(app: engine)
+        )
+        await model.load()
+        return model
+    }
+}
+
+/// The demo ride (TT-172) on Friday, Nov 27, on a clock the test moves: `drive(to:)` sets the clock and sends the fix of the
+/// demo train at that moment, as the demo's own location does each second.
+@MainActor
+struct DemoRideRig {
+    nonisolated static let day = OnBoardFixtures.friday
+
+    let clock: TestClock
+    let onBoard: OnBoard
+    let plan = DemoRide.plan(on: DemoRideRig.day)
+
+    nonisolated static func time(_ hours: Int, _ minutes: Int, _ seconds: Int = 0) -> Date {
+        DemoRideRig.day.gtfsTime(hours * 3600 + minutes * 60 + seconds)
+    }
+
+    /// The demo started at 5:32 PM and moved on to `moment`.
+    static func started(at moment: Date = DemoRideRig.time(17, 32)) async -> DemoRideRig {
+        let start = DemoRideRig.time(17, 32)
+        let clock = TestClock(now: start)
+        let day = DemoRideRig.day
+        let onBoard = OnBoard(app: nil) {
+            (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day))
+        }
+        await onBoard.setDemo(true)
+        let rig = DemoRideRig(clock: clock, onBoard: onBoard)
+        if moment != start { rig.drive(to: moment) }
+        return rig
+    }
+
+    var engine: RideEngine? { onBoard.engine }
+    var key: TripKey { DemoRide.ride(on: DemoRideRig.day).tripKey }
+
+    func drive(to time: Date) {
+        clock.set(time)
+        guard let track = plan.track else { return }
+        engine?.receive(LocationFix(coordinate: track.shape.point(at: DemoRide.along(at: time, plan: plan)), horizontalAccuracy: 5))
+    }
+
+    /// Trip details on the demo ride, as the strip opens it.
+    func tripDetails() -> TripDetailsViewModel {
+        TripDetailsViewModel(
+            route: DemoRide.route,
+            key: key,
+            repository: StubScheduleRepository(tripList: [], live: .empty, stopList: []),
+            clock: clock,
+            onBoard: onBoard
+        )
+    }
+}

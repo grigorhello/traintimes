@@ -67,6 +67,10 @@ struct AlertCapsuleView: View {
     var reservesPanelSpace = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Whether the panel was already open before this update: its line cross-fades only when the days change in an open
+    /// panel. On opening it takes the shape's transaction, so it stands still while the clip reveals it (with its own fade
+    /// it rode the rising top edge on the simulator).
+    @State private var wasOpen = false
 
     static let height: CGFloat = 52
     static let panelHeight: CGFloat = 120
@@ -101,6 +105,8 @@ struct AlertCapsuleView: View {
             .animation(reduceMotion ? TTMotion.fade : TTMotion.morph, value: isOpen)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(isOpen ? "alert.panel" : "alert.capsule")
+            .onAppear { wasOpen = isOpen }
+            .onChange(of: isOpen) { _, isOpen in wasOpen = isOpen }
     }
 
     private var row: some View {
@@ -151,7 +157,7 @@ struct AlertCapsuleView: View {
     private var panelLine: some View {
         line(panel?.words ?? "")
             .contentTransition(.opacity)
-            .animation(TTMotion.fade, value: panel?.words)
+            .animation(wasOpen && isOpen ? TTMotion.fade : nil, value: panel?.words)
             .animation(isOpen ? Self.arrive : Self.leave) { $0.opacity(isOpen ? 1 : 0) }
             .frame(height: Self.panelRowHeight)
             .padding(.leading, Self.panelLeading + Self.glyphSize + TTSpace.s2)

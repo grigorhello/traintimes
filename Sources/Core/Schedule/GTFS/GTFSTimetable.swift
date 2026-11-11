@@ -86,7 +86,7 @@ struct GTFSTimetable: Sendable {
         return (match.from...match.to).map { position in
             let stop = feed.stops[trip.stops[position]]
             let time = position == match.from ? trip.departures[position] : trip.arrivals[position]
-            return TripStop(station: Station(id: stop.id, name: stop.name), scheduled: day.gtfsTime(time))
+            return TripStop(station: Station(id: stop.id, name: stop.name, place: stop.place), scheduled: day.gtfsTime(time))
         }
     }
 

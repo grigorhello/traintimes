@@ -102,6 +102,7 @@ final class GTFSTimetableTests: XCTestCase {
     func testStopsOfOneTrain() throws {
         let stops = try timetable().stops(of: "20261109-LW-1858", from: "OA", to: "UN", on: monday)
         XCTAssertEqual(stops.map(\.station.name), ["Oakville GO", "Clarkson GO", "Union Station GO"])
+        XCTAssertEqual(stops.first?.station.place, GeoPoint(latitude: 43.455594, longitude: -79.682242), "For Directions (TT-188)")
         XCTAssertEqual(stops.map(\.scheduled), [utc("2026-11-09T12:28:00Z"), utc("2026-11-09T12:36:00Z"), utc("2026-11-09T13:02:00Z")])
         XCTAssertTrue(try timetable().stops(of: "20261109-LW-1858", from: "OA", to: "UN", on: sunday).isEmpty)
     }

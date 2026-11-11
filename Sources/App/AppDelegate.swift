@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     lazy var router = AppRouter()
     /// The app's one ride engine (On board, TT-171). Restoring asks for nothing: with no saved ride it does nothing.
     lazy var ride = RideEngine.app()
+    /// The ride's arriving nudge (TT-173): it follows the engine from launch, before a saved ride is restored, also when
+    /// iOS relaunches the app in the background, so a moved estimate moves the notifications with no screen showing.
+    lazy var nudge = ArrivalNudge.system()
     /// The ride on the Lock Screen and in the Dynamic Island (TT-174); nil in fixture runs.
     lazy var liveActivity = RideLiveActivity.app(following: ride)
     /// "Detect my train" (TT-176); nil in fixture runs.
@@ -23,9 +26,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setNotificationCategories([DetectionNotice.notificationCategory])
+        nudge.follow(ride)
         detection?.resume()
         Task {
             await ride.restore()
+            // A ride ended before it was restored (the Live Activity's End ride) leaves no notifications behind.
+            nudge.restoreFinished()
             liveActivity?.start()
         }
         #if DEBUG

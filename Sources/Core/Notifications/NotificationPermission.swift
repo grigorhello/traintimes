@@ -38,7 +38,8 @@ struct SystemNotificationPermission: NotificationPermissionProviding {
     }
 
     func request() async -> NotificationPermission {
-        // Visible notifications with the default sound; no badges, no critical or time-sensitive alerts.
+        // Visible notifications with sound; no badges, no critical alerts. Time Sensitive (the ride's arriving
+        // notifications, TT-173) needs no option here: it comes with the app's entitlement.
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
         return await current()
     }

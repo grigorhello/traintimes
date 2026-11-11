@@ -209,6 +209,28 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
     }
 
+    /// A bell tapped while a day change saves acts once the save has settled: the alert goes off with its new days.
+    func testABellTapWhileADayChangeSavesActsOnceItSettles() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let bells = AlertBellModel(rules: rules)
+        _ = await bells.tap(trip, on: route)
+        bells.repeatTapped()
+        await eventually { rules.rules.first?.weekdays == [1, 2, 3, 4, 5] }
+
+        await server.holdSaves()
+        bells.toggleDay(6)
+        await server.waitUntilHolding()
+        let tapping = Task { await bells.tap(trip, on: route) }
+        await Task.yield()
+        await server.release()
+        _ = await tapping.value
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5, 6])
+        XCTAssertEqual(rules.rules.first?.paused, true)
+        XCTAssertEqual(bells.capsule?.kind, .off)
+        XCTAssertEqual(bells.bell(for: trip, on: route), .off)
+    }
+
     /// A day save that fails while a newer tap waits offers Try again for the newer days, and saves them.
     func testAFailedDaySaveOffersTheLatestDays() async {
         let server = FakeAlertServer()

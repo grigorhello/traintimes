@@ -201,8 +201,26 @@ struct AlertCapsuleView: View {
         .padding(.horizontal, TTSpace.s3)
         .padding(.top, Self.panelRowHeight - TTSpace.s1)
         .frame(width: panelWidth, alignment: .topLeading)
-        .allowsHitTesting(isOpen)
+        .modifier(ArrivalGate(isOpen: isOpen))
         .accessibilityHidden(!isOpen)
+    }
+}
+
+/// The day tiles take taps only once they have arrived, 300 ms after the panel opens: they stand at their place from the
+/// first frame, under where Repeat was, so a quick second tap on Repeat would otherwise light a day the rider never saw.
+private struct ArrivalGate: ViewModifier {
+    let isOpen: Bool
+    @State private var arrived = false
+
+    func body(content: Content) -> some View {
+        content
+            .allowsHitTesting(isOpen && arrived)
+            .task(id: isOpen) {
+                arrived = false
+                guard isOpen else { return }
+                try? await Task.sleep(for: .milliseconds(300))
+                if !Task.isCancelled { arrived = true }
+            }
     }
 }
 

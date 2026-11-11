@@ -382,6 +382,17 @@ final class AlertRules: WatchedTripsProviding {
             }
             guard !inFlight.contains(id) else { continue }
             guard (try? await server.save(rule, installation: installation)) != nil else { return }
+            guard contains(id) else {
+                // Deleted while it was sent: delete it again, in case the delete reached the server first.
+                try? await server.delete(ruleId: id, installation: installation)
+                continue
+            }
+            guard rules.first(where: { $0.id == id }) == rule, !inFlight.contains(id) else {
+                // Changed or being saved meanwhile: kept, so the next call sends the version on device last.
+                if !pendingSaves.contains(id) { pendingSaves.append(id) }
+                persist()
+                continue
+            }
             pendingSaves.removeAll { $0 == id }
             persist()
         }

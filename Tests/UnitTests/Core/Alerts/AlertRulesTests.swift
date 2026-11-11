@@ -475,6 +475,30 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(rules.state(of: rule), .on)
     }
 
+    /// An alert deleted while its re-send is out is deleted again once the re-send lands, in case the delete got there first.
+    func testAnAlertDeletedWhileItsReSendIsOutIsDeletedAgain() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server, defaults: .ephemeral())
+        let rule = AlertRule(kind: .repeating, trip: AlertFixtures.trip(), route: route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(rule)
+        await server.setFailing(true)
+        var off = rule
+        off.paused = true
+        _ = await rules.commit(off)
+        await server.setFailing(false)
+
+        await server.holdSaves()
+        let refreshing = Task { await rules.refresh() }
+        await server.waitUntilHolding()
+        await rules.delete(rule.id)
+        await server.release()
+        await refreshing.value
+
+        XCTAssertEqual(rules.rules, [])
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, [rule.id, rule.id])
+    }
+
     /// An alert deleted while the server was unreachable and saved again (Undo) takes back its pending delete.
     func testCommitOfADeletedAlertTakesBackItsPendingDelete() async {
         let server = FakeAlertServer()

@@ -140,6 +140,9 @@ final class AlertBellModel {
         busy.insert(trip.key)
         defer { busy.remove(trip.key) }
         closePanel()
+        // A day change from the panel still saving for this alert (its bell shows on meanwhile): the tap acts once it has
+        // settled, on what was saved.
+        if let saving = daySaving, let id = rules.alert(for: trip, on: route)?.id, wanted?.ruleID == id { await saving.value }
 
         let existing = rules.alert(for: trip, on: route)
         if let existing {
@@ -226,11 +229,16 @@ final class AlertBellModel {
             return await tap(trip, on: route)
         case let .changeDays(days, ruleID, trip, route):
             hideTask?.cancel()
+            let shown = capsule?.id
             // Through the one save loop, so it never runs beside a panel's.
             want(days, ruleID: ruleID, trip: trip, route: route)
             if let saving = daySaving { await saving.value }
-            // A save that failed again has already said so.
-            guard let rule = rules.rules.first(where: { $0.id == ruleID }), Self.rule(rule, has: days, for: trip) else { return nil }
+            // Something newer took the capsule's place meanwhile (a failure that came back says so itself): leave it.
+            guard capsule?.id == shown else { return nil }
+            guard let rule = rules.rules.first(where: { $0.id == ruleID }), Self.rule(rule, has: days, for: trip) else {
+                // The alert went or changed elsewhere meanwhile: nothing left to try again.
+                return dismiss()
+            }
             show(.on, trip: trip, route: route, repeats: rule.kind == .repeating ? rule.weekdays : [])
             return nil
         }

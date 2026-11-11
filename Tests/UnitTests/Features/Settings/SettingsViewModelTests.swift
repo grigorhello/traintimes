@@ -152,6 +152,18 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.alertCount, 2)
     }
 
+    /// TT-169: the off card speaks of the alerts that are switched on, not of every saved rule.
+    func testSwitchedOnCountLeavesOutPausedAlerts() async {
+        XCTAssertEqual(makeModel().switchedOnCount, 0)
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.evening])
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: FakeNotificationPermission(.off),
+            appInfo: AppInfo(version: "1.0", build: "1"), showsTesting: false, clock: FixedClock(now: AlertsFixtures.now), alerts: rules
+        )
+        XCTAssertEqual(model.alertCount, 2)
+        XCTAssertEqual(model.switchedOnCount, 1, "the evening alert is paused")
+    }
+
     /// TT-168: "Turn on notifications" shows the iOS prompt once and the row and page follow the answer.
     func testTurnOnNotificationsAsksOnceAndReadsTheAnswer() async {
         let prompt = PromptingPermission(answer: .allowed)

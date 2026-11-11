@@ -74,6 +74,19 @@ final class AlertRulesTests: XCTestCase {
         XCTAssertEqual(saved.count, 1)
     }
 
+    /// TT-169: the number the notifications-off warning speaks of leaves out paused rules and This-trip rules for a past day.
+    func testSwitchedOnCountSkipsPausedRulesAndPastTrips() async {
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        let today = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip(day: 5), route: route)
+        let yesterday = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261104", day: 4), route: route)
+        let repeating = AlertRule(kind: .repeating, trip: AlertFixtures.trip("LW-0805-20261104", day: 4), route: route, weekdays: [1])
+        let paused = AlertRule(kind: .repeating, trip: AlertFixtures.trip("LW-1710-20261105", departure: "22:10"), route: route, weekdays: [2], paused: true)
+        for rule in [today, yesterday, repeating, paused] { await rules.save(rule) }
+
+        XCTAssertEqual(rules.switchedOnCount(on: ServiceDay(year: 2026, month: 11, day: 5)), 2)
+        XCTAssertEqual(rules.switchedOnCount(on: ServiceDay(year: 2026, month: 11, day: 6)), 1, "only the Repeat rule is left")
+    }
+
     func testAnUnknownInstallationRegistersAgain() async {
         let server = FakeAlertServer()
         await server.answerUnknownInstallationOnce()

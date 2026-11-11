@@ -46,6 +46,12 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
         return TripKey(serviceDay: ServiceDay(dateKey: key), tripId: tripId)
     }
 
+    /// The rule still applies on `today`: a Repeat rule always, a This-trip rule until its service day has passed. The
+    /// Alerts tab lists only these, and the notifications-off warning counts only these (TT-169).
+    func isCurrent(on today: ServiceDay) -> Bool {
+        kind == .repeating || (trip?.serviceDay ?? today) >= today
+    }
+
     /// A Repeat rule stands for the usual train: same line, stations and scheduled departure time of day, whatever the day.
     func isSameUsualTrain(as other: AlertRule) -> Bool {
         line == other.line && origin.id == other.origin.id && destination.id == other.destination.id

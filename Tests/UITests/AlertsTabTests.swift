@@ -62,6 +62,38 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(wait(for: state, label: "Paused"))
     }
 
+    /// TT-169: with notifications off and an alert on, one card tops the tab with its button, and the row reads Not delivering.
+    @MainActor
+    func testNotificationsOffShowsTheCardAndNotDelivering() {
+        let app = XCUIApplication.onFixtures()
+        app.launchEnvironment["TT_NOTIFICATIONS"] = "off"
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
+        app.launch()
+
+        // The alert is saved from the 7:32 AM train's sheet: with notifications off it is kept, not delivered.
+        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 20))
+        card.tap()
+        XCTAssertTrue(app.buttons["trip.alert"].waitForExistence(timeout: 5))
+        app.buttons["trip.alert"].tap()
+        XCTAssertTrue(app.buttons["alert.enable"].waitForExistence(timeout: 5))
+        app.buttons["alert.enable"].tap()
+        XCTAssertTrue(app.buttons["alert.openSettings"].waitForExistence(timeout: 10))
+        app.buttons["alert.close"].tap()
+
+        app.tabBars.buttons["Alerts"].tap()
+        let warning = app.descendants(matching: .any).matching(identifier: "alerts.notificationsOff").firstMatch
+        XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        XCTAssertTrue(warning.staticTexts["Notifications are off"].exists)
+        XCTAssertTrue(warning.staticTexts["Your alert is saved, but it can't reach you."].exists)
+        XCTAssertTrue(app.buttons["alerts.turnOnInSettings"].exists)
+        let row = app.descendants(matching: .any).matching(identifier: "alerts.rule.trip.LW-0732-20261105").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let state = row.descendants(matching: .any).matching(identifier: "alerts.rule.state").firstMatch
+        XCTAssertTrue(wait(for: state, label: "Not delivering"))
+        XCTAssertTrue(row.switches["alerts.rule.switch"].exists, "the switch keeps working")
+    }
+
     /// Today's line notice is listed apart from trip updates and opens the notice sheet.
     @MainActor
     func testLineNoticeOpensTheNoticeSheet() {

@@ -84,7 +84,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 
 ### 12. A denied notification permission never looks like an active alert.
 - Simulator and CI: **passes.** `AlertSetupTests.testDeniedShowsNotificationsOff`, `AlertRulesTests.testNotificationsOffIsNeverOnButTheRuleIsStillSaved`, `AlertSetupViewModelTests.testDeniedPermissionShowsNotificationsOffNeverOn`, `AlertBellModelTests.testWithoutPermissionTheTapOpensTheSetupSheet`, snapshots `testNotificationsOffLight/Dark` (sheet and Alerts tab). Turning permission off after an alert is On, in iOS Settings, is a phone check (the app reads it again on every return to the foreground).
-- iPhone: fresh install, tap a bell, Enable alerts, Don't Allow: the sheet shows the red "Notifications off" box with Open Settings, never On. With an alert On, turn Train Times notifications off in iOS Settings and come back: the bell is an outline and the row reads "Notifications off · Open Settings"; turn them on again: On, with nothing to redo.
+- iPhone: fresh install, tap a bell, Enable alerts, Don't Allow: the sheet shows the red "Notifications off" box with Open Settings, never On. With an alert On, turn Train Times notifications off in iOS Settings and come back: the bell is an outline, the bell tab icon wears a red dot on Schedule and Settings (not on Alerts), and Alerts shows the card "Notifications are off" with "Turn on in iOS Settings" and the row reads "Not delivering" (D58); turn them on again and come back: the card folds away, the row reads On, the dot goes and "Notifications are on" shows once.
 - [ ] Light
 - [ ] Dark
 

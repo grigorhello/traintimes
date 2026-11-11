@@ -74,6 +74,10 @@ struct SettingsTestingPage: View {
                             value: .ride, label: .text("settings.demo_trains.ride"), name: "settings.demo_trains.ride",
                             identifier: "settings.demoTrains.ride"
                         ),
+                        .init(
+                            value: .departure, label: .text("settings.demo_trains.departure"),
+                            name: "settings.demo_trains.departure", identifier: "settings.demoTrains.departure"
+                        ),
                     ]
                 )
                 description
@@ -167,6 +171,7 @@ private extension DemoTrains {
         case .offline: "settings.demo_trains.offline_detail"
         case .awaitingPlatform: "settings.demo_trains.platform_detail"
         case .ride: "settings.demo_trains.ride_detail"
+        case .departure: "settings.demo_trains.departure_detail"
         }
     }
 }

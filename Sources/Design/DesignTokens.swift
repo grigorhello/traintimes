@@ -36,6 +36,7 @@ enum TTSpace {
 
 enum TTRadius {
     static let sm: CGFloat = 8, md: CGFloat = 12, lg: CGFloat = 18, xl: CGFloat = 26, sheet: CGFloat = 28
+    static let question: CGFloat = 22       // train detection's question card on Schedule (TT-175)
 }
 
 enum TTSize {
@@ -67,6 +68,7 @@ enum TTFont {
     static let lineCode   = Font.system(size: 13, weight: .bold)                              // the code in the line tile
     static let lineCodeSmall = Font.system(size: 10, weight: .bold)                           // the code in the picker's 26 pt line tile (D54)
     static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D54)
+    static let question   = Font.system(size: 20, weight: .bold)                              // "On the 5:13 PM train?" (TT-175)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }
 

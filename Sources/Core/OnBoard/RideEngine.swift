@@ -168,7 +168,8 @@ final class RideEngine {
             return
         }
         let status = await data.rideStatus(for: saved.ride)
-        guard ride == nil else { return }
+        // End ride while the plan and status loaded (TT-174) removed the saved ride.
+        guard ride == nil, SavedRide.read(from: defaults, key: Self.storageKey) != nil else { return }
         // A ride 10 min past your stop is over: it ends at once on the timetable, and location does not start again.
         let offset = status.delay ?? saved.offset ?? 0
         let arrival = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
@@ -176,8 +177,13 @@ final class RideEngine {
         begin(saved.ride, plan: plan, saved: saved, status: status, tracksLocation: location.isAuthorized && !isOver)
     }
 
-    /// End ride.
+    /// End ride. Before a launch's restore has finished (the Live Activity's End ride opening a stopped app, TT-174) there
+    /// is no state yet: the saved ride goes, so `restore()` does not bring it back and its Live Activity ends at once.
     func end() {
+        guard state != nil else {
+            SavedRide.clear(from: defaults, key: Self.storageKey)
+            return
+        }
         end(.byRider)
     }
 

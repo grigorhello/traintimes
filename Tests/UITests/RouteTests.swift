@@ -46,7 +46,7 @@ final class RouteTests: XCTestCase {
         union.tap()
 
         require(showTrains, "showTrains", in: app)
-        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: showTrains)], timeout: 5)
+        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: showTrains)], timeout: 15)
         showTrains.tap()
 
         let schedule = scheduleStations(app)
@@ -82,13 +82,14 @@ final class RouteTests: XCTestCase {
         XCTAssertFalse(app.buttons["schedule.swap"].exists)
 
         // The X cancels and nothing changes; the swap button is back and tappable once the close is over (the timeout is
-        // generous: a query takes a second on a loaded CI runner, and a button stuck at scale 0.6 would still fail).
+        // generous: a query's first check takes a second on a Mac and over 5 s on a slow CI runner, and a button stuck at
+        // scale 0.6 would still fail).
         app.buttons["schedule.cancel"].tap()
         require(schedule.to, "schedule.to", in: app)
         XCTAssertEqual(schedule.to.value as? String, "Union")
         let swap = app.buttons["schedule.swap"]
         require(swap, "buttons[schedule.swap]", in: app)
-        wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 5)
+        wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 15)
 
         schedule.to.tap()
         require(field, "field", in: app)
@@ -99,7 +100,7 @@ final class RouteTests: XCTestCase {
         burlington.tap()
 
         require(schedule.to, "schedule.to", in: app)
-        wait(for: [expectation(for: NSPredicate(format: "value == %@", "Burlington GO"), evaluatedWith: schedule.to)], timeout: 5)
+        wait(for: [expectation(for: NSPredicate(format: "value == %@", "Burlington GO"), evaluatedWith: schedule.to)], timeout: 15)
         XCTAssertEqual(schedule.from.value as? String, "Oakville")
         requireGone(panel(app), "stations.panel", in: app)
     }
@@ -121,9 +122,9 @@ final class RouteTests: XCTestCase {
         let swap = app.buttons["schedule.swap"]
         for (from, to) in [("Union", "Oakville"), ("Oakville", "Union")] {
             swap.tap()
-            wait(for: [expectation(for: NSPredicate(format: "value == %@", from), evaluatedWith: schedule.from)], timeout: 5)
+            wait(for: [expectation(for: NSPredicate(format: "value == %@", from), evaluatedWith: schedule.from)], timeout: 15)
             XCTAssertEqual(schedule.to.value as? String, to)
-            wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 5)
+            wait(for: [expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: swap)], timeout: 15)
         }
     }
 

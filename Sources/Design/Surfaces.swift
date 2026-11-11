@@ -98,7 +98,7 @@ struct Toast: View {
     var systemImage: String?
     var tint: Color = TTColor.accent
     var actionTitle: LocalizedStringKey?
-    /// How it comes and goes; Schedule's toast passes `.identity` and moves inside `RisingToast` (TT-166).
+    /// How it comes and goes.
     var transition: AnyTransition = .opacity.combined(with: .move(edge: .bottom)).animation(.easeOut(duration: 0.25))
     var action: () -> Void = {}
 
@@ -134,84 +134,6 @@ struct Toast: View {
         .transition(transition)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("toast")
-    }
-}
-
-/// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast`, with the spring's small bounce, while it
-/// fades in over 0.15 s, and leaves dropping 16 pt as it fades over 0.2 s easeIn. A new item while one is up changes the
-/// words in place, with no cross-fade and no second toast. Reduce Motion keeps the fades only.
-///
-/// The motion is driven from its own state, each property with its own `.animation(_:value:)`, not by a transition: a
-/// custom transition moved the toast on the spring but left its opacity unanimated on the simulator (it rose almost
-/// invisible and vanished without fading), and two combined transitions let the screen's `.animation` drive the offset.
-/// The content draws no transition of its own (`Toast(transition: .identity)`).
-struct RisingToast<Item: Equatable, Content: View>: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let item: Item?
-    let content: (Item) -> Content
-
-    /// What is on screen: it outlives `item` while the toast drops away.
-    @State private var shown: Item?
-    @State private var phase: Phase
-
-    /// A toast already up when the screen first draws stands at rest (as in the snapshot tests); later ones rise.
-    init(item: Item?, @ViewBuilder content: @escaping (Item) -> Content) {
-        self.item = item
-        self.content = content
-        _shown = State(initialValue: item)
-        _phase = State(initialValue: item == nil ? .below : .rest)
-    }
-
-    private enum Phase { case below, rest, gone }
-
-    var body: some View {
-        ZStack {
-            if let shown {
-                content(shown)
-                    .offset(y: offset)
-                    .animation(phase == .gone ? .easeIn(duration: 0.2) : TTMotion.toast, value: phase)
-                    .opacity(phase == .rest ? 1 : 0)
-                    .animation(phase == .gone ? .easeIn(duration: 0.2) : .easeOut(duration: 0.15), value: phase)
-                    // The screen's animation stops here, so the words change in place at once; the two above run inside
-                    // it. (On the content itself it also stopped the offset, which SwiftUI moves with the content.)
-                    .transaction { $0.animation = nil }
-                    .transition(.identity)
-                    .onAppear { phase = .rest }
-            }
-        }
-        .onChange(of: item) { _, new in show(new) }
-        // Off screen once the drop has run.
-        .task(id: phase) {
-            guard phase == .gone else { return }
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled else { return }
-            shown = nil
-            phase = .below
-        }
-    }
-
-    private var offset: CGFloat {
-        guard !reduceMotion else { return 0 }
-        switch phase {
-        case .below: return 32
-        case .rest: return 0
-        case .gone: return 16
-        }
-    }
-
-    private func show(_ new: Item?) {
-        guard let new else {
-            if shown != nil { phase = .gone }
-            return
-        }
-        if shown == nil {
-            // Drawn 32 pt low and transparent first; `onAppear` sets it rising.
-            phase = .below
-            shown = new
-        } else {
-            shown = new
-            if phase == .gone { phase = .rest }
-        }
     }
 }
 

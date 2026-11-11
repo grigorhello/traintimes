@@ -17,7 +17,8 @@ enum BellFace: Equatable, Sendable {
 /// The bell on a departure card (TT-141), with its pop (TT-166, D62): when the alert turns on or off the glyph swells to
 /// 1.3 over 0.1 s (`TTMotion.swell`), swaps `bell` and `bell.fill` at the top, as Kavsoft does, and springs back on
 /// `TTMotion.pop`. While `\.holdsBellPop` is true (the alert setup sheet is up) the bell keeps the glyph it had and pops
-/// once the sheet is gone. Reduce Motion cross-fades the glyph instead.
+/// once the sheet is gone. Reduce Motion cross-fades the glyph instead. Turned off it is quiet on purpose (TT-191, D71): the
+/// outline swaps in at once and settles from 0.86 on `TTMotion.settle`.
 ///
 /// Permission from the bell (TT-190, D72): the pop now comes on the tap, into the half-strength wait, and the wait goes
 /// solid in 150 ms once the alert is saved. While iOS asks the bell holds at 1.12 in accent (120 ms ease-out) and finishes
@@ -39,6 +40,8 @@ struct AlertBellButton: View {
     /// The latest `face`, read when the swell ends (the view value the task captured may be older by then).
     @State private var wanted: BellFace
     @State private var scale: CGFloat
+    /// Each turn off settles the outline again (TT-191).
+    @State private var offs = 0
 
     init(face: BellFace, shakes: Int = 0, label: Text, glyph: CGFloat, target: CGFloat, action: @escaping () -> Void) {
         self.face = face
@@ -65,6 +68,12 @@ struct AlertBellButton: View {
         .buttonStyle(PressScaleStyle())
         .accessibilityLabel(label)
         .scaleEffect(scale)
+        .keyframeAnimator(initialValue: 1.0, trigger: offs) { content, scale in
+            content.scaleEffect(scale)
+        } keyframes: { _ in
+            MoveKeyframe(0.86)
+            SpringKeyframe(1.0, duration: 0.6, spring: TTMotion.settleCurve.spring)
+        }
         .keyframeAnimator(initialValue: CGFloat(0), trigger: reduceMotion ? 0 : shakes) { content, x in
             content.offset(x: x)
         } keyframes: { _ in
@@ -112,6 +121,14 @@ struct AlertBellButton: View {
             }
             return
         }
+        if from == .on, face == .off, !reduceMotion {
+            // Off: the outline at once, then the quiet settle (TT-191).
+            var swap = Transaction()
+            swap.disablesAnimations = true
+            withTransaction(swap) { shown = face }
+            offs += 1
+            return
+        }
         guard Self.pops(from: from, to: face), !reduceMotion else {
             withAnimation(from == .waiting && face == .on ? .easeOut(duration: 0.15) : TTMotion.fade) { shown = face }
             return
@@ -127,14 +144,13 @@ struct AlertBellButton: View {
         }
     }
 
-    /// The pop marks the alert turning on or off: into the wait (from the outline, the hold or the crossed bell), straight
-    /// on when no wait was drawn, and on to off.
+    /// The pop marks the alert turning on: into the wait (from the outline, the hold or the crossed bell), or straight on
+    /// when no wait was drawn. Off settles instead (TT-191).
     private static func pops(from: BellFace, to: BellFace) -> Bool {
         switch to {
         case .waiting: true
         case .on: from != .waiting
-        case .off: from == .on
-        case .asking, .crossed: false
+        case .off, .asking, .crossed: false
         }
     }
 

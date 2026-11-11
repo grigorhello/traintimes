@@ -27,6 +27,12 @@ enum TTColor {
     /// The frosted tint over the timetable while the station picker is open (TT-161, D54): #E2E6EE at 62 % in light,
     /// #0C111B at 40 % in dark, over `.regularMaterial`.
     static let veil = Color("Veil")
+    /// The alert capsule's glass (TT-191, D71), denser than the tab bar's: white at 88 % in light, #283040 at 86 % in dark.
+    static let capsuleGlass = Color("CapsuleGlass")
+    /// The capsule's action pill: ink at 7 % in light, white at 13 % in dark.
+    static let capsulePill = Color("CapsulePill")
+    /// A day tile that is off inside the capsule: ink at 6 % in light, white at 10 % in dark.
+    static let capsuleTile = Color("CapsuleTile")
 }
 
 enum TTSpace {

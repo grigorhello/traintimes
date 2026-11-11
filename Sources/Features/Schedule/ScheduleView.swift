@@ -16,9 +16,9 @@ struct ScheduleView: View {
     var onOpenTrip: (TripKey) -> Void = { _ in }
     /// The Notice chip: the notice sheet (TT-132).
     var onOpenLineNotice: () -> Void = {}
-    /// The one-tap bells and their toast (TT-141); nil shows outlined bells that do nothing.
+    /// The one-tap bells and their glass capsule (TT-141, TT-191); nil shows outlined bells that do nothing.
     var bells: AlertBellModel?
-    /// The alert setup sheet (TT-142): the toast's Repeat. The bell asks for permission itself (TT-190).
+    /// The alert setup sheet (TT-142). The bell asks for permission itself (TT-190) and Repeat opens the day panel (TT-191).
     var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
     /// On board (TT-172): the ride strip under the day strip while a ride runs; nil shows none.
     var onBoard: OnBoard?
@@ -82,14 +82,16 @@ struct ScheduleView: View {
             .rideStripMotion(onBoard, departs: viewModel.liveDeparture != nil || onBoard?.departureDemo != nil)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
+            // A tap outside the day panel closes it, and still reaches what it lands on (TT-191).
+            .simultaneousGesture(TapGesture().onEnded { bells?.closePanel() }, including: isPanelOpen ? .all : .subviews)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
-            .overlay(alignment: .bottom) { alertToast }
-            // The cards' bell states ease as before; the toast keeps its words from it (`RisingToast`).
-            .animation(.easeOut(duration: 0.25), value: bells?.toast)
-            .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
-            // A light haptic when an alert turns on (TT-141), the warning one when a bell is refused (TT-190).
+            .overlay(alignment: .bottom) { capsuleLayer }
+            // A light haptic when an alert turns on (TT-141), the warning one when a bell is refused (TT-190), the selection
+            // haptic when a day tile lights (TT-191).
             .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
             .sensoryFeedback(.warning, trigger: bells?.refusedCount ?? 0)
+            .sensoryFeedback(.selection, trigger: bells?.dayOnCount ?? 0)
+            .onDisappear { bells?.closePanel() }
             .toolbar(.hidden, for: .navigationBar)
             .task { await viewModel.loadIfNeeded() }
             .task { await viewModel.runClock() }
@@ -529,6 +531,8 @@ struct ScheduleView: View {
         }
         .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
             if !riderScrolled { riderScrolled = true }
+            // A scroll closes the day panel (TT-191).
+            if isPanelOpen { bells?.closePanel() }
         })
         .accessibilityIdentifier("schedule.timeline")
     }
@@ -573,69 +577,80 @@ struct ScheduleView: View {
         Task { await bells.tap(trip, on: route) }
     }
 
-    /// The toast above the tab bar (`schedule-delayed.png`): "Alert on for the 7:32 AM train" with Repeat, "Alert off",
-    /// "Could not save" with Try again, or "Notifications are off" with Turn on (TT-190); else "Tap the bell on a train"
-    /// after the Alerts tab's "Add alert". One toast whose words change in place. It rises on a spring and drops away as it
-    /// goes (`RisingToast`, TT-166). The bell's wait has no words (TT-190).
-    private var alertToast: some View {
-        RisingToast(item: toastItem) { item in
-            Group {
-                switch item {
-                case .hint:
-                    Toast(message: String(localized: "alerts.add_hint"), systemImage: "bell", transition: .identity)
-                case .alert(let toast):
-                    if let bells {
-                        let look = toastLook(toast, bells: bells)
-                        Toast(
-                            message: look.message, systemImage: look.systemImage, tint: look.tint,
-                            actionTitle: look.actionTitle, transition: .identity, action: look.action
-                        )
+    private var isPanelOpen: Bool { bells?.capsule?.isPanelOpen ?? false }
+
+    /// The glass capsule 12 pt above the tab bar (TT-191, D71): "Alert on · 7:32 AM" with Repeat, which grows it into the
+    /// day panel; "Alert off · 7:32 AM" with Undo; "Couldn't …" with Try again; "Tap the bell on a train" after the Alerts
+    /// tab's "Add alert". The timeline fades under it. One at a time (`GlassCapsuleStage`).
+    @ViewBuilder private var capsuleLayer: some View {
+        if let bells {
+            GeometryReader { proxy in
+                ZStack(alignment: .bottom) {
+                    CapsuleVeil(isShown: bells.capsule != nil, isTall: bells.capsule?.isPanelOpen ?? false)
+                        // From the screen's bottom edge, under the tab bar.
+                        .offset(y: proxy.safeAreaInsets.bottom)
+                    GlassCapsuleStage(item: bells.capsule, isPanel: { $0.isPanelOpen }) { capsule in
+                        alertCapsule(capsule, bells: bells, panelWidth: proxy.size.width - 2 * TTSpace.s5)
                     }
+                    .padding(.bottom, TTSpace.s3)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .padding(.horizontal, TTSpace.s5)
-            .padding(.bottom, TTSpace.s2)
         }
     }
 
-    private enum ToastItem: Equatable {
-        case hint
-        case alert(AlertBellModel.AlertToast)
+    private func alertCapsule(_ capsule: AlertBellModel.Capsule, bells: AlertBellModel, panelWidth: CGFloat) -> some View {
+        AlertCapsuleView(
+            glyph: Self.glyph(capsule.kind),
+            words: capsule.words(formatter, today: viewModel.today),
+            action: capsule.actionKey.map { key in
+                AlertCapsuleView.Action(title: LocalizedStringKey(key)) { act(on: capsule, bells: bells) }
+            },
+            panel: capsule.panelDays.map { days in
+                AlertCapsuleView.Panel(
+                    words: capsule.panelWords(formatter, today: viewModel.today),
+                    days: days,
+                    onToggle: { bells.toggleDay($0) },
+                    onDone: { bells.closePanel() }
+                )
+            },
+            panelWidth: panelWidth,
+            reservesPanelSpace: true
+        )
+        // A finger on the capsule holds it.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in bells.holdCapsule(true) }
+                .onEnded { _ in bells.holdCapsule(false) }
+        )
     }
 
-    private var toastItem: ToastItem? {
-        guard let bells else { return nil }
-        if let toast = bells.toast { return .alert(toast) }
-        return bells.showsHint ? .hint : nil
-    }
-
-    /// What the alert toast says for each kind: its words, icon, tint and action.
-    private func toastLook(
-        _ toast: AlertBellModel.AlertToast, bells: AlertBellModel
-    ) -> (message: String, systemImage: String, tint: Color, actionTitle: LocalizedStringKey?, action: () -> Void) {
-        switch toast.kind {
+    /// Repeat, Undo, Try again or Turn on.
+    private func act(on capsule: AlertBellModel.Capsule, bells: AlertBellModel) {
+        switch capsule.kind {
         case .on:
-            return (
-                String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
-                "bell.fill", TTColor.accent, "alert.repeat",
-                { if let request = bells.repeatRequest() { onAlertSetup(request) } }
-            )
+            bells.repeatTapped()
         case .off:
-            return (String(localized: "alert.toast_off"), "bell.slash", TTColor.inkSecondary, nil, {})
-        case .couldNotSave:
-            return (
-                String(localized: "alert.could_not_save"), "xmark.circle.fill", TTColor.cancelInk, "button.try_again",
-                { tapBell(toast.trip, on: toast.route) }
-            )
+            Task { await bells.undo() }
+        case .failed:
+            Task { await bells.tryAgain() }
         case .notificationsOff:
-            // Turn on opens the app's page in iOS Settings; back with notifications on, this bell turns on.
-            return (
-                String(localized: "alert.notifications_off"), "bell.slash.fill", TTColor.cancelInk, "alert.turn_on",
-                {
-                    bells.turnOnInSettings()
-                    openURL(AlertBellModel.notificationSettingsURL)
-                }
-            )
+            // Back with notifications on, the bell that was tapped turns on (TT-190).
+            bells.turnOnInSettings()
+            openURL(AlertBellModel.notificationSettingsURL)
+        case .notificationsOn, .hint:
+            break
+        }
+    }
+
+    /// Each capsule's glyph: the filled bell, the outline, the exclamation mark or the crossed bell.
+    static func glyph(_ kind: AlertBellModel.Capsule.Kind) -> CapsuleGlyph {
+        switch kind {
+        case .on: .bellOn
+        case .off, .hint: .bellOff
+        case .failed: .failed
+        case .notificationsOff: .notificationsOff
+        case .notificationsOn: .confirmed
         }
     }
 

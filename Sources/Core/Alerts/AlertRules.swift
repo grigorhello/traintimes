@@ -20,6 +20,8 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     static let installationKey = "alerts.installation"
     /// Rules deleted while the server was unreachable, deleted there on the next call.
     static let pendingDeletesKey = "alerts.pendingDeletes"
+    /// Alerts whose change went back on device after a failed save, to be sent again in their saved version (TT-191).
+    static let pendingSavesKey = "alerts.pendingSaves"
 
     /// Debug builds get sandbox device tokens; TestFlight and the App Store get production ones.
     #if DEBUG
@@ -52,6 +54,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     @ObservationIgnored private var startToken: String?
     @ObservationIgnored private var inFlight: Set<AlertRule.ID> = []
     @ObservationIgnored private var pendingDeletes: [String]
+    @ObservationIgnored private var pendingSaves: [String]
 
     init(
         server: any AlertServer, push: any PushRegistering, permissions: any NotificationPermissionProviding,
@@ -66,6 +69,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         defaults?.set(installation, forKey: Self.installationKey)
         self.installation = installation
         pendingDeletes = defaults?.stringArray(forKey: Self.pendingDeletesKey) ?? []
+        pendingSaves = defaults?.stringArray(forKey: Self.pendingSavesKey) ?? []
         let stored = (defaults?.data(forKey: Self.rulesKey)).flatMap { try? JSONDecoder().decode([Stored].self, from: $0) } ?? []
         rules = stored.map(\.rule)
         for item in stored {
@@ -155,7 +159,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     /// already in flight for the rule sends nothing more. Doubles it leaves are merged away afterwards (TT-189).
     func save(_ candidate: AlertRule) async {
         var rule = candidate
-        if !contains(rule.id), let existing = matching(candidate) { rule.id = existing.id }
+        rule.id = storedID(of: candidate)
         guard !inFlight.contains(rule.id) else { return }
         inFlight.insert(rule.id)
         await send(rule)
@@ -163,10 +167,44 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         if mergeDoubles() { await retryPendingDeletes() }
     }
 
+    /// Saves a change from the bell or its capsule with nothing half-kept (TT-191, D71). When the server cannot take it, a
+    /// stored alert goes back to what was saved (its last version and state) and a new one goes away, deleted on the server
+    /// with the next call in case it got there. A removed alert saved again (Undo) takes back its pending delete. False
+    /// when the change went back; a save already in flight for the alert sends nothing more and counts as kept.
+    @discardableResult
+    func commit(_ candidate: AlertRule) async -> Bool {
+        let id = storedID(of: candidate)
+        let previous = rules.first { $0.id == id }
+        let previousState = serverStates[id]
+        if previous == nil { pendingDeletes.removeAll { $0 == id } }
+        await save(candidate)
+        guard contains(id), serverStates[id] == .couldNotSave, !inFlight.contains(id) else { return true }
+        if let previous, let index = rules.firstIndex(where: { $0.id == id }) {
+            rules[index] = previous
+            serverStates[id] = previousState ?? .couldNotSave
+            // The failed save may have reached the server with its answer lost: send the saved version again with the
+            // next call, so the server ends with what the rider sees.
+            if !pendingSaves.contains(id) { pendingSaves.append(id) }
+        } else {
+            rules.removeAll { $0.id == id }
+            serverStates[id] = nil
+            pendingDeletes.append(id)
+        }
+        persist()
+        return false
+    }
+
+    /// The id a candidate is saved under: its own when stored, else that of the alert it is saved over (`matching`).
+    private func storedID(of candidate: AlertRule) -> AlertRule.ID {
+        guard !contains(candidate.id), let existing = matching(candidate) else { return candidate.id }
+        return existing.id
+    }
+
     private func send(_ rule: AlertRule) async {
         upsert(rule, state: .settingUp)
         await refreshPermission()
         await retryPendingDeletes()
+        await retryPendingSaves()
         do {
             try await registerIfNeeded()
             do {
@@ -181,6 +219,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
                 try? await server.delete(ruleId: rule.id, installation: installation)
                 return
             }
+            pendingSaves.removeAll { $0 == rule.id }
             set(.on, for: rule.id)
         } catch {
             if contains(rule.id) { set(.couldNotSave, for: rule.id) }
@@ -195,6 +234,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         await refreshPermission()
         // A delete the server missed is sent again even when no rule is left, so a deleted alert stops (TT-153).
         await retryPendingDeletes()
+        await retryPendingSaves()
         guard !rules.isEmpty else { return }
         let statuses: [AlertRuleStatus]
         do {
@@ -235,10 +275,26 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     /// Removes the rule on device at once and on the server; if the server cannot be reached, it is deleted there on the
     /// next call.
     func delete(_ id: AlertRule.ID) async {
+        removeOnDevice(id)
+        await deleteOnServer(id)
+    }
+
+    /// The same delete, gone on device before it returns, with the server's part left running: the bell's capsule and
+    /// its Undo answer at once, and Undo waits for the returned task so its save lands after the delete (TT-191).
+    func deleteInBackground(_ id: AlertRule.ID) -> Task<Void, Never> {
+        removeOnDevice(id)
+        return Task { await deleteOnServer(id) }
+    }
+
+    private func removeOnDevice(_ id: AlertRule.ID) {
         rules.removeAll { $0.id == id }
+        pendingSaves.removeAll { $0 == id }
         serverStates[id] = nil
         noTrainDates[id] = nil
         persist()
+    }
+
+    private func deleteOnServer(_ id: AlertRule.ID) async {
         do {
             try await server.delete(ruleId: id, installation: installation)
         } catch {
@@ -349,10 +405,38 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         }
     }
 
+    /// Sends again each alert whose change went back on device (`commit`), as it is on device now; one being saved is left
+    /// to that save, and one removed meanwhile is dropped. Stops at the first failure (TT-191).
+    private func retryPendingSaves() async {
+        for id in pendingSaves {
+            guard let rule = rules.first(where: { $0.id == id }) else {
+                pendingSaves.removeAll { $0 == id }
+                persist()
+                continue
+            }
+            guard !inFlight.contains(id) else { continue }
+            guard (try? await server.save(rule, installation: installation)) != nil else { return }
+            guard contains(id) else {
+                // Deleted while it was sent: delete it again, in case the delete reached the server first.
+                try? await server.delete(ruleId: id, installation: installation)
+                continue
+            }
+            guard rules.first(where: { $0.id == id }) == rule, !inFlight.contains(id) else {
+                // Changed or being saved meanwhile: kept, so the next call sends the version on device last.
+                if !pendingSaves.contains(id) { pendingSaves.append(id) }
+                persist()
+                continue
+            }
+            pendingSaves.removeAll { $0 == id }
+            persist()
+        }
+    }
+
     private func persist() {
         guard let defaults else { return }
         let stored = rules.map { Stored(rule: $0, state: serverStates[$0.id] ?? .couldNotSave) }
         defaults.set(try? JSONEncoder().encode(stored), forKey: Self.rulesKey)
         defaults.set(pendingDeletes, forKey: Self.pendingDeletesKey)
+        defaults.set(pendingSaves, forKey: Self.pendingSavesKey)
     }
 }

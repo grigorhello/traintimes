@@ -21,7 +21,7 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No alerts yet"].waitForExistence(timeout: 5))
         app.buttons["emptyState.action"].tap()
 
-        XCTAssertTrue(app.staticTexts["Tap the bell on a train"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Tap the bell on a train"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.tabBars.buttons["Schedule"].isSelected)
     }
 

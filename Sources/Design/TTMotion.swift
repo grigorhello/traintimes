@@ -12,6 +12,8 @@ enum TTMotion {
         let damping: Double
 
         var animation: Animation { .spring(response: response, dampingFraction: damping) }
+        /// The same spring for a keyframe (`SpringKeyframe`).
+        var spring: Spring { Spring(response: response, dampingRatio: damping) }
 
         /// How far the spring has got `time` seconds after the start, with no initial velocity: 0 at the start, 1 at rest,
         /// a little past 1 on the way for a bouncy one. The closed form of SwiftUI's `spring(response:dampingFraction:)`
@@ -35,6 +37,10 @@ enum TTMotion {
     static let pressCurve = Curve(response: 0.40, damping: 0.50)
     /// A small pop: the route pin after the swap lands, and a card's bell springing back from its swell (TT-166).
     static let popCurve = Curve(response: 0.35, damping: 0.45)
+    /// The selected day's accent tile gliding to the tapped day (TT-164, D61).
+    static let glideCurve = Curve(response: 0.45, damping: 0.72)
+    /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D61).
+    static let cascadeCurve = Curve(response: 0.44, damping: 0.62)
     /// The bell's toast rising 32 pt into place (TT-166).
     static let toastCurve = Curve(response: 0.45, damping: 0.68)
     /// The Enable alerts check popping in from 0.6 (TT-166).
@@ -44,10 +50,16 @@ enum TTMotion {
     static var turn: Animation { turnCurve.animation }
     static var press: Animation { pressCurve.animation }
     static var pop: Animation { popCurve.animation }
+    static var glide: Animation { glideCurve.animation }
+    static var cascade: Animation { cascadeCurve.animation }
     static var toast: Animation { toastCurve.animation }
     static var confirm: Animation { confirmCurve.animation }
     /// The bell's swell to 1.3 before `pop`; the glyph swaps at its top (TT-166).
     static var swell: Animation { .easeOut(duration: 0.1) }
     /// Status changes, and every transform-free stand-in under Reduce Motion.
     static var fade: Animation { .easeOut(duration: 0.18) }
+
+    /// When the card `index` places after the first in view starts its cascade: 60 ms, then 40 ms apart, and from the
+    /// sixth card on all together, so a day change is still by about 0.7 s where the rider looks (TT-164).
+    static func cascadeDelay(_ index: Int) -> Double { 0.06 + 0.04 * Double(min(max(index, 0), 5)) }
 }

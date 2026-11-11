@@ -54,6 +54,30 @@ final class ScheduleViewModel {
     private(set) var rescrollRequest = 0
     /// A scroll request is waiting for the cards to be measured.
     @ObservationIgnored private var awaitsMeasurement = false
+    /// Bumped when a new set of trains is shown: a day picked, the route swapped or picked, the first load, back to Today
+    /// from another day. The cards cascade in (TT-164, D61). A minute tick, a status change, a refresh or poll and the
+    /// midnight turn never bump it.
+    private(set) var entranceRequest = 0
+    /// New trains are loading for another day or route: the old cards are hidden at once and the new ones wait at the
+    /// cascade's first pose (TT-164, D61). Only the latest such load ends the wait, so a load it overtook (today's, still
+    /// waiting for live status) can neither end it early nor keep the latest trains hidden.
+    private(set) var awaitsNewTrains = false
+    /// Counts the loads of new trains, so each knows whether it is still the latest.
+    @ObservationIgnored private var newTrainsTicket = 0
+    /// New trains have kept the timeline empty for `slowNewTrains`, so it shows the loading timeline until they land: today's
+    /// trains wait for live status, which can take the network's time (up to 10 s on a dead connection, D36).
+    private(set) var newTrainsAreSlow = false
+    static let slowNewTrains: Duration = .milliseconds(400)
+    /// The last scroll request jumps instead of gliding: new trains replaced the cards, so the timeline moves at once and
+    /// they cascade in where they land (TT-164, D61).
+    private(set) var scrollJumps = false
+    /// Bumped when the rider picks a day or the Schedule tab takes them back to Today: the accent tile glides there. The
+    /// midnight turn and a Mock time jump move the selection without it, so nothing slides at midnight (TT-164, D61).
+    private(set) var daySelection = 0
+    /// Bumped when the Schedule tab is tapped again, and once when the launch's scroll has settled: the Now dot pulses.
+    private(set) var nowPulse = 0
+    /// The launch's scroll request pulses Now once it settles.
+    @ObservationIgnored private var pulsesOnSettle = false
 
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -98,6 +122,8 @@ final class ScheduleViewModel {
     /// the rest of the app keeps (TT-159, D52).
     var today: ServiceDay { ServiceDay(calendarDayContaining: clock.now) }
     var isToday: Bool { selectedDay == today }
+    /// A past day's cards only fade in; the cascade's drop is for today and later (TT-164, D61).
+    var isPastDay: Bool { selectedDay < today }
     /// The day strip, Today first, running to the schedule's last service day (every day of the GTFS calendar, up to
     /// `maxDayCount`). Today always shows.
     var days: [ServiceDay] {
@@ -137,7 +163,7 @@ final class ScheduleViewModel {
     var content: Content {
         guard let route else { return .loading }
         guard route.line != nil else { return .noConnection }
-        guard freshness != nil else { return .loading }
+        guard freshness != nil, !(awaitsNewTrains && newTrainsAreSlow) else { return .loading }
         guard departures.isEmpty else { return .timeline }
         return .noTrains(
             title: String(format: String(localized: "schedule.no_trains.title"), selectedDay.weekdayName),
@@ -195,7 +221,9 @@ final class ScheduleViewModel {
     /// A scroll request, then another once every card has its measured size (D49): the first scroll ran before the cards
     /// were measured, so the Now line has moved since. The view makes the launch's second scroll without animation and
     /// later ones with.
-    private func requestScroll() {
+    private func requestScroll(jumping: Bool = false) {
+        pulsesOnSettle = false
+        scrollJumps = jumping
         scrollRequest += 1
         awaitsMeasurement = !departures.allSatisfy { cardSizes[$0.id] != nil }
         let request = scrollRequest
@@ -215,6 +243,10 @@ final class ScheduleViewModel {
         guard awaitsMeasurement, departures.allSatisfy({ cardSizes[$0.id] != nil }) else { return }
         awaitsMeasurement = false
         settleRequest += 1
+        if pulsesOnSettle {
+            pulsesOnSettle = false
+            nowPulse += 1
+        }
     }
 
     /// Once a minute: the Now line moves, without animation, and "in N min" counts down.
@@ -347,11 +379,12 @@ final class ScheduleViewModel {
         todayNotices.removeAll { $0.id == id }
     }
 
-    /// The first load, then a scroll to the present.
+    /// The first load, then a scroll to the present; the cards cascade in, and Now pulses once the scroll has settled.
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
-        await load()
+        await loadNewTrains()
         requestScroll()
+        pulsesOnSettle = true
     }
 
     /// Pull to refresh. Cards keep their trip key (D9), so they keep their identity, and the scroll position stays.
@@ -384,18 +417,23 @@ final class ScheduleViewModel {
     func select(_ day: ServiceDay) async {
         guard day != selectedDay else { return }
         selectedDay = day
-        await load()
-        requestScroll()
+        daySelection += 1
+        await loadNewTrains()
+        requestScroll(jumping: true)
     }
 
-    /// Tapping the Schedule tab while Schedule shows: back to today and the present in one tap (D49).
+    /// Tapping the Schedule tab while Schedule shows: back to today and the present in one tap (D49), and the Now dot
+    /// pulses (TT-164).
     func backToNow() async {
         knownToday = today
-        if !isToday {
+        let jumping = !isToday
+        if jumping {
             selectedDay = today
-            await load()
+            daySelection += 1
+            await loadNewTrains()
         }
-        requestScroll()
+        requestScroll(jumping: jumping)
+        nowPulse += 1
     }
 
     /// The clock jumped (Mock time changed in Settings, TT-158): back to today and the present, as a relaunch would.
@@ -404,8 +442,8 @@ final class ScheduleViewModel {
         selectedDay = today
         now = clock.now
         guard hasLoaded else { return }
-        await load()
-        requestScroll()
+        await loadNewTrains()
+        requestScroll(jumping: true)
     }
 
     /// "Show Monday" on a day with no direct trains.
@@ -421,8 +459,8 @@ final class ScheduleViewModel {
         self.route = swapped
         routeStore?.save(swapped)
         recents.record(swapped)
-        await load()
-        requestScroll()
+        await loadNewTrains()
+        requestScroll(jumping: true)
     }
 
     /// The route from the route form (TT-120), saved on device so the next launch opens it.
@@ -432,11 +470,31 @@ final class ScheduleViewModel {
         recents.record(route)
         // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
         guard hasLoaded else { return }
-        await load()
-        requestScroll()
+        await loadNewTrains()
+        requestScroll(jumping: true)
     }
 
-    private func load() async {
+    /// A load for another day or route: the old cards hide at once and the new ones cascade in once it lands.
+    private func loadNewTrains() async {
+        newTrainsTicket += 1
+        let ticket = newTrainsTicket
+        awaitsNewTrains = true
+        let slow = Task {
+            try? await Task.sleep(for: Self.slowNewTrains)
+            if !Task.isCancelled, ticket == newTrainsTicket { newTrainsAreSlow = true }
+        }
+        defer {
+            slow.cancel()
+            if ticket == newTrainsTicket {
+                awaitsNewTrains = false
+                if newTrainsAreSlow { newTrainsAreSlow = false }
+            }
+        }
+        await load(newTrains: true)
+    }
+
+    /// `newTrains` asks for the cascade in the same update that puts the trains on screen, so they never show at rest first.
+    private func load(newTrains: Bool = false) async {
         hasLoaded = true
         isLoading = true
         defer { isLoading = false }
@@ -474,6 +532,8 @@ final class ScheduleViewModel {
             setTodayNotices([], line: nil)
         }
         now = clock.now
+        // Trains that replace "Loading timetable" cascade too, even when a refresh brings them.
+        if newTrains || loaded == nil { entranceRequest += 1 }
         loaded = (day, trips, live)
         resolve()
     }
@@ -512,7 +572,10 @@ final class ScheduleViewModel {
         return nil
     }
 
+    /// Set only when it changes: each new card reports its size once, mostly the standard one the layout already used, and
+    /// setting an equal layout would still redraw every card (a day of cards took a moment in a Debug build, TT-164).
     private func relayout() {
-        layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
+        let layout = TimelineLayout(TimelineInput(departures: departures, now: isToday ? now : nil, cardSizes: cardSizes))
+        if layout != self.layout { self.layout = layout }
     }
 }

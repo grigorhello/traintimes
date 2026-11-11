@@ -17,10 +17,22 @@ import {
   type Sent,
   type SentKind,
 } from './alerts.ts';
+import {
+  contentState,
+  endPayload,
+  LINE_COLORS,
+  phaseAt,
+  shortName,
+  signature,
+  startPayload,
+  staleDate,
+  updatePayload,
+  type Departure,
+} from './activity.ts';
 import { deleteInstallation } from './api.ts';
-import type { Push, PushResult } from './apns.ts';
+import type { LiveActivityPush, Push, PushResult } from './apns.ts';
 import { alertNotice, reviewNotice, type Direction } from './copy.ts';
-import { liveStatus, tripUpdatesOn, type Call, type Feed } from './realtime.ts';
+import { liveStatus, tripUpdatesOn, type Call, type Feed, type LiveStatus } from './realtime.ts';
 import { resolveUsualTrain, type Timetable } from './timetable.ts';
 import { addDays, DAY, gtfsInstant, gtfsSeconds, isoWeekday, MINUTE, serviceDate, type TimeFormat } from './time.ts';
 import type { ApnsEnvironment } from './apns.ts';
@@ -33,6 +45,7 @@ export const MAX_SENDS = 45;
 
 export interface Sender {
   send(push: Push, now: number): Promise<PushResult>;
+  sendLiveActivity(push: LiveActivityPush, now: number): Promise<PushResult>;
 }
 
 interface RuleRow {
@@ -52,6 +65,17 @@ interface RuleRow {
   device_token: string;
   environment: ApnsEnvironment;
   time_format: TimeFormat;
+  /** The push-to-start token for the before-departure Live Activity (TT-178); null before iOS 17.2 or until the app sends it. */
+  start_token: string | null;
+}
+
+interface ActivityRow {
+  installation_id: string;
+  key: string;
+  token: string | null;
+  state: 'started' | 'ended' | 'handedOff';
+  shown: string | null;
+  version: number;
 }
 
 interface WatchRow {
@@ -161,8 +185,9 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   });
   const rules = await db
     .prepare(
-      `SELECT r.*, i.device_token, i.environment, i.time_format FROM rules r
+      `SELECT r.*, i.device_token, i.environment, i.time_format, s.token AS start_token FROM rules r
        JOIN installations i ON i.id = r.installation_id
+       LEFT JOIN start_tokens s ON s.installation_id = r.installation_id
        WHERE r.paused = 0 AND r.state = 'on' AND i.device_token IS NOT NULL
          AND (r.departure BETWEEN ? AND ? OR r.departure BETWEEN ? AND ?)
          AND (r.kind = 'repeat' OR r.service_date IN (?, ?))`,
@@ -239,6 +264,12 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     .bind(watchDates[0], watchDates.at(-1))
     .all<WatchRow>();
   const watchRows = new Map(rows.results.map((row) => [`${row.installation_id}|${row.key}`, row]));
+  // The before-departure activities of the same dates (TT-178), in one query too.
+  const activityRows = await db
+    .prepare('SELECT installation_id, key, token, state, shown, version FROM activities WHERE service_date IN (?, ?)')
+    .bind(watchDates[0], watchDates.at(-1))
+    .all<ActivityRow>();
+  const activities = new Map(activityRows.results.map((row) => [`${row.installation_id}|${row.key}`, row]));
   // Riders sent nothing yet go first, then those sent to longest ago, so past MAX_SENDS nobody waits behind updates.
   const queue = watches
     .map((watch) => {
@@ -251,9 +282,12 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     // A This-trip rule and a Repeat rule for the same train share one watch, so the rider gets one message.
     if (seen.has(`${rule.installation_id}|${key}`) || gone.has(rule.installation_id)) continue;
     seen.add(`${rule.installation_id}|${key}`);
-    if (watch?.done) continue;
     const update = updatesByDate.get(date)?.get(tripId);
     const status = update && fresh ? liveStatus(update, call, feedTime!) : null;
+    // The Live Activity runs on past the train's departure, when departure alerts stop.
+    const activity = activities.get(`${rule.installation_id}|${key}`) ?? null;
+    if (rule.start_token || activity) await followActivity({ rule, date, tripId, departure, call, key }, status, activity);
+    if (watch?.done) continue;
     const version = watch?.version ?? 0;
 
     if (hasDeparted(status, feedTime ?? 0)) {
@@ -278,6 +312,100 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     }
   }
   return sent;
+
+  /**
+   * The watched train's before-departure Live Activity (TT-178, D74): started once at T−30 with a push-to-start, updated
+   * when what it shows changes, ended 2 min after the train left (at once when it is cancelled or skips a stop). Nothing
+   * once the app's ride took it over, or for an activity the app started until it reports the activity's update token.
+   */
+  async function followActivity(watch: Watch & { key: string }, status: LiveStatus | null, activity: ActivityRow | null) {
+    const { rule, call, key, date } = watch;
+    if (activity && activity.state !== 'started') return;
+    const train: Departure = {
+      scheduled: watch.departure,
+      scheduledArrival: call.arrivals[call.to],
+      status,
+      origin: rule.origin_name,
+      destination: rule.destination_name,
+    };
+    const phase = phaseAt(train, now);
+    if (phase === 'before') return;
+    const expiration = staleDate(train);
+
+    if (!activity) {
+      if (phase === 'over' || phase === 'departed' || !rule.start_token || sends >= MAX_SENDS) return;
+      // Claim the start first: an overlapping cycle finds the row and starts nothing.
+      const state = contentState(train, phase, now, rule.time_format);
+      const claimed = await db
+        .prepare(`INSERT OR IGNORE INTO activities (installation_id, key, service_date, state, shown) VALUES (?, ?, ?, 'started', ?)`)
+        .bind(rule.installation_id, key, date, signature(state))
+        .run();
+      if (claimed.meta.changes === 0) return;
+      const attributes = {
+        tripId: watch.tripId,
+        serviceDate: Number(date),
+        originId: rule.origin_id,
+        destinationId: rule.destination_id,
+        lineCode: rule.line,
+        lineColorHex: LINE_COLORS[rule.line] ?? null,
+        destinationName: shortName(rule.destination_name),
+        stopCount: call.to - call.from + 1,
+      };
+      sends++;
+      const result = await apns.sendLiveActivity(
+        { token: rule.start_token, environment: rule.environment, payload: startPayload(train, attributes, state, now, rule.time_format), expiration },
+        now,
+      );
+      if (result === 'sent') return;
+      if (result === 'unregistered' || result === 'badToken') {
+        // The push-to-start token is no longer good: nothing starts until the app sends a new one.
+        await db.prepare('DELETE FROM start_tokens WHERE installation_id = ? AND token = ?').bind(rule.installation_id, rule.start_token).run();
+      }
+      if (result !== 'failed') {
+        // Not started: let a later cycle try again.
+        await db.prepare('DELETE FROM activities WHERE installation_id = ? AND key = ?').bind(rule.installation_id, key).run();
+      }
+      return;
+    }
+
+    // Started, by the server or by the app: updates and the end go to the activity's own token.
+    if (phase === 'over') {
+      if (activity.token) {
+        if (sends >= MAX_SENDS) return;
+        // Its last look: Departed, or the timetable's for a train that no longer runs; it leaves the Lock Screen at once.
+        const last = contentState(status?.kind === 'running' ? train : { ...train, status: null }, 'departed', now, rule.time_format);
+        sends++;
+        const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload: endPayload(last, now), expiration: now + 60 * MINUTE }, now);
+        if (result === 'retry') return;
+      }
+      await setActivity(activity, { state: 'ended' });
+      return;
+    }
+    if (!activity.token || sends >= MAX_SENDS) return;
+    const state = contentState(train, phase, now, rule.time_format);
+    const shown = signature(state);
+    if (shown === activity.shown) return;
+    // Claim the update first, as a watch's send is claimed.
+    if (!(await setActivity(activity, { shown }))) return;
+    sends++;
+    const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload: updatePayload(train, state, now), expiration }, now);
+    if (result === 'unregistered' || result === 'badToken') {
+      // The rider swiped it away, or it ended: nothing more to send.
+      await setActivity({ ...activity, version: activity.version + 1 }, { state: 'ended' });
+    } else if (result === 'retry') {
+      await setActivity({ ...activity, version: activity.version + 1 }, { shown: activity.shown });
+    }
+  }
+
+  /** Writes an activity only if nobody wrote it since it was read; true when this call wrote it. */
+  async function setActivity(activity: ActivityRow, changes: Partial<Pick<ActivityRow, 'state' | 'shown'>>): Promise<boolean> {
+    const row = { ...activity, ...changes };
+    const result = await db
+      .prepare('UPDATE activities SET state = ?, shown = ?, version = version + 1 WHERE installation_id = ? AND key = ? AND version = ?')
+      .bind(row.state, row.shown, activity.installation_id, activity.key, activity.version)
+      .run();
+    return result.meta.changes > 0;
+  }
 }
 
 /** Writes a watch only if nobody wrote it since `version` was read; true when this call wrote it. */
@@ -327,6 +455,7 @@ export async function applyRetention(db: D1Database, now: number): Promise<void>
   await db.batch([
     db.prepare(`DELETE FROM rules WHERE kind = 'trip' AND service_date <= ?`).bind(expired),
     db.prepare('DELETE FROM watches WHERE service_date <= ?').bind(expired),
+    db.prepare('DELETE FROM activities WHERE service_date <= ?').bind(expired),
     db
       .prepare(
         `DELETE FROM installations WHERE last_seen < ? AND NOT EXISTS (SELECT 1 FROM rules WHERE rules.installation_id =
@@ -335,6 +464,8 @@ export async function applyRetention(db: D1Database, now: number): Promise<void>
       .bind(now - 30 * DAY),
     db.prepare('DELETE FROM rules WHERE installation_id NOT IN (SELECT id FROM installations)'),
     db.prepare('DELETE FROM watches WHERE installation_id NOT IN (SELECT id FROM installations)'),
+    db.prepare('DELETE FROM activities WHERE installation_id NOT IN (SELECT id FROM installations)'),
+    db.prepare('DELETE FROM start_tokens WHERE installation_id NOT IN (SELECT id FROM installations)'),
     db.prepare('DELETE FROM timetables WHERE service_date < ?').bind(addDays(today, -1)),
   ]);
 }

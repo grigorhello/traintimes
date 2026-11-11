@@ -208,9 +208,19 @@ struct RootView: View {
             await refreshAlerts()
             await bells.cameBack()
         }
+        // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
+        // server (TT-178).
+        .task {
+            liveActivity?.connect(reporter: alerts) { departureForActivity() }
+        }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
+        // Before departure (TT-178) a tap opens the train's Trip details and "I’m on board" starts the ride there.
         .onOpenURL { url in
             switch RideActivityLink(url) {
+            case .departure:
+                Task { await openDepartureFromActivity(boards: false) }
+            case .board:
+                Task { await openDepartureFromActivity(boards: true) }
             case .open:
                 opensRide = true
                 Task {
@@ -306,6 +316,37 @@ struct RootView: View {
         } else {
             openTrip(key)
         }
+    }
+
+    /// The Live Activity's train before it leaves (TT-178): the demo departure's while it plays, else Schedule's alerted train
+    /// today, on the app's clock to the second.
+    private func departureForActivity() -> DepartureActivitySource? {
+        if let demo = onBoard.departureDemo {
+            let now = demo.now
+            guard let departure = demo.departure(at: now), let live = LiveDeparture(departure, now: now) else { return nil }
+            return DepartureActivitySource(live: live, route: demo.route, now: now, hasPlatformSource: true)
+        }
+        let now = clock.now
+        guard let route = schedule.route, let live = schedule.activityDeparture(at: now) else { return nil }
+        return DepartureActivitySource(live: live, route: route, now: now, hasPlatformSource: schedule.hasPlatformSource)
+    }
+
+    /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, in the sheet's own
+    /// button window (from 20 min before departure, D63) and unless the first-ride sheet has to come first (the rider then
+    /// taps "I’m on board" there).
+    private func openDepartureFromActivity(boards: Bool) async {
+        guard let ride = liveActivity?.departureRide else { return }
+        let key = ride.tripKey
+        if let demo = onBoard.departureDemo, demo.key == key {
+            router.showSchedule()
+            openTrip(key, on: demo.route)
+        } else {
+            await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId))
+        }
+        guard boards, let details = tripDetails, details.key == key else { return }
+        await details.load()
+        guard details.showsOnBoardButton, !details.needsLocationIntro else { return }
+        _ = await details.startRide()
     }
 
     /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's

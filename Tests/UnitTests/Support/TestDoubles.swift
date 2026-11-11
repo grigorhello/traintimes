@@ -79,6 +79,8 @@ actor FakeAlertServer: AlertServer {
     private(set) var deleted: [String] = []
     /// What `GET …/rules` answers (TT-143).
     private(set) var statuses: [AlertRuleStatus] = []
+    /// Live Activity reports (TT-178).
+    private(set) var activityReports: [LiveActivityReport] = []
     private var failing = false
     private var holding = false
     private var holdingDeletes = false
@@ -128,6 +130,15 @@ actor FakeAlertServer: AlertServer {
             throw AlertServerError.unknownInstallation
         }
         return statuses
+    }
+
+    func report(_ activity: LiveActivityReport, installation: String) async throws {
+        if failing { throw URLError(.cannotFindHost) }
+        if unknownInstallationOnce {
+            unknownInstallationOnce = false
+            throw AlertServerError.unknownInstallation
+        }
+        activityReports.append(activity)
     }
 
     /// Waits until a save or a delete is held.

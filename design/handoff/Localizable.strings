@@ -126,6 +126,7 @@
 "depart.rideLength" = "%@ ride";
 "depart.strip" = "Your %@ train";
 "depart.footnote" = "Live from 30 minutes before departure because this train has an alert. Tap I’m on board when you get on, or Train Times notices it for you.";
+"depart.live.title" = "Your %@ train is live";
 "loc.title" = "See your stops as you ride";
 "loc.subtitle" = "Train Times follows the train with your location, only while you’re on board.";
 "loc.point.next" = "**Which station is next,** and how long to yours.";

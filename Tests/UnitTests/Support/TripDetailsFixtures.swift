@@ -166,9 +166,11 @@ struct DemoRideRig {
         let start = DemoRideRig.time(17, 32)
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
+        // No question first (TT-175): the ride starts as Demo trains › Ride turns on.
         let onBoard = OnBoard(
             app: nil,
-            makeDemo: { (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            makeDemo: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            makeDemoDetector: nil,
             makeDemoNudge: makeNudge
         )
         await onBoard.setDemo(true)

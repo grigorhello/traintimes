@@ -9,6 +9,8 @@ struct ScheduleDependencies {
     let clock: any AppClock
     /// On board's trips and tracks (TT-171): the GO feed in the app; none in fixture runs, so no ride starts or restores.
     var rides: (any RideDataProviding)?
+    /// The trains train detection matches the phone against (TT-175): the GO feed in the app; none in fixture runs.
+    var candidates: (any TrainCandidatesProviding)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -26,7 +28,9 @@ struct ScheduleDependencies {
             live: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0) },
             alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
         )
-        let live = ScheduleDependencies(repository: repository, stations: repository, clock: SystemClock(), rides: repository)
+        let live = ScheduleDependencies(
+            repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository
+        )
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
 
@@ -41,7 +45,8 @@ struct ScheduleDependencies {
             ),
             stations: stations,
             clock: mocked,
-            rides: rides
+            rides: rides,
+            candidates: candidates
         )
     }
 
@@ -78,6 +83,20 @@ extension ArrivalNudge {
     /// test leaves no notification to go off over a later test.
     static func demo(environment: [String: String] = ProcessInfo.processInfo.environment) -> ArrivalNudge? {
         ScheduleDependencies.isFixtureRun(environment) ? nil : ArrivalNudge.system(rate: DemoRide.speed)
+    }
+}
+
+extension TrainDetector {
+    /// The app's train detector (TT-175): the GO feed's trains on the route, the phone's location only while Schedule is
+    /// open (no background session, never asking), and the schedule's clock. None in fixture runs.
+    static func app(_ dependencies: ScheduleDependencies) -> TrainDetector? {
+        guard let candidates = dependencies.candidates else { return nil }
+        return TrainDetector(
+            candidates: candidates,
+            location: SystemLocationProvider(keepsInBackground: false),
+            clock: dependencies.clock,
+            defaults: .standard
+        )
     }
 }
 

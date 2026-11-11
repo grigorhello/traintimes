@@ -44,20 +44,26 @@ struct TrainQuestion: Equatable {
 
 extension TrainQuestion {
     init(_ question: TrainMatcher.Question, formatter: some TimeFormatting) {
-        let times = question.trains.map { formatter.time($0.departure) }
-        let named = times.count >= 2 ? String(format: String(localized: "detect.either"), times[0], times[1]) : times.first ?? ""
+        let times: [String] = question.trains.map { formatter.time($0.departure) }
+        var named = times.first ?? ""
+        if times.count >= 2 {
+            named = String(format: String(localized: "detect.either"), times[0], times[1])
+        }
         title = String(format: String(localized: "detect.question"), named)
-        let since = Self.shortName(question.since?.name ?? question.trains.first?.plan.stops.first?.station.name ?? "")
-        let stops = question.stops.map { Self.shortName($0.name) }
+        let origin: String = question.since?.name ?? question.trains.first?.plan.stops.first?.station.name ?? ""
+        let since = Self.shortName(origin)
+        let stops: [String] = question.stops.map { Self.shortName($0.name) }
         if stops.count >= 2 {
             why = String(format: String(localized: "detect.why"), since, stops[0], stops[1])
         } else {
             why = String(format: String(localized: "detect.whyOne"), since, stops.first ?? since)
         }
         emphasized = Array(stops.prefix(2))
-        answers = question.trains.count == 1
-            ? [Answer(train: question.trains[0], label: String(localized: "detect.yes"))]
-            : zip(question.trains, times).map { Answer(train: $0, label: $1) }
+        if question.trains.count == 1 {
+            answers = [Answer(train: question.trains[0], label: String(localized: "detect.yes"))]
+        } else {
+            answers = zip(question.trains, times).map { pair in Answer(train: pair.0, label: pair.1) }
+        }
     }
 
     /// "Union", "Mimico": the station's name without " GO" and " Station", as the canvas words the strip and the question.

@@ -198,13 +198,18 @@ struct TrainMatcher {
         if !ready.isEmpty {
             // The timetable cannot tell apart trains that fit as well as the ready one, so the question offers the least late
             // of them (a local and an express a few minutes apart), never one that only fits by running much later.
-            let least = fitting.map { delay(of: $0) }.min() ?? 0
-            let likely = fitting
-                .filter { delay(of: $0) <= least + Self.closeDelays }
-                .sorted { (delay(of: $0), $0.departure) < (delay(of: $1), $1.departure) }
-                .prefix(Self.mostOffered)
-            let offered = likely.sorted { $0.departure < $1.departure }
-            if offered.contains(where: { train in ready.contains { $0.trip == train.trip } }),
+            var delays: [TripKey: TimeInterval] = [:]
+            for train in fitting { delays[train.trip] = delay(of: train) }
+            let least = delays.values.min() ?? 0
+            let close: [TrainCandidate] = fitting.filter { (delays[$0.trip] ?? 0) <= least + Self.closeDelays }
+            let likely: [TrainCandidate] = close.sorted { a, b in
+                let delayA = delays[a.trip] ?? 0
+                let delayB = delays[b.trip] ?? 0
+                return delayA != delayB ? delayA < delayB : a.departure < b.departure
+            }
+            let offered: [TrainCandidate] = Array(likely.prefix(Self.mostOffered)).sorted { $0.departure < $1.departure }
+            let readyTrips = Set(ready.map(\.trip))
+            if offered.contains(where: { readyTrips.contains($0.trip) }),
                let first = offered.first, let proof = evidence[first.trip] {
                 state = .asking(Question(
                     trains: offered,
@@ -390,21 +395,32 @@ struct TrainMatcher {
         }
         guard let current = checking else { return nil }
 
-        let leading = open
-            .compactMap { candidate in evidence[candidate.trip].map { (candidate, $0) } }
-            .filter { $0.1.hasMoved && $0.1.apartSince == nil }
-            .max { a, b in
-                a.1.sharedStops.count != b.1.sharedStops.count
-                    ? a.1.sharedStops.count < b.1.sharedStops.count
-                    : (a.1.delay ?? 0, a.0.departure) > (b.1.delay ?? 0, b.0.departure)
-            }
-        let stops = leading?.1.sharedStops.count ?? 0
+        // The train the phone moves with that has shared the most stops.
+        var leading: (candidate: TrainCandidate, proof: Evidence)?
+        for candidate in open {
+            guard let proof = evidence[candidate.trip], proof.hasMoved, proof.apartSince == nil else { continue }
+            if let best = leading, !Self.leads(proof, candidate, over: best.proof, best.candidate) { continue }
+            leading = (candidate, proof)
+        }
+        let stops = leading?.proof.sharedStops.count ?? 0
         if isQuiet {
             guard stops > 0 else { return nil }
             isQuiet = false
         }
-        let since = leading.flatMap { pair in pair.1.since.map { pair.0.plan.stops[$0].station } } ?? current.since
-        return Progress(line: current.line, since: since, train: stops > 0 ? leading?.0 : nil, stops: stops)
+        var since = current.since
+        if let leading, let index = leading.proof.since {
+            since = leading.candidate.plan.stops[index].station
+        }
+        return Progress(line: current.line, since: since, train: stops > 0 ? leading?.candidate : nil, stops: stops)
+    }
+
+    /// More shared stops leads; on a tie, the less late train, then the earlier one.
+    private static func leads(_ proof: Evidence, _ train: TrainCandidate, over other: Evidence, _ otherTrain: TrainCandidate) -> Bool {
+        if proof.sharedStops.count != other.sharedStops.count { return proof.sharedStops.count > other.sharedStops.count }
+        let delay = proof.delay ?? 0
+        let otherDelay = other.delay ?? 0
+        if delay != otherDelay { return delay < otherDelay }
+        return train.departure < otherTrain.departure
     }
 
     /// How late the timetable takes the train to run, from the stops it shared with the phone; 0 on the feed.

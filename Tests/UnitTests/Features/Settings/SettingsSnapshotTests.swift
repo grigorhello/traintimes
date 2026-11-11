@@ -26,6 +26,14 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testNotificationsOffDark() async { snapNotifications(.off, .dark, await twoAlerts()) }
     @MainActor func testNotificationsNotAskedLight() async { snapNotifications(.notAsked, .light, await twoAlerts()) }
     @MainActor func testNotificationsNotAskedDark() async { snapNotifications(.notAsked, .dark, await twoAlerts()) }
+    /// "Detect my train" on (TT-176).
+    @MainActor func testNotificationsDetectOnLight() async {
+        snapNotifications(.allowed, .light, await twoAlerts(), detection: BackgroundRig.on())
+    }
+    /// Turned off by three Not me in a week: the line under the switch.
+    @MainActor func testNotificationsDetectTurnedOffDark() async {
+        snapNotifications(.allowed, .dark, await twoAlerts(), detection: turnedOff())
+    }
 
     // MARK: About and Testing
 
@@ -52,7 +60,8 @@ final class SettingsSnapshotTests: XCTestCase {
 
     @MainActor
     private func model(
-        _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil
+        _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil,
+        detection: BackgroundRig? = nil
     ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
         if testingOn {
@@ -63,7 +72,7 @@ final class SettingsSnapshotTests: XCTestCase {
         }
         let model = SettingsViewModel(
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
-            showsTesting: showsTesting, alerts: alerts
+            showsTesting: showsTesting, alerts: alerts, detection: detection?.detection
         )
         model.permission = permission
         return model
@@ -84,12 +93,20 @@ final class SettingsSnapshotTests: XCTestCase {
         snap(view, style, testName: testName, line: line)
     }
 
+    /// The switch off after three Not me in a week.
+    @MainActor
+    private func turnedOff() -> BackgroundRig {
+        let defaults = UserDefaults.ephemeral()
+        defaults.set(true, forKey: DetectionStore.turnedOffKey)
+        return BackgroundRig(defaults: defaults)
+    }
+
     @MainActor
     private func snapNotifications(
-        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, _ alerts: AlertRules, testName: String = #function,
-        line: UInt = #line
+        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, _ alerts: AlertRules, detection: BackgroundRig? = nil,
+        testName: String = #function, line: UInt = #line
     ) {
-        let page = SettingsNotificationsPage(viewModel: model(permission, alerts: alerts), onShowAlerts: {})
+        let page = SettingsNotificationsPage(viewModel: model(permission, alerts: alerts, detection: detection), onShowAlerts: {})
         snap(page, style, testName: testName, line: line)
     }
 

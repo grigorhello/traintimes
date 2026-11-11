@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// What the Schedule tab and the route form read: GO Transit's GTFS feed, its GTFS-realtime TripUpdates and Alerts feeds
 /// when the app is built with the Metrolinx key, and the device clock in the app (TT-130, TT-131, TT-132, D35 to D37);
@@ -97,6 +98,30 @@ extension TrainDetector {
             location: SystemLocationProvider(keepsInBackground: false),
             clock: dependencies.clock,
             defaults: .standard
+        )
+    }
+}
+
+extension BackgroundDetection {
+    /// "Detect my train" in the app (TT-176): the GO feed's trains on the saved route, significant-change wake-ups and GPS
+    /// that runs in the background for a check, the schedule's clock, the question in the notification centre. None in
+    /// fixture runs, so UI tests and previews never touch location.
+    static func app(ride: RideEngine, environment: [String: String] = ProcessInfo.processInfo.environment) -> BackgroundDetection? {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        guard let candidates = dependencies.candidates else { return nil }
+        let clock = dependencies.clock
+        return BackgroundDetection(
+            location: SystemWakeLocation(),
+            candidates: candidates,
+            notifier: SystemDetectionNotifier(formatter: { AppSettings().timeFormatter }),
+            clock: clock,
+            defaults: .standard,
+            route: { UserDefaultsRouteStore().route },
+            isRiding: { ride.ride != nil && ride.state?.phase != .ended },
+            isInForeground: { UIApplication.shared.applicationState != .background },
+            makeDetector: {
+                TrainDetector(candidates: candidates, location: BackgroundFixes(), clock: clock, defaults: .standard, tickInterval: nil)
+            }
         )
     }
 }

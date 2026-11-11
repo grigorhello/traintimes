@@ -505,7 +505,7 @@ struct RideIntroSheet: View {
 }
 
 /// The permission sheet's outline pin with a filled centre, in a 24 unit box.
-private struct OutlinePin: View {
+struct OutlinePin: View {
     var body: some View {
         Canvas { context, size in
             let scale = min(size.width, size.height) / 24

@@ -30,6 +30,10 @@ struct SettingsNotificationsPage: View {
                 kindsList.settingsRise(order: 1)
                 myAlertsCard.padding(.top, TTSpace.s1).settingsRise(order: 2)
                 SettingsNote(text: "settings.notifications.footnote").settingsRise(order: 3)
+                // Under the alerts' footnote, which is about alerts only (TT-176).
+                if viewModel.showsDetection {
+                    detectCard.padding(.top, TTSpace.s1).settingsRise(order: 4)
+                }
             }
         }
         .task { await viewModel.refreshPermission() }
@@ -151,6 +155,24 @@ struct SettingsNotificationsPage: View {
         .animation(.easeOut(duration: 0.25), value: viewModel.permission)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("settings.notifications.kinds")
+    }
+
+    /// "Detect my train" (TT-176): off by default; on asks iOS for Always. A line under it after three Not me turned it off.
+    private var detectCard: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s2) {
+            SettingsCard {
+                Toggle(isOn: Binding(get: { viewModel.detectsTrain }, set: { viewModel.detectsTrain = $0 })) {
+                    Text("detect.setting").font(TTFont.body).foregroundStyle(TTColor.ink)
+                }
+                .tint(TTColor.accent)
+                .padding(.horizontal, TTSpace.s4)
+                .frame(minHeight: SettingsMetrics.rowHeight)
+                .accessibilityIdentifier("settings.detectTrain")
+            }
+            if viewModel.detectionWasTurnedOff {
+                SettingsNote(text: "detect.setting.turnedOff")
+            }
+        }
     }
 
     private var myAlertsCard: some View {

@@ -149,6 +149,20 @@
 "detect.yes" = "Yes, on board";
 "detect.no" = "No";
 
+/* Train detection in the background (TT-176, D73): the offer after the first completed ride, the notification and the Settings switch. In detect.notif.body: the line, the station it moved with the train since, your stop. */
+"loc.always.title" = "Notice your train by itself";
+"loc.always.body" = "Next time, Train Times can tell when you’re on a GO train and offer On board, even with the app closed.";
+"loc.always.point.signal" = "**Your phone and a train moving together** for two stops is the signal. Nothing starts without your tap.";
+"loc.always.point.ios" = "**iOS will ask for location “Always”.** It reminds you now and then that the app can see your location in the background.";
+"loc.always.point.phone" = "**Runs on the phone.** Nothing is sent or stored, and you can turn it off in Settings any time.";
+"loc.always.note" = "Also in Settings › Notifications as “Detect my train”. Off by default.";
+"loc.turnOn" = "Turn on";
+"detect.notif.body" = "%@, moving with it since %@. Start On board for a tap before %@.";
+"detect.notif.start" = "Start On board";
+"detect.notif.notMe" = "Not me";
+"detect.setting" = "Detect my train";
+"detect.setting.turnedOff" = "Turned off after three “Not me” in a week. Turn it on again any time.";
+
 /* Status badges */
 "status.on_time" = "On time";
 "status.delayed" = "Delayed %d min";

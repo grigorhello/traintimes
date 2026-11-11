@@ -45,14 +45,13 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         /// Where the train is on the bar, in stops from the origin: 3.25 is a quarter of the way from the fourth stop to
         /// the fifth; the last stop's index at your stop.
         var position: Double
-        /// "Arriving · Clarkson": the compact island while arriving; nil otherwise.
-        var compact: String?
         /// "End ride", or "Done" at your stop: the expanded island's link.
         var button: String
         /// "Updated 5:31 PM": takes the detail's place once the activity is stale (the app stopped updating it).
         var updated: String
 
-        /// About a minute before your stop: the activity turns brand green and alerts once.
+        /// About a minute before your stop: the activity turns brand green (the compact island's countdown on a green
+        /// capsule) and alerts once.
         var isAlert: Bool { phase == .arriving }
     }
 

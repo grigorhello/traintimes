@@ -6,7 +6,9 @@ import XCTest
 /// The On board Live Activity against the canvas's Live-Lock and Live-Island boards (TT-174), on a light and a dark Lock
 /// Screen: the Lock Screen card riding (5:32 PM), arriving (5:42) and stale; the island compact, compact arriving, minimal,
 /// expanded, expanded arriving and expanded at your stop. The system draws the island's black shape and the Lock Screen's
-/// rounded card; these mock-ups stand in for them. The countdown is stopped at the moment the content was made.
+/// rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone (compact trailing about 52 pt, the
+/// expanded island at most 160 pt tall), so content that would be cut off is cut off here too. The countdown is stopped at
+/// the moment the content was made.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -86,7 +88,7 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// The compact island: the tile left of the camera, the countdown (or the arriving words) right of it.
+    /// The compact island: the tile left of the camera, the countdown (on green while arriving) right of it.
     @MainActor
     private func compact(_ moment: Moment) -> some View {
         let style = RideActivityStyle.island(moment.state, isStale: false)
@@ -94,6 +96,8 @@ final class RideActivitySnapshotTests: XCTestCase {
             RideActivityTile(attributes: moment.attributes, size: .compact)
             Spacer(minLength: 126)
             RideActivityCompactTrailing(state: moment.state, style: style)
+                .frame(maxWidth: 52, alignment: .trailing)
+                .clipped()
         }
         .padding(.horizontal, 8)
         .frame(height: 37)
@@ -105,20 +109,20 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor
     private func expanded(_ moment: Moment) -> some View {
         let style = RideActivityStyle.island(moment.state, isStale: false)
-        return VStack(spacing: 12) {
+        return VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
                 RideActivityTile(attributes: moment.attributes, size: .large, edge: style.tileEdge)
                 RideActivityTitle(state: moment.state, style: style)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 30)
+                    .padding(.top, 28)
                 RideActivityCountdownStack(state: moment.state, style: style)
             }
             RideActivityExpandedBottom(attributes: moment.attributes, state: moment.state, style: style)
         }
         .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 16)
-        .background(.black, in: RoundedRectangle(cornerRadius: 44, style: .continuous))
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .expandedIsland()
     }
 
     /// Arriving: the green card in the bottom region, under the camera.
@@ -130,7 +134,7 @@ final class RideActivitySnapshotTests: XCTestCase {
         .padding(.horizontal, 10)
         .padding(.top, 44)
         .padding(.bottom, 10)
-        .background(.black, in: RoundedRectangle(cornerRadius: 44, style: .continuous))
+        .expandedIsland()
     }
 
     /// A plain Lock Screen wallpaper, light or dark.
@@ -166,5 +170,16 @@ final class RideActivitySnapshotTests: XCTestCase {
         if let failure {
             XCTFail(failure.replacingOccurrences(of: "\n", with: " | "), line: line)
         }
+    }
+}
+
+private extension View {
+    /// The expanded island's black shape, cut at its 160 pt maximum.
+    func expandedIsland() -> some View {
+        // Its own height up to 160 pt, the rest cut off.
+        frame(maxHeight: 160, alignment: .top)
+            .fixedSize(horizontal: false, vertical: true)
+            .clipped()
+            .background(.black, in: RoundedRectangle(cornerRadius: 44, style: .continuous))
     }
 }

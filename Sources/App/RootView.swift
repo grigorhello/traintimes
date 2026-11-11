@@ -190,7 +190,12 @@ struct RootView: View {
             switch RideActivityLink(url) {
             case .open:
                 opensRide = true
-                Task { await openRideFromActivity() }
+                Task {
+                    await openRideFromActivity()
+                    // A tap on an activity whose ride is not coming back opens nothing later on.
+                    try? await Task.sleep(for: .seconds(15))
+                    opensRide = false
+                }
             case .end:
                 onBoard.end()
             case nil:

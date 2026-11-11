@@ -85,7 +85,6 @@ extension RideActivityAttributes.ContentState {
         case .atStation: Double(passed)
         case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
         }
-        compact = phase == .arriving ? String(format: String(localized: "live.arrivingCompact"), yours) : nil
         button = phase == .atYourStop ? String(localized: "onboard.done") : String(localized: "onboard.end")
         updated = String(format: String(localized: "live.updated"), formatter.time(now))
     }

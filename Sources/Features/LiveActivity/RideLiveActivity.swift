@@ -12,8 +12,9 @@ import UIKit
 final class RideLiveActivity: RideActivityFollowing {
     /// The activity greys itself this long after the app last updated it.
     static let staleAfter: TimeInterval = 2 * 60
-    /// An update at least this often, so a running app keeps it fresh.
-    static let refreshAfter: TimeInterval = 60
+    /// An update at least this often, so a running app keeps it fresh; under a minute, so the engine's minute tick on the
+    /// timetable always sends one.
+    static let refreshAfter: TimeInterval = 45
     /// The ended activity stays on the Lock Screen until this long after the train reached your stop (the engine ends the
     /// ride 10 min after it).
     static let lingersAfterArrival: TimeInterval = 15 * 60
@@ -32,6 +33,10 @@ final class RideLiveActivity: RideActivityFollowing {
     private var needsSync = false
     /// When the activity was last sent, to refresh it once a minute.
     private var sentAt: Date?
+    /// The ride the activity was started for: one the rider swiped off the Lock Screen does not come back with the app.
+    private var startedRide: Ride?
+    /// The ride that has had its one alert, should the train fall back from arriving and come round to it again.
+    private var alertedRide: Ride?
 
     init(
         app: RideEngine?,
@@ -59,6 +64,8 @@ final class RideLiveActivity: RideActivityFollowing {
     func follow(demo engine: RideEngine?) {
         guard engine !== demo else { return }
         demo = engine
+        startedRide = nil
+        alertedRide = nil
         if isFollowing { listen() }
     }
 
@@ -114,6 +121,9 @@ final class RideLiveActivity: RideActivityFollowing {
         let shown = current?.content.state
 
         if state.phase == .ended {
+            // The same trip can be ridden again: it gets a new activity and a new alert.
+            startedRide = nil
+            alertedRide = nil
             guard let currentId else { return }
             sentAt = nil
             await Self.end(currentId, content: content, dismissal: Self.dismissal(for: state, engineNow: engine.now, deviceNow: deviceNow))
@@ -124,9 +134,11 @@ final class RideLiveActivity: RideActivityFollowing {
         if let currentId, let shown {
             guard Self.needsUpdate(from: shown, to: content, sentAt: sentAt, now: deviceNow) else { return }
             sentAt = deviceNow
-            await Self.update(currentId, content: content, staleDate: staleDate, alerts: Self.alerts(from: shown, to: content))
+            let alerts = Self.alerts(from: shown, to: content) && alertedRide != ride
+            if alerts { alertedRide = ride }
+            await Self.update(currentId, content: content, staleDate: staleDate, alerts: alerts)
         } else {
-            guard canStart(), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+            guard startedRide != ride, canStart(), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
             let line = await line(ride)
             // The ride may have moved on while the line was looked up; the next pass starts it then.
             guard engine.ride == ride, engine.state?.phase != .ended,
@@ -138,6 +150,8 @@ final class RideLiveActivity: RideActivityFollowing {
                     content: ActivityContent(state: content, staleDate: staleDate)
                 )
                 sentAt = deviceNow
+                startedRide = ride
+                if content.isAlert { alertedRide = ride }
             } catch {
                 // Live Activities are off for the app, or it went to the background: the next pass in front tries again.
             }

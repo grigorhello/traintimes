@@ -297,14 +297,15 @@ struct RideActivityPin: Shape {
 
 /// The Lock Screen card (*Live-Lock*): the line, the next stop and your stop, the countdown, the bar, the two ends. Its
 /// background is the activity's tint, the card colour or the arriving green. The arriving card in the expanded island is
-/// this one too, on green.
+/// this one too, on green, without the two ends: the expanded island is at most 160 pt tall, the camera's row included.
 struct RideActivityCard: View {
     let attributes: RideActivityAttributes
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
+    var showsEnds = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: showsEnds ? 12 : 10) {
             HStack(spacing: 12) {
                 RideActivityTile(attributes: attributes, size: .large, edge: style.tileEdge)
                 RideActivityTitle(state: state, style: style)
@@ -312,18 +313,24 @@ struct RideActivityCard: View {
                 RideActivityCountdownStack(state: state, style: style)
             }
             RideActivityBar(stopCount: attributes.stopCount, position: state.position, style: style)
-            HStack {
-                Text(state.departure)
-                    .font(.system(size: 12))
-                    .tracking(-0.1)
-                    .monospacedDigit()
-                    .foregroundStyle(style.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                RideActivityArrival(attributes: attributes, state: state, style: style)
+            if showsEnds {
+                ends
             }
-            .padding(.top, -4)
         }
+    }
+
+    private var ends: some View {
+        HStack {
+            Text(state.departure)
+                .font(.system(size: 12))
+                .tracking(-0.1)
+                .monospacedDigit()
+                .foregroundStyle(style.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            RideActivityArrival(attributes: attributes, state: state, style: style)
+        }
+        .padding(.top, -4)
     }
 }
 
@@ -346,14 +353,14 @@ struct RideActivityLockView: View {
 }
 
 /// The expanded island's bottom: the bar, your stop with its time, and End ride (a link, which works only in the expanded
-/// island; Done at your stop).
+/// island; Done at your stop). Kept short: the expanded island is at most 160 pt tall.
 struct RideActivityExpandedBottom: View {
     let attributes: RideActivityAttributes
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             RideActivityBar(stopCount: attributes.stopCount, position: state.position, style: style)
             HStack(spacing: 12) {
                 RideActivityArrival(attributes: attributes, state: state, style: style, fontSize: 13)
@@ -365,42 +372,39 @@ struct RideActivityExpandedBottom: View {
                         .lineLimit(1)
                         .foregroundStyle(style.tint)
                         .padding(.horizontal, 14)
-                        .frame(height: 32)
-                        .overlay(Capsule().strokeBorder(style.tint, lineWidth: 1.5))
+                        .frame(height: 28)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(style.tint, lineWidth: 1.5))
                 }
             }
         }
     }
 }
 
-/// The arriving alert in the expanded island: the card on brand green, inset in the island, whose own background stays
-/// black (Apple does not let an activity colour it).
+/// The arriving alert in the expanded island: the card, without its two ends, on brand green inset in the island, whose
+/// own background stays black (Apple does not let an activity colour it). About 96 pt, under the camera's row.
 struct RideActivityExpandedAlert: View {
     let attributes: RideActivityAttributes
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
 
     var body: some View {
-        RideActivityCard(attributes: attributes, state: state, style: style)
+        RideActivityCard(attributes: attributes, state: state, style: style, showsEnds: false)
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .background(RideActivityStyle.alertGreen, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 }
 
-/// The compact island's trailing side: the countdown, "Now", or "Arriving · Clarkson" on a green capsule.
+/// The compact island's trailing side, about 52 pt wide on the iPhone 17 Pro: the countdown or "Now", in white on a green
+/// capsule while arriving ("Arriving · Clarkson", the board's words, does not fit beside the camera).
 struct RideActivityCompactTrailing: View {
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
 
     var body: some View {
-        if state.isAlert, let compact = state.compact {
-            Text(compact)
-                .font(.system(size: 15, weight: .semibold))
-                .tracking(-0.2)
-                .lineLimit(1)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
+        if state.isAlert {
+            RideActivityCountdown(state: state, style: style, fontSize: 15, width: 36)
+                .padding(.horizontal, 6)
                 .frame(height: 24)
                 .background(RideActivityStyle.alertGreen, in: Capsule())
         } else {

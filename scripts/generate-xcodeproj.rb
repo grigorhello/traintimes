@@ -18,6 +18,8 @@ PROJECT_PATH = File.join(ROOT, 'TrainTimes.xcodeproj')
 BUNDLE_ID = 'ca.traintimes.TrainTimes'
 DEPLOYMENT_TARGET = '17.0'
 SNAPSHOT_TESTING_VERSION = '1.19.7'
+# The app's version; the widget extension's must match it, or App Store Connect refuses the upload (TT-174).
+MARKETING_VERSION = '1.0'
 
 FileUtils.rm_rf(PROJECT_PATH)
 project = Xcodeproj::Project.new(PROJECT_PATH, false, 77)
@@ -109,7 +111,7 @@ app.build_configurations.each do |config|
     'PRODUCT_NAME' => '$(TARGET_NAME)',
     'PRODUCT_BUNDLE_IDENTIFIER' => BUNDLE_ID,
     # D47: the TestFlight workflow sets CURRENT_PROJECT_VERSION to its run number when it archives.
-    'MARKETING_VERSION' => '1.0',
+    'MARKETING_VERSION' => MARKETING_VERSION,
     'CURRENT_PROJECT_VERSION' => '1',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     'INFOPLIST_KEY_CFBundleDisplayName' => 'Train Times',
@@ -153,7 +155,7 @@ widgets.build_configurations.each do |config|
   s.merge!(
     'PRODUCT_NAME' => '$(TARGET_NAME)',
     'PRODUCT_BUNDLE_IDENTIFIER' => "#{BUNDLE_ID}.Widgets",
-    'MARKETING_VERSION' => '1.0',
+    'MARKETING_VERSION' => MARKETING_VERSION,
     'CURRENT_PROJECT_VERSION' => '1',
     'GENERATE_INFOPLIST_FILE' => 'YES',
     # NSExtensionPointIdentifier com.apple.widgetkit-extension; Xcode merges the generated keys into it.

@@ -57,7 +57,6 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(content.departure, "Union Station 5:13 PM")
         XCTAssertEqual(content.arrival, "Clarkson 5:43 PM")
         XCTAssertEqual(content.position, 3.25, accuracy: 0.01)
-        XCTAssertNil(content.compact)
         XCTAssertFalse(content.isAlert)
         XCTAssertEqual(content.button, "End ride")
         XCTAssertEqual(content.now, "Now")
@@ -86,14 +85,13 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertFalse(content.isAlert)
     }
 
-    func testArrivingTurnsGreenWithTheCompactWords() async throws {
+    func testArrivingTurnsGreen() async throws {
         let rig = await DemoRideRig.started(at: t(17, 42, 20))
         let content = try content(rig)
         XCTAssertEqual(content.phase, .arriving)
         XCTAssertTrue(content.isAlert)
         XCTAssertEqual(content.title, "Arriving at Clarkson")
         XCTAssertEqual(content.detail, "Your stop · doors in about a minute")
-        XCTAssertEqual(content.compact, "Arriving · Clarkson")
         XCTAssertEqual(try secondsLeft(content), 40, accuracy: 5)
         XCTAssertGreaterThan(content.position, 4)
         XCTAssertLessThan(content.position, 5)

@@ -108,7 +108,6 @@
 "live.stopTime" = "%1$@ %2$@";
 "live.arriving" = "Arriving at %@";
 "live.arrivingDetail" = "Your stop · doors in about a minute";
-"live.arrivingCompact" = "Arriving · %@";
 "live.updated" = "Updated %@";
 "loc.title" = "See your stops as you ride";
 "loc.subtitle" = "Train Times follows the train with your location, only while you’re on board.";

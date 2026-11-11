@@ -1,5 +1,4 @@
 import MapKit
-import UIKit
 
 /// Hands a trip off to Apple Maps (TT-188, D64): directions to a station, behind a protocol so tests check the tap
 /// without leaving the app.
@@ -13,14 +12,15 @@ protocol MapsOpening {
 @MainActor
 struct SystemMapsOpener: MapsOpening {
     func openDirections(to name: String, at place: GeoPoint) {
+        let item: MKMapItem
         if #available(iOS 26, *) {
-            let item = MKMapItem(location: CLLocation(latitude: place.latitude, longitude: place.longitude), address: nil)
-            item.name = name
-            item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
-        } else if let url = URL(string: "maps://?daddr=\(place.latitude),\(place.longitude)") {
-            // Before iOS 26 an MKMapItem takes a coordinate only through MKPlacemark, which the SDK deprecates (warnings
-            // are errors): Maps' own link, with no travel type so Maps uses the rider's. The destination has no name here.
-            UIApplication.shared.open(url)
+            item = MKMapItem(location: CLLocation(latitude: place.latitude, longitude: place.longitude), address: nil)
+        } else {
+            // Deprecated from iOS 26 only, above the iOS 17 deployment target, so it builds without a warning.
+            let coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+            item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
         }
+        item.name = name
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
     }
 }

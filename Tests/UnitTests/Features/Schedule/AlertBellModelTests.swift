@@ -586,6 +586,53 @@ final class AlertBellModelTests: XCTestCase {
     }
 
     /// Waits up to 3 s for work the model runs in its own task (the panel's saves, a delete).
+    // MARK: Pick a new train (TT-193)
+
+    /// A Time changed row's "Pick a new train": the capsule asks for the new train's bell and stays; the bell tapped takes
+    /// over the old alert's days, and the old alert goes.
+    func testTheNewTrainTakesOverTheDaysAndTheOldAlertGoes() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let old = AlertRule(id: "old", kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 4])
+        await rules.save(old)
+        await server.setStatuses([AlertRuleStatus(id: "old", state: .reviewNeeded)])
+        await rules.refresh()
+        let bells = AlertBellModel(rules: rules, actionDuration: .milliseconds(10))
+
+        bells.pickNewTrain(replacing: old)
+        XCTAssertEqual(bells.capsule?.kind, .newTrain)
+        XCTAssertEqual(bells.capsule?.actionKey, "button.cancel")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(bells.capsule?.kind, .newTrain, "it stays until a bell or Cancel")
+
+        let newTrip = AlertFixtures.trip("LW-0740-20261105", departure: "12:40")
+        await bells.tap(newTrip, on: route)
+        let alert = try XCTUnwrap(rules.alert(for: newTrip, on: route))
+        XCTAssertEqual(alert.kind, .repeating)
+        XCTAssertEqual(alert.weekdays, [1, 2, 4])
+        XCTAssertEqual(rules.rules.map(\.id), [alert.id], "the old alert is gone")
+        XCTAssertEqual(bells.capsule?.kind, .on)
+        XCTAssertNil(bells.replacing)
+        let deleted = await server.deleted
+        XCTAssertEqual(deleted, ["old"])
+    }
+
+    func testCancelLeavesTheOldAlertAndTheNextBellActsAsUsual() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let old = AlertRule(id: "old", kind: .repeating, trip: trip, route: route, weekdays: [1, 2, 4])
+        await rules.save(old)
+        let bells = AlertBellModel(rules: rules)
+
+        bells.pickNewTrain(replacing: old)
+        bells.dismissCapsule()
+        XCTAssertNil(bells.replacing)
+        let newTrip = AlertFixtures.trip("LW-0740-20261105", departure: "12:40")
+        await bells.tap(newTrip, on: route)
+        XCTAssertEqual(rules.alert(for: newTrip, on: route)?.kind, .thisTrip)
+        XCTAssertTrue(rules.rules.contains { $0.id == "old" })
+    }
+
     private func eventually(
         _ condition: () async -> Bool, file: StaticString = #filePath, line: UInt = #line
     ) async {

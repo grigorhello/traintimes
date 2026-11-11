@@ -47,6 +47,7 @@ struct RootView: View {
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
         alertUpdates: AlertUpdates? = nil,
+        alertsModel: AlertsViewModel? = nil,
         ride: RideEngine? = nil,
         nudge: ArrivalNudge? = nil,
         liveActivity: RideLiveActivity? = nil,
@@ -77,12 +78,13 @@ struct RootView: View {
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
         _alertsModel = State(
-            initialValue: AlertsViewModel(
+            initialValue: alertsModel ?? AlertsViewModel(
                 rules: bells.rules,
                 updates: alertUpdates ?? alertDependencies.updates(clock: dependencies.clock),
-                notices: schedule,
+                nextTrains: schedule,
                 clock: dependencies.clock,
-                toastDuration: alertDependencies.toastDuration
+                actionDuration: alertDependencies.capsuleActionDuration,
+                plainDuration: alertDependencies.capsulePlainDuration
             )
         )
         // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; a started ride
@@ -137,10 +139,10 @@ struct RootView: View {
 
             AlertsView(
                 viewModel: alertsModel,
-                onAddAlert: { addAlert() },
-                onOpenRule: { openAlertSetup($0) },
-                onOpenUpdate: { link in Task { await open(link) } },
-                onOpenLineNotice: { router.present(.lineNotices) }
+                bells: bells,
+                onSeeTrains: { router.showSchedule() },
+                onPickNewTrain: { pickNewTrain(replacing: $0) },
+                onOpenUpdate: { link in Task { await open(link) } }
             )
             .tabItem {
                 let isSelected = router.selectedTab == .alerts
@@ -260,7 +262,10 @@ struct RootView: View {
         }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
-            if old == .alerts { alertsModel.markReviewsSeen() }
+            if old == .alerts {
+                alertsModel.markReviewsSeen()
+                alertsModel.leftTab()
+            }
             guard tab == .alerts else { return }
             router.showsAlertsDot = false
             alertsModel.markReviewsSeen()
@@ -311,10 +316,18 @@ struct RootView: View {
         if router.selectedTab == .alerts { alertsModel.markReviewsSeen() }
     }
 
-    /// The Alerts tab's "Add alert": the Schedule tab with "Tap the bell on a train" for 5 s.
-    private func addAlert() {
+    /// "Pick a new train" on a Time changed row (TT-193): Schedule on that alert's route, with "Tap the bell of your new
+    /// train · Cancel"; the bell tapped next takes over its days.
+    private func pickNewTrain(replacing rule: AlertRule) {
         router.showSchedule()
-        bells.showHint()
+        bells.pickNewTrain(replacing: rule)
+        guard let key = rule.trip else { return }
+        Task {
+            let link = NotificationLink.trip(key, originId: rule.origin.id, destinationId: rule.destination.id)
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            if schedule.selectedDay != schedule.today { await schedule.select(schedule.today) }
+        }
     }
 
     /// The alert setup sheet for a train (TT-142).

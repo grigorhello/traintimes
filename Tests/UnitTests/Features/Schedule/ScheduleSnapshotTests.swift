@@ -38,14 +38,13 @@ final class ScheduleSnapshotTests: XCTestCase {
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
-            ),
+            ).comparedAsRecorded,
             file: #filePath,
             testName: testName,
             line: line
         )
         if let failure {
-            let diagnostics = snapshotDiagnostics(of: view, style: style, file: #filePath, testName: testName)
-            XCTFail(failure.replacingOccurrences(of: "\n", with: " | ") + " | " + diagnostics, line: line)
+            XCTFail(failure.replacingOccurrences(of: "\n", with: " | "), line: line)
         }
     }
 }

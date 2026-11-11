@@ -198,9 +198,10 @@ final class AlertRules: WatchedTripsProviding {
             statuses = try await server.rules(installation: installation)
         } catch AlertServerError.unknownInstallation {
             // The server dropped this installation (APNs reported its token gone): register again and save each rule
-            // again, so none reads On while nothing watches it (TT-153).
+            // again, so none reads On while nothing watches it (TT-153). A rule merged away or deleted meanwhile is skipped,
+            // so the loop never puts it back (TT-189).
             registered = nil
-            for rule in rules where !inFlight.contains(rule.id) { await save(rule) }
+            for rule in rules where contains(rule.id) && !inFlight.contains(rule.id) { await save(rule) }
             return
         } catch {
             return

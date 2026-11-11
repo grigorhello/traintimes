@@ -199,12 +199,14 @@ struct RootView: View {
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
         .preferredColorScheme(settings.appearance.colorScheme)
         // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
-        // review and notifications may have arrived (TT-143).
+        // review and notifications may have arrived (TT-143). Back from the toast's Turn on with notifications on, the
+        // bell that was tapped turns on (TT-190).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
             liveActivity?.sceneDidBecomeActive()
             await refreshAlerts()
+            await bells.cameBack()
         }
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).

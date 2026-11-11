@@ -19,6 +19,9 @@ struct TripDetailsView: View {
     /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey or departure card does
     /// not show through for the length of the dismissal (TT-177).
     @State private var closingRide: RideDetails?
+    /// The staged entrance has played: content that appears later (the departure card taking the journey card's place
+    /// once "Alert me" alerts a train in its window, TT-192) cross-fades in at rest instead of arriving again.
+    @State private var entranceSettled = false
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -74,6 +77,8 @@ struct TripDetailsView: View {
                             content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
                         }
                     }
+                    .environment(\.stagedEntranceSettled, entranceSettled)
+                    .animation(TTMotion.fade, value: departure == nil)
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, TTSpace.s4)
                     .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
@@ -102,6 +107,11 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
+        .task {
+            // The longest beat (the last stop row) is still by about 0.7 s.
+            try? await Task.sleep(for: .seconds(1))
+            entranceSettled = true
+        }
         // The bell's haptics, as on Schedule (TT-191): a light tap when an alert turns on, the warning on a refusal, the
         // selection tick when a day lights.
         .sensoryFeedback(.impact(weight: .light), trigger: viewModel.bells?.enabledCount ?? 0)

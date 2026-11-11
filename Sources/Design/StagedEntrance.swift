@@ -4,6 +4,9 @@ extension EnvironmentValues {
     /// False in the unit test host, so snapshots draw a sheet's content at rest instead of mid-entrance (TT-167). UI tests
     /// run the app on its own and play it.
     @Entry var playsEntranceMotion: Bool = EntranceHost.plays
+    /// True once a sheet's entrance has played: an element that appears later (Trip details' journey card turning into the
+    /// departure card when "Alert me" alerts a train in its window, TT-192) is drawn at rest instead of arriving again.
+    @Entry var stagedEntranceSettled: Bool = false
 }
 
 /// The unit test bundle is not loaded into this run of the app.
@@ -19,6 +22,7 @@ private enum EntranceHost {
 private struct StagedEntrance: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsEntranceMotion) private var playsMotion
+    @Environment(\.stagedEntranceSettled) private var settled
     let rise: CGFloat
     let scale: CGFloat
     let spring: Animation?
@@ -27,11 +31,12 @@ private struct StagedEntrance: ViewModifier {
 
     func body(content: Content) -> some View {
         let moves = !reduceMotion
-        let rests = arrived || !moves
+        let shown = arrived || settled
+        let rests = shown || !moves
         // Fixed for the whole run, so the view keeps its identity; the unit test host draws the content exactly as it is.
         if playsMotion {
             content
-                .opacity(arrived ? 1 : 0)
+                .opacity(shown ? 1 : 0)
                 .animation(moves ? TTMotion.appear.delay(delay) : TTMotion.fade, value: arrived)
                 .scaleEffect(rests ? 1 : scale)
                 .offset(y: rests ? 0 : -rise)

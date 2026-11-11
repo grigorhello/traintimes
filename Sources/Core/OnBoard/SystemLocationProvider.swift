@@ -16,6 +16,10 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
         Self.allows(locationManager().authorizationStatus)
     }
 
+    var canAsk: Bool {
+        locationManager().authorizationStatus == .notDetermined
+    }
+
     func requestWhenInUse() async -> Bool {
         let manager = locationManager()
         guard manager.authorizationStatus == .notDetermined else { return isAuthorized }

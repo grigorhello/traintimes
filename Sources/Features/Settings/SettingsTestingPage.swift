@@ -70,6 +70,10 @@ struct SettingsTestingPage: View {
                             value: .awaitingPlatform, label: .text("settings.demo_trains.platform"),
                             name: "settings.demo_trains.platform", identifier: "settings.demoTrains.platform"
                         ),
+                        .init(
+                            value: .ride, label: .text("settings.demo_trains.ride"), name: "settings.demo_trains.ride",
+                            identifier: "settings.demoTrains.ride"
+                        ),
                     ]
                 )
                 description
@@ -78,7 +82,7 @@ struct SettingsTestingPage: View {
         }
     }
 
-    /// One line for the chosen mode. All four are laid on top of each other, so the card keeps the height of the longest and
+    /// One line for the chosen mode. All of them are laid on top of each other, so the card keeps the height of the longest and
     /// the lines cross-fade.
     private var description: some View {
         ZStack(alignment: .topLeading) {
@@ -162,6 +166,7 @@ private extension DemoTrains {
         case .delays: "settings.demo_trains.delays_detail"
         case .offline: "settings.demo_trains.offline_detail"
         case .awaitingPlatform: "settings.demo_trains.platform_detail"
+        case .ride: "settings.demo_trains.ride_detail"
         }
     }
 }

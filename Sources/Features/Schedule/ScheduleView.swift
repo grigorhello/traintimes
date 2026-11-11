@@ -20,6 +20,10 @@ struct ScheduleView: View {
     var bells: AlertBellModel?
     /// The alert setup sheet (TT-142): a bell tapped before notifications are allowed, or the toast's Repeat.
     var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
+    /// On board (TT-172): the ride strip under the day strip while a ride runs; nil shows none.
+    var onBoard: OnBoard?
+    /// A tap on the ride strip: Trip details in ride mode.
+    var onOpenRide: () -> Void = {}
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
@@ -47,7 +51,9 @@ struct ScheduleView: View {
         onOpenLineNotice: @escaping () -> Void = {},
         bells: AlertBellModel? = nil,
         onAlertSetup: @escaping (AlertSetupRequest) -> Void = { _ in },
-        picker: RouteFormViewModel? = nil
+        picker: RouteFormViewModel? = nil,
+        onBoard: OnBoard? = nil,
+        onOpenRide: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.stations = stations
@@ -55,6 +61,8 @@ struct ScheduleView: View {
         self.onOpenLineNotice = onOpenLineNotice
         self.bells = bells
         self.onAlertSetup = onAlertSetup
+        self.onBoard = onBoard
+        self.onOpenRide = onOpenRide
         _picker = State(initialValue: picker)
         // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
         _entranceSeen = State(initialValue: viewModel.entranceRequest)
@@ -155,13 +163,17 @@ struct ScheduleView: View {
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, -TTSpace.s1)
             }
-            if let strip = viewModel.watchedStrip(formatter) {
-                WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
-                    withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }
+            // The ride strip takes the watched-trip strip's place while a ride runs (Live-Schedule). Its own view reads the
+            // ride, so the ride's every-second changes redraw the strip alone.
+            RideStripSlot(onBoard: onBoard, onOpen: onOpenRide) {
+                if let strip = viewModel.watchedStrip(formatter) {
+                    WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
+                        withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }
+                    }
+                    .id(strip.id)
+                    .transition(.opacity)
+                    .padding(.horizontal, TTSpace.s5)
                 }
-                .id(strip.id)
-                .transition(.opacity)
-                .padding(.horizontal, TTSpace.s5)
             }
         }
         .padding(.top, TTSpace.s3)

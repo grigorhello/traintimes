@@ -171,6 +171,7 @@ final class SettingsViewModel {
         case .delays: parts.append(String(localized: "settings.demo_trains.delays"))
         case .offline: parts.append(String(localized: "settings.demo_trains.offline"))
         case .awaitingPlatform: parts.append(String(localized: "settings.demo_trains.platform"))
+        case .ride: parts.append(String(localized: "settings.demo_trains.ride"))
         }
         if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")

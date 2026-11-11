@@ -84,6 +84,9 @@ struct LocationFix: Sendable, Equatable {
 protocol LocationProviding: AnyObject {
     /// When In Use or Always is allowed. Reading it never asks.
     var isAuthorized: Bool { get }
+    /// The rider has not answered the When In Use prompt yet, so `requestWhenInUse()` would show it: the first "I'm on
+    /// board" shows the app's sheet before it (TT-172). Reading it never asks.
+    var canAsk: Bool { get }
     /// Shows the iOS When In Use prompt if the rider has not answered it yet; true when location is allowed.
     func requestWhenInUse() async -> Bool
     /// Starts the ride's updates, about one a second, which keep coming in the background until `stopUpdates()`.

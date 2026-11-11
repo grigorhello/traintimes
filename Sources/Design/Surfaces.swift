@@ -136,7 +136,7 @@ struct Toast: View {
 }
 
 extension AnyTransition {
-    /// Schedule's toast (TT-166, D60): it rises 32 pt into place on `TTMotion.toast` while it fades in over 0.15 s, and
+    /// Schedule's toast (TT-166, D62): it rises 32 pt into place on `TTMotion.toast` while it fades in over 0.15 s, and
     /// leaves dropping 16 pt as it fades over 0.2 s easeIn. Reduce Motion keeps the fades only.
     static func ttToast(reduceMotion: Bool) -> AnyTransition {
         let fadeIn = AnyTransition.opacity.animation(.easeOut(duration: 0.15))

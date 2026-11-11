@@ -90,6 +90,35 @@ struct GTFSTimetable: Sendable {
         }
     }
 
+    /// The ride's stops from the origin to your stop with their scheduled times, and each stop's place on the trip's track
+    /// when the feed has one (TT-171). Nil when the trip does not run that day between those stations.
+    func ridePlan(for ride: Ride) -> RidePlan? {
+        let day = ServiceDay(dateKey: ride.serviceDate)
+        guard let match = calls(from: ride.originId, to: ride.destinationId, on: day).first(where: { feed.trips[$0.trip].id == ride.tripId })
+        else { return nil }
+        let trip = feed.trips[match.trip]
+        let positions = Array(match.from...match.to)
+        let stops = positions.map { position in
+            let stop = feed.stops[trip.stops[position]]
+            return RidePlan.Stop(
+                station: Station(id: stop.id, name: stop.name),
+                arrival: day.gtfsTime(trip.arrivals[position]),
+                departure: day.gtfsTime(trip.departures[position])
+            )
+        }
+        var track: RidePlan.Track?
+        let places = positions.compactMap { position -> GeoPoint? in
+            let stop = feed.stops[trip.stops[position]]
+            guard let latitude = stop.latitude, let longitude = stop.longitude else { return nil }
+            return GeoPoint(latitude: latitude, longitude: longitude)
+        }
+        if let index = trip.shape, let shapes = feed.shapes, index < shapes.count, places.count == positions.count {
+            let shape = TrackShape(flat: shapes[index].points)
+            track = RidePlan.Track(shape: shape, stopDistances: shape.distances(of: places))
+        }
+        return RidePlan(stops: stops, track: track)
+    }
+
     /// A direct trip's whole calling pattern with its scheduled times, which live estimates are matched against (TT-131).
     struct Call: Sendable {
         let tripId: String

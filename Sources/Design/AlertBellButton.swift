@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The bell on a departure card (TT-141), with its pop (TT-166, D60): when the alert turns on or off the glyph swells to
+/// The bell on a departure card (TT-141), with its pop (TT-166, D62): when the alert turns on or off the glyph swells to
 /// 1.3 over 0.1 s (`TTMotion.swell`), swaps `bell` and `bell.fill` at the top, as Kavsoft does, and springs back on
 /// `TTMotion.pop`. While `\.holdsBellPop` is true (the alert setup sheet is up) the bell keeps the glyph it had and pops
 /// once the sheet is gone. Reduce Motion cross-fades the glyph instead.

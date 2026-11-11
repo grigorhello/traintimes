@@ -153,7 +153,7 @@ struct AlertSetupView: View {
         }
     }
 
-    /// "Enable alerts", or once the new alert is On the check popping in from 0.6 on `TTMotion.confirm` (TT-166, D60); the
+    /// "Enable alerts", or once the new alert is On the check popping in from 0.6 on `TTMotion.confirm` (TT-166, D62); the
     /// title keeps its place, so the button does not change size. Reduce Motion cross-fades.
     private var enableLabel: some View {
         ZStack {

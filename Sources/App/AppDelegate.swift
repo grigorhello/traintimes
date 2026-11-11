@@ -3,16 +3,20 @@ import UserNotifications
 
 /// Notification taps (TT-144) and the APNs device token (TT-141). It becomes the notification centre's delegate at launch,
 /// so a tap that launches a closed app reaches it too, and hands each tap's link to the router, which RootView opens.
-/// The token callbacks go to `SystemPushRegistration`, which the alert rules ask for the token.
+/// The token callbacks go to `SystemPushRegistration`, which the alert rules ask for the token. A ride the app was stopped
+/// during is restored at launch, also when iOS relaunches the app in the background to continue it (TT-171).
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     /// The app's one router; created on first use, so the delegate's init stays free of main-actor work.
     lazy var router = AppRouter()
+    /// The app's one ride engine (On board, TT-171). Restoring asks for nothing: with no saved ride it does nothing.
+    lazy var ride = RideEngine.app()
 
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        Task { await ride.restore() }
         #if DEBUG
         // UI tests stand in for a tap that launches the app with the server's payload as JSON (D20).
         if let json = ProcessInfo.processInfo.environment["TT_NOTIFICATION"], let link = NotificationLink(json: json) {

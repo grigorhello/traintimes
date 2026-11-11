@@ -94,6 +94,10 @@ struct RootView: View {
     }
 
     var body: some View {
+        detectsTrains(tabs)
+    }
+
+    private var tabs: some View {
         TabView(selection: tabSelection) {
             NavigationStack {
                 if schedule.route == nil {
@@ -232,25 +236,6 @@ struct RootView: View {
             guard opensRide, onBoard.activeRide != nil else { return }
             Task { await openRideFromActivity() }
         }
-        // The first ride that reaches its stop makes the "Detect my train" offer due (TT-176); it shows over Schedule once
-        // nothing else is up, after a sheet that just closed has gone.
-        .onChange(of: onBoard.engine?.state?.phase) { _, phase in
-            if phase == .atYourStop { backgroundDetection?.rideReachedYourStop() }
-        }
-        .task(id: offersDetection) {
-            guard offersDetection else { return }
-            try? await Task.sleep(for: .milliseconds(700))
-            guard offersDetection, !Task.isCancelled else { return }
-            backgroundDetection?.offerShown()
-            router.present(.detectOffer)
-        }
-        // Start On board, or a tap, on the background question (TT-176): acted on once the app is active, so the ride's Live
-        // Activity can start.
-        .task(id: detectedRequest) {
-            guard let request = detectedRequest else { return }
-            router.detectedTrain = nil
-            await openDetected(request)
-        }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
             if old == .alerts { alertsModel.markReviewsSeen() }
@@ -259,6 +244,29 @@ struct RootView: View {
             alertsModel.markReviewsSeen()
             Task { await refreshAlerts() }
         }
+    }
+
+    /// "Detect my train" (TT-176), apart from `tabs` so each chain type-checks in reasonable time. The first ride that
+    /// reaches its stop makes the offer due; it shows over Schedule once nothing else is up, after a sheet that just closed
+    /// has gone. Start On board, or a tap, on the background question is acted on once the app is active, so the ride's Live
+    /// Activity can start.
+    private func detectsTrains(_ content: some View) -> some View {
+        content
+            .onChange(of: onBoard.engine?.state?.phase) { _, phase in
+                if phase == .atYourStop { backgroundDetection?.rideReachedYourStop() }
+            }
+            .task(id: offersDetection) {
+                guard offersDetection else { return }
+                try? await Task.sleep(for: .milliseconds(700))
+                guard offersDetection, !Task.isCancelled else { return }
+                backgroundDetection?.offerShown()
+                router.present(.detectOffer)
+            }
+            .task(id: detectedRequest) {
+                guard let request = detectedRequest else { return }
+                router.detectedTrain = nil
+                await openDetected(request)
+            }
     }
 
     /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now

@@ -240,9 +240,13 @@ struct ScheduleView: View {
             return
         }
         let model = RouteFormViewModel(route: viewModel.route, repository: stations, recents: viewModel.recents)
-        model.open(field)
-        picker = model
-        Task { await model.loadStations() }
+        // The stations first, then the picker: arriving a moment into the reveal, every row at once, they stalled the X
+        // turning in and made the list jump to its full height (TT-196). The load is one hop to the feed store.
+        Task {
+            await model.loadStations()
+            model.open(field)
+            picker = model
+        }
     }
 
     /// The tapped row as the search field, with the current station as a grey hint, and the X in the swap button's place.

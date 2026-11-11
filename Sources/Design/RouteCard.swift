@@ -82,26 +82,58 @@ struct RouteCard: View {
                 .padding(.horizontal, Self.pillInset)
                 .clipped()
                 .padding(.horizontal, -Self.pillInset)
-                if let picking {
-                    GlassIconButton(systemName: "xmark", label: "button.cancel", tint: TTColor.ink, action: picking.onCancel)
-                        .accessibilityIdentifier(picking.cancelID)
-                        .transition(.pickerCancelButton)
-                } else {
-                    GlassIconButton(
-                        systemName: "arrow.up.arrow.down", label: "route.swap", glyphDegrees: pose.arrowDegrees,
-                        action: { tapSwap() }
-                    )
-                    .disabled(!canSwap)
-                    .scaleEffect(pose.buttonScale)
-                    .accessibilityIdentifier(swapID)
-                    .transition(.pickerSwapButton)
-                }
+                cornerButton(pose: pose)
             }
             .padding(.leading, TTSpace.s4)
             .padding(.trailing, TTSpace.s2)
         }
-        // The corners, the swap button and the X move together with the list opening or closing below (D54).
+        // The corners and the button's glyph move together with the list opening or closing below (D54).
         .animation(PickerMotion.animation(opening: picking != nil), value: picking != nil)
+    }
+
+    // MARK: Swap button and X (TT-196)
+
+    /// The swap button, which is the X while a station is picked. One glass disc stays in place and only its glyph turns
+    /// (D54's timings): the arrows leave to +90° at half size, the X comes in from -135°, and back. Swapping two glass
+    /// buttons, the old one turning out and a new interactive one turning in, ran slow and broken on the phone: glass
+    /// animates appearing and going away and eases its own content on a spring of its own (D59).
+    private func cornerButton(pose: SwapMotion.Pose) -> some View {
+        let isEnabled = picking != nil || canSwap
+        let label: LocalizedStringKey = picking == nil ? "route.swap" : "button.cancel"
+        return Button {
+            if let picking { picking.onCancel() } else { tapSwap() }
+        } label: {
+            Color.clear
+                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
+                .ttGlass(in: Circle(), interactive: false)
+                .overlay {
+                    ZStack {
+                        if picking != nil {
+                            cornerGlyph("xmark", tint: TTColor.ink, isEnabled: true)
+                                .transition(.pickerCancelButton)
+                        } else {
+                            cornerGlyph("arrow.up.arrow.down", tint: TTColor.accent, isEnabled: isEnabled)
+                                .rotationEffect(.degrees(pose.arrowDegrees))
+                                // The angle comes from the clock: the press's ease must not catch it on the frame the tap lifts.
+                                .transaction { $0.animation = nil }
+                                .transition(.pickerSwapButton)
+                        }
+                    }
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressScaleStyle())
+        .disabled(!isEnabled)
+        .scaleEffect(pose.buttonScale)
+        .accessibilityLabel(Text(label))
+        .accessibilityIdentifier(picking?.cancelID ?? swapID)
+    }
+
+    private func cornerGlyph(_ systemName: String, tint: Color, isEnabled: Bool) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: TTSize.iconButtonGlyph, weight: .semibold))
+            .foregroundStyle(isEnabled ? tint : TTColor.inkTertiary)
+            .opacity(isEnabled ? 1 : 0.55)
     }
 
     // MARK: Swap motion (TT-165, D59)

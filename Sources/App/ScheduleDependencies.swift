@@ -78,6 +78,14 @@ extension RideEngine {
     }
 }
 
+extension ArrivalNudge {
+    /// The demo ride's nudge (TT-173), on its 6x clock. None in fixture runs (UI tests, previews), so a demo ride in a UI
+    /// test leaves no notification to go off over a later test.
+    static func demo(environment: [String: String] = ProcessInfo.processInfo.environment) -> ArrivalNudge? {
+        ScheduleDependencies.isFixtureRun(environment) ? nil : ArrivalNudge.system(rate: DemoRide.speed)
+    }
+}
+
 extension TrainDetector {
     /// The app's train detector (TT-175): the GO feed's trains on the route, the phone's location only while Schedule is
     /// open (no background session, never asking), and the schedule's clock. None in fixture runs.

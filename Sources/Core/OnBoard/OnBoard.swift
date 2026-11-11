@@ -35,6 +35,13 @@ final class OnBoard {
     private let makeHandOff: @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride)
     /// The ride's Live Activity (TT-174), which follows the demo's engine while it plays; nil in previews and tests.
     private let liveActivity: (any RideActivityFollowing)?
+    /// The app engine's arriving nudge (TT-173), which `AppDelegate` makes and follows from launch.
+    private let nudge: ArrivalNudge?
+    /// The demo ride's nudge, made each time a demo ride starts.
+    @ObservationIgnored private var demoNudge: ArrivalNudge?
+    private let makeDemoNudge: @MainActor () -> ArrivalNudge?
+    /// The notification prompt through the alert rules (D41, D66), after a ride started.
+    private let requestNotifications: @MainActor () async -> Void
 
     init(
         app: RideEngine?,
@@ -45,7 +52,10 @@ final class OnBoard {
         makeDeparture: @escaping @MainActor () -> DemoDeparture.Session = { DemoDeparture.session() },
         makeHandOff: @escaping @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride) = {
             DemoRide.session(continuing: $0)
-        }
+        },
+        nudge: ArrivalNudge? = nil,
+        makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
+        requestNotifications: @escaping @MainActor () async -> Void = {}
     ) {
         self.app = app
         self.detector = detector
@@ -54,6 +64,9 @@ final class OnBoard {
         self.makeDemoDetector = makeDemoDetector
         self.makeDeparture = makeDeparture
         self.makeHandOff = makeHandOff
+        self.nudge = nudge
+        self.makeDemoNudge = makeDemoNudge
+        self.requestNotifications = requestNotifications
     }
 
     /// The demo's engine while it plays, else the app's.
@@ -86,7 +99,8 @@ final class OnBoard {
         return state.phase == .ended && state.endReason == .arrived
     }
 
-    /// "I'm on board": starts the ride on the app's engine, where location is asked. False when it did not start.
+    /// "I'm on board" (or the question's Yes): starts the ride on the app's engine, where location is asked, then asks for
+    /// notifications if they were never asked, for the arriving notifications (TT-173). False when it did not start.
     @discardableResult
     func start(_ ride: Ride, on route: Route) async -> Bool {
         if handOffEnded {
@@ -95,14 +109,18 @@ final class OnBoard {
         }
         guard let app, demo == nil else { return false }
         let started = await app.start(ride)
-        if started { self.route = route }
-        return started
+        guard started else { return false }
+        self.route = route
+        await requestNotifications()
+        nudge?.replan()
+        return true
     }
 
     /// End ride, or Done at your stop. A demo ride the demo departure started stops with it, so the departure shows again.
     func end() {
         engine?.end()
         if demoIsHandOff {
+            dropDemoNudge()
             demo = nil
             demoIsHandOff = false
         }
@@ -116,13 +134,28 @@ final class OnBoard {
             guard demo == nil, makeDemoDetector == nil else { return }
             let session = makeDemo(nil)
             demo = session.engine
+            followDemo(session.engine)
             await session.engine.start(session.ride)
         } else {
+            dropDemoNudge()
             demo?.end()
             demo = nil
             demoDetector = nil
             demoIsHandOff = false
         }
+    }
+
+    /// The demo ride's own nudge (TT-173), on its 6x clock, replacing an earlier demo ride's.
+    private func followDemo(_ engine: RideEngine) {
+        demoNudge?.stop()
+        demoNudge = makeDemoNudge()
+        demoNudge?.follow(engine)
+    }
+
+    /// The demo ride is dropped: its nudge stops and removes what it scheduled.
+    private func dropDemoNudge() {
+        demoNudge?.stop()
+        demoNudge = nil
     }
 
     /// Demo trains › Departure turned on or off (TT-177): the demo window plays from 5:01 PM, or stops, with the demo ride
@@ -133,6 +166,7 @@ final class OnBoard {
         } else {
             departureDemo = nil
             if demoIsHandOff {
+                dropDemoNudge()
                 demo?.end()
                 demo = nil
                 demoIsHandOff = false
@@ -147,7 +181,15 @@ final class OnBoard {
     func handOffDemo() async -> Bool {
         guard let session = departureDemo else { return false }
         let handOff = makeHandOff(session)
-        guard await handOff.engine.start(handOff.ride) else { return false }
+        // Its own arriving nudge (TT-173), following before the ride starts so it sees the first update.
+        let handOffNudge = makeDemoNudge()
+        handOffNudge?.follow(handOff.engine)
+        guard await handOff.engine.start(handOff.ride) else {
+            handOffNudge?.stop()
+            return false
+        }
+        demoNudge?.stop()
+        demoNudge = handOffNudge
         demo?.end()
         demo = handOff.engine
         demoIsHandOff = true
@@ -205,6 +247,7 @@ final class OnBoard {
             if case .asking(let asked) = question.state { moment = asked.askedAt }
             let session = makeDemo(moment)
             demo = session.engine
+            followDemo(session.engine)
             let started = await session.engine.start(session.ride)
             // The question stays until the ride shows, so the strip goes straight from one to the other.
             demoDetector = nil

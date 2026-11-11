@@ -130,3 +130,40 @@ actor FakeTrainPositions: TrainPositionProviding {
 
     func position(of trip: TripKey) async -> TrainPosition? { position }
 }
+
+/// Notification Center in nudge tests (TT-173): records every add and removal, and keeps what iOS would hold pending, where
+/// an add replaces the pending notification with its id.
+@MainActor
+final class FakeRideNotifications: RideNotificationScheduling {
+    private(set) var added: [RideNotification] = []
+    private(set) var removed: [String] = []
+    private(set) var pending: [String: RideNotification] = [:]
+
+    func add(_ notification: RideNotification) {
+        added.append(notification)
+        pending[notification.id] = notification
+    }
+
+    func remove(ids: [String]) {
+        removed += ids
+        for id in ids { pending[id] = nil }
+    }
+
+    /// How many times every pending ride notification was removed.
+    private(set) var removedAll = 0
+
+    func removeAll() {
+        removedAll += 1
+        pending = [:]
+    }
+}
+
+/// The taps and the chime in nudge tests: counts each.
+@MainActor
+final class FakeArrivalFeedback: ArrivalFeedback {
+    private(set) var arrivals = 0
+    private(set) var stops = 0
+
+    func arriving() { arrivals += 1 }
+    func atYourStop() { stops += 1 }
+}

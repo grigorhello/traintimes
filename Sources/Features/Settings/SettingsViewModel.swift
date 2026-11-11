@@ -69,9 +69,22 @@ final class SettingsViewModel {
         set { settings.timeFormat = newValue }
     }
 
+    /// Delays, Offline and Platform make their own live status, so choosing one turns Live data off (TT-195).
     var demoTrains: DemoTrains {
         get { settings.demoTrains }
-        set { settings.demoTrains = newValue }
+        set {
+            settings.demoTrains = newValue
+            if newValue.makesLiveStatus { settings.mockLive = .off }
+        }
+    }
+
+    /// Settings › Testing › Live data (TT-195): choosing a feed turns off a Demo trains mode that makes its own.
+    var mockLive: MockLive {
+        get { settings.mockLive }
+        set {
+            settings.mockLive = newValue
+            if newValue != .off, settings.demoTrains.makesLiveStatus { settings.demoTrains = .off }
+        }
     }
 
     // MARK: Notifications
@@ -160,7 +173,7 @@ final class SettingsViewModel {
 
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
-        demoTrains != .off || isMockTimeOn
+        demoTrains != .off || mockLive != .off || isMockTimeOn
     }
 
     /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
@@ -174,13 +187,18 @@ final class SettingsViewModel {
         case .ride: parts.append(String(localized: "settings.demo_trains.ride"))
         case .departure: parts.append(String(localized: "settings.demo_trains.departure"))
         }
+        if let live = mockLive.labelKey {
+            let word = String(localized: String.LocalizationValue(live))
+            parts.append(String(format: String(localized: "settings.live_data.value"), word))
+        }
         if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
     }
 
-    /// "Reset": Demo trains off and the real time.
+    /// "Reset": Demo trains and Live data off and the real time.
     func resetTesting() {
         demoTrains = .off
+        mockLive = .off
         settings.mockTime = nil
     }
 
@@ -194,5 +212,28 @@ final class SettingsViewModel {
     /// The About page's pill, "Version 1.0 (12)".
     var versionLine: String {
         String(format: String(localized: "settings.version"), appInfo.version, appInfo.build)
+    }
+}
+
+extension DemoTrains {
+    /// Delays, Offline and Platform make their own live status; the others leave it to the feed or to Live data (TT-195).
+    var makesLiveStatus: Bool {
+        switch self {
+        case .delays, .offline, .awaitingPlatform: true
+        case .off, .ride, .departure: false
+        }
+    }
+}
+
+extension MockLive {
+    /// The word on the switch, nil for Off.
+    var labelKey: String? {
+        switch self {
+        case .off: nil
+        case .onTime: "settings.live_data.on_time"
+        case .mixed: "settings.live_data.mixed"
+        case .changing: "settings.live_data.changing"
+        case .stale: "settings.live_data.stale"
+        }
     }
 }

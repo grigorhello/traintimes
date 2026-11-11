@@ -18,7 +18,7 @@ struct ScheduleView: View {
     var onOpenLineNotice: () -> Void = {}
     /// The one-tap bells and their toast (TT-141); nil shows outlined bells that do nothing.
     var bells: AlertBellModel?
-    /// The alert setup sheet (TT-142): a bell tapped before notifications are allowed, or the toast's Repeat.
+    /// The alert setup sheet (TT-142): the toast's Repeat. The bell asks for permission itself (TT-190).
     var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
     /// On board (TT-172): the ride strip under the day strip while a ride runs; nil shows none.
     var onBoard: OnBoard?
@@ -87,8 +87,9 @@ struct ScheduleView: View {
             // The cards' bell states ease as before; the toast keeps its words from it (`RisingToast`).
             .animation(.easeOut(duration: 0.25), value: bells?.toast)
             .animation(.easeOut(duration: 0.25), value: bells?.showsHint)
-            // A light haptic when an alert turns on (TT-141).
+            // A light haptic when an alert turns on (TT-141), the warning one when a bell is refused (TT-190).
             .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
+            .sensoryFeedback(.warning, trigger: bells?.refusedCount ?? 0)
             .toolbar(.hidden, for: .navigationBar)
             .task { await viewModel.loadIfNeeded() }
             .task { await viewModel.runClock() }
@@ -500,8 +501,8 @@ struct ScheduleView: View {
                     ScheduleLoadingTimeline(now: viewModel.now, formatter: formatter)
                 case .timeline:
                     ScheduleTimeline(
-                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), onBell: tapBell(_:),
-                        cascade: cascade, motion: motion
+                        viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
+                        onBell: tapBell(_:), cascade: cascade, motion: motion
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
@@ -561,6 +562,11 @@ struct ScheduleView: View {
         return bells.bell(for: train.trip, on: train.route)
     }
 
+    private func shakes(for id: TripKey) -> Int {
+        guard let bells, let train = train(id) else { return 0 }
+        return bells.shakes(for: train.trip)
+    }
+
     private func tapBell(_ id: TripKey) {
         guard let train = train(id) else { return }
         tapBell(train.trip, on: train.route)
@@ -568,15 +574,13 @@ struct ScheduleView: View {
 
     private func tapBell(_ trip: Trip, on route: Route) {
         guard let bells else { return }
-        Task {
-            if let request = await bells.tap(trip, on: route) { onAlertSetup(request) }
-        }
+        Task { await bells.tap(trip, on: route) }
     }
 
-    /// The toast above the tab bar (`schedule-delayed.png`): Setting up, then "Alert on for the 7:32 AM train" with Repeat,
-    /// "Alert off", or "Could not save" with Try again; else "Tap the bell on a train" after the Alerts tab's "Add alert".
-    /// One toast whose words change in place, so Setting up turns into Alert on without a second toast rising through the
-    /// first. It rises on a spring and drops away as it goes (`RisingToast`, TT-166).
+    /// The toast above the tab bar (`schedule-delayed.png`): "Alert on for the 7:32 AM train" with Repeat, "Alert off",
+    /// "Could not save" with Try again, or "Notifications are off" with Turn on (TT-190); else "Tap the bell on a train"
+    /// after the Alerts tab's "Add alert". One toast whose words change in place. It rises on a spring and drops away as it
+    /// goes (`RisingToast`, TT-166). The bell's wait has no words (TT-190).
     private var alertToast: some View {
         RisingToast(item: toastItem) { item in
             Group {
@@ -614,8 +618,6 @@ struct ScheduleView: View {
         _ toast: AlertBellModel.AlertToast, bells: AlertBellModel
     ) -> (message: String, systemImage: String, tint: Color, actionTitle: LocalizedStringKey?, action: () -> Void) {
         switch toast.kind {
-        case .settingUp:
-            return (String(localized: "alert.state.setting_up"), "clock", TTColor.inkSecondary, nil, {})
         case .on:
             return (
                 String(format: String(localized: "alert.toast_on"), formatter.time(toast.trip.scheduledDeparture)),
@@ -628,6 +630,15 @@ struct ScheduleView: View {
             return (
                 String(localized: "alert.could_not_save"), "xmark.circle.fill", TTColor.cancelInk, "button.try_again",
                 { tapBell(toast.trip, on: toast.route) }
+            )
+        case .notificationsOff:
+            // Turn on opens the app's page in iOS Settings; back with notifications on, this bell turns on.
+            return (
+                String(localized: "alert.notifications_off"), "bell.slash.fill", TTColor.cancelInk, "alert.turn_on",
+                {
+                    bells.turnOnInSettings()
+                    openURL(AlertBellModel.notificationSettingsURL)
+                }
             )
         }
     }

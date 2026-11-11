@@ -10,6 +10,20 @@ struct DemoScheduleRepository: ScheduleRepository {
     let mode: @Sendable () -> DemoTrains
     /// Mock time is on (TT-158): the real live status belongs to the real clock, so with Demo trains off there is none.
     var isMockTime: @Sendable () -> Bool = { false }
+    /// Settings › Testing › Live data (TT-195): a made-up live feed, used while Demo trains leaves live status alone (Off,
+    /// Ride, Departure). Read on each call, like the mode.
+    var mockLive: @Sendable () -> MockLive = { .off }
+
+    /// The made-up feed that applies now, or nil for the real one.
+    private var activeMockLive: MockLive? {
+        switch mode() {
+        case .off, .ride, .departure:
+            let live = mockLive()
+            return live == .off ? nil : live
+        case .delays, .offline, .awaitingPlatform:
+            return nil
+        }
+    }
 
     /// The next train is this late, in minutes; its estimated arrival moves with it.
     static let delayMinutes = 9
@@ -20,6 +34,7 @@ struct DemoScheduleRepository: ScheduleRepository {
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
         let trips = try await base.trips(for: route, on: day)
+        if activeMockLive == .mixed { return MockLiveFeed.withPlatforms(trips) }
         guard mode() == .awaitingPlatform else { return trips }
         return awaitingPlatform(trips, on: day)
     }
@@ -52,6 +67,9 @@ struct DemoScheduleRepository: ScheduleRepository {
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
         let mode = mode()
         let now = clock.now
+        if let mockLive = activeMockLive {
+            return MockLiveFeed.snapshot(mockLive, trips: try await base.trips(for: route, on: day), now: now)
+        }
         switch mode {
         case .off, .ride, .departure:
             return isMockTime() ? .empty : try await base.liveStatus(for: route, on: day)
@@ -89,7 +107,7 @@ struct DemoScheduleRepository: ScheduleRepository {
     }
 
     func lineNotices(for line: Line) async throws -> [LineNotice] {
-        guard mode() == .delays else { return try await base.lineNotices(for: line) }
+        guard mode() == .delays || activeMockLive == .mixed else { return try await base.lineNotices(for: line) }
         let now = clock.now
         // A new id each hour, so a dismissed demo notice comes back for the next test.
         let hour = Int(now.timeIntervalSince1970 / 3600)
@@ -101,7 +119,9 @@ struct DemoScheduleRepository: ScheduleRepository {
     }
 
     func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] {
-        try await base.stops(for: trip, on: route)
+        let stops = try await base.stops(for: trip, on: route)
+        guard activeMockLive != nil else { return stops }
+        return MockLiveFeed.stops(stops, trip: trip, live: try await liveStatus(for: route, on: trip.serviceDay))
     }
 
     func lastServiceDay() async throws -> ServiceDay? {

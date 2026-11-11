@@ -37,8 +37,18 @@ final class SettingsSnapshotTests: XCTestCase {
     /// settings-testing.png: Delays and Mock time at 11:58 PM on Thu Nov 5 (TT-158, D51).
     @MainActor func testTestingMockTimeLight() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .light, waits: true) }
     @MainActor func testTestingMockTimeDark() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .dark, waits: true) }
+    /// TT-195: Live data on Mixed (Demo trains off, as choosing it turns Delays off).
+    @MainActor func testTestingLiveDataLight() { snap(SettingsTestingPage(viewModel: liveModel()), .light) }
+    @MainActor func testTestingLiveDataDark() { snap(SettingsTestingPage(viewModel: liveModel()), .dark) }
 
     // MARK: Helpers
+
+    @MainActor
+    private func liveModel() -> SettingsViewModel {
+        let page = model(.allowed, showsTesting: true)
+        page.mockLive = .mixed
+        return page
+    }
 
     @MainActor
     private func model(

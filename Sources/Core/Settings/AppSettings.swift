@@ -28,6 +28,11 @@ final class AppSettings {
         didSet { defaults.set(demoTrains.rawValue, forKey: DemoTrains.key) }
     }
 
+    /// Settings › Testing › Live data (TT-195), shown in TestFlight and Debug builds only.
+    var mockLive: MockLive {
+        didSet { defaults.set(mockLive.rawValue, forKey: MockLive.key) }
+    }
+
     /// Settings › Testing › Mock time (TT-158, D51), shown in TestFlight and Debug builds only; nil is the real time.
     var mockTime: MockTimeSetting? {
         // Written only when it differs from what is stored, so reading it at launch (a launch argument, the stored value)
@@ -48,6 +53,7 @@ final class AppSettings {
         appearance = defaults.string(forKey: Self.appearanceKey).flatMap(Appearance.init(rawValue:)) ?? .system
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
+        mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off
         mockTime = MockTime.read(from: defaults)
     }
 }

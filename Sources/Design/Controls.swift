@@ -10,7 +10,7 @@ struct DayCell: View {
     /// Today's tile; it only shows when the tile is not the selected one.
     var isToday = false
     /// False where the strip draws the selected day's accent tile itself, under the tiles, so that it can glide from day
-    /// to day (TT-164, D60): the selected tile is then see-through.
+    /// to day (TT-164, D61): the selected tile is then see-through.
     var drawsSelection = true
     let action: () -> Void
 

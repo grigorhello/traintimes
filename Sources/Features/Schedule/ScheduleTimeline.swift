@@ -4,7 +4,7 @@ import SwiftUI
 /// holds the gridline times only, never a train's own time, which its card shows (D49). Across, it follows the canvas `.tl`
 /// geometry: labels end at 52 pt, the rail is centred on 62 pt and cards start at 82 pt. Everything but the cards is
 /// decoration and hidden from assistive tech. A new set of trains cascades in, each card with its rail marks, and the Now dot
-/// pulses on the way back to Now (TT-164, D60).
+/// pulses on the way back to Now (TT-164, D61).
 struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting

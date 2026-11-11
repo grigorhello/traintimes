@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// Schedule's motion (TT-164, D60) as numbers, against the canvas's Motion-Spec board: the cascade's stagger and poses, and
+/// Schedule's motion (TT-164, D61) as numbers, against the canvas's Motion-Spec board: the cascade's stagger and poses, and
 /// the Now dot's pulse.
 final class ScheduleMotionTests: XCTestCase {
     /// 60 ms for the first card in view, then 40 ms apart, and the sixth card and every one after it together.

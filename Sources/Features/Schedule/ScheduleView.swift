@@ -5,7 +5,7 @@ import SwiftUI
 /// stale, the watched-trip strip once a watched train has left (TT-144), then the to-scale timeline with its rail and
 /// cards (TT-113). The header is a top inset over one full-height scroll view, so the timeline scrolls under the glass
 /// tab bar at the bottom (D49). There is no Now button: tapping the Schedule tab again scrolls back to Now. Motion (TT-164,
-/// D60): the selected day's tile glides to a tapped day, which presses and springs back; a new set of trains cascades in;
+/// D61): the selected day's tile glides to a tapped day, which presses and springs back; a new set of trains cascades in;
 /// the Now dot pulses on the way back to Now.
 struct ScheduleView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -87,7 +87,7 @@ struct ScheduleView: View {
             .onChange(of: viewModel.nowPulse) { startPulse() }
     }
 
-    // MARK: Motion (TT-164, D60)
+    // MARK: Motion (TT-164, D61)
 
     /// The cards' cascade: pending from the frame the new trains are on screen until the start is taken just after it.
     private var entrance: MotionRun {
@@ -598,7 +598,7 @@ struct ScheduleView: View {
 }
 
 /// The tapped day pressing to 0.90 and springing back past 1 on `TTMotion.press`: the screen's one bouncy moment (TT-164,
-/// D60). Played from the tap itself rather than the button's pressed state, which a quick tap in a scroll view may never
+/// D61). Played from the tap itself rather than the button's pressed state, which a quick tap in a scroll view may never
 /// draw; holding a tile still shows the usual 0.97 press.
 private struct DayPress: ViewModifier {
     let trigger: Int

@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// When Schedule asks for its motion (TT-164, D60): the cascade for a new set of trains only, the Now pulse on the Schedule
+/// When Schedule asks for its motion (TT-164, D61): the cascade for a new set of trains only, the Now pulse on the Schedule
 /// tab and once after the launch's scroll settles, and the cascade's order counted from the first card in view.
 @MainActor
 final class ScheduleMotionStateTests: XCTestCase {

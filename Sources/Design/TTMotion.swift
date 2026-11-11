@@ -37,9 +37,9 @@ enum TTMotion {
     static let pressCurve = Curve(response: 0.40, damping: 0.50)
     /// A small pop: the route pin after the swap lands.
     static let popCurve = Curve(response: 0.35, damping: 0.45)
-    /// The selected day's accent tile gliding to the tapped day (TT-164, D60).
+    /// The selected day's accent tile gliding to the tapped day (TT-164, D61).
     static let glideCurve = Curve(response: 0.45, damping: 0.72)
-    /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D60).
+    /// Timeline cards arriving when a new set of trains is shown: from 20 pt up and 0.96 to rest (TT-164, D61).
     static let cascadeCurve = Curve(response: 0.44, damping: 0.62)
 
     static var cross: Animation { crossCurve.animation }

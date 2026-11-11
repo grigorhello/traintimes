@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Schedule's motion (TT-164, D60; the Motion-Spec board on the canvas): the cards cascading in when a new set of trains is
+/// Schedule's motion (TT-164, D61; the Motion-Spec board on the canvas): the cards cascading in when a new set of trains is
 /// shown, and the Now dot's pulse on the way back to Now. Both are drawn from the clock, as the swap is (`SwapMotion`), so
 /// that a card that has only just been inserted starts from its first pose in its first frame. The day tile's glide and
 /// press are SwiftUI springs (`TTMotion.glide`, `TTMotion.press`) in `ScheduleView`.

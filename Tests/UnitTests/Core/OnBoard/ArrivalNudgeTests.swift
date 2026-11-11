@@ -287,6 +287,20 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertEqual(relaunch.notifications.removedAll, 1)
     }
 
+    func testARideCancelledWhileTheAppWasStoppedRemovesTheEarlierLaunchsNotifications() async throws {
+        // The restore brings the ride back and ends it at once: the nudge has nothing pending of its own, but the ids the
+        // earlier launch used go.
+        let relaunch = try await savedRide(status: RideStatus(isCancelled: true))
+        await relaunch.engine.restore()
+        relaunch.nudge.restoreFinished()
+        XCTAssertEqual(relaunch.engine.state?.phase, .ended)
+        await until { relaunch.notifications.removed.count >= 2 }
+        let ids = Set(relaunch.notifications.removed)
+        XCTAssertTrue(ids.contains("onboard.arriving.\(ride.tripId).\(ride.serviceDate)"))
+        XCTAssertTrue(ids.contains("onboard.here.\(ride.tripId).\(ride.serviceDate)"))
+        XCTAssertTrue(relaunch.notifications.added.isEmpty)
+    }
+
     func testARestoredRideKeepsItsNotifications() async throws {
         let relaunch = try await savedRide()
         await relaunch.engine.restore()
@@ -297,18 +311,22 @@ final class ArrivalNudgeTests: XCTestCase {
     }
 
     /// A ride started and saved on device, then the app's engine and nudge as the next launch makes them, not restored yet.
-    private func savedRide() async throws -> (engine: RideEngine, nudge: ArrivalNudge, notifications: FakeRideNotifications) {
+    private func savedRide(
+        status: RideStatus = .none
+    ) async throws -> (engine: RideEngine, nudge: ArrivalNudge, notifications: FakeRideNotifications) {
         let defaults = UserDefaults.ephemeral()
         let plan = try OnBoardFixtures.plan()
-        func makeEngine(at time: Date) -> RideEngine {
-            RideEngine(
-                data: FakeRideData(plan: plan), location: FakeLocation(authorized: true), clock: TestClock(now: time),
-                defaults: defaults, tickInterval: nil
-            )
-        }
-        let first = makeEngine(at: t(11, 30))
+        let first = RideEngine(
+            data: FakeRideData(plan: plan), location: FakeLocation(authorized: true), clock: TestClock(now: t(11, 30)),
+            defaults: defaults, tickInterval: nil
+        )
         await first.start(ride)
-        let engine = makeEngine(at: t(11, 31))
+        let data = FakeRideData(plan: plan)
+        await data.setStatus(status)
+        let engine = RideEngine(
+            data: data, location: FakeLocation(authorized: true), clock: TestClock(now: t(11, 31)), defaults: defaults,
+            tickInterval: nil
+        )
         let notifications = FakeRideNotifications()
         let nudge = ArrivalNudge(notifications: notifications, feedback: FakeArrivalFeedback())
         nudge.follow(engine)

@@ -172,9 +172,9 @@ final class ArrivalNudge {
         case .phase(.atYourStop):
             if sawRideBeforeYourStop { feedback.atYourStop() }
             settle(now)
-            // There before "Arriving" went off: it would come late, so it goes; and "This is …" comes now, not at the
-            // timetable's time.
-            if pending[.arriving] != nil {
+            // There before "Arriving" went off: it would come late, so it goes (also an earlier launch's, for a ride
+            // restored here); and "This is …" comes now, not at the timetable's time.
+            if !done.contains(.arriving) {
                 notifications.remove(ids: [id(.arriving)])
                 pending[.arriving] = nil
                 done.insert(.arriving)
@@ -194,7 +194,9 @@ final class ArrivalNudge {
             guard abs(target.timeIntervalSince(current)) >= Self.moveThreshold,
                   current.timeIntervalSince(now) / rate >= Self.firesSoon else { return }
         } else if target <= now {
-            // Never scheduled and already past: a ride started or restored after it. The app open shows the moment.
+            // Never scheduled and already past: a ride started or restored after it. The app open shows the moment, and
+            // an earlier launch's notification under this id, set for an older estimate, goes.
+            notifications.remove(ids: [id(moment)])
             done.insert(moment)
             return
         }
@@ -237,9 +239,11 @@ final class ArrivalNudge {
         }
     }
 
-    /// The ride ended: its pending notifications go, and the next ride starts afresh.
+    /// The ride ended: its pending notifications go, and the next ride starts afresh. Both ids go even with nothing pending
+    /// here: a ride restored at launch can end at once (cancelled while the app was stopped) with the earlier launch's
+    /// notifications still pending under them.
     private func cancel() {
-        if !pending.isEmpty { notifications.remove(ids: pending.keys.map { id($0) }) }
+        if ride != nil { notifications.remove(ids: Moment.allCases.map { id($0) }) }
         pending = [:]
         done = []
         sawRideBeforeYourStop = false

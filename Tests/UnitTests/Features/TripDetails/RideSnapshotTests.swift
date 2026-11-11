@@ -7,7 +7,7 @@ import XCTest
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
 /// with "I'm on board"; the permission sheet; the ride strip. Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).
-final class RideSnapshotTests: XCTestCase {
+class RideSnapshotTests: XCTestCase {
     @MainActor func testRidingLight() async throws { snap(await ride(at: DemoRideRig.time(17, 32)), .light) }
     @MainActor func testRidingDark() async throws { snap(await ride(at: DemoRideRig.time(17, 32)), .dark) }
     @MainActor func testYourStopNextLight() async throws { snap(await ride(at: DemoRideRig.time(17, 38)), .light) }

@@ -35,6 +35,8 @@ final class TrainDetector {
     @ObservationIgnored private var feed: [TripKey: TrainPosition] = [:]
     @ObservationIgnored private var lastFeed = Date.distantPast
     @ObservationIgnored private var lastCandidates = Date.distantPast
+    /// The trains last kept in `defaults` as not to be asked about today.
+    @ObservationIgnored private var saved: Set<TripKey> = []
     /// Each run's number: a run that a newer one replaced (the screen came back before the old task ended) stops quietly.
     @ObservationIgnored private var generation = 0
 
@@ -58,7 +60,8 @@ final class TrainDetector {
         self.tickInterval = tickInterval
         self.feedInterval = feedInterval
         self.watchesWhileAsking = watchesWhileAsking
-        matcher = TrainMatcher(silenced: Self.silencedToday(in: defaults, now: clock.now))
+        saved = Self.silencedToday(in: defaults, now: clock.now)
+        matcher = TrainMatcher(silenced: saved)
     }
 
     /// The detector's clock (the demo's own).
@@ -85,7 +88,10 @@ final class TrainDetector {
             guard !Task.isCancelled, generation == run else { break }
             await tick()
         }
-        if generation == run { stop() }
+        guard generation == run else { return }
+        stop()
+        // A ride started (from the question or from "I'm on board"): a question left up goes with it.
+        if !shouldGoOn() { reset() }
     }
 
     /// Loads the trains and starts the phone's updates; false when location is not allowed.
@@ -113,10 +119,7 @@ final class TrainDetector {
         isWatching = false
         location.stopUpdates()
         // A question stays for the rider to answer; the strip goes with the screen.
-        if !isAsking {
-            matcher = TrainMatcher(silenced: matcher.silenced)
-            state = .idle
-        }
+        if !isAsking { reset() }
     }
 
     /// The timer: the trains each minute, the feed, and the checks at the clock's time (the timetable moves on, and a
@@ -138,18 +141,21 @@ final class TrainDetector {
         publish()
     }
 
-    /// No: the question's trains are not asked about again today.
+    /// No: the question's trains, and every train that fitted with them, are not asked about again today.
     func decline() {
-        let offered = matcher.decline()
+        matcher.decline()
         publish()
-        guard let defaults, !offered.isEmpty else { return }
-        let today = Self.silencedToday(in: defaults, now: clock.now).union(offered)
-        defaults.set(today.map { "\($0.serviceDay.dateKey)/\($0.tripId)" }, forKey: Self.silencedKey)
     }
 
     /// Yes: the ride started, so the question goes.
     func accepted() {
+        reset()
+    }
+
+    /// A new matcher with the same No's; it gets the trains again on the next refresh.
+    private func reset() {
         matcher = TrainMatcher(silenced: matcher.silenced)
+        lastCandidates = .distantPast
         state = .idle
     }
 
@@ -171,8 +177,12 @@ final class TrainDetector {
         }
     }
 
+    /// The matcher's state to the screen, and its No's (a No, or a question left unanswered) to `defaults` for the day.
     private func publish() {
         if matcher.state != state { state = matcher.state }
+        guard matcher.silenced != saved else { return }
+        saved = matcher.silenced
+        defaults?.set(saved.map { "\($0.serviceDay.dateKey)/\($0.tripId)" }, forKey: Self.silencedKey)
     }
 
     /// The trains the rider said No to today (`detect.silenced`, "20261127/tripId"); older days are dropped.

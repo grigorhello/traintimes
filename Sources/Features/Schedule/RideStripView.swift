@@ -124,7 +124,7 @@ struct RideStripSlot<Otherwise: View>: View {
             }
         }
         .animation(animation(for: content), value: content)
-        .onChange(of: content) { wasAsking = content == .asking }
+        .onChange(of: content, initial: true) { wasAsking = content == .asking }
     }
 
     private func checkingStrip(_ detection: TrainMatcher.State) -> DetectionStrip? {

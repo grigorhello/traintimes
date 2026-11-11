@@ -455,7 +455,8 @@ struct TrainMatcher {
                 oldest.at < latest.at && now.timeIntervalSince(oldest.at) >= Self.speedWindow / 2 ? oldest : nil
             }
         guard let reference else { return nil }
-        let span = max(now.timeIntervalSince(reference.at), 1)
+        // Between two fixes the speed is theirs; a fix that is its own reference has the phone standing since.
+        let span = max(reference.at < latest.at ? latest.at.timeIntervalSince(reference.at) : now.timeIntervalSince(reference.at), 1)
         return PhoneMotion(
             latest: latest,
             reference: reference,

@@ -101,19 +101,33 @@ final class OnBoard {
         return (demoDetector ?? detector)?.state ?? .idle
     }
 
-    /// Runs train detection while Schedule is open, until the screen goes or a ride starts: the demo's question while Demo
-    /// trains › Ride is on (once, until it is turned off and on), else the app's detector on `route`.
+    /// Runs train detection while Schedule is open, until the screen goes: the demo's question while Demo trains › Ride is
+    /// on (once, until it is turned off and on), else the app's detector on `route`, paused while a ride runs.
     func detect(on route: Route, demo isDemo: Bool) async {
-        guard activeRide == nil else { return }
         if isDemo {
-            guard demo == nil, let makeDemoDetector else { return }
-            // A question not yet asked starts again from 5:18 PM, so the rider sees it from the start.
-            if demoDetector?.isAsking != true { demoDetector = makeDemoDetector() }
+            guard activeRide == nil, demo == nil, let makeDemoDetector else { return }
+            if let current = demoDetector {
+                // A No keeps the demo quiet until it is turned off and on.
+                guard current.silenced.isEmpty else { return }
+                // A question not yet asked starts again from 5:18 PM, so the rider sees it from the start.
+                if !current.isAsking { demoDetector = makeDemoDetector() }
+            } else {
+                demoDetector = makeDemoDetector()
+            }
             await demoDetector?.run(on: DemoRide.route)
-        } else {
-            await detector?.run(on: route) { [weak self] in self?.activeRide == nil }
+            return
+        }
+        guard let detector else { return }
+        while !Task.isCancelled {
+            if activeRide == nil {
+                await detector.run(on: route) { [weak self] in self?.activeRide == nil }
+            }
+            // A ride runs, or location is not allowed yet: look again shortly, so detection resumes when the ride ends.
+            try? await Task.sleep(for: Self.detectRetry)
         }
     }
+
+    static let detectRetry: Duration = .seconds(5)
 
     /// Yes on the question: the ride on that train starts, the demo's on its own engine from where its clock is. The only
     /// way the matcher leads to a ride; false when it did not start.
@@ -124,7 +138,10 @@ final class OnBoard {
         isAccepting = true
         defer { isAccepting = false }
         if let question = demoDetector {
-            let session = makeDemo(question.now)
+            // The demo clock where the question was asked: it ran on while the question waited.
+            var moment = question.now
+            if case .asking(let asked) = question.state { moment = asked.askedAt }
+            let session = makeDemo(moment)
             demo = session.engine
             let started = await session.engine.start(session.ride)
             // The question stays until the ride shows, so the strip goes straight from one to the other.

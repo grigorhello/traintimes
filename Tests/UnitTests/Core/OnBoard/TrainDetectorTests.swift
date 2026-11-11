@@ -86,8 +86,8 @@ final class TrainDetectorTests: XCTestCase {
         let started = await onBoard.accept(try XCTUnwrap(question.trains.first))
 
         XCTAssertTrue(started)
-        // From the moment of the Yes on the question's clock, not from 5:32 PM.
-        XCTAssertEqual(rideClock.now, clock.now)
+        // From the moment the question was asked on its clock, not from 5:32 PM.
+        XCTAssertEqual(rideClock.now, question.askedAt)
         XCTAssertEqual(onBoard.activeRide?.tripId, DemoRide.tripId)
         XCTAssertNil(onBoard.demoDetector)
         XCTAssertEqual(onBoard.detection, .idle)

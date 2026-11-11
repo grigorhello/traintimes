@@ -84,6 +84,7 @@ struct DetectionStripView: View {
                     LiveDot(isLive: false, isChecking: true)
                     Text(verbatim: strip.title)
                         .font(TTFont.badge)
+                        .tracking(-0.1)
                         .foregroundStyle(TTColor.inkSecondary)
                 }
                 Text(verbatim: strip.detail)
@@ -95,6 +96,7 @@ struct DetectionStripView: View {
             Spacer(minLength: 0)
             Text(verbatim: strip.trailing)
                 .font(TTFont.footnote)
+                .tracking(-0.1)
                 .foregroundStyle(TTColor.inkSecondary)
                 .lineLimit(1)
                 .fixedSize()
@@ -176,6 +178,7 @@ private struct QuestionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(TTFont.headline)
+            .tracking(-0.4)
             .foregroundStyle(isPrimary ? TTColor.onAccent : TTColor.ink)
             .lineLimit(1)
             .padding(.horizontal, TTSpace.s4)

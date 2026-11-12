@@ -147,15 +147,14 @@ final class DepartureDetailsTests: XCTestCase {
         let rig = DepartureRig.started()
         let pending = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
         XCTAssertEqual(pending.title, "Your 5:13 PM train")
-        XCTAssertEqual(pending.lead, "Platform")
-        XCTAssertTrue(pending.showsPill)
+        XCTAssertNil(pending.platform)
+        XCTAssertTrue(pending.pillPulses)
         XCTAssertEqual(pending.status, "On time")
         XCTAssertEqual(pending.countdown, "12 min")
 
         rig.clock.set(DepartureRig.time(17, 3))
         let posted = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
-        XCTAssertEqual(posted.lead, "Platform 7")
-        XCTAssertFalse(posted.showsPill)
+        XCTAssertEqual(posted.platform, "7")
         XCTAssertEqual(posted.countdown, "10 min")
 
         rig.clock.set(DepartureRig.time(17, 7))
@@ -174,7 +173,7 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(rig.onBoard.demoDepartureStrip(formatter: formatter), "once it has left the watched strip takes over")
     }
 
-    func testWithoutAPlatformFeedThePendingPlatformSaysCheckTheBoard() throws {
+    func testWithoutAPlatformFeedThePendingPlatformStaysStill() throws {
         let day = DepartureRig.day
         let trip = Trip(
             key: TripKey(serviceDay: day, tripId: "A"), scheduledDeparture: DepartureRig.time(17, 13),
@@ -184,8 +183,8 @@ final class DepartureDetailsTests: XCTestCase {
         let live = try XCTUnwrap(LiveDeparture(departure, now: DepartureRig.time(17, 1)))
 
         let strip = DepartureStrip(live, now: DepartureRig.time(17, 1), hasPlatformSource: false, formatter: formatter)
-        XCTAssertEqual(strip.lead, "Check the board")
-        XCTAssertFalse(strip.showsPill)
+        XCTAssertNil(strip.platform, "The still dash pill")
+        XCTAssertFalse(strip.pillPulses)
         XCTAssertEqual(strip.status, "Scheduled")
 
         let card = DepartureDetails(
@@ -286,7 +285,7 @@ final class DepartureDetailsTests: XCTestCase {
         let strip = try XCTUnwrap(model.departureStrip(formatter))
         XCTAssertEqual(strip.key, keys[0])
         XCTAssertEqual(strip.title, "Your 7:32 AM train")
-        XCTAssertEqual(strip.lead, "Platform 2")
+        XCTAssertEqual(strip.platform, "2")
         XCTAssertEqual(strip.countdown, "11 min")
 
         let unalerted = ScheduleViewModel(

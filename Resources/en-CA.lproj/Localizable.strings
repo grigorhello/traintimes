@@ -41,8 +41,7 @@
 "schedule.est_arrival" = "Est. arrival";
 "schedule.platform" = "Platform %@";
 "schedule.platform_pending" = "Platform pending";
-"schedule.platform_short" = "Plat %@";
-"schedule.platform_label" = "Plat";
+"schedule.platform_label" = "Platform";
 "schedule.platform_placeholder" = "—";
 "schedule.trip_minutes" = "%d min ride";
 "schedule.trip_hours" = "%d h ride";

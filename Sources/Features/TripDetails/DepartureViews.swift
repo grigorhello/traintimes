@@ -12,7 +12,6 @@ struct LiveDepartureCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let nameFont = Font.system(size: 28, weight: .bold)
     private static let yourStopRow: CGFloat = 60
     private static let statusRow: CGFloat = 44
 
@@ -99,33 +98,22 @@ struct LiveDepartureCard: View {
         .padding(.bottom, 14)
     }
 
-    /// "Platform" and the pill, or "Platform 7", which presses in from 0.94 as it replaces them.
+    /// "Platform" and the pill (TT-199): the dash (pulsing while it may be posted any minute), then the number, which
+    /// presses in from 0.94 as it replaces it.
     private var platform: some View {
-        HStack(spacing: 6) {
-            Text(verbatim: departure.platformText)
-                .font(Self.nameFont)
-                .tracking(-0.6)
-                .monospacedDigit()
-                .foregroundStyle(departure.isBoarding ? TTColor.accent : TTColor.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if departure.platform == nil {
-                DeparturePill(pulses: departure.pillPulses)
-                    .transition(.opacity)
+        PlatformTag(number: departure.platform, size: 26, pulses: departure.pillPulses)
+            .animation(.easeOut(duration: 0.2), value: departure.platform)
+            .keyframeAnimator(initialValue: 1.0, trigger: pressTrigger) { content, scale in
+                content.scaleEffect(scale, anchor: .bottomLeading)
+            } keyframes: { _ in
+                KeyframeTrack(\.self) {
+                    LinearKeyframe(DepartureMotion.platformFrom, duration: 0.01)
+                    SpringKeyframe(
+                        1.0, duration: 0.64,
+                        spring: Spring(response: DepartureMotion.platformCurve.response, dampingRatio: DepartureMotion.platformCurve.damping)
+                    )
+                }
             }
-        }
-        .animation(.easeOut(duration: 0.2), value: departure.platform)
-        .keyframeAnimator(initialValue: 1.0, trigger: pressTrigger) { content, scale in
-            content.scaleEffect(scale, anchor: .bottomLeading)
-        } keyframes: { _ in
-            KeyframeTrack(\.self) {
-                LinearKeyframe(DepartureMotion.platformFrom, duration: 0.01)
-                SpringKeyframe(
-                    1.0, duration: 0.64,
-                    spring: Spring(response: DepartureMotion.platformCurve.response, dampingRatio: DepartureMotion.platformCurve.damping)
-                )
-            }
-        }
     }
 
     /// The platform presses in once as it is posted; not with Reduce Motion.

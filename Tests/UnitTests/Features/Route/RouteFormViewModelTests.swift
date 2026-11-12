@@ -148,11 +148,13 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.allStations, [])
     }
 
-    /// Acceptance: the other field's station is greyed with its reason and cannot be picked.
+    /// Acceptance: the other field's station is greyed with its reason (under Your stations; the line sections leave it
+    /// out, D83) and cannot be picked.
     func testOtherFieldsStationIsGreyedAndCannotBePicked() async throws {
-        let model = try await model(Route(from: oakville, to: union, line: nil))
+        let route = Route(from: oakville, to: union, line: nil)
+        let model = try await model(route, recent: [route])
         model.open(.from)
-        let row = try XCTUnwrap(model.allStations.first { $0.id == "UN" })
+        let row = try XCTUnwrap(model.yourStations.first { $0.id == "UN" })
         XCTAssertTrue(row.isDisabled)
         XCTAssertEqual(row.detail, "All lines · Same as To")
         XCTAssertFalse(model.pick(union))
@@ -160,10 +162,11 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertTrue(model.isPickingStation)
 
         model.open(.to)
-        let oakvilleRow = try XCTUnwrap(model.allStations.first { $0.id == "OA" })
+        let oakvilleRow = try XCTUnwrap(model.yourStations.first { $0.id == "OA" })
         XCTAssertTrue(oakvilleRow.isDisabled)
         XCTAssertEqual(oakvilleRow.detail, "Lakeshore West · Same as From")
-        XCTAssertFalse(try XCTUnwrap(model.allStations.first { $0.id == "BU" }).isDisabled)
+        let burlington = try XCTUnwrap(model.lineSections.first?.rows.first { $0.id == "BU" })
+        XCTAssertFalse(burlington.isDisabled)
     }
 
     /// Rows show the full name and line context; All stations is alphabetical when choosing From.
@@ -184,13 +187,77 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.allStations.first?.id, "AC")
         model.pick(oakville)
         XCTAssertEqual(model.pickingField, .to)
-        XCTAssertEqual(model.allStations.first?.id, "UN")
-        XCTAssertEqual(model.allStations.filter { $0.id == "UN" }.count, 1)
+        XCTAssertEqual(model.lineSections.first?.rows.first?.id, "UN")
+        XCTAssertEqual(model.lineSections.flatMap(\.rows).filter { $0.id == "UN" }.count, 1)
+        XCTAssertNil(model.allStations.first { $0.id == "UN" })
 
         let fromUnion = try await self.model(Route(from: union, to: oakville, line: nil))
         fromUnion.open(.to)
-        XCTAssertEqual(fromUnion.allStations.first?.id, "AC")
-        XCTAssertTrue(try XCTUnwrap(fromUnion.allStations.first { $0.id == "UN" }).isDisabled)
+        XCTAssertNil((fromUnion.lineSections.flatMap(\.rows) + fromUnion.allStations).first { $0.id == "UN" })
+    }
+
+    /// TT-200 (D83): with Oakville GO chosen, the destination list opens on Lakeshore West, Union first and then
+    /// alphabetically (the fixture stations have no places), without Oakville itself; Other stations has every station on
+    /// another line.
+    func testSameLineStationsComeFirst() async throws {
+        let model = try await model()
+        model.open(.from)
+        XCTAssertEqual(model.lineSections, [], "Nothing chosen: the list is as before")
+        model.pick(oakville)
+        let sections = model.lineSections
+        XCTAssertEqual(sections.map(\.line.id), ["LW"])
+        XCTAssertEqual(sections.first?.line.name, "Lakeshore West")
+        let names = sections.first?.rows.map(\.station.name) ?? []
+        XCTAssertEqual(names.prefix(3), ["Union Station GO", "Aldershot GO", "Appleby GO"])
+        XCTAssertEqual(names.count, 14)
+        XCTAssertFalse(names.contains("Oakville GO"))
+        let others = model.allStations
+        XCTAssertEqual(others.first?.station.name, "Acton GO")
+        XCTAssertTrue(others.allSatisfy { !$0.station.lines.contains("Lakeshore West") })
+        XCTAssertEqual(names.count + others.count, model.stations.count - 1)
+    }
+
+    /// TT-200 (D83): it works from either field, and a saved route's station (no lines of its own) takes its lines from
+    /// the station list. Union, on every line, gives a section per line in GO's order and leaves no Other stations.
+    func testFromFieldUsesTheToStationsLines() async throws {
+        let saved = Route(from: Station(id: "OA", name: "Oakville"), to: Station(id: "UN", name: "Union"), line: nil)
+        let model = try await model(saved)
+        model.open(.from)
+        XCTAssertEqual(model.lineSections.map(\.line.id), ["LW", "MI", "KI", "BR", "RH", "ST", "LE"])
+        XCTAssertEqual(model.allStations, [])
+        model.open(.to)
+        XCTAssertEqual(model.lineSections.map(\.line.id), ["LW"])
+    }
+
+    /// TT-200 (D83): typing still finds every station, the shared line's matches first.
+    func testSearchRanksSameLineMatchesFirst() async throws {
+        let model = try await model()
+        model.open(.from)
+        model.pick(oakville)
+        model.query = "b"
+        XCTAssertEqual(model.lineSections.first?.rows.map(\.station.name), ["Bronte GO", "Burlington GO", "Long Branch GO"])
+        XCTAssertTrue(model.allStations.contains { $0.station.name == "Bramalea GO" })
+        XCTAssertFalse(model.hasNoMatch)
+        model.pickFirstMatch()
+        XCTAssertEqual(model.to?.name, "Bronte GO", "Return picks the first same-line match")
+    }
+
+    /// TT-200 (D83): with the feed's places, a line runs from Union outward.
+    func testLineRunsFromUnionOutward() async throws {
+        let line = ["Lakeshore West"]
+        func station(_ id: String, _ name: String, _ latitude: Double, _ longitude: Double) -> Station {
+            Station(id: id, name: name, lines: line, place: GeoPoint(latitude: latitude, longitude: longitude))
+        }
+        let stations = [
+            station("AL", "Aldershot GO", 43.3132, -79.8556), station("EX", "Exhibition GO", 43.6363, -79.4187),
+            station("OA", "Oakville GO", 43.4553, -79.6824), station("PO", "Port Credit GO", 43.5554, -79.5868),
+            station("UN", "Union Station GO", 43.6453, -79.3806),
+        ]
+        let model = RouteFormViewModel(route: nil, repository: PlacedStations(list: stations))
+        await model.loadStations()
+        model.open(.from)
+        model.pick(stations[0])
+        XCTAssertEqual(model.lineSections.first?.rows.map(\.id), ["UN", "EX", "PO", "OA"])
     }
 
     /// Your stations come from the recent routes, alphabetically and with a clock (D48).
@@ -204,15 +271,20 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.yourStations.map(\.station.name), ["Union Station GO"])
     }
 
-    /// The active field's own station is not listed: picking it again would change nothing.
+    /// The active field's own station is not listed: picking it again would change nothing. Nor is the other field's
+    /// station in its own line sections (D83).
     func testOwnStationIsNotListed() async throws {
         let model = try await model(Route(from: oakville, to: union, line: nil))
         model.open(.to)
-        XCTAssertNil(model.allStations.first { $0.id == "UN" })
-        XCTAssertNotNil(model.allStations.first { $0.id == "OA" }, "The other field's station is listed, greyed")
+        var listed = model.lineSections.flatMap(\.rows) + model.allStations
+        XCTAssertNil(listed.first { $0.id == "UN" })
+        XCTAssertNil(listed.first { $0.id == "OA" })
+        XCTAssertNotNil(listed.first { $0.id == "BU" })
         model.open(.from)
-        XCTAssertNil(model.allStations.first { $0.id == "OA" })
-        XCTAssertNotNil(model.allStations.first { $0.id == "UN" })
+        listed = model.lineSections.flatMap(\.rows) + model.allStations
+        XCTAssertNil(listed.first { $0.id == "OA" })
+        XCTAssertNil(listed.first { $0.id == "UN" })
+        XCTAssertNotNil(listed.first { $0.id == "AC" })
     }
 
     /// Typing matches the start of a word: "st" finds Union Station GO, "nion" finds nothing.
@@ -271,4 +343,11 @@ final class RouteFormViewModelTests: XCTestCase {
         model.open(.to)
         XCTAssertEqual(model.query, "")
     }
+}
+
+/// A station list with places, as the GTFS feed gives it.
+private struct PlacedStations: StationRepository {
+    let list: [Station]
+    func stations() async throws -> [Station] { list }
+    func route(from: Station, to: Station) async throws -> Route { Route(from: from, to: to, line: nil) }
 }

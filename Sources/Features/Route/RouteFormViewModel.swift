@@ -4,7 +4,8 @@ import Observation
 /// The model behind the inline station picker (TT-161, D54): From and To, swap, and "Show trains" once both are set and
 /// different. The first screen on first launch uses it, and Schedule makes one each time the rider taps a station in its
 /// route card. Tapping a station row makes it the search field and unfolds suggestions under the card: Recent routes
-/// (Schedule only, before typing), Your stations, then All stations, filtered by `query`.
+/// (Schedule only, before typing), Your stations, then All stations, filtered by `query`. Once the other field holds a
+/// station, All stations gives way to a section per line serving it and then Other stations (TT-200, D83).
 @Observable @MainActor
 final class RouteFormViewModel {
     enum Field: String {
@@ -22,6 +23,14 @@ final class RouteFormViewModel {
         let isDisabled: Bool
 
         var id: String { station.id }
+    }
+
+    /// The stations on one line of the other field's station, from Union outward (TT-200, D83).
+    struct LineSection: Identifiable, Equatable {
+        let line: Line
+        let rows: [StationRow]
+
+        var id: String { line.id }
     }
 
     /// Suggested first when choosing To (the GTFS stop id of Union Station GO).
@@ -70,8 +79,46 @@ final class RouteFormViewModel {
         rows(stations.filter { recentStationIds.contains($0.id) })
     }
 
-    /// Every station alphabetically; when choosing To, Union Station GO comes first unless it is the From station.
+    /// The other field's station with its lines from the station list (a saved route's station carries none); nil while
+    /// that field is empty.
+    private var otherStation: Station? {
+        guard let other = pickingField == .from ? to : from else { return nil }
+        return stations.first { $0.id == other.id }
+    }
+
+    /// The lines of the other field's station; empty while it is empty or its lines are unknown, which keeps today's list.
+    private var sharedLines: [String] {
+        otherStation?.lines ?? []
+    }
+
+    /// A section per line serving the other field's station, in GO's line order, each from Union outward, without that
+    /// station itself; typing filters them like the rest, so same-line matches come first. Empty with no station chosen.
+    var lineSections: [LineSection] {
+        guard let other = otherStation else { return [] }
+        let hub = stations.first { $0.id == Self.unionStationId }?.place
+        return GOLineColor.ordered(other.lines).compactMap { name in
+            let list = stations.filter { $0.id != other.id && $0.lines.contains(name) }
+            let found = rows(Self.fromUnionOutward(list, hub: hub))
+            return found.isEmpty ? nil : LineSection(line: GOLineColor.line(named: name), rows: found)
+        }
+    }
+
+    /// Union first, then by distance from Union when every station has a place (the GTFS feed), else alphabetically.
+    private static func fromUnionOutward(_ list: [Station], hub: GeoPoint?) -> [Station] {
+        let union = list.filter { $0.id == unionStationId }
+        let rest = list.filter { $0.id != unionStationId }
+        guard let hub, rest.allSatisfy({ $0.place != nil }) else { return union + rest }
+        let distance = { (station: Station) in station.place.map { TrackShape.distance(hub, $0) } ?? 0 }
+        return union + rest.sorted { distance($0) < distance($1) }
+    }
+
+    /// Every station alphabetically; when choosing To, Union Station GO comes first unless it is the From station. Once
+    /// the other field's station has line sections, only the stations on none of its lines (Other stations).
     var allStations: [StationRow] {
+        let shared = Set(sharedLines)
+        if !shared.isEmpty {
+            return rows(stations.filter { shared.isDisjoint(with: $0.lines) })
+        }
         var list = stations
         if pickingField == .to, from?.id != Self.unionStationId,
            let index = list.firstIndex(where: { $0.id == Self.unionStationId }) {
@@ -93,7 +140,7 @@ final class RouteFormViewModel {
 
     /// Nothing in the picker matches the typed text.
     var hasNoMatch: Bool {
-        !stations.isEmpty && suggestedRoutes.isEmpty && yourStations.isEmpty && allStations.isEmpty
+        !stations.isEmpty && suggestedRoutes.isEmpty && yourStations.isEmpty && lineSections.isEmpty && allStations.isEmpty
     }
 
     func loadStations() async {
@@ -145,7 +192,8 @@ final class RouteFormViewModel {
     @discardableResult
     func pickFirstMatch() -> Bool {
         guard !trimmedQuery.isEmpty,
-              let row = (yourStations + allStations).first(where: { !$0.isDisabled }) else { return false }
+              let row = (yourStations + lineSections.flatMap(\.rows) + allStations).first(where: { !$0.isDisabled })
+        else { return false }
         return pick(row.station)
     }
 

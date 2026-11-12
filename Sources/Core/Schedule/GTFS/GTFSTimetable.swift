@@ -4,7 +4,8 @@ import Foundation
 /// between them on a service day, as domain types.
 struct GTFSTimetable: Sendable {
     let feed: GTFSFeed
-    /// Every station a train calls at, alphabetically, with the names of its lines.
+    /// Every station a train calls at, alphabetically, with the names of its lines and its place (the picker orders a line
+    /// from Union outward by it, TT-200).
     let stations: [Station]
     /// The last service day with trains (the feed's validity window, Q6); the day strip stops there.
     let lastServiceDay: ServiceDay?
@@ -24,7 +25,10 @@ struct GTFSTimetable: Sendable {
         stopIndex = Dictionary(feed.stops.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         stations = feed.stops.enumerated()
             .map { index, stop in
-                Station(id: stop.id, name: stop.name, lines: stationLines[index].map { feed.lines[$0].name }.sorted())
+                Station(
+                    id: stop.id, name: stop.name, lines: stationLines[index].map { feed.lines[$0].name }.sorted(),
+                    place: stop.place
+                )
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }

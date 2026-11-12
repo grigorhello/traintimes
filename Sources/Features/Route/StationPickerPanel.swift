@@ -7,8 +7,9 @@ private let stationPickerScrollSpace = "stationPicker"
 /// frames Route-Pick-From / To and Schedule-Pick. The panel is the route card's own surface continued below it: no gap,
 /// flat where they meet, one shadow around both, a hairline seam between. It is as tall as its rows, up to the space above
 /// the keyboard, and scrolls past that under a short fade. Groups, in order: Recent routes (Schedule, before typing), Your
-/// stations (from the recent routes) and All stations; every row has a glyph in the column the card's markers use, so all
-/// the titles line up with the field. The other field's station is greyed with its reason and cannot be picked. The parent
+/// stations (from the recent routes) and All stations, which, once the other field holds a station, becomes a section per
+/// line of that station (headed by the line's colour and name) and Other stations (TT-200, D83); every row has a glyph in
+/// the column the card's markers use, so all the titles line up with the field. The other field's station is greyed with its reason and cannot be picked. The parent
 /// reveals it (`AnyTransition.pickerPanel`); its content rides down a little and its rows fall in one after another.
 struct StationPickerPanel: View {
     let viewModel: RouteFormViewModel
@@ -102,7 +103,8 @@ struct StationPickerPanel: View {
     private static let measuredRows = 14
 
     private var rowCount: Int {
-        viewModel.suggestedRoutes.count + viewModel.yourStations.count + viewModel.allStations.count
+        viewModel.suggestedRoutes.count + viewModel.yourStations.count + viewModel.lineSections.reduce(0) { $0 + $1.rows.count }
+            + viewModel.allStations.count
     }
 
     private var groups: some View {
@@ -117,12 +119,18 @@ struct StationPickerPanel: View {
     @ViewBuilder private var groupRows: some View {
         let routes = viewModel.suggestedRoutes
         let yours = viewModel.yourStations
+        let sections = viewModel.lineSections
         let all = viewModel.allStations
-        // The frame calls the typed results "Stations" when there is no Your stations group to tell them apart from.
-        let allTitle: LocalizedStringKey = viewModel.query.isEmpty || !yours.isEmpty ? "stations.all" : "stations.results"
+        // The frame calls the typed results "Stations" when there is no Your stations group to tell them apart from; after
+        // line sections they are the Other stations.
+        let allTitle: LocalizedStringKey = !sections.isEmpty ? "stations.other"
+            : viewModel.query.isEmpty || !yours.isEmpty ? "stations.all" : "stations.results"
         // Each group's header shares its first row's place in the fall, and the next group starts after its last row.
         let yoursBase = routes.count
-        let allBase = yoursBase + yours.count
+        let sectionBases = sections.indices.map { index in
+            yoursBase + yours.count + sections[..<index].reduce(0) { $0 + $1.rows.count }
+        }
+        let allBase = yoursBase + yours.count + sections.reduce(0) { $0 + $1.rows.count }
         let allGlyph: Glyph = viewModel.pickingField == .from ? .ring : .pin
         if !routes.isEmpty {
             header("route.recent", order: 0)
@@ -138,6 +146,10 @@ struct StationPickerPanel: View {
         if !yours.isEmpty {
             header("stations.yours", order: yoursBase)
             stationRows(yours, idPrefix: "station.yours.", glyph: .clock, base: yoursBase)
+        }
+        ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+            lineHeader(section.line, order: sectionBases[index])
+            stationRows(section.rows, idPrefix: "station.", glyph: allGlyph, base: sectionBases[index])
         }
         if !all.isEmpty {
             header(allTitle, order: allBase)
@@ -163,6 +175,26 @@ struct StationPickerPanel: View {
             .padding(.bottom, TTSpace.s1)
             .accessibilityAddTraits(.isHeader)
             .fallsIn(order: order, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
+    }
+
+    /// A line section's title: the line's colour as a dot, then its name, in the group title's type (TT-200, D83).
+    private func lineHeader(_ line: Line, order: Int) -> some View {
+        HStack(spacing: TTSpace.s3) {
+            Circle()
+                .fill(GOLineColor.color(for: line))
+                .frame(width: 10, height: 10)
+                .frame(width: Self.glyphColumn)
+            Text(verbatim: line.name)
+                .font(TTFont.footnote.weight(.semibold))
+                .foregroundStyle(TTColor.inkSecondary)
+        }
+        .padding(.horizontal, Self.inset)
+        .padding(.top, TTSpace.s3)
+        .padding(.bottom, TTSpace.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("stations.line.\(line.id)")
+        .fallsIn(order: order, revealed: rowsRevealed, snaps: staggerEnded, reduceMotion: reduceMotion)
     }
 
     private var hairline: some View {

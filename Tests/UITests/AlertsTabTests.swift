@@ -23,21 +23,23 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
 
         app.tabBars.buttons["Alerts"].tap()
-        let row = app.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
+        // Schedule stays in the tab view with its own capsule and day panel, so look inside the Alerts tab only.
+        let alerts = app.descendants(matching: .any).matching(identifier: "alerts.root").firstMatch
+        let row = alerts.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         let open = row.buttons["alerts.rule.open"]
         XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Today only"))
 
         open.tap()
-        XCTAssertTrue(app.staticTexts["Repeat on"].waitForExistence(timeout: 15))
-        app.buttons["alert.day.4"].tap()
+        XCTAssertTrue(row.staticTexts["Repeat on"].waitForExistence(timeout: 15))
+        row.buttons["alert.day.4"].tap()
         XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Thu"))
 
-        app.buttons["alerts.remove"].tap()
-        XCTAssertTrue(app.staticTexts["Alert removed"].waitForExistence(timeout: 15))
+        row.buttons["alerts.remove"].tap()
+        XCTAssertTrue(alerts.staticTexts["Alert removed"].waitForExistence(timeout: 15))
         XCTAssertTrue(row.waitForNonExistence(timeout: 15))
 
-        app.buttons["alert.capsule.action"].tap()
+        alerts.buttons["alert.capsule.action"].tap()
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Thu"), "back with the same days")
     }

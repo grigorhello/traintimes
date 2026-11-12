@@ -53,7 +53,7 @@ struct TripDetails: Hashable {
     let stops: [Stop]
     /// The arrival basis under the stop list.
     let footnote: String
-    /// "Alert me" or "Manage alert"; nil once the train has left or when it is cancelled.
+    /// "Alert me" or "Alert on" (TT-192); nil once the train has left or when it is cancelled.
     let alertButton: String?
     /// The Directions link under the departure station (TT-188, D64).
     let showsDirections: Bool
@@ -65,9 +65,9 @@ struct TripDetails: Hashable {
 final class TripDetailsViewModel {
     let route: Route
     let key: TripKey
-    /// The train has an alert that is switched on: "Manage alert" in place of "Alert me" (TT-142), and the filled bell
-    /// beside "I'm on board" (TT-172). Read from the alert rules' one lookup once the trip is loaded, so a repeating alert
-    /// counts on each of its days and a change shows at once (TT-189); without them (previews, tests) the value passed in.
+    /// The train has an alert that is switched on (TT-189): it counts for the departure card (TT-177). Read from the alert
+    /// rules' one lookup once the trip is loaded, so a repeating alert counts on each of its days and a change shows at
+    /// once; without them (previews, tests) the value passed in.
     var hasAlert: Bool {
         // The demo departure plays an alerted train (TT-177).
         if demoDeparture != nil { return true }
@@ -80,6 +80,10 @@ final class TripDetailsViewModel {
     /// The alert rules (TT-189): `hasAlert`, and the alerted train that leaves first shows the departure card from 30 min
     /// before it leaves (TT-177). Nil keeps `hasAlert` at the value passed in and shows no departure card.
     private let alerts: (any WatchedTripsProviding)?
+    /// The sheet's own bell model on the app's alert rules (TT-192, D77): "Alert me" and the Live bar's bell turn the alert
+    /// on and off through it, and its capsule (a refusal, a failed save, the day panel) shows inside the sheet. Nil keeps the
+    /// bar at `hasAlert` and its taps do nothing (previews, most tests).
+    let bells: AlertBellModel?
 
     /// Nil until loaded, or when the trip is not on the route that day.
     private(set) var departure: Departure?
@@ -111,7 +115,8 @@ final class TripDetailsViewModel {
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
-        onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, maps: any MapsOpening = SystemMapsOpener()
+        onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, bells: AlertBellModel? = nil,
+        maps: any MapsOpening = SystemMapsOpener()
     ) {
         self.route = route
         self.key = key
@@ -120,6 +125,7 @@ final class TripDetailsViewModel {
         fixedHasAlert = hasAlert
         self.onBoard = onBoard
         self.alerts = alerts
+        self.bells = bells
         followsRide = onBoard?.isRunning(key) ?? false
         self.maps = maps
         now = clock.now
@@ -213,10 +219,67 @@ final class TripDetailsViewModel {
             },
             footnote: footnote(for: departure, isLive: isLive, formatter),
             alertButton: showsAlertButton
-                ? (hasAlert ? String(localized: "button.manage_alert") : String(localized: "button.alert_me"))
+                ? (isAlertOn ? String(localized: "button.alert_on") : String(localized: "button.alert_me"))
                 : nil,
             showsDirections: directionsStation != nil
         )
+    }
+
+    // MARK: Alert bar (TT-192)
+
+    /// The bell's face in the bar and beside "I'm on board": the bell model's, which reads the train's one alert (D70) and
+    /// knows the hold while iOS asks and the wait while saving (D72). The demo departure's train is alerted.
+    var bell: BellFace {
+        if demoDeparture != nil { return .on }
+        guard let bells, let trip = departure?.trip else { return fixedHasAlert ? .on : .off }
+        return bells.bell(for: trip, on: route)
+    }
+
+    /// "Alert on": the alert is on, or saved after the tap that turned it on.
+    var isAlertOn: Bool { bell == .on || bell == .waiting }
+
+    /// Each refusal shakes the bar's bell (D72).
+    var bellShakes: Int {
+        guard let bells, let trip = departure?.trip else { return 0 }
+        return bells.shakes(for: trip)
+    }
+
+    /// "Alert me" turns the alert on in place, "Alert on" turns it off; the Live bar's bell does the same (TT-192). The
+    /// first tap ever asks iOS (D72). The demo departure's train is made up: its bell sets nothing.
+    func tapAlert() async {
+        guard demoDeparture == nil, let bells, let trip = departure?.trip else { return }
+        await bells.tap(trip, on: route)
+    }
+
+    /// Repeat beside "Alert on": the day panel above the bar, or closed again (D71's panel).
+    func tapRepeat() {
+        guard demoDeparture == nil, let bells, let trip = departure?.trip else { return }
+        bells.togglePanel(for: trip, on: route)
+    }
+
+    /// The days the alert repeats on: the open panel's, else the saved alert's; empty for a one-day alert.
+    var repeatDays: [Int] {
+        if let days = bells?.capsule?.panelDays { return days }
+        guard let bells, let trip = departure?.trip, let rule = bells.rules.alert(for: trip, on: route),
+              rule.kind == .repeating, !rule.paused else { return [] }
+        return rule.weekdays
+    }
+
+    /// Repeat's words: "Repeat", or the days once it repeats ("Mon to Fri"), "N days" when they do not fit.
+    var repeatTitle: String {
+        guard let summary = AlertDays.summary(of: repeatDays) else { return String(localized: "alert.repeat") }
+        return summary.count > Self.repeatTitleLimit
+            ? String(format: String(localized: "trip.repeat_days"), Set(repeatDays).count)
+            : summary
+    }
+
+    /// Longer days than "Mon, Wed, Fri" read as a count (the canvas's 13 characters).
+    private static let repeatTitleLimit = 13
+
+    /// The capsule the sheet shows: a refusal, a failed save or the day panel. "Alert on" and "Alert off" are the bar's.
+    var capsule: AlertBellModel.Capsule? {
+        guard let capsule = bells?.capsule, capsule.showsInTripDetails else { return nil }
+        return capsule
     }
 
     /// The expected time when the feed has one, in delay-ink with the scheduled time to strike under it while the train's

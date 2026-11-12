@@ -651,13 +651,7 @@ struct ScheduleView: View {
 
     /// Each capsule's glyph: the filled bell, the outline, the exclamation mark or the crossed bell.
     static func glyph(_ kind: AlertBellModel.Capsule.Kind) -> CapsuleGlyph {
-        switch kind {
-        case .on: .bellOn
-        case .off, .hint, .newTrain: .bellOff
-        case .failed: .failed
-        case .notificationsOff: .notificationsOff
-        case .notificationsOn: .confirmed
-        }
+        kind.glyph
     }
 
     // MARK: Empty states

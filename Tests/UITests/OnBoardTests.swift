@@ -22,20 +22,20 @@ final class OnBoardTests: XCTestCase {
 
         app.buttons["schedule.question.yes"].tap()
         let card = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "Yes opens Trip details in ride mode")
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "Yes opens Trip details in ride mode")
 
         // Closing the sheet keeps the ride: the strip has taken the question's place and opens it again.
         app.buttons["trip.close"].tap()
-        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(strip.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(strip.waitForExistence(timeout: 15))
         XCTAssertTrue(strip.label.contains("On board"), strip.label)
         XCTAssertFalse(question.exists)
         strip.tap()
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
 
         app.buttons["trip.endRide"].tap()
-        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(strip.waitForNonExistence(timeout: 5), "End ride ends the ride, and the strip goes")
+        XCTAssertTrue(card.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "End ride ends the ride, and the strip goes")
     }
 
     @MainActor

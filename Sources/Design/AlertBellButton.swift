@@ -30,6 +30,10 @@ struct AlertBellButton: View {
     let label: Text
     let glyph: CGFloat
     let target: CGFloat
+    /// The glyph's weight: regular on the cards, semibold on Trip details (TT-192).
+    var weight: Font.Weight = .regular
+    /// Draws every face in this colour, half strength while waiting: white inside Trip details' accent button (TT-192).
+    var tint: Color?
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
@@ -43,12 +47,17 @@ struct AlertBellButton: View {
     /// Each turn off settles the outline again (TT-191).
     @State private var offs = 0
 
-    init(face: BellFace, shakes: Int = 0, label: Text, glyph: CGFloat, target: CGFloat, action: @escaping () -> Void) {
+    init(
+        face: BellFace, shakes: Int = 0, label: Text, glyph: CGFloat, target: CGFloat, weight: Font.Weight = .regular,
+        tint: Color? = nil, action: @escaping () -> Void
+    ) {
         self.face = face
         self.shakes = shakes
         self.label = label
         self.glyph = glyph
         self.target = target
+        self.weight = weight
+        self.tint = tint
         self.action = action
         _shown = State(initialValue: face)
         _wanted = State(initialValue: face)
@@ -58,8 +67,8 @@ struct AlertBellButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: glyph))
-                .foregroundStyle(tint)
+                .font(.system(size: glyph, weight: weight))
+                .foregroundStyle(faceTint)
                 .opacity(shown == .waiting ? 0.5 : 1)
                 .contentTransition(.opacity)
                 .frame(width: target, height: target)
@@ -101,7 +110,8 @@ struct AlertBellButton: View {
         }
     }
 
-    private var tint: Color {
+    private var faceTint: Color {
+        if let tint { return tint }
         guard isEnabled else { return TTColor.inkTertiary }
         return switch shown {
         case .asking, .waiting, .on: TTColor.accent

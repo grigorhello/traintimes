@@ -1,23 +1,27 @@
 import SwiftUI
 
 /// Trip details sheet (TT-118, redesigned in TT-163 after design/frames/trip-details*.png): on the canvas ground, a pinned
-/// header (line tile, line name, glass close button), the journey card, the stop list on one rail, and the alert button
-/// floating over the content as a tinted-glass capsule. Everything scrolls; the content ends above the button.
+/// header (line tile, line name, glass close button), the journey card, the stop list on one rail, and the alert bar
+/// floating over the content (TT-192: "Alert me" turns the alert on in place, the sheet stays). Everything scrolls; the
+/// content ends above the bar.
 struct TripDetailsView: View {
     let viewModel: TripDetailsViewModel
-    /// "Alert me" or "Manage alert": Alert setup for this trip (TT-142).
-    var onAlert: () -> Void = {}
     /// Snapshots only: a long trip scrolled to its end, as the canvas's Trip-Details-End frame.
     var startsAtEnd = false
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     /// The permission sheet before the first ride's iOS prompt (TT-172).
     @State private var showsIntro = false
     @State private var tick = 0
     /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey or departure card does
     /// not show through for the length of the dismissal (TT-177).
     @State private var closingRide: RideDetails?
+    /// The staged entrance has played: content that appears later (the departure card taking the journey card's place
+    /// once "Alert me" alerts a train in its window, TT-192) cross-fades in at rest instead of arriving again.
+    @State private var entranceSettled = false
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -43,6 +47,8 @@ struct TripDetailsView: View {
     private static let bottomInsetWithButton: CGFloat = 92
     private static let bottomInset: CGFloat = 40
     private static let buttonBottom: CGFloat = 24
+    /// The capsule and the day panel sit 10 pt above the bar (TT-192).
+    private static let capsuleGap: CGFloat = 10
     private static let topFade: CGFloat = 16
     private static let bottomFade: CGFloat = 112
     private static let bottomFadeOpacity = 0.72
@@ -71,6 +77,8 @@ struct TripDetailsView: View {
                             content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
                         }
                     }
+                    .environment(\.stagedEntranceSettled, entranceSettled)
+                    .animation(TTMotion.fade, value: departure == nil)
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, TTSpace.s4)
                     .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
@@ -87,16 +95,33 @@ struct TripDetailsView: View {
                 rideButton(ride)
             } else if showsOnBoard {
                 bottomFade
+                capsuleLayer
                 onBoardButtons(alert: details?.alertButton)
-            } else if let title = details?.alertButton {
+            } else if details?.alertButton != nil {
                 bottomFade
-                alertButton(title)
+                capsuleLayer
+                alertBar
             }
         }
         // The sheet's bottom edge is the screen's: the button sits 24 pt above it, over the home indicator's area.
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
+        .task {
+            // The longest beat (the last stop row) is still by about 0.7 s.
+            try? await Task.sleep(for: .seconds(1))
+            entranceSettled = true
+        }
+        // The bell's haptics, as on Schedule (TT-191): a light tap when an alert turns on, the warning on a refusal, the
+        // selection tick when a day lights.
+        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.bells?.enabledCount ?? 0)
+        .sensoryFeedback(.warning, trigger: viewModel.bells?.refusedCount ?? 0)
+        .sensoryFeedback(.selection, trigger: viewModel.bells?.dayOnCount ?? 0)
+        // Back from the capsule's Turn on with notifications on, the alert turns on (D72).
+        .task(id: scenePhase) {
+            guard scenePhase == .active, let bells = viewModel.bells else { return }
+            await bells.cameBack()
+        }
         .task(id: viewModel.followsClock) {
             while viewModel.followsClock, !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -479,23 +504,86 @@ struct TripDetailsView: View {
         .allowsHitTesting(false)
     }
 
-    /// "Alert me" or "Manage alert": a 52 pt capsule, tinted Liquid Glass on iOS 26 and later, the solid accent before it.
-    private func alertButton(_ title: String) -> some View {
-        Button(action: onAlert) {
-            Text(title)
-                .font(TTFont.headline)
-                .foregroundStyle(TTColor.onAccent)
-                .frame(maxWidth: .infinity)
-                .frame(height: Self.alertHeight)
-                .ttGlass(tint: TTColor.accent, in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityIdentifier("trip.alert")
+    /// "Alert me", or "Alert on" with Repeat beside it (TT-192, D77): the sheet never closes.
+    private var alertBar: some View {
+        TripAlertBar(
+            face: viewModel.bell,
+            shakes: viewModel.bellShakes,
+            repeatTitle: viewModel.repeatTitle,
+            repeats: !viewModel.repeatDays.isEmpty,
+            isPanelOpen: viewModel.capsule?.isPanelOpen ?? false,
+            onAlert: { Task { await viewModel.tapAlert() } },
+            onRepeat: { viewModel.tapRepeat() }
+        )
         // Last, from 120 ms: it grows from 0.9 as it fades in (TT-167).
         .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
+    }
+
+    // MARK: Capsule (TT-192)
+
+    /// What the bar cannot say, in D71's glass capsule 10 pt above it: "Notifications are off · Turn on", "Couldn't …
+    /// · Try again", and the day panel Repeat opens, the bar's width. The content fades under it; a tap or a drag outside
+    /// the panel closes it.
+    @ViewBuilder private var capsuleLayer: some View {
+        if let bells = viewModel.bells {
+            let capsule = viewModel.capsule
+            let isPanelOpen = capsule?.isPanelOpen ?? false
+            ZStack(alignment: .bottom) {
+                if isPanelOpen {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { bells.closePanel() }
+                        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in bells.closePanel() })
+                }
+                CapsuleVeil(isShown: capsule != nil, isTall: isPanelOpen)
+                GeometryReader { proxy in
+                    GlassCapsuleStage(item: capsule, isPanel: { $0.isPanelOpen }) { capsule in
+                        sheetCapsule(capsule, bells: bells, panelWidth: proxy.size.width - 2 * TTSpace.s5)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+                .padding(.bottom, Self.buttonBottom + Self.alertHeight + Self.capsuleGap)
+            }
+        }
+    }
+
+    private func sheetCapsule(_ capsule: AlertBellModel.Capsule, bells: AlertBellModel, panelWidth: CGFloat) -> some View {
+        let today = ServiceDay(calendarDayContaining: viewModel.now)
+        return AlertCapsuleView(
+            glyph: capsule.kind.glyph,
+            words: capsule.words(formatter, today: today),
+            action: capsule.actionKey.map { key in
+                AlertCapsuleView.Action(title: LocalizedStringKey(key)) {
+                    switch capsule.kind {
+                    case .failed:
+                        Task { await bells.tryAgain() }
+                    case .notificationsOff:
+                        bells.turnOnInSettings()
+                        openURL(AlertBellModel.notificationSettingsURL)
+                    case .on, .off, .notificationsOn, .hint, .newTrain:
+                        break
+                    }
+                }
+            },
+            panel: capsule.panelDays.map { days in
+                AlertCapsuleView.Panel(
+                    words: capsule.panelWords(formatter, today: today),
+                    days: days,
+                    onToggle: { bells.toggleDay($0) },
+                    onDone: { bells.closePanel() }
+                )
+            },
+            panelWidth: panelWidth,
+            reservesPanelSpace: true
+        )
+        // A finger on the capsule holds it.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in bells.holdCapsule(true) }
+                .onEnded { _ in bells.holdCapsule(false) }
+        )
     }
 
     // MARK: On board (TT-172)
@@ -505,16 +593,14 @@ struct TripDetailsView: View {
     private func onBoardButtons(alert: String?) -> some View {
         HStack(spacing: 10) {
             if let alert {
-                Button(action: onAlert) {
-                    Image(systemName: viewModel.hasAlert ? "bell.fill" : "bell")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(TTColor.accent)
-                        .frame(width: Self.alertHeight, height: Self.alertHeight)
-                        .ttGlass(in: Circle())
-                        .contentShape(Circle())
+                // A tap turns the alert on or off in place, with the card's pop (TT-192); filled while it is on.
+                AlertBellButton(
+                    face: viewModel.bell, shakes: viewModel.bellShakes, label: Text(verbatim: alert), glyph: 22,
+                    target: Self.alertHeight, weight: .semibold, tint: TTColor.accent
+                ) {
+                    Task { await viewModel.tapAlert() }
                 }
-                .buttonStyle(PressScaleStyle())
-                .accessibilityLabel(alert)
+                .ttGlass(in: Circle())
                 .accessibilityIdentifier("trip.alert")
             }
             Button {

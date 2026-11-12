@@ -170,7 +170,7 @@ struct RootView: View {
             case .tripDetails:
                 if let tripDetails {
                     // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
-                    TripDetailsView(viewModel: tripDetails, onAlert: { openAlertSetup(for: tripDetails) })
+                    TripDetailsView(viewModel: tripDetails)
                         .id(ObjectIdentifier(tripDetails))
                 }
             case .alertSetup:
@@ -337,19 +337,13 @@ struct RootView: View {
         router.present(.alertSetup)
     }
 
-    /// Trip details' "Alert me" or "Manage alert": the sheet for that train, on its alert's kind (This trip when it has
-    /// none), so Manage opens the train's one alert (TT-189).
-    private func openAlertSetup(for details: TripDetailsViewModel) {
-        // The demo departure's train is made up: its bell sets nothing.
-        guard details.demoDeparture == nil, let trip = details.departure?.trip else { return }
-        let kind = alerts.alert(for: trip, on: details.route)?.kind ?? .thisTrip
-        openAlertSetup(AlertSetupRequest(route: details.route, trip: trip, kind: kind))
-    }
-
     private func openTrip(_ key: TripKey, on route: Route? = nil) {
         guard let route = route ?? schedule.route else { return }
+        // The sheet's own bell model on the same alert rules (TT-192): "Alert me" turns the alert on in place, and its
+        // capsule shows in the sheet, never on Schedule under it.
         tripDetails = TripDetailsViewModel(
-            route: route, key: key, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts
+            route: route, key: key, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
+            bells: bells.sibling()
         )
         router.present(.tripDetails)
     }

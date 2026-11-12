@@ -96,7 +96,7 @@ struct DepartureDetails: Equatable {
 
         yourStop = destination
         arrival = formatter.time(arrivalDate)
-        rideLength = String(format: String(localized: "depart.rideLength"), formatter.tripLength(from: live.leaves, to: arrivalDate))
+        rideLength = formatter.tripLength(from: live.leaves, to: arrivalDate)
         switch freshness {
         case .live(let updatedAt):
             source = .live(String(localized: "onboard.live.feed"))

@@ -34,6 +34,12 @@ final class TripDetailsSnapshotTests: XCTestCase {
         await model.load()
         await model.tapAlert()
         model.tapRepeat()
+        // Repeat saves Mon to Fri in the bell model's own task: draw the sheet once it has, not while the bell waits.
+        for _ in 0..<300 {
+            if rules.rules.first?.kind == .repeating, model.bell == .on { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 2, 3, 4, 5])
         return model
     }
 

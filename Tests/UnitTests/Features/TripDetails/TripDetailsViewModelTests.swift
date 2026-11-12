@@ -49,9 +49,10 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(model.details(formatter)?.alertButton, "Alert on")
         XCTAssertEqual(model.repeatTitle, "Mon to Fri")
 
-        alert.weekdays = [1, 3, 5, 6]
+        // The fixture's day is a Thursday: the alert must keep it to cover the train.
+        alert.weekdays = [1, 2, 4, 6]
         await rules.save(alert)
-        XCTAssertEqual(model.repeatTitle, "4 days", "Mon, Wed, Fri, Sat does not fit")
+        XCTAssertEqual(model.repeatTitle, "4 days", "Mon, Tue, Thu, Sat does not fit")
 
         alert.paused = true
         await rules.save(alert)

@@ -361,20 +361,21 @@ struct DepartureCardView: View {
             }
         } else {
             HStack(spacing: TTSpace.s1 + 2) {
+                // "Platform" and the pill first (TT-199, Grigor: "Platform 2 · in 11 min"): the number, or the dash, which
+                // pulses within 15 min of leaving when the feed posts platforms (TT-162). The 22 pt pill overhangs the
+                // 20 pt row into the gaps.
+                PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
+                    .animation(.easeInOut(duration: 0.2), value: card.platformValue)
                 if let relative = card.relativeTime {
-                    Text(relative)
-                        .font(TTFont.subhead.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.ink)
                     // A separator glyph, not copy.
                     Text(verbatim: "·")
                         .font(TTFont.subhead)
                         .foregroundStyle(TTColor.inkTertiary)
+                    Text(relative)
+                        .font(TTFont.subhead.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(TTColor.ink)
                 }
-                // "Platform" and the pill (TT-199): the number, or the dash, which pulses within 15 min of leaving when
-                // the feed posts platforms (TT-162). The 22 pt pill overhangs the 20 pt row into the gaps.
-                PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
-                    .animation(.easeInOut(duration: 0.2), value: card.platformValue)
             }
             .lineLimit(1)
             .fixedSize()

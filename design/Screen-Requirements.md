@@ -65,7 +65,7 @@ The Schedule tab is a vertical, to-scale timeline of today's direct trains for t
 | Scale | 7 pt per minute at default text size; gridline every 15 min, each labelled with its time in grey footnote text on the left |
 | Now line | 2 pt accent line across the timeline with a dot on the rail and a "Now" label; moves once a minute. The only accent on the rail (D80). Plays once when the timeline shows: the line draws across from the rail, the dot sends out two rings, "Now" pops (0.9 s; a fade under Reduce Motion) |
 | Initial scroll | The app opens already scrolled so Now sits about 5 min (35 pt) below the top of the timeline, once the cards are measured; earlier trains are above and reachable by scrolling up. The scroll repeats shortly after, so it lands even when the content was laid out late, and stops repeating the moment the rider drags (D52) |
-| Train marker | A dot on the rail at the train's expected departure (scheduled when no estimate): 12 pt ink-tertiary ring and connector for a train, 16 pt solid ink dot and connector for the next usable train, so no train mark is green (D80) |
+| Train marker | A dot on the rail at the train's expected departure (scheduled when no estimate): 12 pt ink-tertiary ring and connector for a train, the same ring for the next usable train, whose connector carries an ink glint running from the rail into the card every 1.6 s (plain ink under Reduce Motion), so no train mark is green (D80) |
 | Left column | Gridline times and the Now label only (D49): train times are on the cards, so no train has a time pill in the column |
 | Connector | 14 pt, 2 pt horizontal line from marker to card in the marker's colour |
 | Gridline labels | Hidden within 22 pt of the Now label; the gridline itself stays |

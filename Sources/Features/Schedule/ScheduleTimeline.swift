@@ -29,8 +29,6 @@ struct ScheduleTimeline: View {
     /// The amber bar from a delayed train's scheduled marker down to its expected one (TT-114).
     private static let delayBarWidth: CGFloat = 4
     private static let nowDot: CGFloat = 10
-    /// The canvas ring that lifts the next train's dot off the rail.
-    private static let leadRing: CGFloat = 3
     /// The card column starts where the 14 pt connector from the 12 pt marker ends.
     private static let cardX = railX + markerSize / 2 + TTTimeline.connectorLength
 
@@ -158,14 +156,14 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// 2 pt line from each marker to its card, in the marker's colour: ink-tertiary, ink for the next train, cancel-ink.
+    /// 2 pt line from each marker to its card, in the marker's colour: ink-tertiary, cancel-ink for a cancelled train. The next
+    /// train's line carries a glint that runs from the rail into its card, over and over (D80).
     private func connectors(
         _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                Rectangle()
-                    .fill(card.isCancelled ? TTColor.cancelInk : card.isNext ? TTColor.ink : TTColor.inkTertiary)
+                NextGlintLine(colour: card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary, glints: card.isNext && !card.isCancelled)
                     .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
                     .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
@@ -192,8 +190,8 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// 16 pt solid ink dot for the next usable train, with a canvas ring; a 16 pt red x for a cancelled train or skipped
-    /// stop; a 12 pt ink-tertiary ring for the others. None is green, so nothing on the rail reads as the Now line (D80).
+    /// A 16 pt red x for a cancelled train or skipped stop; a 12 pt ink-tertiary ring for every other train, the next one too
+    /// (its line's glint marks it). None is green, so nothing on the rail reads as the Now line (D80).
     @ViewBuilder private func marker(for card: DepartureCard) -> some View {
         if card.isCancelled {
             Image(systemName: card.status.symbol)
@@ -201,12 +199,6 @@ struct ScheduleTimeline: View {
                 .scaledToFit()
                 .foregroundStyle(TTColor.cancelInk)
                 .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
-                .background(TTColor.canvas, in: Circle())
-        } else if card.isNext {
-            Circle()
-                .fill(TTColor.ink)
-                .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
-                .padding(Self.leadRing)
                 .background(TTColor.canvas, in: Circle())
         } else {
             ring(TTColor.inkTertiary)
@@ -515,6 +507,43 @@ private struct NowPulsing<Content: View>: View {
         TimelineView(.animation(paused: start == nil)) { context in
             let elapsed = start.map { context.date.timeIntervalSince($0) }
             content(elapsed.map { NowPulse.pose(at: $0, reduceMotion: reduceMotion) } ?? NowPulse.rest)
+        }
+    }
+}
+
+/// A train's 2 pt line to its card. On the next train a short ink glint runs along it from the rail into the card every
+/// 1.6 s, for as long as it is the next train (D80); without Schedule motion (snapshots) or under Reduce Motion the line is
+/// plain ink instead, so the next train still stands out.
+private struct NextGlintLine: View {
+    @Environment(\.playsScheduleMotion) private var playsMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let colour: Color
+    let glints: Bool
+
+    static let period = 1.6
+    /// The glint crosses the line in the first part of each period, then the line rests.
+    static let travel = 0.9
+    static let glintLength: CGFloat = 8
+
+    var body: some View {
+        if glints, playsMotion, !reduceMotion {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.travel
+                GeometryReader { proxy in
+                    let width = proxy.size.width
+                    Rectangle().fill(colour)
+                        .overlay(alignment: .leading) {
+                            if phase < 1 {
+                                LinearGradient(colors: [TTColor.ink.opacity(0), TTColor.ink, TTColor.ink.opacity(0)], startPoint: .leading, endPoint: .trailing)
+                                    .frame(width: Self.glintLength)
+                                    .offset(x: -Self.glintLength + (width + Self.glintLength) * UnitCurve.easeInOut.value(at: phase))
+                            }
+                        }
+                        .clipped()
+                }
+            }
+        } else {
+            Rectangle().fill(glints ? TTColor.ink : colour)
         }
     }
 }

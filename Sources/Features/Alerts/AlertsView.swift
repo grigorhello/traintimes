@@ -101,7 +101,7 @@ struct AlertsView: View {
                 Spacer(minLength: 0)
             }
             .padding(TTSpace.s4)
-            Button { openURL(AlertSetupViewModel.notificationSettingsURL) } label: {
+            Button { openURL(AlertBellModel.notificationSettingsURL) } label: {
                 Text("settings.notifications.turn_on_ios").frame(maxWidth: .infinity)
             }
             .buttonStyle(.ttGlassPrimary)
@@ -301,7 +301,7 @@ struct AlertsView: View {
         guard let bell = bells?.capsule, !bell.isPanelOpen else { return nil }
         switch bell.kind {
         case .on, .failed, .notificationsOff, .notificationsOn: return .bell(bell)
-        case .off, .hint, .newTrain: return nil
+        case .off, .newTrain: return nil
         }
     }
 

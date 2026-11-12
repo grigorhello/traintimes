@@ -14,13 +14,9 @@ struct RootView: View {
     @State private var routeForm: RouteFormViewModel
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
-    /// The alert rules (TT-141), shared by the bells, the alert setup sheet, the Alerts tab and the watched-trip strip.
+    /// The alert rules (TT-141), shared by the bells, Trip details, the Alerts tab and the watched-trip strip.
     @State private var alerts: AlertRules
     @State private var bells: AlertBellModel
-    /// The alert setup sheet for a train (TT-142), made each time it opens.
-    @State private var alertSetup: AlertSetupViewModel?
-    /// From opening the alert setup sheet until it is gone: a bell whose alert it changed pops after it (TT-166).
-    @State private var holdsBellPop = false
     /// The Alerts tab (TT-143): the rules, recent updates and the saved route's line notices.
     @State private var alertsModel: AlertsViewModel
     /// On board (TT-172): the app's ride engine, or the demo ride's; shared by Trip details and the ride strip.
@@ -55,7 +51,7 @@ struct RootView: View {
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), actionDuration: alertDependencies.capsuleActionDuration,
-            plainDuration: alertDependencies.capsulePlainDuration, hintDuration: alertDependencies.toastDuration
+            plainDuration: alertDependencies.capsulePlainDuration
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
@@ -88,7 +84,7 @@ struct RootView: View {
             )
         )
         // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; a started ride
-        // asks for notifications through the alert rules, as "Enable alerts" does (D66).
+        // asks for notifications through the alert rules, as the first bell tap does (D66).
         let rules = bells.rules
         _onBoard = State(
             initialValue: OnBoard(
@@ -121,7 +117,6 @@ struct RootView: View {
                         onOpenTrip: { openTrip($0) },
                         onOpenLineNotice: { router.present(.lineNotices) },
                         bells: bells,
-                        onAlertSetup: { openAlertSetup($0) },
                         onBoard: onBoard,
                         onOpenRide: { Task { await openRide() } },
                         onOpenDeparture: { openDeparture($0) }
@@ -164,19 +159,13 @@ struct RootView: View {
                 }
                 .tag(AppTab.settings)
         }
-        // A sheet that replaces another (Trip details, then Alert setup) dismisses the first while the second is up.
-        .sheet(item: $router.presentedSheet, onDismiss: { if router.presentedSheet == nil { holdsBellPop = false } }) { sheet in
+        .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
             case .tripDetails:
                 if let tripDetails {
                     // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
                     TripDetailsView(viewModel: tripDetails)
                         .id(ObjectIdentifier(tripDetails))
-                }
-            case .alertSetup:
-                if let alertSetup {
-                    AlertSetupView(viewModel: alertSetup, onDelete: { router.dismissSheet() })
-                        .id(ObjectIdentifier(alertSetup))
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
@@ -193,7 +182,6 @@ struct RootView: View {
         // The first route saved on device, with a light haptic (TT-120).
         .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
         .environment(\.timeFormatter, settings.timeFormatter)
-        .environment(\.holdsBellPop, holdsBellPop)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
         // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
@@ -328,13 +316,6 @@ struct RootView: View {
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
             if schedule.selectedDay != schedule.today { await schedule.select(schedule.today) }
         }
-    }
-
-    /// The alert setup sheet for a train (TT-142).
-    private func openAlertSetup(_ request: AlertSetupRequest) {
-        alertSetup = AlertSetupViewModel(request: request, rules: alerts)
-        holdsBellPop = true
-        router.present(.alertSetup)
     }
 
     private func openTrip(_ key: TripKey, on route: Route? = nil) {

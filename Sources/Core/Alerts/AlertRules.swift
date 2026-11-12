@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// The rider's alert rules (TT-141): kept on device and saved on the alert server under the anonymous installation id
-/// (D5, D38). The bell (TT-141), the alert setup sheet (TT-142), the Alerts tab (TT-143) and the watched-trip strip
+/// (D5, D38). The bell (TT-141), Trip details (TT-192), the Alerts tab (TT-143) and the watched-trip strip
 /// (TT-144) share one instance.
 ///
 /// One alert per train card (TT-189, D70): `alert(for:on:)`, the alert that covers a train on its day, is the one lookup the
@@ -123,7 +123,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         return !rule.paused && state(of: rule) == .on
     }
 
-    /// Trip details' "Manage alert" and its bell: the train has an alert that is switched on, whatever its saved state.
+    /// Trip details' alert bar and the bell: the train has an alert that is switched on, whatever its saved state.
     func isAlerted(_ trip: Trip, on route: Route) -> Bool {
         alert(for: trip, on: route).map { !$0.paused } ?? false
     }
@@ -145,8 +145,8 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     }
 
     /// Shows the iOS permission dialog if the rider has not been asked yet, then reads the answer. Called only after the
-    /// rider's own tap: the first bell tap ever (TT-190, D72), "Enable alerts" on the alert setup sheet (TT-142) or "Turn on
-    /// notifications" in Settings (D57).
+    /// rider's own tap: the first bell tap ever (TT-190, D72), Trip details' "Alert me" (TT-192), "Turn on
+    /// notifications" in Settings (D57) or right after a ride starts (D66).
     func requestPermission() async {
         if await permissions.current() == .notAsked {
             _ = await permissions.request()

@@ -66,8 +66,6 @@ struct ButtonsGallery: View {
 }
 
 struct ControlsGallery: View {
-    @State private var segment = 0
-
     var body: some View {
         GalleryPage {
             HStack(spacing: TTSpace.s2) {
@@ -81,12 +79,6 @@ struct ControlsGallery: View {
                 DayCell(weekday: "Today", day: "5", isToday: true) {}
                 DayCell(weekday: "Fri", day: "6", isSelected: true) {}
             }
-            HStack(spacing: TTSpace.s1) {
-                ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, letter in
-                    DayChip(letter: letter, isOn: index < 5) {}
-                }
-            }
-            SegmentedControl(selection: $segment, options: [(0, "alert.this_trip"), (1, "alert.repeat")])
         }
     }
 }

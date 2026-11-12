@@ -54,55 +54,5 @@ struct DayCell: View {
     }
 }
 
-/// Weekday chip in an alert's Repeat rule: a 44 pt circle, as the canvas's `.day` (seven fit the sheet's width).
-struct DayChip: View {
-    let letter: String
-    var isOn = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(letter)
-                .font(TTFont.body)
-                .foregroundStyle(isOn ? TTColor.onAccent : TTColor.ink)
-                .frame(width: TTSize.targetMin, height: TTSize.targetMin)
-                .background(isOn ? TTColor.accent : .clear, in: Circle())
-                .overlay(Circle().strokeBorder(isOn ? .clear : TTColor.controlBorder, lineWidth: 1))
-                .contentShape(Circle())    // an unselected chip's clear fill takes no taps on its own (D45)
-        }
-        .buttonStyle(PressScaleStyle())
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// Two or more equal segments; the selected one sits on a raised surface.
-struct SegmentedControl<Value: Hashable>: View {
-    @Binding var selection: Value
-    let options: [(value: Value, title: LocalizedStringKey)]
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(options.indices, id: \.self) { index in
-                let option = options[index]
-                let selected = option.value == selection
-                Button { selection = option.value } label: {
-                    Text(option.title)
-                        .font(selected ? TTFont.headline : TTFont.body)
-                        .foregroundStyle(TTColor.ink)
-                        .frame(maxWidth: .infinity, minHeight: TTSize.targetMin - TTSpace.s1)
-                        .background(selected ? TTColor.surface : .clear, in: RoundedRectangle(cornerRadius: TTRadius.sm - 2))
-                        .padding(.vertical, 2)    // inside the button, so each segment takes taps over 44 pt (D45)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selected ? .isSelected : [])
-            }
-        }
-        .padding(.horizontal, 2)
-        .background(TTColor.surfaceRaised, in: RoundedRectangle(cornerRadius: TTRadius.sm))
-        .animation(.easeOut(duration: 0.2), value: selection)
-    }
-}
-
 #Preview("Controls") { ControlsGallery() }
 #Preview("Controls dark") { ControlsGallery().preferredColorScheme(.dark) }

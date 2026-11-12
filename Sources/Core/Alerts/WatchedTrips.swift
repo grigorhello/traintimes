@@ -8,7 +8,7 @@ protocol WatchedTripsProviding: AnyObject {
     /// An alert covers the train, is switched on and can reach the rider: the filled bell, and the watched-trip strip once
     /// the train has left.
     func isWatched(_ trip: Trip, on route: Route) -> Bool
-    /// An alert covers the train and is switched on, whatever its saved state: Trip details' "Manage alert" and its bell.
+    /// An alert covers the train and is switched on, whatever its saved state: Trip details' alert bar and the bell.
     func isAlerted(_ trip: Trip, on route: Route) -> Bool
 }
 

@@ -542,15 +542,6 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertNil(bells.capsule?.actionKey)
     }
 
-    func testTheHintShowsForItsTime() async throws {
-        let bells = AlertBellModel(rules: AlertFixtures.rules(FakeAlertServer()), hintDuration: .milliseconds(50))
-        bells.showHint()
-        XCTAssertEqual(bells.capsule?.kind, .hint)
-        XCTAssertNil(bells.capsule?.actionKey)
-        try await Task.sleep(for: .milliseconds(300))
-        XCTAssertNil(bells.capsule)
-    }
-
     // MARK: Words
 
     func testTheCapsuleWords() {
@@ -569,7 +560,6 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(words(.failed(.turnOff), trip), "Couldn’t turn alert off")
         XCTAssertEqual(words(.notificationsOff, trip), "Notifications are off")
         XCTAssertEqual(words(.notificationsOn, trip), "Notifications are on")
-        XCTAssertEqual(AlertBellModel.Capsule(id: 1, kind: .hint, trip: nil, route: nil).words(formatter, today: today), "Tap the bell on a train")
     }
 
     func testThePanelWords() {

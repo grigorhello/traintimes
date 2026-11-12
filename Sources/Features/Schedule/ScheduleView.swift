@@ -18,8 +18,6 @@ struct ScheduleView: View {
     var onOpenLineNotice: () -> Void = {}
     /// The one-tap bells and their glass capsule (TT-141, TT-191); nil shows outlined bells that do nothing.
     var bells: AlertBellModel?
-    /// The alert setup sheet (TT-142). The bell asks for permission itself (TT-190) and Repeat opens the day panel (TT-191).
-    var onAlertSetup: (AlertSetupRequest) -> Void = { _ in }
     /// On board (TT-172): the ride strip under the day strip while a ride runs; nil shows none.
     var onBoard: OnBoard?
     /// A tap on the ride strip: Trip details in ride mode.
@@ -51,7 +49,6 @@ struct ScheduleView: View {
         onOpenTrip: @escaping (TripKey) -> Void = { _ in },
         onOpenLineNotice: @escaping () -> Void = {},
         bells: AlertBellModel? = nil,
-        onAlertSetup: @escaping (AlertSetupRequest) -> Void = { _ in },
         picker: RouteFormViewModel? = nil,
         onBoard: OnBoard? = nil,
         onOpenRide: @escaping () -> Void = {},
@@ -62,7 +59,6 @@ struct ScheduleView: View {
         self.onOpenTrip = onOpenTrip
         self.onOpenLineNotice = onOpenLineNotice
         self.bells = bells
-        self.onAlertSetup = onAlertSetup
         self.onBoard = onBoard
         self.onOpenRide = onOpenRide
         self.onOpenDeparture = onOpenDeparture
@@ -644,7 +640,7 @@ struct ScheduleView: View {
             openURL(AlertBellModel.notificationSettingsURL)
         case .newTrain:
             bells.dismissCapsule()
-        case .notificationsOn, .hint:
+        case .notificationsOn:
             break
         }
     }

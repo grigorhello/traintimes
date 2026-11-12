@@ -562,7 +562,7 @@ struct TripDetailsView: View {
                     case .notificationsOff:
                         bells.turnOnInSettings()
                         openURL(AlertBellModel.notificationSettingsURL)
-                    case .on, .off, .notificationsOn, .hint, .newTrain:
+                    case .on, .off, .notificationsOn, .newTrain:
                         break
                     }
                 }

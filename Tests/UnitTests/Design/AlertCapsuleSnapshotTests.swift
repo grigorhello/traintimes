@@ -33,7 +33,7 @@ private enum CapsuleFixtures {
     static let formatter = TimeFormatter(format: .twelveHour)
     static let trip = AlertFixtures.trip()
     static let today = trip.key.serviceDay
-    static let tripless: [AlertBellModel.Capsule.Kind] = [.hint, .notificationsOff, .notificationsOn]
+    static let tripless: [AlertBellModel.Capsule.Kind] = [.notificationsOff, .notificationsOn]
 
     static func capsule(_ kind: AlertBellModel.Capsule.Kind, repeats: [Int] = [], panelDays: [Int]? = nil) -> AlertBellModel.Capsule {
         AlertBellModel.Capsule(
@@ -66,7 +66,6 @@ private struct Capsules: View {
             CapsuleFixtures.view(CapsuleFixtures.capsule(.failed(.turnOff)))
             CapsuleFixtures.view(CapsuleFixtures.capsule(.notificationsOff))
             CapsuleFixtures.view(CapsuleFixtures.capsule(.notificationsOn))
-            CapsuleFixtures.view(CapsuleFixtures.capsule(.hint))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TTColor.canvas)

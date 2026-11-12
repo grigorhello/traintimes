@@ -35,6 +35,8 @@ struct ScheduleView: View {
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsScheduleMotion) private var playsMotion
+    /// The early-stage Feedback pill at the end of the line row (TT-202, D85).
+    @Environment(\.showsFeedbackPill) private var showsFeedbackPill
     /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
     @State private var motion: ScheduleMotionClock
     /// Taps on each day tile, by tile id: each one replays that tile's press.
@@ -338,7 +340,8 @@ struct ScheduleView: View {
         }
     }
 
-    /// The GO line code tile and the line's name in 26 pt bold, with the amber Notice chip at the end of the row.
+    /// The GO line code tile and the line's name in 26 pt bold, with the amber Notice chip and, in the early stage, the
+    /// Feedback pill at the end of the row.
     @ViewBuilder private var lineRow: some View {
         if let line = viewModel.route?.line {
             HStack(spacing: Self.lineRowGap) {
@@ -348,11 +351,16 @@ struct ScheduleView: View {
                     .tracking(-0.6)
                     .foregroundStyle(TTColor.ink)
                     .lineLimit(1)
+                    // Laid out before the Feedback pill, which drops its label rather than cut the name (TT-202).
+                    .layoutPriority(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("schedule.line")
                 Spacer(minLength: 0)
                 if !viewModel.lineNotices.isEmpty {
                     noticeChip
+                }
+                if showsFeedbackPill {
+                    ScheduleFeedbackEntry(compact: !viewModel.lineNotices.isEmpty)
                 }
             }
             .frame(height: LineTile.size)

@@ -15,15 +15,11 @@ struct DepartureCard: Hashable, Identifiable {
     let status: TripStatus
     /// Next train only: "in 11 min", or "Departing" under 1 min.
     let relativeTime: String?
-    /// "Plat 2", or "Plat —" until GO publishes the platform.
-    let platform: String
-    /// The part of `platform` after "Plat": "2", or the "—" placeholder.
+    /// The platform's pill (TT-199): "2", or the "—" placeholder until GO publishes it (the pill then shows a dash).
     let platformValue: String
     let hasPlatform: Bool
-    /// "Plat", the word before the platform slot.
-    let platformLabel: String
-    /// The next train is within 15 min of leaving and still waiting for its platform: the slot shows a pulsing pill in
-    /// place of the dash (`Departure.awaitsPlatform`, TT-162, D55).
+    /// The next train is within 15 min of leaving and still waiting for its platform: the dash pill pulses
+    /// (`Departure.awaitsPlatform`, TT-162, D55).
     let awaitsPlatform: Bool
     /// From the stopping-pattern rule (D35); every other card shows the struck bolt.
     let isExpress: Bool
@@ -65,8 +61,6 @@ struct DepartureCard: Hashable, Identifiable {
             hasPlatform = false
         }
         platformValue = value
-        platform = String(format: String(localized: "schedule.platform_short"), value)
-        platformLabel = String(localized: "schedule.platform_label")
         isExpress = departure.trip.tags.contains(.express)
         isCancelled = !departure.isUsable
         note = isCancelled && nextUsableBelow ? String(localized: "schedule.next_usable_below") : nil

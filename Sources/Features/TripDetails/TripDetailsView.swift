@@ -330,20 +330,18 @@ struct TripDetailsView: View {
         .fixedSize()
     }
 
-    /// "in 20 min · Platform — · Express" on the left, the trip length on the right.
+    /// "Platform [2] · in 11 min · Express" on the left (the platform first, Grigor, TT-199), the trip length on the right.
     private func metaRow(_ details: TripDetails) -> some View {
         HStack(spacing: TTSpace.s2) {
             HStack(spacing: TTSpace.s1 + 2) {
+                PlatformTag(number: details.hasPlatform ? details.platformValue : nil, size: 15)
                 if let countdown = details.countdown {
+                    separator
                     Text(countdown)
                         .font(TTFont.subhead.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
-                    separator
                 }
-                Text(platformText(details))
-                    .font(TTFont.subhead)
-                    .monospacedDigit()
                 if details.isExpress {
                     separator
                     HStack(spacing: TTSpace.s1) {
@@ -376,21 +374,6 @@ struct TripDetailsView: View {
         Text(verbatim: "·")
             .font(TTFont.subhead)
             .foregroundStyle(TTColor.inkTertiary)
-    }
-
-    /// "Platform" in ink-secondary; the number semibold in ink, or the dash in ink-tertiary until GO publishes it.
-    private func platformText(_ details: TripDetails) -> AttributedString {
-        var text = AttributedString(details.platform)
-        text.foregroundColor = TTColor.inkSecondary
-        if let range = text.range(of: details.platformValue, options: .backwards) {
-            if details.hasPlatform {
-                text[range].foregroundColor = TTColor.ink
-                text[range].font = TTFont.subhead.weight(.semibold)
-            } else {
-                text[range].foregroundColor = TTColor.inkTertiary
-            }
-        }
-        return text
     }
 
     // MARK: Stops

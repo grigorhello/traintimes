@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Schedule's watched-trip strip while an alerted train counts down (TT-177, *Live-Depart*): the filled bell and "Your
-/// 5:13 PM train", "Platform 7 · On time", the countdown and "departs", a chevron. A tap opens its Trip details.
+/// 5:13 PM train", "Platform [7] · On time", the countdown and "departs", a chevron. A tap opens its Trip details.
 struct DepartureStripView: View {
     let strip: DepartureStrip
     var onOpen: () -> Void = {}
@@ -21,13 +21,7 @@ struct DepartureStripView: View {
                     }
                     .foregroundStyle(TTColor.accent)
                     HStack(spacing: 6) {
-                        Text(strip.lead)
-                            .font(TTFont.headline)
-                            .tracking(-0.4)
-                            .foregroundStyle(TTColor.ink)
-                        if strip.showsPill {
-                            DeparturePill(pulses: strip.pillPulses, width: 38, height: 16)
-                        }
+                        PlatformTag(number: strip.platform, size: 17, pillSize: 15, pulses: strip.pillPulses)
                         Text(verbatim: "· " + strip.status)
                             .font(TTFont.body)
                             .tracking(-0.4)

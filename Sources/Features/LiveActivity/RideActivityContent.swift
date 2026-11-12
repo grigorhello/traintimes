@@ -154,6 +154,7 @@ extension RideActivityAttributes.ContentState {
         title = String(format: String(localized: "schedule.route_title"), formatter.time(trip.scheduledDeparture), yours)
         detail = String(format: String(localized: "onboard.detail"), platformText, word)
         platform = platformText
+        platformNumber = live.platform
         pill = showsPill
         late = live.phase == .countingDown && live.delayMinutes != nil
         countdownEnd = live.phase == .departed ? nil : deviceNow.addingTimeInterval(live.leaves.timeIntervalSince(now))

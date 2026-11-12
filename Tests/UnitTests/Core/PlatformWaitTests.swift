@@ -52,8 +52,7 @@ final class PlatformWaitTests: XCTestCase {
     func testTheCardCarriesTheRule() {
         let card = DepartureCard(train(), isNext: true, awaitsPlatform: true, now: departure, formatter: formatter)
         XCTAssertTrue(card.awaitsPlatform)
-        XCTAssertEqual(card.platformLabel, "Plat")
-        XCTAssertEqual(card.platform, "Plat —", "The dash text stays for the card's label and the other states")
+        XCTAssertFalse(card.hasPlatform, "The pill shows the dash, pulsing")
         XCTAssertFalse(DepartureCard(train(), isNext: true, now: departure, formatter: formatter).awaitsPlatform)
     }
 

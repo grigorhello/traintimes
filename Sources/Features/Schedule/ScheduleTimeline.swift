@@ -355,8 +355,8 @@ struct DepartureCardView: View {
         }
     }
 
-    /// "in 11 min · Plat 2" on the next train, "Plat 2" (or "Plat —", or "Plat" and a pulsing pill within 15 min of leaving
-    /// when the feed posts platforms, TT-162) on the others, "Next usable below" when cancelled.
+    /// "in 11 min · Platform [2]" on the next train, "Platform [2]" (or the dash pill, pulsing within 15 min of leaving when
+    /// the feed posts platforms, TT-162) on the others, "Next usable below" when cancelled.
     @ViewBuilder private var detail: some View {
         if card.isCancelled {
             if let note = card.note {
@@ -367,60 +367,25 @@ struct DepartureCardView: View {
             }
         } else {
             HStack(spacing: TTSpace.s1 + 2) {
+                // "Platform" and the pill first (TT-199, Grigor: "Platform 2 · in 11 min"): the number, or the dash, which
+                // pulses within 15 min of leaving when the feed posts platforms (TT-162). The 22 pt pill overhangs the
+                // 20 pt row into the gaps.
+                PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
+                    .animation(.easeInOut(duration: 0.2), value: card.platformValue)
                 if let relative = card.relativeTime {
-                    Text(relative)
-                        .font(TTFont.subhead.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.ink)
                     // A separator glyph, not copy.
                     Text(verbatim: "·")
                         .font(TTFont.subhead)
                         .foregroundStyle(TTColor.inkTertiary)
+                    Text(relative)
+                        .font(TTFont.subhead.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(TTColor.ink)
                 }
-                // The slot's two states overlap while one fades into the other (0.2 s): the pill becomes the number when
-                // the platform arrives, the dash the pill when the train comes within 15 min (TT-162).
-                ZStack(alignment: .leading) {
-                    if card.awaitsPlatform {
-                        platformPill.transition(.opacity)
-                    } else {
-                        Text(platformText)
-                            .font(TTFont.subhead)
-                            .monospacedDigit()
-                            .transition(.opacity)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.2), value: card.awaitsPlatform)
             }
             .lineLimit(1)
             .fixedSize()
         }
-    }
-
-    /// "Plat" and the pulsing pill, one space apart. One element for the card's combined label: "Platform pending".
-    private var platformPill: some View {
-        HStack(alignment: .firstTextBaseline, spacing: TTSpace.s1) {
-            Text(card.platformLabel)
-                .font(TTFont.subhead)
-                .foregroundStyle(TTColor.inkSecondary)
-            PlatformPill()
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("schedule.platform_pending")
-    }
-
-    /// "Plat" in ink-secondary; the number semibold in ink, or the dash in ink-tertiary until GO publishes it.
-    private var platformText: AttributedString {
-        var text = AttributedString(card.platform)
-        text.foregroundColor = TTColor.inkSecondary
-        if let range = text.range(of: card.platformValue, options: .backwards) {
-            if card.hasPlatform {
-                text[range].foregroundColor = TTColor.ink
-                text[range].font = TTFont.subhead.weight(.semibold)
-            } else {
-                text[range].foregroundColor = TTColor.inkTertiary
-            }
-        }
-        return text
     }
 
     /// "Arrival" in 13 pt, then the arrival time in 17 pt semibold, on one line level with the status.

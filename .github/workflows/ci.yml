@@ -20,7 +20,8 @@ jobs:
   test:
     name: Build and test
     runs-on: macos-latest
-    timeout-minutes: 45
+    # A run that records snapshots tests twice; at about 25 min a pass on a slow runner, 45 cut the second pass off (PR #154).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:

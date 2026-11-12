@@ -210,11 +210,10 @@ Titles start with the scheduled train identity and never change it (the 7:32 AM 
 
 ## Settings
 
-Settings is the third tab, under a large title "Settings" (D48, D57). It is five single-line rows in two cards (four in the App Store build) and three pushed pages; nothing here is needed to use the timetable. The rule for every Settings page: a card holds things you can tap, and plain text on the canvas is information. No section headers or footnotes on the main view, no leading row icons, text never on glass. Frames: `design/frames/settings.png`, `settings-dark.png`, `settings-store.png`, `settings-notifications*.png`, `settings-about*.png`, `settings-testing*.png`.
+Settings is the third tab, under a large title "Settings" (D48, D57). It is four single-line rows in two cards (three in the App Store build; no Appearance row, the app follows the iOS appearance, D84) and three pushed pages; nothing here is needed to use the timetable. The rule for every Settings page: a card holds things you can tap, and plain text on the canvas is information. No section headers or footnotes on the main view, no leading row icons, text never on glass. Frames: `design/frames/settings.png`, `settings-dark.png`, `settings-store.png`, `settings-notifications*.png`, `settings-about*.png`, `settings-testing*.png`.
 
 | Card | Row | Control | Behaviour |
 | --- | --- | --- | --- |
-| 1 | Appearance | Glass switch of three symbols: automatic, sun, moon | Default automatic (follows the system); applies immediately |
 | 1 | Time format | Glass switch: Auto · 12h · 24h | Default Auto (the device setting); every time in the app, in notifications and in VoiceOver follows it |
 | 1 | Notifications | A dot and a word, then a chevron | Green dot "On" while notifications are allowed; red dot "Off" once turned off in iOS Settings; grey dot "Off" while the app has never asked. Opens the Notifications page. Refreshed on foreground |
 | 2 | About | The version, "1.0 (12)", then a chevron | Opens the About page |

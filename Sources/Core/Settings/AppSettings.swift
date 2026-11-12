@@ -1,23 +1,11 @@
 import Foundation
 import Observation
 
-/// The Appearance setting (Settings, TT-105). Raw values are what the setting stores on device.
-enum Appearance: String, CaseIterable, Sendable {
-    case system
-    case light
-    case dark
-}
-
-/// Appearance and Time format, stored on device (TT-105). One instance, owned by the root view.
-/// The root applies `appearance` and puts `timeFormatter` in the environment, so a change applies at once.
+/// Time format and the Testing switches, stored on device (TT-105). One instance, owned by the root view.
+/// The root puts `timeFormatter` in the environment, so a change applies at once. The app follows the iOS appearance (D84).
 @Observable @MainActor
 final class AppSettings {
-    static let appearanceKey = "settings.appearance"
     static let timeFormatKey = "settings.timeFormat"
-
-    var appearance: Appearance {
-        didSet { defaults.set(appearance.rawValue, forKey: Self.appearanceKey) }
-    }
 
     var timeFormat: TimeFormat {
         didSet { defaults.set(timeFormat.rawValue, forKey: Self.timeFormatKey) }
@@ -50,7 +38,6 @@ final class AppSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        appearance = defaults.string(forKey: Self.appearanceKey).flatMap(Appearance.init(rawValue:)) ?? .system
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
         mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off

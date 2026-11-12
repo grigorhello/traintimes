@@ -44,9 +44,9 @@
 "schedule.platform_short" = "Plat %@";
 "schedule.platform_label" = "Plat";
 "schedule.platform_placeholder" = "—";
-"schedule.trip_minutes" = "%d min";
-"schedule.trip_hours" = "%d h";
-"schedule.trip_hours_minutes" = "%d h %d min";
+"schedule.trip_minutes" = "%d min ride";
+"schedule.trip_hours" = "%d h ride";
+"schedule.trip_hours_minutes" = "%d h %d min ride";
 "schedule.in_minutes" = "in %d min";
 "schedule.departing" = "Departing";
 "schedule.minutes_ago" = "%d min";
@@ -122,7 +122,6 @@
 "depart.doors" = "Doors close at %@";
 "depart.departed" = "Departed %@";
 "depart.arrives" = "Arrives %@";
-"depart.rideLength" = "%@ ride";
 "depart.strip" = "Your %@ train";
 "depart.footnote" = "Live from 30 minutes before departure because this train has an alert. Tap I’m on board when you get on, or Train Times notices it for you.";
 "depart.live.title" = "Your %@ train is live";
@@ -258,10 +257,6 @@
 
 /* Settings (TT-168, D57) */
 "button.back" = "Back";
-"settings.appearance" = "Appearance";
-"settings.appearance.system" = "Automatic";
-"settings.appearance.light" = "Light";
-"settings.appearance.dark" = "Dark";
 "settings.time_format" = "Time format";
 "settings.time_format.device" = "Auto";
 "settings.time_format.12h" = "12h";

@@ -25,7 +25,8 @@ extension TimeFormatting {
         return full.split(separator: " ").first.map(String.init) ?? full
     }
 
-    /// A trip's length on a timeline card (TT-157): "40 min" up to 99 min, then "1 h 45 min" ("2 h" on the hour).
+    /// A trip's length, the one wording everywhere it shows (TT-157, TT-198, D81): "40 min ride" up to 99 min, then
+    /// "1 h 45 min ride" ("2 h ride" on the hour).
     func tripLength(from departure: Date, to arrival: Date) -> String {
         let minutes = max(0, Int((arrival.timeIntervalSince(departure) / 60).rounded()))
         if minutes < 100 {

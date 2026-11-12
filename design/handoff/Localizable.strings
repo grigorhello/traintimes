@@ -43,9 +43,9 @@
 "schedule.platform_pending" = "Platform pending";
 "schedule.platform_label" = "Platform";
 "schedule.platform_placeholder" = "—";
-"schedule.trip_minutes" = "%d min";
-"schedule.trip_hours" = "%d h";
-"schedule.trip_hours_minutes" = "%d h %d min";
+"schedule.trip_minutes" = "%d min ride";
+"schedule.trip_hours" = "%d h ride";
+"schedule.trip_hours_minutes" = "%d h %d min ride";
 "schedule.in_minutes" = "in %d min";
 "schedule.departing" = "Departing";
 "schedule.minutes_ago" = "%d min";
@@ -121,7 +121,6 @@
 "depart.doors" = "Doors close at %@";
 "depart.departed" = "Departed %@";
 "depart.arrives" = "Arrives %@";
-"depart.rideLength" = "%@ ride";
 "depart.strip" = "Your %@ train";
 "depart.footnote" = "Live from 30 minutes before departure because this train has an alert. Tap I’m on board when you get on, or Train Times notices it for you.";
 "depart.live.title" = "Your %@ train is live";

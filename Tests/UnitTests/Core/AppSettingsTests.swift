@@ -8,9 +8,8 @@ final class AppSettingsTests: XCTestCase {
     /// 5:05 PM in Toronto on 2026-11-05 (EST).
     private var evening: Date { ISO8601DateFormatter().date(from: "2026-11-05T22:05:00Z")! }
 
-    func testDefaultsAreSystemAndDevice() {
+    func testDefaultsAreDeviceAndOff() {
         let settings = AppSettings(defaults: .ephemeral())
-        XCTAssertEqual(settings.appearance, .system)
         XCTAssertEqual(settings.timeFormat, .device)
         XCTAssertEqual(settings.demoTrains, .off)
         XCTAssertNil(settings.mockTime, "Real time unless Mock time is on (TT-158)")
@@ -29,23 +28,19 @@ final class AppSettingsTests: XCTestCase {
     func testChoicesAreStoredOnDevice() {
         let defaults = UserDefaults.ephemeral()
         let settings = AppSettings(defaults: defaults)
-        settings.appearance = .dark
         settings.timeFormat = .twentyFourHour
         settings.demoTrains = .delays
 
         let reopened = AppSettings(defaults: defaults)
-        XCTAssertEqual(reopened.appearance, .dark)
         XCTAssertEqual(reopened.timeFormat, .twentyFourHour)
         XCTAssertEqual(reopened.demoTrains, .delays)
     }
 
     func testUnknownStoredValuesFallBackToDefaults() {
         let defaults = UserDefaults.ephemeral()
-        defaults.set("sepia", forKey: AppSettings.appearanceKey)
         defaults.set("36-hour", forKey: AppSettings.timeFormatKey)
         defaults.set("everything", forKey: DemoTrains.key)
         let settings = AppSettings(defaults: defaults)
-        XCTAssertEqual(settings.appearance, .system)
         XCTAssertEqual(settings.timeFormat, .device)
         XCTAssertEqual(settings.demoTrains, .off)
     }
@@ -70,11 +65,5 @@ final class AppSettingsTests: XCTestCase {
         }
         settings.timeFormat = .twentyFourHour
         await fulfillment(of: [changed], timeout: 1)
-    }
-
-    func testAppearanceMapsToColorScheme() {
-        XCTAssertNil(Appearance.system.colorScheme)
-        XCTAssertEqual(Appearance.light.colorScheme, .light)
-        XCTAssertEqual(Appearance.dark.colorScheme, .dark)
     }
 }

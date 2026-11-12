@@ -5,32 +5,28 @@ final class SettingsTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// The main view's glass switches change Appearance and Time format in one tap, and Notifications, About and Testing open
+    /// The main view's glass switch changes Time format in one tap (there is no Appearance row, D84), and Notifications, About and Testing open
     /// and close (TT-105, TT-168).
     @MainActor
-    func testChangeAppearanceAndOpenThePages() {
+    func testChangeTimeFormatAndOpenThePages() {
         let app = XCUIApplication.onFixtures()
         // Not asked yet, whatever an earlier test answered in the iOS dialog (TT-142).
         app.launchEnvironment["TT_NOTIFICATIONS"] = "notAsked"
         // Start from the defaults whatever an earlier run stored.
-        app.launchArguments += ["-settings.appearance", "system", "-settings.timeFormat", "device"] + LaunchArguments.noAlerts
+        app.launchArguments += ["-settings.timeFormat", "device"] + LaunchArguments.noAlerts
         app.launch()
 
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["settings.appearance.system"].isSelected)
         XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
+        XCTAssertFalse(app.buttons["settings.appearance.system"].exists)
 
-        app.buttons["settings.appearance.dark"].tap()
-        XCTAssertTrue(app.buttons["settings.appearance.dark"].isSelected)
-        XCTAssertFalse(app.buttons["settings.appearance.system"].isSelected)
         app.buttons["settings.timeFormat.24h"].tap()
         XCTAssertTrue(app.buttons["settings.timeFormat.24h"].isSelected)
 
         // Leave the simulator on the defaults for the next run.
-        app.buttons["settings.appearance.system"].tap()
         app.buttons["settings.timeFormat.device"].tap()
-        XCTAssertTrue(app.buttons["settings.appearance.system"].isSelected)
+        XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
 
         // The app never asks before an alert is set or "Turn on notifications" is tapped (TT-142, TT-168), so a fresh install
         // reads Off with a grey dot, and the page offers to turn them on.

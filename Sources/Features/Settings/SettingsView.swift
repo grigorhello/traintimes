@@ -5,8 +5,9 @@ enum SettingsPage: Hashable {
     case notifications, about, testing
 }
 
-/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and five single-line rows in two cards, four
-/// in App Store builds. Appearance and Time format change in one tap; Notifications, About and Testing open their own pages.
+/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in two cards, the Testing
+/// row in TestFlight and Debug builds only. Time format changes in one tap; Notifications, About and Testing open their own
+/// pages. No Appearance row: the app follows the iOS appearance (D84).
 /// Nothing here is needed to use the timetable; no login, payment, advertising or rating prompt (D5).
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
@@ -56,8 +57,6 @@ struct SettingsMainPage: View {
                     .accessibilityIdentifier("settings.title")
 
                 SettingsCard {
-                    appearanceRow
-                    SettingsHairline()
                     timeFormatRow
                     SettingsHairline()
                     notificationsRow
@@ -78,29 +77,6 @@ struct SettingsMainPage: View {
     }
 
     // MARK: Rows
-
-    private var appearanceRow: some View {
-        SettingsRow(title: "settings.appearance", trailingInset: TTSpace.s2) {
-            GlassSwitch(
-                selection: $viewModel.appearance,
-                options: [
-                    .init(
-                        value: .system, label: .symbol("circle.lefthalf.filled"), name: "settings.appearance.system",
-                        identifier: "settings.appearance.system"
-                    ),
-                    .init(
-                        value: .light, label: .symbol("sun.max.fill"), name: "settings.appearance.light",
-                        identifier: "settings.appearance.light"
-                    ),
-                    .init(
-                        value: .dark, label: .symbol("moon.fill"), name: "settings.appearance.dark",
-                        identifier: "settings.appearance.dark"
-                    ),
-                ],
-                segmentWidth: 46, turns: true
-            )
-        }
-    }
 
     private var timeFormatRow: some View {
         SettingsRow(title: "settings.time_format", trailingInset: TTSpace.s2) {

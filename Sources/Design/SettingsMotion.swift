@@ -129,7 +129,7 @@ extension View {
         )
     }
 
-    /// The chosen switch symbol or label pressing in: 0.80 to 1, `spring(0.40, 0.50)`; `turns` adds the Appearance symbol's
+    /// The chosen switch symbol or label pressing in: 0.80 to 1, `spring(0.40, 0.50)`; `turns` adds a symbol's
     /// quarter turn.
     func settingsPress(trigger: some Hashable, turns: Bool = false) -> some View {
         settingsBump(trigger: trigger, from: 0.80, turn: turns ? -90 : 0, response: 0.40, damping: 0.50)

@@ -256,10 +256,6 @@
 
 /* Settings (TT-168, D57) */
 "button.back" = "Back";
-"settings.appearance" = "Appearance";
-"settings.appearance.system" = "Automatic";
-"settings.appearance.light" = "Light";
-"settings.appearance.dark" = "Dark";
 "settings.time_format" = "Time format";
 "settings.time_format.device" = "Auto";
 "settings.time_format.12h" = "12h";

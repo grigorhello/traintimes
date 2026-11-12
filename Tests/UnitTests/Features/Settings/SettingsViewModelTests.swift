@@ -36,12 +36,9 @@ final class SettingsViewModelTests: XCTestCase {
     func testChoicesWriteThroughToSettings() {
         let settings = AppSettings(defaults: .ephemeral())
         let model = makeModel(settings: settings)
-        XCTAssertEqual(model.appearance, .system)
         XCTAssertEqual(model.timeFormat, .device)
 
-        model.appearance = .dark
         model.timeFormat = .twelveHour
-        XCTAssertEqual(settings.appearance, .dark)
         XCTAssertEqual(settings.timeFormat, .twelveHour)
     }
 

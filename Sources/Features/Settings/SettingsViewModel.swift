@@ -63,11 +63,6 @@ final class SettingsViewModel {
         self.detection = detection
     }
 
-    var appearance: Appearance {
-        get { settings.appearance }
-        set { settings.appearance = newValue }
-    }
-
     var timeFormat: TimeFormat {
         get { settings.timeFormat }
         set { settings.timeFormat = newValue }

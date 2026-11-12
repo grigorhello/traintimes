@@ -49,7 +49,7 @@ final class AppShellSnapshotTests: XCTestCase {
     @MainActor func testAlertsTabDark() async throws { snap(try await root(alertsRouter()), .dark) }
 
     /// A loaded schedule, so the snapshot never races the first load (TT-112), and fresh settings,
-    /// so an Appearance stored by an earlier run never overrides the snapshot's style (TT-105).
+    /// so a setting stored by an earlier run never leaks into the snapshot (TT-105).
     @MainActor
     private func root(_ router: AppRouter = AppRouter()) async throws -> RootView {
         RootView(router: router, schedule: try await .loadedFixture(), settings: AppSettings(defaults: .ephemeral()))

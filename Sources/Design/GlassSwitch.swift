@@ -2,22 +2,22 @@ import SwiftUI
 
 /// What one option of a `GlassSwitch` shows.
 enum GlassSwitchLabel {
-    /// An SF Symbol (Appearance: automatic, sun, moon).
+    /// An SF Symbol.
     case symbol(String)
     /// A word, in the digits-aligned 15 pt label ("Auto", "12h", "Delays").
     case text(LocalizedStringKey)
 }
 
 /// A choice between two to five options (TT-168, D57): a recessed track with one thumb that glides to the chosen option. Used
-/// by Appearance (three symbols), Time format (three words) and Demo trains (five words, TT-172) in Settings. The thumb is Liquid
+/// by Time format (three words) and the Testing switches (TT-172) in Settings. The thumb is Liquid
 /// Glass on iOS 26 and later, like the tab bar's pill, and a solid raised surface before it and when `\.rendersGlass` is off.
-/// The chosen symbol or word is accent and semibold and presses in on a spring (`settingsPress`); the Appearance symbols
-/// also turn a quarter. The track is 40 pt tall with 3 pt around the 34 pt thumb.
+/// The chosen symbol or word is accent and semibold and presses in on a spring (`settingsPress`); with `turns` a symbol
+/// also turns a quarter. The track is 40 pt tall with 3 pt around the 34 pt thumb.
 struct GlassSwitch<Value: Hashable>: View {
     struct Option {
         let value: Value
         let label: GlassSwitchLabel
-        /// What VoiceOver reads, and what UI tests find ("Automatic", "Light", "Dark").
+        /// What VoiceOver reads, and what UI tests find ("Automatic", "12-hour", "24-hour").
         let name: LocalizedStringKey
         let identifier: String
     }
@@ -26,7 +26,7 @@ struct GlassSwitch<Value: Hashable>: View {
     let options: [Option]
     /// One segment's width; nil fills the width it is given, in equal segments.
     var segmentWidth: CGFloat?
-    /// The chosen symbol turns from -90° as it presses in (Appearance).
+    /// The chosen symbol turns from -90° as it presses in.
     var turns = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -124,20 +124,10 @@ private struct SwitchThumb: View {
 #Preview("Glass switch dark") { GlassSwitchGallery().preferredColorScheme(.dark) }
 
 private struct GlassSwitchGallery: View {
-    @State private var appearance = Appearance.system
     @State private var format = TimeFormat.twelveHour
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s5) {
-            GlassSwitch(
-                selection: $appearance,
-                options: [
-                    .init(value: .system, label: .symbol("circle.lefthalf.filled"), name: "settings.appearance.system", identifier: "system"),
-                    .init(value: .light, label: .symbol("sun.max.fill"), name: "settings.appearance.light", identifier: "light"),
-                    .init(value: .dark, label: .symbol("moon.fill"), name: "settings.appearance.dark", identifier: "dark"),
-                ],
-                segmentWidth: 46, turns: true
-            )
             GlassSwitch(
                 selection: $format,
                 options: [

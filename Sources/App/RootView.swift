@@ -3,8 +3,8 @@ import SwiftUI
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
 /// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
-/// records them and lists them in its station picker (D48, D54). Applies the Appearance setting and puts the one time formatter in the
-/// environment (TT-105). Opens the trip or the Alerts tab for a tapped notification (TT-144).
+/// records them and lists them in its station picker (D48, D54). Puts the one time formatter in the
+/// environment (TT-105); the app follows the iOS appearance (D84). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
     @State private var router: AppRouter
     @State private var schedule: ScheduleViewModel
@@ -198,7 +198,6 @@ struct RootView: View {
         }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
-        .preferredColorScheme(settings.appearance.colorScheme)
         // Notifications may have been allowed or turned off in Settings while the app was away (TT-141), a rule may need
         // review and notifications may have arrived (TT-143). Back from the toast's Turn on with notifications on, the
         // bell that was tapped turns on (TT-190).

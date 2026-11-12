@@ -98,18 +98,22 @@ final class RouteFormViewModel {
         let hub = stations.first { $0.id == Self.unionStationId }?.place
         return GOLineColor.ordered(other.lines).compactMap { name in
             let list = stations.filter { $0.id != other.id && $0.lines.contains(name) }
-            let found = rows(Self.fromUnionOutward(list, hub: hub))
+            let found = rows(Self.fromUnionOutward(list, line: name, hub: hub))
             return found.isEmpty ? nil : LineSection(line: GOLineColor.line(named: name), rows: found)
         }
     }
 
-    /// Union first, then by distance from Union when every station has a place (the GTFS feed), else alphabetically.
-    private static func fromUnionOutward(_ list: [Station], hub: GeoPoint?) -> [Station] {
+    /// Union first, then in the order the line's trains reach them (metres along the line from the GTFS feed, else the
+    /// straight distance from Union); alphabetically when a station has neither, as in the fixtures.
+    private static func fromUnionOutward(_ list: [Station], line: String, hub: GeoPoint?) -> [Station] {
         let union = list.filter { $0.id == unionStationId }
         let rest = list.filter { $0.id != unionStationId }
-        guard let hub, rest.allSatisfy({ $0.place != nil }) else { return union + rest }
-        let distance = { (station: Station) in station.place.map { TrackShape.distance(hub, $0) } ?? 0 }
-        return union + rest.sorted { distance($0) < distance($1) }
+        let distance = { (station: Station) -> Double? in
+            station.distanceFromUnion[line] ?? hub.flatMap { hub in station.place.map { TrackShape.distance(hub, $0) } }
+        }
+        let keyed = rest.map { ($0, distance($0)) }
+        guard keyed.allSatisfy({ $0.1 != nil }) else { return union + rest }
+        return union + keyed.sorted { ($0.1 ?? 0) < ($1.1 ?? 0) }.map(\.0)
     }
 
     /// Every station alphabetically; when choosing To, Union Station GO comes first unless it is the From station. Once

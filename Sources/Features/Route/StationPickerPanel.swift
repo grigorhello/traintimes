@@ -55,11 +55,16 @@ struct StationPickerPanel: View {
             // built a second time just to be measured (TT-196). A lazy stack was tried and dropped: on iOS 26 SwiftUI built
             // its rows on a background render thread, which trapped Swift 6's main-actor check while typing.
             if rowCount <= Self.measuredRows { groups }
-            ScrollView {
-                groups
-                    .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
-                        isAtTop = $0
-                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    groups
+                        .id(Self.topID)
+                        .onGeometryChange(for: Bool.self) { $0.frame(in: .named(stationPickerScrollSpace)).minY >= -1 } action: {
+                            isAtTop = $0
+                        }
+                }
+                // Each keystroke shows the results from the top, where the same-line matches are (TT-200).
+                .onChange(of: viewModel.query) { proxy.scrollTo(Self.topID, anchor: .top) }
             }
             .coordinateSpace(.named(stationPickerScrollSpace))
             // Scrolling the list keeps the keyboard, so the panel does not resize under the rider's finger.
@@ -98,6 +103,9 @@ struct StationPickerPanel: View {
     }
 
     // MARK: Groups
+
+    /// The scrolled list's id, to bring it back to its top.
+    private static let topID = "stationPicker.top"
 
     /// The most rows that can fit above the keyboard (or above the home indicator, with no software keyboard) and more.
     private static let measuredRows = 14

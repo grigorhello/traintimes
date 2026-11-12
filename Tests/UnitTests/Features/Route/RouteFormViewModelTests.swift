@@ -260,6 +260,28 @@ final class RouteFormViewModelTests: XCTestCase {
         XCTAssertEqual(model.lineSections.first?.rows.map(\.id), ["UN", "EX", "PO", "OA"])
     }
 
+    /// TT-200 (D83): metres along the line (GTFS) win over the straight distance, so a branch's far end stays last.
+    func testLineFollowsDistanceAlongTheLine() async throws {
+        let line = "Lakeshore West"
+        func station(_ id: String, _ name: String, _ latitude: Double, _ longitude: Double, along: Double?) -> Station {
+            Station(
+                id: id, name: name, lines: [line], place: GeoPoint(latitude: latitude, longitude: longitude),
+                distanceFromUnion: along.map { [line: $0] } ?? [:]
+            )
+        }
+        let stations = [
+            station("SCTH", "St. Catharines GO", 43.1484, -79.2556, along: 110_397),
+            station("WR", "West Harbour GO", 43.2668, -79.8662, along: 59_094),
+            station("OA", "Oakville GO", 43.4553, -79.6824, along: 32_616),
+            station("UN", "Union Station GO", 43.6453, -79.3806, along: nil),
+        ]
+        let model = RouteFormViewModel(route: nil, repository: PlacedStations(list: stations))
+        await model.loadStations()
+        model.open(.from)
+        model.pick(stations[2])
+        XCTAssertEqual(model.lineSections.first?.rows.map(\.id), ["UN", "WR", "SCTH"])
+    }
+
     /// Your stations come from the recent routes, alphabetically and with a clock (D48).
     func testYourStationsComeFromRecentRoutes() async throws {
         let model = try await model(recent: [Route(from: union, to: oakville, line: nil)])

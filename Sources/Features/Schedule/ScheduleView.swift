@@ -98,6 +98,12 @@ struct ScheduleView: View {
             }
             .onChange(of: viewModel.entranceRequest) { startEntrance() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
+            // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
+            // play waits for its scroll to settle, so the first appearance asks for nothing.
+            .onAppear { viewModel.timelineAppeared() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { viewModel.timelineAppeared() }
+            }
     }
 
     // MARK: Motion (TT-164, D61)
@@ -131,9 +137,9 @@ struct ScheduleView: View {
         }
     }
 
-    /// Started on the next turn too, like the cascade, so its first frames are drawn.
+    /// Started on the next turn too, like the cascade, so its first frames are drawn. Under Reduce Motion it is a fade.
     private func startPulse() {
-        guard playsMotion, !reduceMotion else { return }
+        guard playsMotion else { return }
         let pulse = viewModel.nowPulse
         let motion = motion
         Task { @MainActor in

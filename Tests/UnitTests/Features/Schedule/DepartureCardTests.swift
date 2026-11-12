@@ -26,13 +26,13 @@ final class DepartureCardTests: XCTestCase {
         func length(_ minutes: Int) -> String {
             formatter.tripLength(from: start, to: start.addingTimeInterval(TimeInterval(minutes * 60)))
         }
-        XCTAssertEqual(length(40), "40 min")
-        XCTAssertEqual(length(72), "72 min")
-        XCTAssertEqual(length(99), "99 min")
-        XCTAssertEqual(length(100), "1 h 40 min")
-        XCTAssertEqual(length(105), "1 h 45 min")
-        XCTAssertEqual(length(120), "2 h")
-        XCTAssertEqual(card(minutes: 72).tripLength, "72 min")
+        XCTAssertEqual(length(40), "40 min ride")
+        XCTAssertEqual(length(72), "72 min ride")
+        XCTAssertEqual(length(99), "99 min ride")
+        XCTAssertEqual(length(100), "1 h 40 min ride")
+        XCTAssertEqual(length(105), "1 h 45 min ride")
+        XCTAssertEqual(length(120), "2 h ride")
+        XCTAssertEqual(card(minutes: 72).tripLength, "72 min ride")
     }
 
     func testPlatformSlotIsAlwaysThere() {

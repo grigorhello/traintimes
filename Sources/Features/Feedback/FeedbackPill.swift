@@ -37,15 +37,25 @@ struct FeedbackPill: View {
     }
 }
 
-/// The pill with the sheet it opens, so Schedule only places it.
+/// The pill with the sheet it opens, so Schedule only places it. Icon only while the Notice chip shows, and whenever the
+/// labelled pill would cut the line's name short (Lakeshore West): the name is laid out first (`layoutPriority`).
 struct ScheduleFeedbackEntry: View {
     var compact = false
     @State private var showsSheet = false
     @Environment(\.feedbackSender) private var sender
 
     var body: some View {
-        FeedbackPill(compact: compact) { showsSheet = true }
-            .sheet(isPresented: $showsSheet) { FeedbackSheet(viewModel: FeedbackViewModel(sender: sender)) }
+        Group {
+            if compact {
+                FeedbackPill(compact: true) { showsSheet = true }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    FeedbackPill { showsSheet = true }
+                    FeedbackPill(compact: true) { showsSheet = true }
+                }
+            }
+        }
+        .sheet(isPresented: $showsSheet) { FeedbackSheet(viewModel: FeedbackViewModel(sender: sender)) }
     }
 }
 

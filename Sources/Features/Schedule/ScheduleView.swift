@@ -345,6 +345,8 @@ struct ScheduleView: View {
                     .tracking(-0.6)
                     .foregroundStyle(TTColor.ink)
                     .lineLimit(1)
+                    // Laid out before the Feedback pill, which drops its label rather than cut the name (TT-202).
+                    .layoutPriority(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("schedule.line")
                 Spacer(minLength: 0)

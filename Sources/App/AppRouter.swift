@@ -7,7 +7,7 @@ enum AppTab: Hashable {
 /// Everything that opens as a native `.sheet`, so the timetable is always one dismiss away.
 enum AppSheet: String, Identifiable {
     /// `detectOffer`: "Notice your train by itself", once, after the first completed ride (TT-176).
-    case tripDetails, alertSetup, lineNotices, detectOffer
+    case tripDetails, lineNotices, detectOffer
     var id: String { rawValue }
 }
 

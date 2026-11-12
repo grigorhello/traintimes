@@ -13,8 +13,6 @@ struct AlertDependencies {
     let defaults: UserDefaults?
     /// The notifications Notification Center still shows, for Recent updates (TT-143); none in fixture runs.
     var delivered: any DeliveredNotificationsProviding = FixedDeliveredNotifications()
-    /// How long the Alerts tab's undo toast and Schedule's "Tap the bell on a train" show (TT-143).
-    var toastDuration: Duration = .seconds(5)
     /// How long the bell's glass capsule shows (TT-191): 5 s with an action (Repeat, Undo, Try again), 2.5 s without.
     var capsuleActionDuration: Duration = .seconds(5)
     var capsulePlainDuration: Duration = .milliseconds(2500)
@@ -37,7 +35,6 @@ struct AlertDependencies {
             )
             // A slow CI runner can take longer than 2.5 s to read the capsule after a tap.
             if let seconds = environment["TT_TOAST_SECONDS"].flatMap(Int.init) {
-                dependencies.toastDuration = .seconds(seconds)
                 dependencies.capsuleActionDuration = .seconds(seconds)
                 dependencies.capsulePlainDuration = .seconds(seconds)
             }

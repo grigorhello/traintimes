@@ -16,8 +16,7 @@ enum BellFace: Equatable, Sendable {
 
 /// The bell on a departure card (TT-141), with its pop (TT-166, D62): when the alert turns on or off the glyph swells to
 /// 1.3 over 0.1 s (`TTMotion.swell`), swaps `bell` and `bell.fill` at the top, as Kavsoft does, and springs back on
-/// `TTMotion.pop`. While `\.holdsBellPop` is true (the alert setup sheet is up) the bell keeps the glyph it had and pops
-/// once the sheet is gone. Reduce Motion cross-fades the glyph instead. Turned off it is quiet on purpose (TT-191, D71): the
+/// `TTMotion.pop`. Reduce Motion cross-fades the glyph instead. Turned off it is quiet on purpose (TT-191, D71): the
 /// outline swaps in at once and settles from 0.86 on `TTMotion.settle`.
 ///
 /// Permission from the bell (TT-190, D72): the pop now comes on the tap, into the half-strength wait, and the wait goes
@@ -37,7 +36,6 @@ struct AlertBellButton: View {
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.holdsBellPop) private var holdsPop
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The face drawn: it follows `face` at the top of the swell, or after the sheet holding it has gone.
     @State private var shown: BellFace
@@ -99,7 +97,6 @@ struct AlertBellButton: View {
             wanted = face
             change(to: face)
         }
-        .onChange(of: holdsPop) { change(to: wanted) }
     }
 
     private var symbol: String {
@@ -120,9 +117,9 @@ struct AlertBellButton: View {
     }
 
     /// Draws the new face: the hold while iOS asks, the pop when the alert turns on or off, otherwise a quiet change (the
-    /// wait going solid in 150 ms; the outline under a refusal's shake). Nothing while a sheet holds the pop.
+    /// wait going solid in 150 ms; the outline under a refusal's shake).
     private func change(to face: BellFace) {
-        guard !holdsPop, shown != face else { return }
+        guard shown != face else { return }
         let from = shown
         if face == .asking || (from == .asking && !Self.pops(from: from, to: face)) {
             withAnimation(.easeOut(duration: 0.12)) {
@@ -168,10 +165,4 @@ struct AlertBellButton: View {
     private static let swellTime: Duration = .milliseconds(100)
     /// The hold while iOS asks (the Motion board's First tap ever).
     private static let askingScale: CGFloat = 1.12
-}
-
-extension EnvironmentValues {
-    /// True while the alert setup sheet is up (from opening it until it is gone), so a bell whose alert it changed pops
-    /// where the rider can see it (TT-166). RootView sets it.
-    @Entry var holdsBellPop: Bool = false
 }

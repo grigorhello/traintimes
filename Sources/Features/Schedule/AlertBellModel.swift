@@ -40,8 +40,6 @@ final class AlertBellModel {
             case notificationsOff
             /// "Notifications are on", with the tick, once they are back on (TT-190 shows it).
             case notificationsOn
-            /// "Tap the bell on a train", after the Alerts tab's "Add alert" (TT-143).
-            case hint
             /// "Tap the bell of your new train" with Cancel, after a Time changed row's "Pick a new train" (TT-193): the
             /// bell tapped next takes over the old alert's days and the old alert goes. It stays until then.
             case newTrain
@@ -56,7 +54,7 @@ final class AlertBellModel {
         /// A new capsule has a new id.
         let id: Int
         let kind: Kind
-        /// The train it speaks of, named by its scheduled departure (D9); nil for the hint.
+        /// The train it speaks of, named by its scheduled departure (D9); nil for one about notifications.
         let trip: Trip?
         let route: Route?
         /// A repeating alert's days, which the words name; empty for a one-day alert.
@@ -71,7 +69,7 @@ final class AlertBellModel {
             switch kind {
             case .on: repeats.isEmpty
             case .off, .failed, .notificationsOff, .newTrain: true
-            case .notificationsOn, .hint: false
+            case .notificationsOn: false
             }
         }
     }
@@ -101,7 +99,6 @@ final class AlertBellModel {
     private let afterPrompt: @MainActor () async -> Void
     private let actionDuration: Duration
     private let plainDuration: Duration
-    private let hintDuration: Duration
     /// Trains whose tap is being handled, so repeated taps send one request.
     @ObservationIgnored private var busy: Set<TripKey> = []
     @ObservationIgnored private var capsuleCount = 0
@@ -132,17 +129,16 @@ final class AlertBellModel {
         let route: Route
     }
 
-    /// A capsule with an action shows for 5 s, one without for 2.5 s (TT-191); the hint for 5 s. Tests pass no
+    /// A capsule with an action shows for 5 s, one without for 2.5 s (TT-191). Tests pass no
     /// `refusalDelay` and an `afterPrompt` that returns at once (TT-190).
     init(
         rules: AlertRules, actionDuration: Duration = .seconds(5), plainDuration: Duration = .milliseconds(2500),
-        hintDuration: Duration = .seconds(5), refusalDelay: Duration = .milliseconds(120),
+        refusalDelay: Duration = .milliseconds(120),
         afterPrompt: @escaping @MainActor () async -> Void = AlertBellModel.waitUntilActive
     ) {
         self.rules = rules
         self.actionDuration = actionDuration
         self.plainDuration = plainDuration
-        self.hintDuration = hintDuration
         self.refusalDelay = refusalDelay
         self.afterPrompt = afterPrompt
     }
@@ -244,7 +240,7 @@ final class AlertBellModel {
     /// capsule and panel never show on Schedule under the sheet.
     func sibling() -> AlertBellModel {
         AlertBellModel(
-            rules: rules, actionDuration: actionDuration, plainDuration: plainDuration, hintDuration: hintDuration,
+            rules: rules, actionDuration: actionDuration, plainDuration: plainDuration,
             refusalDelay: refusalDelay, afterPrompt: afterPrompt
         )
     }
@@ -366,11 +362,6 @@ final class AlertBellModel {
     /// "Notifications are off" with Turn on, or "Notifications are on", with no train.
     func showNotifications(on: Bool) {
         show(on ? .notificationsOn : .notificationsOff, trip: nil, route: nil)
-    }
-
-    /// The hint the Alerts tab's "Add alert" leaves on Schedule, for 5 s.
-    func showHint() {
-        show(.hint, trip: nil, route: nil)
     }
 
     /// "Pick a new train" on a Time changed row (TT-193): "Tap the bell of your new train · Cancel" on Schedule, with no
@@ -547,7 +538,7 @@ final class AlertBellModel {
     private func scheduleHide(_ capsule: Capsule) {
         hideTask?.cancel()
         guard capsule.kind != .newTrain else { return }
-        let duration = capsule.kind == .hint ? hintDuration : capsule.hasAction ? actionDuration : plainDuration
+        let duration = capsule.hasAction ? actionDuration : plainDuration
         let id = capsule.id
         hideTask = Task { [weak self] in
             try? await Task.sleep(for: duration)
@@ -564,7 +555,7 @@ extension AlertBellModel.Capsule.Kind {
     var glyph: CapsuleGlyph {
         switch self {
         case .on: .bellOn
-        case .off, .hint, .newTrain: .bellOff
+        case .off, .newTrain: .bellOff
         case .failed: .failed
         case .notificationsOff: .notificationsOff
         case .notificationsOn: .confirmed
@@ -598,8 +589,6 @@ extension AlertBellModel.Capsule {
             return String(localized: "capsule.notifications_off")
         case .notificationsOn:
             return String(localized: "alerts.notifications_on")
-        case .hint:
-            return String(localized: "alerts.add_hint")
         case .newTrain:
             return String(localized: "capsule.new_train")
         }
@@ -623,7 +612,7 @@ extension AlertBellModel.Capsule {
         switch kind {
         case .failed, .notificationsOff: true
         case .on: isPanelOpen
-        case .off, .notificationsOn, .hint, .newTrain: false
+        case .off, .notificationsOn, .newTrain: false
         }
     }
 
@@ -636,7 +625,7 @@ extension AlertBellModel.Capsule {
         case .failed: "button.try_again"
         case .notificationsOff: "capsule.turn_on"
         case .newTrain: "button.cancel"
-        case .notificationsOn, .hint: nil
+        case .notificationsOn: nil
         }
     }
 }

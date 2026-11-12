@@ -92,7 +92,7 @@ extension ServiceDay {
     var isoWeekday: Int { (weekday + 5) % 7 + 1 }
 }
 
-/// A rule's state in words (§ Alert setup: rule states). On is shown only once the server stored the rule and the device
+/// A rule's saved state. On is shown only once the server stored the rule and the device
 /// token is registered, and only while notifications are allowed.
 enum AlertRuleState: String, Codable, Sendable {
     case settingUp
@@ -100,28 +100,6 @@ enum AlertRuleState: String, Codable, Sendable {
     case notificationsOff
     case couldNotSave
     case reviewNeeded
-}
-
-/// What the alert setup sheet opens for (TT-142): a train from a card or Trip details, on This trip or Repeat.
-struct AlertSetupRequest: Hashable, Sendable {
-    let route: Route
-    let trip: Trip
-    let kind: AlertRule.Kind
-}
-
-extension AlertRule {
-    /// The alert setup sheet for this rule, opened from its Alerts row (TT-143): the picked train between the rule's
-    /// stations, so the sheet finds the rule and opens in Manage mode.
-    var setupRequest: AlertSetupRequest? {
-        guard let key = trip else { return nil }
-        let route = Route(
-            from: Station(id: origin.id, name: origin.name),
-            to: Station(id: destination.id, name: destination.name),
-            line: Line(id: line, name: line, colorHex: nil)
-        )
-        let trip = Trip(key: key, scheduledDeparture: scheduledDeparture, scheduledArrival: scheduledDeparture, platform: .pending, tags: [])
-        return AlertSetupRequest(route: route, trip: trip, kind: kind)
-    }
 }
 
 /// What the alert server says about a stored rule (`GET …/rules`, D38): On or Review needed, and the last selected day

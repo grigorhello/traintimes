@@ -44,8 +44,6 @@ enum TTMotion {
     static let cascadeCurve = Curve(response: 0.44, damping: 0.62)
     /// The bell's toast rising 32 pt into place (TT-166); the alert capsule rising 12 pt from 0.94 since TT-191.
     static let toastCurve = Curve(response: 0.45, damping: 0.68)
-    /// The Enable alerts check popping in from 0.6 (TT-166).
-    static let confirmCurve = Curve(response: 0.35, damping: 0.50)
     /// The Trip details journey card riding 12 pt down into place as the sheet's content arrives (TT-167).
     static let cardCurve = Curve(response: 0.42, damping: 0.72)
     /// Each Trip details stop row riding 10 pt down into place, `stopDelay` after the first (TT-167).
@@ -68,7 +66,6 @@ enum TTMotion {
     static var glide: Animation { glideCurve.animation }
     static var cascade: Animation { cascadeCurve.animation }
     static var toast: Animation { toastCurve.animation }
-    static var confirm: Animation { confirmCurve.animation }
     static var card: Animation { cardCurve.animation }
     static var stops: Animation { stopsCurve.animation }
     static var grow: Animation { growCurve.animation }

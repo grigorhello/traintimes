@@ -33,6 +33,7 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.title, "5:13 PM to Clarkson")
         XCTAssertEqual(content.detail, "Platform · On time")
         XCTAssertEqual(content.platform, "Platform")
+        XCTAssertNil(content.platformNumber)
         XCTAssertTrue(content.pill, "The pill follows Platform while it is worth waiting for")
         XCTAssertFalse(content.late)
         XCTAssertEqual(try secondsLeft(content), 12 * 60, accuracy: 1, "On the device clock, to 5:13 on the demo's")
@@ -57,6 +58,7 @@ final class DepartureActivityTests: XCTestCase {
         let content = try content(at: DepartureRig.time(17, 3, 30))
         XCTAssertEqual(content.detail, "Platform 7 · On time")
         XCTAssertEqual(content.platform, "Platform 7")
+        XCTAssertEqual(content.platformNumber, "7", "The number goes in the pill (TT-199)")
         XCTAssertFalse(content.pill)
     }
 

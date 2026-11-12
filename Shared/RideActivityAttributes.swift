@@ -60,7 +60,10 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var arrives: String?
         /// The start of the detail: "Platform 7", "Platform" (the pill follows), or "Check the board".
         var platform: String?
-        /// The pending platform's pill follows "Platform" (D55; still, since an activity does not animate).
+        /// The posted platform, "7", drawn in its pill after "Platform" (TT-199); nil while pending, and from the alert
+        /// server, which knows no platforms.
+        var platformNumber: String?
+        /// The pending platform's dash pill follows "Platform" (D55; still, since an activity does not animate).
         var pill = false
         /// Counting down a late train: the countdown and the delay in amber.
         var late = false
@@ -88,7 +91,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
         case phase, title, detail, countdownEnd, now, time, departure, arrival, position, button, updated
-        case arrives, platform, pill, late
+        case arrives, platform, platformNumber, pill, late
     }
 
     /// The alert server's push carries the same keys (`server/src/activity.ts`). `countdownEnd` travels as seconds since
@@ -109,6 +112,7 @@ extension RideActivityAttributes.ContentState {
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
         arrives = try container.decodeIfPresent(String.self, forKey: .arrives)
         platform = try container.decodeIfPresent(String.self, forKey: .platform)
+        platformNumber = try container.decodeIfPresent(String.self, forKey: .platformNumber)
         pill = try container.decodeIfPresent(Bool.self, forKey: .pill) ?? false
         late = try container.decodeIfPresent(Bool.self, forKey: .late) ?? false
     }
@@ -128,6 +132,7 @@ extension RideActivityAttributes.ContentState {
         try container.encode(updated, forKey: .updated)
         try container.encodeIfPresent(arrives, forKey: .arrives)
         try container.encodeIfPresent(platform, forKey: .platform)
+        try container.encodeIfPresent(platformNumber, forKey: .platformNumber)
         try container.encode(pill, forKey: .pill)
         try container.encode(late, forKey: .late)
     }

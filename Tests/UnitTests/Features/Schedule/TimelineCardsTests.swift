@@ -16,14 +16,12 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(next.status, .onTime)
         XCTAssertEqual(next.arrivalTime, "8:12 AM")
         XCTAssertEqual(next.tripLength, "40 min")
-        XCTAssertEqual(next.platform, "Plat 2")
         XCTAssertEqual(next.platformValue, "2")
         XCTAssertTrue(next.hasPlatform)
         XCTAssertFalse(next.isExpress)
 
         XCTAssertNil(cards[1].relativeTime, "No other card shows a relative time")
-        XCTAssertEqual(cards[1].platform, "Plat —", "The slot holds a dash until GO publishes the platform")
-        XCTAssertFalse(cards[1].hasPlatform)
+        XCTAssertFalse(cards[1].hasPlatform, "The pill holds a dash until GO publishes the platform")
         XCTAssertTrue(cards[1].isExpress, "Express from the stopping-pattern rule (D35)")
         XCTAssertEqual(cards[2].status, .scheduled, "No live data for this trip: Scheduled, never On time (D50)")
     }

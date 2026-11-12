@@ -330,18 +330,18 @@ struct TripDetailsView: View {
         .fixedSize()
     }
 
-    /// "in 20 min · Platform [—] · Express" on the left, the trip length on the right.
+    /// "Platform [2] · in 11 min · Express" on the left (the platform first, Grigor, TT-199), the trip length on the right.
     private func metaRow(_ details: TripDetails) -> some View {
         HStack(spacing: TTSpace.s2) {
             HStack(spacing: TTSpace.s1 + 2) {
+                PlatformTag(number: details.hasPlatform ? details.platformValue : nil, size: 15)
                 if let countdown = details.countdown {
+                    separator
                     Text(countdown)
                         .font(TTFont.subhead.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
-                    separator
                 }
-                PlatformTag(number: details.hasPlatform ? details.platformValue : nil, size: 15)
                 if details.isExpress {
                     separator
                     HStack(spacing: TTSpace.s1) {

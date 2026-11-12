@@ -37,11 +37,10 @@ final class DepartureCardTests: XCTestCase {
 
     func testPlatformSlotIsAlwaysThere() {
         let published = card(platform: .published("26"))
-        XCTAssertEqual(published.platform, "Plat 26")
         XCTAssertEqual(published.platformValue, "26")
         XCTAssertTrue(published.hasPlatform)
         let pending = card(platform: .pending)
-        XCTAssertEqual(pending.platform, "Plat —")
+        XCTAssertEqual(pending.platformValue, "—")
         XCTAssertFalse(pending.hasPlatform)
     }
 

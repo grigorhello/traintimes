@@ -217,7 +217,7 @@ Settings is the third tab, under a large title "Settings" (D48, D57). It is six 
 | 1 | Time format | Glass switch: Auto · 12h · 24h | Default Auto (the device setting); every time in the app, in notifications and in VoiceOver follows it |
 | 1 | Notifications | A dot and a word, then a chevron | Green dot "On" while notifications are allowed; red dot "Off" once turned off in iOS Settings; grey dot "Off" while the app has never asked. Opens the Notifications page. Refreshed on foreground |
 | 2 | Send feedback | A chevron | Opens the feedback sheet (TT-202, D85) |
-| 2 | Email us | "support@traintimes.ca" and an outside arrow | Opens the rider's mail app to support@traintimes.ca, subject "Train Times" |
+| 2 | Email us | "support@traintimes.ca" and an outside arrow | Opens the rider's mail app to support@traintimes.ca, subject "Train Times"; with no mail app set up, copies the address and says so in an alert ("Address copied") |
 | 3 | About | The version, "1.0 (12)", then a chevron | Opens the About page |
 | 3 | Testing (TestFlight and Debug builds only, D49) | "Off", or in amber with a dot what is on ("Delays · Mock time"), then a chevron | Opens the Testing page. Installs from the App Store have no Testing row |
 

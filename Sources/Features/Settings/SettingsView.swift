@@ -47,7 +47,6 @@ struct SettingsMainPage: View {
     let open: (SettingsPage) -> Void
     @State private var showsFeedback = false
     @Environment(\.feedbackSender) private var feedbackSender
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
@@ -147,7 +146,7 @@ struct SettingsMainPage: View {
     }
 
     private var emailRow: some View {
-        Button { openURL(FeedbackViewModel.mailURL) } label: {
+        EmailUsButton {
             SettingsRow(title: "settings.support.email") {
                 SettingsValue(text: Text("settings.support.address"))
                 SettingsExternalArrow()

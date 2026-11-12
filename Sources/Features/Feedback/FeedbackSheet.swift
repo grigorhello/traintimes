@@ -7,7 +7,6 @@ struct FeedbackSheet: View {
     @State private var viewModel: FeedbackViewModel
     @FocusState private var focus: Field?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     /// Off in snapshots, so the keyboard does not come up.
     private let focusesMessage: Bool
 
@@ -164,7 +163,7 @@ struct FeedbackSheet: View {
                 .font(TTFont.subhead)
                 .foregroundStyle(TTColor.cancelInk)
                 .fixedSize(horizontal: false, vertical: true)
-            Button { openURL(FeedbackViewModel.mailURL) } label: {
+            EmailUsButton {
                 Text("feedback.email_instead").font(TTFont.subhead.weight(.semibold))
             }
             .buttonStyle(.ttText)

@@ -304,6 +304,9 @@
 "feedback.sent.body" = "We read every message.";
 "feedback.sent.reply" = "We’ll reply by email.";
 "feedback.done" = "Done";
+"feedback.copied.title" = "Address copied";
+"feedback.copied.body" = "No mail app is set up on this iPhone. Paste support@traintimes.ca into the email app you use.";
+"feedback.ok" = "OK";
 "schedule.feedback" = "Feedback";
 "settings.about" = "About";
 "settings.version" = "Version %@ (%@)";

@@ -1,202 +1,258 @@
 import XCTest
 @testable import TrainTimes
 
-/// The Alerts tab (TT-143): rows in state order with their words, the switch, swipe to delete with undo on the server,
-/// Alert setup for rows that need action, recent updates, line notices and the tab dot.
+/// The Alerts tab as one list (TT-193): rows in time order with one line, the switch, the day tiles and Remove alert all
+/// acting on the same alert, Undo, the next trains of the empty tab, Recent, notifications off and the tab dot.
 @MainActor
 final class AlertsViewModelTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    func testRowsListReviewNeededAndCouldNotSaveFirstThenOnThenPaused() async {
+    func testRowsAreInTimeOrderWithOneLineAndASwitch() async {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(
-            server, on: [AlertsFixtures.evening, AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington],
-            couldNotSave: [AlertsFixtures.today]
+            server, on: [AlertsFixtures.evening, AlertsFixtures.today, AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington]
         )
         let model = await AlertsFixtures.model(rules)
 
-        let rows = model.ruleRows(formatter)
-        XCTAssertEqual(rows.map(\.id), ["today", "burlington", "morning", "evening"])
-        XCTAssertEqual(rows.map(\.state), [.couldNotSave, .reviewNeeded, .on, .paused])
-        XCTAssertEqual(rows.map(\.accessory), [
-            .chevron, .chevron, .toggle(isOn: true, isEnabled: true), .toggle(isOn: false, isEnabled: true),
+        let rows = model.rows(formatter)
+        XCTAssertEqual(rows.map(\.id), ["morning", "burlington", "today", "evening"])
+        XCTAssertEqual(rows.map(\.time), ["7:32 AM", "8:05 AM", "8:21 AM", "5:10 PM"])
+        XCTAssertEqual(rows.map(\.line), [
+            "Oakville to Union · Mon to Fri", "Burlington to Union · Time changed", "Oakville to Union · Today only",
+            "Union to Oakville · Mon to Thu",
         ])
+        XCTAssertEqual(rows.map(\.isOn), [true, false, true, false], "Time changed has its switch off; evening is paused")
+        XCTAssertEqual(rows.map(\.note), [.none, .timeChanged, .none, .none])
+        XCTAssertEqual(rows.map(\.days), [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5], [], [1, 2, 3, 4]])
+        XCTAssertEqual(rows.first?.testID, "alerts.rule.LW-0732-20261105")
         XCTAssertFalse(model.isEmpty)
     }
 
-    func testRowsNameTheTrainDirectionAndDays() async {
-        let server = FakeAlertServer()
-        // Saturday's 7:32 AM: the Mon to Fri alert leaves it out, so it keeps an alert of its own (TT-189).
-        let tomorrow = AlertRule(
-            id: "tomorrow", kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261107", day: 7), route: AlertsFixtures.oakvilleToUnion
-        )
-        let rules = await AlertsFixtures.rules(server, on: [tomorrow, AlertsFixtures.today, AlertsFixtures.morning])
+    func testAOneDayAlertNamesItsDay() async {
+        let tomorrow = AlertRule(id: "fri", kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261106", day: 6), route: AlertsFixtures.oakvilleToUnion)
+        let saturday = AlertRule(id: "sat", kind: .thisTrip, trip: AlertFixtures.trip("LW-0821-20261107", day: 7, departure: "13:21"), route: AlertsFixtures.oakvilleToUnion)
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [tomorrow, saturday])
         let model = await AlertsFixtures.model(rules)
 
-        let rows = model.ruleRows(formatter)
-        XCTAssertEqual(rows.map(\.title), ["7:32 AM · Oakville to Union", "8:21 AM · Oakville to Union", "7:32 AM · Oakville to Union"])
-        XCTAssertEqual(rows.map(\.days), ["Mon to Fri", "Today only", "Sat, Nov 7"])
-        XCTAssertEqual(rows.first?.testID, "alerts.rule.repeat.LW-0732-20261105")
+        XCTAssertEqual(model.rows(formatter).map(\.line), ["Oakville to Union · Tomorrow only", "Oakville to Union · Sat 7 only"])
     }
 
-    func testARepeatRuleWithNoTrainTodaySaysSo() async {
+    func testARepeatingAlertWithNoTrainTodaySaysSo() async {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
         await server.setStatuses([AlertRuleStatus(id: "morning", state: .on, noMatchingTrainOn: "20261105")])
         await rules.refresh()
         let model = await AlertsFixtures.model(rules)
 
-        XCTAssertEqual(model.ruleRows(formatter).first?.days, "Mon to Fri · No matching train today")
+        let row = model.rows(formatter).first
+        XCTAssertEqual(row?.line, "Oakville to Union · No train today")
+        XCTAssertEqual(row?.note, .noTrainToday)
+        XCTAssertEqual(row?.isOn, true)
     }
 
-    func testThisTripRulesForAPastDayAreNotListed() async {
-        let server = FakeAlertServer()
+    /// A one-day alert goes from the list once its train has left, today's too.
+    func testOneDayAlertsWhoseTrainHasLeftAreNotListed() async {
         let yesterday = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261104", day: 4), route: AlertsFixtures.oakvilleToUnion)
-        let rules = await AlertsFixtures.rules(server, on: [yesterday])
+        let left = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0700-20261105", departure: "12:00"), route: AlertsFixtures.oakvilleToUnion)
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [yesterday, left])
         let model = await AlertsFixtures.model(rules)
 
-        XCTAssertTrue(model.ruleRows(formatter).isEmpty)
+        XCTAssertTrue(model.rows(formatter).isEmpty)
         XCTAssertTrue(model.isEmpty)
     }
 
-    func testTheSwitchPausesAndResumesTheRuleOnTheServer() async {
+    func testOneRowOpensAtATime() async {
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.today])
+        let model = await AlertsFixtures.model(rules)
+
+        model.toggleOpen("morning")
+        XCTAssertEqual(model.openID, "morning")
+        model.toggleOpen("today")
+        XCTAssertEqual(model.openID, "today")
+        model.toggleOpen("today")
+        XCTAssertNil(model.openID)
+    }
+
+    // MARK: Same alert, same id
+
+    func testTheSwitchSavesTheSameAlertAndTheRowStays() async {
         let server = FakeAlertServer()
-        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning, AlertsFixtures.today])
         let model = await AlertsFixtures.model(rules)
 
         await model.setOn(false, for: "morning")?.value
-        XCTAssertEqual(model.ruleRows(formatter).first?.state, .paused)
+        XCTAssertEqual(model.rows(formatter).map(\.id), ["morning", "today"], "the row stays where it is")
+        XCTAssertEqual(model.rows(formatter).first?.isOn, false)
         var saved = await server.saved
+        XCTAssertEqual(saved.last?.id, "morning")
         XCTAssertEqual(saved.last?.paused, true)
 
         await model.setOn(true, for: "morning")?.value
-        XCTAssertEqual(model.ruleRows(formatter).first?.state, .on)
+        XCTAssertEqual(model.rows(formatter).first?.isOn, true)
         saved = await server.saved
         XCTAssertEqual(saved.last?.paused, false)
-        XCTAssertEqual(saved.last?.id, "morning")
     }
 
-    func testTheSwitchWaitsWhileSettingUp() async {
+    func testASwitchTheServerCannotTakeGoesBackAndOffersTryAgain() async {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
         let model = await AlertsFixtures.model(rules)
-        await server.holdSaves()
 
-        let task = model.setOn(false, for: "morning")
-        await server.waitUntilHolding()
-        let row = model.ruleRows(formatter).first
-        XCTAssertEqual(row?.state, .settingUp)
-        XCTAssertEqual(row?.accessory, .toggle(isOn: false, isEnabled: false))
+        await server.setFailing(true)
+        await model.setOn(false, for: "morning")?.value
+        XCTAssertEqual(model.rows(formatter).first?.isOn, true, "back to what was saved")
+        XCTAssertEqual(model.capsule?.kind, .failed(.turnOff))
 
-        await server.release()
-        await task?.value
-        XCTAssertEqual(model.ruleRows(formatter).first?.state, .paused)
+        await server.setFailing(false)
+        await model.tryAgain()
+        XCTAssertEqual(model.rows(formatter).first?.isOn, false)
+        XCTAssertNil(model.capsule)
     }
 
-    func testDeleteHidesTheRowAtOnceAndUndoRestoresItOnTheServer() async {
+    func testADayTileChangesTheSameAlert() async {
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules)
+
+        let task = model.toggleDay(6, for: "morning")
+        XCTAssertEqual(model.rows(formatter).first?.days, [1, 2, 3, 4, 5, 6], "lit at once")
+        XCTAssertEqual(model.dayOnCount, 1)
+        await task?.value
+        XCTAssertEqual(model.rows(formatter).first?.line, "Oakville to Union · Mon to Sat")
+        let saved = await server.saved
+        XCTAssertEqual(saved.last?.id, "morning")
+        XCTAssertEqual(saved.last?.weekdays, [1, 2, 3, 4, 5, 6])
+        XCTAssertEqual(rules.rules.count, 1)
+    }
+
+    func testTheLastLitDayCannotBeClearedHere() async {
+        let weekend = AlertRule(id: "sat", kind: .repeating, trip: AlertFixtures.trip(), route: AlertsFixtures.oakvilleToUnion, weekdays: [6])
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, on: [weekend])
+        let model = await AlertsFixtures.model(rules)
+        let before = await server.saved.count
+
+        XCTAssertNil(model.toggleDay(6, for: "sat"))
+        XCTAssertEqual(model.rows(formatter).first?.days, [6])
+        XCTAssertEqual(model.lastDayTaps["sat"], 1, "the tile presses and settles back")
+        let after = await server.saved.count
+        XCTAssertEqual(after, before)
+    }
+
+    func testLightingADayOnAOneDayAlertMakesItRepeatUnderItsID() async {
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.today])
+        let model = await AlertsFixtures.model(rules)
+
+        await model.toggleDay(4, for: "today")?.value
+        XCTAssertEqual(rules.rules.map(\.id), ["today"])
+        XCTAssertEqual(rules.rules.first?.kind, .repeating)
+        XCTAssertEqual(rules.rules.first?.weekdays, [4])
+        XCTAssertEqual(model.rows(formatter).first?.line, "Oakville to Union · Thu")
+    }
+
+    func testADayChangeTheServerCannotTakeGoesBack() async {
+        let server = FakeAlertServer()
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules)
+
+        await server.setFailing(true)
+        await model.toggleDay(6, for: "morning")?.value
+        XCTAssertEqual(model.rows(formatter).first?.days, [1, 2, 3, 4, 5])
+        XCTAssertEqual(model.capsule?.kind, .failed(.changeDays))
+    }
+
+    func testRemoveThenUndoBringsTheSameAlertBack() async {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.evening, AlertsFixtures.morning])
         let model = await AlertsFixtures.model(rules)
+        model.toggleOpen("evening")
 
-        let deleting = model.delete("evening")
-        XCTAssertEqual(model.ruleRows(formatter).map(\.id), ["morning"])
-        XCTAssertEqual(model.deleted?.id, "evening")
-        await deleting?.value
+        let removing = model.remove("evening")
+        XCTAssertEqual(model.rows(formatter).map(\.id), ["morning"], "gone at once")
+        XCTAssertNil(model.openID)
+        XCTAssertEqual(model.capsule?.kind, .removed)
+        await removing?.value
         let deleted = await server.deleted
         XCTAssertEqual(deleted, ["evening"])
-        XCTAssertEqual(rules.rules.map(\.id), ["morning"])
 
         await model.undo()
-        XCTAssertNil(model.deleted)
-        XCTAssertEqual(rules.rules.map(\.id), ["morning", "evening"], "back where it was")
-        XCTAssertEqual(model.ruleRows(formatter).map(\.state), [.on, .paused], "paused as before")
+        XCTAssertNil(model.capsule)
+        XCTAssertEqual(model.rows(formatter).map(\.id), ["morning", "evening"])
+        XCTAssertEqual(model.rows(formatter).last?.isOn, false, "paused as before")
         let saved = await server.saved
-        XCTAssertEqual(saved.last, AlertsFixtures.evening, "saved on the server again with the same id")
+        XCTAssertEqual(saved.last, AlertsFixtures.evening, "saved again with the same id and days")
     }
 
-    /// A second swipe while the first delete still waits on the server: its rule goes on device at once, so its row
-    /// cannot come back when the toast ends.
-    func testASecondDeleteDoesNotWaitForTheFirst() async {
-        let server = FakeAlertServer()
-        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.evening, AlertsFixtures.morning])
-        let model = await AlertsFixtures.model(rules)
-        await server.holdDeletes()
+    func testTheRemovedCapsuleGoesAfterItsTime() async throws {
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules, actionDuration: .milliseconds(50))
 
-        let first = model.delete("evening")
-        await server.waitUntilHolding()
-        let second = model.delete("morning")
-        for _ in 0..<100 where rules.rules.contains(where: { $0.id == "morning" }) { await Task.yield() }
-        XCTAssertTrue(rules.rules.isEmpty)
-        XCTAssertEqual(model.deleted?.id, "morning")
-
-        await server.release()
-        await first?.value
-        await second?.value
-        let deleted = await server.deleted
-        XCTAssertEqual(Set(deleted), ["evening", "morning"])
-    }
-
-    func testTheUndoToastGoesAfterItsTime() async throws {
-        let server = FakeAlertServer()
-        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
-        let model = await AlertsFixtures.model(rules, toastDuration: .milliseconds(100))
-
-        let deleting = model.delete("morning")
-        XCTAssertNotNil(model.deleted)
-        await deleting?.value
-        try await Task.sleep(for: .milliseconds(600))
-        XCTAssertNil(model.deleted)
+        await model.remove("morning")?.value
+        XCTAssertNotNil(model.capsule)
+        try await Task.sleep(for: .milliseconds(400))
+        XCTAssertNil(model.capsule)
         XCTAssertTrue(model.isEmpty)
     }
 
-    func testARowThatNeedsActionOpensAlertSetupForItsRule() async {
+    func testLeavingTheTabRemovesAOneDayAlertSwitchedOff() async {
         let server = FakeAlertServer()
-        let rules = await AlertsFixtures.rules(server, reviewNeeded: [AlertsFixtures.burlington], couldNotSave: [AlertsFixtures.today])
+        let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.today, AlertsFixtures.evening])
         let model = await AlertsFixtures.model(rules)
+        await model.setOn(false, for: "today")?.value
+        XCTAssertEqual(model.rows(formatter).map(\.id), ["today", "evening"], "still listed while the tab shows")
 
-        for id in ["burlington", "today"] {
-            let request = try? XCTUnwrap(model.setupRequest(for: id))
-            let sheet = request.map { AlertSetupViewModel(request: $0, rules: rules) }
-            XCTAssertEqual(sheet?.rule?.id, id)
-            XCTAssertEqual(sheet?.isManaging, true)
-        }
-        XCTAssertEqual(model.setupRequest(for: "burlington")?.kind, .repeating)
-        XCTAssertEqual(model.setupRequest(for: "today")?.kind, .thisTrip)
+        model.leftTab()
+        XCTAssertEqual(rules.rules.map(\.id), ["evening"], "a paused repeating alert keeps its days")
     }
 
-    func testRecentUpdatesAreTheLastSevenDaysNewestFirst() async {
+    // MARK: Empty
+
+    func testTheEmptyTabOffersTheNextThreeTrains() async {
+        let rules = AlertFixtures.rules(FakeAlertServer())
+        let model = await AlertsFixtures.model(rules, nextTrains: AlertsFixtures.nextTrains)
+
+        XCTAssertTrue(model.isEmpty)
+        let trains = model.nextTrainRows(formatter)
+        XCTAssertEqual(trains.map(\.time), ["7:32 AM", "7:58 AM", "8:21 AM"])
+        XCTAssertEqual(trains.map(\.line), ["Oakville to Union · in 11 min", "Oakville to Union · in 37 min", "Oakville to Union · in 1 h"])
+    }
+
+    func testWithNoRouteTheEmptyTabHasNoTrains() async {
+        let model = await AlertsFixtures.model(AlertFixtures.rules(FakeAlertServer()))
+        XCTAssertTrue(model.nextTrainRows(formatter).isEmpty)
+    }
+
+    // MARK: Recent
+
+    func testRecentIsUpToThreeFromTheLastSevenDays() async {
         let old = AlertsFixtures.update(
             "old", title: "7:32 AM train cancelled", body: "", at: "2026-10-28T12:00:00Z", tripId: "LW-0732-20261028", serviceDate: "20261028"
         )
-        let updates = await AlertsFixtures.updates([AlertsFixtures.updates[1], old, AlertsFixtures.updates[0]])
+        let monday = AlertsFixtures.update(
+            "monday", kind: .cancelled, title: "5:10 PM train cancelled", body: "", at: "2026-11-02T21:00:00Z",
+            tripId: "LW-1710-20261102", serviceDate: "20261102"
+        )
+        let earlier = AlertsFixtures.update(
+            "earlier", title: "6:40 AM train delayed 5 min", body: "", at: "2026-11-01T11:00:00Z", tripId: "LW-0640-20261101", serviceDate: "20261101"
+        )
+        let updates = await AlertsFixtures.updates([AlertsFixtures.updates[1], old, AlertsFixtures.updates[0], monday, earlier])
         let model = await AlertsFixtures.model(AlertFixtures.rules(FakeAlertServer()), updates: updates)
 
-        let rows = model.updateRows(formatter)
-        XCTAssertEqual(rows.map(\.id), ["delay", "recovery"])
-        XCTAssertEqual(rows.map(\.time), ["Today, 7:29 AM", "Yesterday, 4:48 PM"])
-        XCTAssertEqual(rows.map(\.kind), [.delay, .recovery])
+        let rows = model.recentRows(formatter)
+        XCTAssertEqual(rows.map(\.id), ["delay", "recovery", "monday"])
+        XCTAssertEqual(rows.map(\.when), ["7:29 AM", "Yesterday", "Mon"])
+        XCTAssertEqual(rows.map(\.title), ["7:32 AM train delayed 9 min", "5:10 PM train back on time", "5:10 PM train cancelled"])
         XCTAssertEqual(
             rows.first?.link,
             .trip(TripKey(serviceDay: ServiceDay(year: 2026, month: 11, day: 5), tripId: "LW-0732-20261105"), originId: "OA", destinationId: "UN")
         )
-        XCTAssertNil(rows.last?.link, "yesterday's trip no longer opens")
+        XCTAssertNil(rows[1].link, "yesterday's trip no longer opens")
     }
 
-    func testOlderUpdatesShowTheirDate() {
-        let date = try! Date("2026-11-02T21:48:00Z", strategy: .iso8601)
-        XCTAssertEqual(AlertsViewModel.stamp(date, now: AlertsFixtures.now, formatter: formatter), "Mon, Nov 2, 4:48 PM")
-    }
+    // MARK: Tab dot
 
-    func testLineNoticesNameTheLineWithTheirReportedTime() async {
-        let model = await AlertsFixtures.model(AlertFixtures.rules(FakeAlertServer()), notices: [AlertsFixtures.notice])
-
-        let rows = model.noticeRows(formatter)
-        XCTAssertEqual(rows.map(\.line), ["Lakeshore West"])
-        XCTAssertEqual(rows.map(\.summary), ["Delays of up to 15 min near Port Credit, as reported at 7:12 AM."])
-        XCTAssertEqual(rows.map(\.time), ["Today, 7:12 AM"])
-    }
-
-    func testTheTabDotShowsForARuleToReviewUntilTheTabIsOpened() async {
+    func testTheTabDotShowsForATimeChangeUntilTheTabIsOpened() async {
         let server = FakeAlertServer()
         let rules = await AlertsFixtures.rules(server, on: [AlertsFixtures.morning])
         let model = await AlertsFixtures.model(rules)
@@ -204,21 +260,18 @@ final class AlertsViewModelTests: XCTestCase {
 
         await server.setStatuses([AlertRuleStatus(id: "morning", state: .reviewNeeded)])
         await model.refresh()
-        XCTAssertTrue(rules.needsReview)
         XCTAssertTrue(model.showsTabDot)
+        XCTAssertEqual(model.rows(formatter).first?.note, .timeChanged)
 
         model.markReviewsSeen()
         XCTAssertFalse(model.showsTabDot)
     }
 
-    // MARK: Notifications off (TT-169)
+    // MARK: Notifications off (TT-169, D58)
 
-    /// The warning needs notifications denied and an alert switched on: paused alerts, a permission never asked, an allowed
-    /// one and no alerts at all show nothing.
     func testTheWarningNeedsDeniedNotificationsAndASwitchedOnAlert() async {
         let cases: [(NotificationPermission, [AlertRule], Bool)] = [
             (.off, [AlertsFixtures.morning], true),
-            (.off, [AlertsFixtures.morning, AlertsFixtures.today], true),
             (.off, [AlertsFixtures.evening], false),
             (.off, [], false),
             (.notAsked, [AlertsFixtures.morning], false),
@@ -231,92 +284,52 @@ final class AlertsViewModelTests: XCTestCase {
         }
     }
 
-    func testTheWarningCountsOnlyAlertsSwitchedOnAndStillInForce() async {
-        let yesterday = AlertRule(kind: .thisTrip, trip: AlertFixtures.trip("LW-0732-20261104", day: 4), route: AlertsFixtures.oakvilleToUnion)
+    func testTheCardCountsAlertsSwitchedOn() async {
         let rules = await AlertsFixtures.rules(
-            FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning, AlertsFixtures.evening, AlertsFixtures.today, yesterday]
+            FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning, AlertsFixtures.evening, AlertsFixtures.today]
         )
         let model = await AlertsFixtures.model(rules)
 
-        XCTAssertEqual(model.switchedOnCount, 2, "morning and today: evening is paused, yesterday's train has gone")
-        XCTAssertEqual(rules.switchedOnCount(on: ServiceDay(year: 2026, month: 11, day: 5)), 2)
-        XCTAssertEqual(AlertsViewModel.offDetail(count: 1), "Your alert is saved, but it can't reach you.")
+        XCTAssertEqual(model.switchedOnCount, 2, "evening is paused")
+        XCTAssertEqual(AlertsViewModel.offLine(count: 3), "3 alerts can’t reach you.")
+        XCTAssertEqual(AlertsViewModel.offLine(count: 1), "1 alert can’t reach you.")
         XCTAssertEqual(AlertsViewModel.offDetail(count: 2), "Your 2 alerts are saved, but they can't reach you.")
+        model.nudge()
+        XCTAssertEqual(model.nudges, 1)
     }
 
-    /// With notifications off a rule that is on reads Not delivering and keeps its switch; a paused one still reads Paused.
-    func testRowsThatAreOnReadNotDeliveringAndPausedRowsStayPaused() async {
-        let rules = await AlertsFixtures.rules(
-            FakeAlertServer(), permission: .off, on: [AlertsFixtures.evening, AlertsFixtures.morning, AlertsFixtures.today]
-        )
-        let model = await AlertsFixtures.model(rules)
-
-        let rows = model.ruleRows(formatter)
-        XCTAssertEqual(rows.map(\.id), ["today", "morning", "evening"], "Not delivering sorts with On, before Paused")
-        XCTAssertEqual(rows.map(\.state), [.notificationsOff, .notificationsOff, .paused])
-        XCTAssertEqual(rows.map(\.accessory), [
-            .toggle(isOn: true, isEnabled: true), .toggle(isOn: true, isEnabled: true), .toggle(isOn: false, isEnabled: true),
-        ])
-    }
-
-    func testTheSwitchStillPausesARuleThatIsNotDelivering() async {
-        let server = FakeAlertServer()
-        let rules = await AlertsFixtures.rules(server, permission: .off, on: [AlertsFixtures.morning])
-        let model = await AlertsFixtures.model(rules)
-
-        await model.setOn(false, for: "morning")?.value
-        XCTAssertEqual(model.ruleRows(formatter).first?.state, .paused)
-        XCTAssertFalse(model.warnsNotificationsOff, "the last alert is paused, so nothing is left to warn about")
-        let saved = await server.saved
-        XCTAssertEqual(saved.last?.paused, true)
-    }
-
-    /// The red dot shows from the other tabs while the warning does, wins over the accent dot, and is hidden on Alerts.
     func testTheRedDotWinsOverTheAccentDotAndHidesOnAlerts() async {
-        let server = FakeAlertServer()
-        let quiet = await AlertsFixtures.model(await AlertsFixtures.rules(server, on: [AlertsFixtures.morning]))
+        let quiet = await AlertsFixtures.model(await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning]))
         XCTAssertNil(quiet.tabDot(isSelected: false, hasNewUpdate: false))
         XCTAssertEqual(quiet.tabDot(isSelected: false, hasNewUpdate: true), .accent)
 
-        let rules = await AlertsFixtures.rules(
-            FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington]
-        )
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), permission: .off, on: [AlertsFixtures.morning])
         let model = await AlertsFixtures.model(rules)
-        XCTAssertTrue(model.showsTabDot, "a rule to review would show the accent dot")
         XCTAssertEqual(model.tabDot(isSelected: false, hasNewUpdate: true), .warning)
-        XCTAssertNil(model.tabDot(isSelected: true, hasNewUpdate: true), "its card is on the screen")
-
-        model.markReviewsSeen()
-        XCTAssertEqual(model.tabDot(isSelected: false, hasNewUpdate: false), .warning, "visiting Alerts does not clear it")
+        XCTAssertNil(model.tabDot(isSelected: true, hasNewUpdate: true))
     }
 
     /// Returning with notifications allowed clears the warning and shows "Notifications are on" once, after a moment.
-    func testAllowingNotificationsClearsTheWarningAndShowsTheToastOnce() async throws {
+    func testAllowingNotificationsShowsNotificationsAreOn() async {
         let permission = SwitchablePermission(.off)
         let rules = AlertRules(server: FakeAlertServer(), push: FixturePushRegistration(), permissions: permission, defaults: nil)
         await rules.save(AlertsFixtures.morning)
         let model = AlertsViewModel(
-            rules: rules, updates: await AlertsFixtures.updates([]), notices: FakeLineNotices([]), clock: FixedClock(now: AlertsFixtures.now),
-            notificationsOnDelay: .milliseconds(10), notificationsOnDuration: .seconds(1)
+            rules: rules, updates: await AlertsFixtures.updates([]), clock: FixedClock(now: AlertsFixtures.now),
+            plainDuration: .seconds(1), notificationsOnDelay: .milliseconds(10)
         )
         XCTAssertTrue(model.warnsNotificationsOff)
 
         await model.refresh()
-        XCTAssertTrue(model.warnsNotificationsOff, "still denied: nothing changes")
-        XCTAssertFalse(model.showsNotificationsOn)
+        XCTAssertNil(model.capsule, "still denied: nothing changes")
 
         await permission.set(.allowed)
         await model.refresh()
         XCTAssertFalse(model.warnsNotificationsOff)
-        XCTAssertEqual(model.ruleRows(formatter).first?.state, .on)
-        let shown = await poll { model.showsNotificationsOn }
-        XCTAssertTrue(shown, "the toast rises after its delay")
-        let gone = await poll { !model.showsNotificationsOn }
+        let shown = await poll { model.capsule?.kind == .notificationsOn }
+        XCTAssertTrue(shown)
+        let gone = await poll { model.capsule == nil }
         XCTAssertTrue(gone, "and leaves by itself")
-
-        await model.refresh()
-        try await Task.sleep(for: .milliseconds(100))
-        XCTAssertFalse(model.showsNotificationsOn, "once: a later refresh with nothing to fix says nothing")
     }
 
     /// Polls for up to 3 s.

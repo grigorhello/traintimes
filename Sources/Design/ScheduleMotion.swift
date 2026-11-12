@@ -143,7 +143,7 @@ extension EnvironmentValues {
 }
 
 /// The unit test bundle is loaded into this run of the app (UI tests run the app on its own and still play the motion).
-private enum UnitTestHost {
+enum UnitTestHost {
     static let isRunning = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 }
 

@@ -1,7 +1,7 @@
 import Foundation
 @testable import TrainTimes
 
-/// The Alerts tab's test values (TT-143), as in design/frames/alerts.png, on the fixture clock (Thu Nov 5, 7:21 AM).
+/// The Alerts tab's test values (TT-143, TT-193), as in design/frames/alerts.png, on the fixture clock (Thu Nov 5, 7:21 AM).
 @MainActor
 enum AlertsFixtures {
     static let now = try! Date("2026-11-05T12:21:00Z", strategy: .iso8601)
@@ -78,12 +78,34 @@ enum AlertsFixtures {
     }
 
     static func model(
-        _ rules: AlertRules, updates: AlertUpdates? = nil, notices: [LineNotice] = [], toastDuration: Duration = .seconds(60)
+        _ rules: AlertRules, updates: AlertUpdates? = nil, nextTrains: (any NextTrainsProviding)? = nil,
+        actionDuration: Duration = .seconds(60)
     ) async -> AlertsViewModel {
         var resolved = updates
         if resolved == nil { resolved = await self.updates([]) }
         return AlertsViewModel(
-            rules: rules, updates: resolved!, notices: FakeLineNotices(notices), clock: FixedClock(now: now), toastDuration: toastDuration
+            rules: rules, updates: resolved!, nextTrains: nextTrains ?? NoNextTrains(), clock: FixedClock(now: now),
+            actionDuration: actionDuration
         )
+    }
+
+    /// Today's 7:00 (gone at 7:21), 7:32, 7:58, 8:21 and 9:05 AM trains, Oakville to Union.
+    static let nextTrains = FakeNextTrains(
+        route: oakvilleToUnion,
+        trips: [
+            AlertFixtures.trip("LW-0700-20261105", departure: "12:00"), AlertFixtures.trip("LW-0732-20261105", departure: "12:32"),
+            AlertFixtures.trip("LW-0758-20261105", departure: "12:58"), AlertFixtures.trip("LW-0821-20261105", departure: "13:21"),
+            AlertFixtures.trip("LW-0905-20261105", departure: "14:05"),
+        ]
+    )
+}
+
+/// Today's trains for the empty Alerts tab, without a Schedule view model (TT-193).
+@MainActor
+final class FakeNextTrains: NextTrainsProviding {
+    let nextTrains: (route: Route, trips: [Trip])?
+
+    init(route: Route, trips: [Trip]) {
+        nextTrains = (route, trips)
     }
 }

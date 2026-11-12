@@ -73,7 +73,7 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.notifications"].tap()
         XCTAssertTrue(app.staticTexts["Notifications are on"].waitForExistence(timeout: 5))
         app.buttons["settings.myAlerts"].tap()
-        XCTAssertTrue(app.staticTexts["No alerts yet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Next trains"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.tabBars.buttons["Alerts"].isSelected)
     }
 

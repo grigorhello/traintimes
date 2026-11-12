@@ -238,10 +238,10 @@ private struct ArrivalGate: ViewModifier {
     }
 }
 
-/// A day tile arriving in the panel: from 6 pt down and 0.94 on `TTMotion.cascade`, fading in over 120 ms, `order` × 20 ms
+/// A day tile arriving in the panel (and in an opened Alerts row, TT-193): from 6 pt down and 0.94 on `TTMotion.cascade`, fading in over 120 ms, `order` × 20 ms
 /// after the first at 160 ms. Reduce Motion: the fade alone. Each animation is scoped to its own properties, so the tile's
 /// place never moves on them.
-private struct TileArrival: ViewModifier {
+struct TileArrival: ViewModifier {
     let isOpen: Bool
     let order: Int
     let reduceMotion: Bool

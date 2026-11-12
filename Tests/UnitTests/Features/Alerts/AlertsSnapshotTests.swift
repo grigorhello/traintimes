@@ -3,67 +3,80 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The Alerts tab against design/frames/alerts.png, light and dark, and every rule state: Review needed, Could not save,
-/// Setting up, On and Paused, then notifications turned off (alerts-off.png, TT-169): the card on top and Not delivering on the
-/// rows that are on. The empty state (alerts-empty.png) is `AppShellSnapshotTests.testAlertsTab…`. Drawn in the host app's
-/// key window, in the tab view, as on the simulator; the card's bell does not shake.
+/// The Alerts tab as one list (TT-193) against the canvas's *Alerts-Tab* frames, light and dark: the list, a row opened in
+/// place, the exceptions (Time changed opened, No train today, a switched-off row) with Recent, notifications off with
+/// disabled switches, and the empty tab with the next trains. Drawn in the host app's key window, in the tab view, as on
+/// the simulator; the card's bell does not shake and the tiles are drawn settled.
 final class AlertsSnapshotTests: XCTestCase {
-    @MainActor func testAlertsLight() async throws { snap(try await frame(), .light) }
-    @MainActor func testAlertsDark() async throws { snap(try await frame(), .dark) }
-    @MainActor func testRuleStatesLight() async throws { try await ruleStates(.light) }
-    @MainActor func testRuleStatesDark() async throws { try await ruleStates(.dark) }
-    @MainActor func testNotificationsOffLight() async throws { snap(try await notificationsOff(), .light) }
-    @MainActor func testNotificationsOffDark() async throws { snap(try await notificationsOff(), .dark) }
+    @MainActor func testListLight() async throws { snap(try await list(), .light) }
+    @MainActor func testListDark() async throws { snap(try await list(), .dark) }
+    @MainActor func testOpenLight() async throws { snap(try await list(open: "morning"), .light) }
+    @MainActor func testOpenDark() async throws { snap(try await list(open: "morning"), .dark) }
+    @MainActor func testStatesLight() async throws { snap(try await states(), .light) }
+    @MainActor func testStatesDark() async throws { snap(try await states(), .dark) }
+    @MainActor func testMutedLight() async throws { snap(try await muted(), .light) }
+    @MainActor func testMutedDark() async throws { snap(try await muted(), .dark) }
+    @MainActor func testEmptyLight() async throws { snap(try await empty(), .light) }
+    @MainActor func testEmptyDark() async throws { snap(try await empty(), .dark) }
 
-    /// alerts.png: three rules, the two recent updates and the Lakeshore West notice. The rule needing review is listed
-    /// first, as the requirements order rows (D44).
+    /// *Alerts-Tab* and *-Open*: 7:32 AM Mon to Fri, 8:21 AM today only and 5:10 PM Mon to Thu.
     @MainActor
-    private func frame() async throws -> some View {
-        let rules = await AlertsFixtures.rules(
-            FakeAlertServer(), on: [AlertsFixtures.evening, AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington]
+    private func list(open: AlertRule.ID? = nil) async throws -> some View {
+        let evening = AlertRule(
+            id: "evening", kind: .repeating, trip: AlertFixtures.trip("LW-1710-20261105", departure: "22:10"),
+            route: AlertsFixtures.unionToOakville, weekdays: [1, 2, 3, 4]
         )
-        return try await root(rules, updates: AlertsFixtures.updates(), schedule: ScheduleViewModel.loadedFixture(.delayed))
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [evening, AlertsFixtures.today, AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules)
+        if let open { model.toggleOpen(open) }
+        return try await root(model)
     }
 
-    /// One row per state, with Setting up held on the server while the snapshot draws.
+    /// *Alerts-Tab-States*: Time changed opened, No train today, a switched-off row, then Recent.
     @MainActor
-    private func ruleStates(_ style: UIUserInterfaceStyle, testName: String = #function) async throws {
+    private func states() async throws -> some View {
         let server = FakeAlertServer()
+        let holiday = AlertRule(
+            id: "holiday", kind: .repeating, trip: AlertFixtures.trip("LW-1645-20261105", departure: "21:45"),
+            route: AlertsFixtures.unionToOakville, weekdays: [1, 2, 3, 4, 5]
+        )
         let rules = await AlertsFixtures.rules(
-            server, on: [AlertsFixtures.evening, AlertsFixtures.morning], reviewNeeded: [AlertsFixtures.burlington],
-            couldNotSave: [AlertsFixtures.today]
+            server, on: [AlertsFixtures.evening, holiday], reviewNeeded: [AlertsFixtures.morning]
         )
-        await server.holdSaves()
-        let settingUp = AlertRule(
-            id: "settingUp", kind: .thisTrip, trip: AlertFixtures.trip("LW-0758-20261105", departure: "12:58"), route: AlertsFixtures.oakvilleToUnion
-        )
-        let save = Task { await rules.save(settingUp) }
-        await server.waitUntilHolding()
-        snap(try await root(rules, updates: AlertsFixtures.updates([])), style, testName: testName)
-        await server.release()
-        await save.value
+        await server.setStatuses([
+            AlertRuleStatus(id: "morning", state: .reviewNeeded),
+            AlertRuleStatus(id: "holiday", state: .on, noMatchingTrainOn: "20261105"),
+            AlertRuleStatus(id: "evening", state: .on),
+        ])
+        await rules.refresh()
+        let model = await AlertsFixtures.model(rules, updates: await AlertsFixtures.updates())
+        model.toggleOpen("morning")
+        return try await root(model)
     }
 
-    /// alerts-off.png: two rules on and one paused, notifications denied, then the two updates and the notice.
+    /// *Alerts-Tab-Muted*: notifications off, the card on top, the switches disabled and no line under the list.
     @MainActor
-    private func notificationsOff() async throws -> some View {
+    private func muted() async throws -> some View {
         let rules = await AlertsFixtures.rules(
             FakeAlertServer(), permission: .off, on: [AlertsFixtures.evening, AlertsFixtures.morning, AlertsFixtures.today]
         )
-        return try await root(rules, updates: AlertsFixtures.updates(), schedule: ScheduleViewModel.loadedFixture(.delayed))
+        return try await root(await AlertsFixtures.model(rules))
+    }
+
+    /// *Alerts-Tab-Empty*: the lead, then the next three trains of the fixture route with their bells.
+    @MainActor
+    private func empty() async throws -> some View {
+        let model = await AlertsFixtures.model(AlertFixtures.rules(FakeAlertServer()), nextTrains: AlertsFixtures.nextTrains)
+        return try await root(model)
     }
 
     @MainActor
-    private func root(
-        _ rules: AlertRules, updates: AlertUpdates, schedule: ScheduleViewModel? = nil
-    ) async throws -> some View {
+    private func root(_ model: AlertsViewModel) async throws -> some View {
         let router = AppRouter()
         router.selectedTab = .alerts
-        var loaded = schedule
-        if loaded == nil { loaded = try await ScheduleViewModel.loadedFixture() }
         return RootView(
-            router: router, schedule: loaded, settings: AppSettings(defaults: .ephemeral()), bells: AlertBellModel(rules: rules),
-            alertUpdates: updates
+            router: router, schedule: try await ScheduleViewModel.loadedFixture(), settings: AppSettings(defaults: .ephemeral()),
+            bells: AlertBellModel(rules: model.rules), alertsModel: model
         )
         // The card's glass button and bell swing are drawn settled: dark glass differs from one run to the next (TT-163).
         .environment(\.rendersGlass, false)

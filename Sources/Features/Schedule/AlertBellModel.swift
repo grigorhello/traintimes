@@ -42,6 +42,9 @@ final class AlertBellModel {
             case notificationsOn
             /// "Tap the bell on a train", after the Alerts tab's "Add alert" (TT-143).
             case hint
+            /// "Tap the bell of your new train" with Cancel, after a Time changed row's "Pick a new train" (TT-193): the
+            /// bell tapped next takes over the old alert's days and the old alert goes. It stays until then.
+            case newTrain
         }
 
         enum Failure: Equatable {
@@ -67,7 +70,7 @@ final class AlertBellModel {
         var hasAction: Bool {
             switch kind {
             case .on: repeats.isEmpty
-            case .off, .failed, .notificationsOff: true
+            case .off, .failed, .notificationsOff, .newTrain: true
             case .notificationsOn, .hint: false
             }
         }
@@ -113,6 +116,8 @@ final class AlertBellModel {
     @ObservationIgnored private var daySaving: Task<Void, Never>?
     /// A one-day alert's delete on its way to the server: Undo waits for it, so its save lands after it.
     @ObservationIgnored private var offTask: Task<Void, Never>?
+    /// The alert whose usual train changed, while "Tap the bell of your new train" is up (TT-193).
+    @ObservationIgnored private(set) var replacing: AlertRule?
 
     private enum Retry {
         case turnOn(Trip, Route)
@@ -172,6 +177,10 @@ final class AlertBellModel {
         busy.insert(trip.key)
         defer { busy.remove(trip.key) }
         closePanel()
+        if let old = replacing {
+            await replace(old, with: trip, on: route)
+            return
+        }
         // A day change from the panel still saving for this alert (its bell shows on meanwhile): the tap acts once it has
         // settled, on what was saved.
         if let saving = daySaving, let id = rules.alert(for: trip, on: route)?.id, wanted?.ruleID == id { await saving.value }
@@ -364,15 +373,37 @@ final class AlertBellModel {
         show(.hint, trip: nil, route: nil)
     }
 
+    /// "Pick a new train" on a Time changed row (TT-193): "Tap the bell of your new train · Cancel" on Schedule, with no
+    /// time limit; the bell tapped next takes over this alert's days.
+    func pickNewTrain(replacing rule: AlertRule) {
+        show(.newTrain, trip: nil, route: nil)
+        replacing = rule
+    }
+
     func dismissCapsule() {
         hideTask?.cancel()
         capsule = nil
         undoRule = nil
         retry = nil
         panelRuleID = nil
+        replacing = nil
     }
 
     // MARK: Turning on and off
+
+    /// The new train for an alert whose usual train changed (TT-193): its alert takes over the old one's days (a one-day
+    /// alert stays one day) and, once it is on, the old alert goes.
+    private func replace(_ old: AlertRule, with trip: Trip, on route: Route) async {
+        replacing = nil
+        guard await mayAlert(trip, on: route) else { return }
+        let id = rules.alert(for: trip, on: route)?.id ?? UUID().uuidString.lowercased()
+        let rule = old.kind == .repeating
+            ? AlertRule(id: id, kind: .repeating, trip: trip, route: route, weekdays: old.weekdays)
+            : AlertRule(id: id, kind: .thisTrip, trip: trip, route: route)
+        await turnOn(rule, trip: trip, route: route)
+        guard isWorking(trip, on: route), rules.alert(for: trip, on: route)?.id != old.id else { return }
+        await rules.delete(old.id)
+    }
 
     /// A card with no alert (TT-189): the repeating alert for the same usual train takes this day too, so the train keeps
     /// one alert; otherwise a new This-trip alert.
@@ -509,11 +540,13 @@ final class AlertBellModel {
         undoRule = undo
         self.retry = retry
         panelRuleID = nil
+        replacing = nil
         scheduleHide(next)
     }
 
     private func scheduleHide(_ capsule: Capsule) {
         hideTask?.cancel()
+        guard capsule.kind != .newTrain else { return }
         let duration = capsule.kind == .hint ? hintDuration : capsule.hasAction ? actionDuration : plainDuration
         let id = capsule.id
         hideTask = Task { [weak self] in
@@ -531,7 +564,7 @@ extension AlertBellModel.Capsule.Kind {
     var glyph: CapsuleGlyph {
         switch self {
         case .on: .bellOn
-        case .off, .hint: .bellOff
+        case .off, .hint, .newTrain: .bellOff
         case .failed: .failed
         case .notificationsOff: .notificationsOff
         case .notificationsOn: .confirmed
@@ -567,6 +600,8 @@ extension AlertBellModel.Capsule {
             return String(localized: "alerts.notifications_on")
         case .hint:
             return String(localized: "alerts.add_hint")
+        case .newTrain:
+            return String(localized: "capsule.new_train")
         }
     }
 
@@ -588,7 +623,7 @@ extension AlertBellModel.Capsule {
         switch kind {
         case .failed, .notificationsOff: true
         case .on: isPanelOpen
-        case .off, .notificationsOn, .hint: false
+        case .off, .notificationsOn, .hint, .newTrain: false
         }
     }
 
@@ -600,6 +635,7 @@ extension AlertBellModel.Capsule {
         case .off: "button.undo"
         case .failed: "button.try_again"
         case .notificationsOff: "capsule.turn_on"
+        case .newTrain: "button.cancel"
         case .notificationsOn, .hint: nil
         }
     }

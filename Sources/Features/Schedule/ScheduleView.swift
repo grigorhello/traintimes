@@ -629,7 +629,7 @@ struct ScheduleView: View {
         )
     }
 
-    /// Repeat, Undo, Try again or Turn on.
+    /// Repeat, Undo, Try again, Turn on or Cancel.
     private func act(on capsule: AlertBellModel.Capsule, bells: AlertBellModel) {
         switch capsule.kind {
         case .on:
@@ -642,6 +642,8 @@ struct ScheduleView: View {
             // Back with notifications on, the bell that was tapped turns on (TT-190).
             bells.turnOnInSettings()
             openURL(AlertBellModel.notificationSettingsURL)
+        case .newTrain:
+            bells.dismissCapsule()
         case .notificationsOn, .hint:
             break
         }

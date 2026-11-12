@@ -69,24 +69,20 @@ private struct PanelReveal: ViewModifier, Animatable {
     }
 }
 
-/// A button turning and scaling into or out of its place: at rest at 1, away at `degrees` and half size, fading in the
-/// first half. The X arrives from -135° and leaves to -90°; the swap button arrives from +90° and leaves to +90°.
-private struct Turn: ViewModifier, Animatable {
-    /// 0 is away, 1 is at rest; the spring may overshoot.
-    var progress: Double
+/// A button glyph turning and scaling into or out of its place: at rest at 1, away at `degrees`, half size and clear. The X
+/// arrives from -135° and leaves to -90°; the swap arrows arrive from +90° and leave to +90°. Built from SwiftUI's own
+/// rotation, scale and opacity, which SwiftUI moves frame by frame by itself: a custom `Animatable` progress needs its body
+/// run on every frame, and inside the route card's paused `TimelineView` it was not, so the turn and the size caught up in
+/// jumps 0.9 s and 1.7 s after the tap (TT-196).
+private struct Turn: ViewModifier {
     let degrees: Double
-
-    // `ViewModifier` is main-actor isolated, `Animatable` is not: the witness is `nonisolated` (it only reads and writes a Double).
-    nonisolated var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
+    let isAway: Bool
 
     func body(content: Content) -> some View {
         content
-            .rotationEffect(.degrees(degrees * (1 - progress)))
-            .scaleEffect(0.5 + 0.5 * progress)
-            .opacity(min(1, max(0, progress * 2)))
+            .rotationEffect(.degrees(isAway ? degrees : 0))
+            .scaleEffect(isAway ? 0.5 : 1)
+            .opacity(isAway ? 0 : 1)
     }
 }
 
@@ -116,9 +112,9 @@ extension AnyTransition {
     /// comes in 40 ms later from -135° on a bouncy spring. Closing, the X leaves to -90° the same way.
     static var pickerCancelButton: AnyTransition {
         .asymmetric(
-            insertion: .modifier(active: Turn(progress: 0, degrees: -135), identity: Turn(progress: 1, degrees: -135))
+            insertion: .modifier(active: Turn(degrees: -135, isAway: true), identity: Turn(degrees: -135, isAway: false))
                 .animation(PickerMotion.buttonIn),
-            removal: .modifier(active: Turn(progress: 0, degrees: -90), identity: Turn(progress: 1, degrees: -90))
+            removal: .modifier(active: Turn(degrees: -90, isAway: true), identity: Turn(degrees: -90, isAway: false))
                 .animation(PickerMotion.buttonOut)
         )
     }
@@ -126,9 +122,9 @@ extension AnyTransition {
     /// The swap button in the card: it arrives from +90° at half size (40 ms after the X has left) and leaves to +90°.
     static var pickerSwapButton: AnyTransition {
         .asymmetric(
-            insertion: .modifier(active: Turn(progress: 0, degrees: 90), identity: Turn(progress: 1, degrees: 90))
+            insertion: .modifier(active: Turn(degrees: 90, isAway: true), identity: Turn(degrees: 90, isAway: false))
                 .animation(PickerMotion.buttonIn),
-            removal: .modifier(active: Turn(progress: 0, degrees: 90), identity: Turn(progress: 1, degrees: 90))
+            removal: .modifier(active: Turn(degrees: 90, isAway: true), identity: Turn(degrees: 90, isAway: false))
                 .animation(PickerMotion.buttonOut)
         )
     }

@@ -41,6 +41,8 @@ struct FeedbackSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.easeOut(duration: 0.25), value: viewModel.phase)
         .background(TTColor.canvas)
+        // A container, so the identifier stays on the sheet and Close, Send and Done keep their own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sheet.feedback")
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)

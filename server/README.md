@@ -5,6 +5,7 @@ TT-140, decisions D38 and D43. A Cloudflare Worker with a D1 database, on the fr
 | File | Holds |
 |---|---|
 | `src/api.ts` | The app's API (the routes are listed at the top of the file) |
+| `src/feedback.ts` | Feedback and questions from the app (`POST /v1/feedback`, TT-202, D85) |
 | `src/upload.ts` | The daily timetable upload, checked against the workflow's GitHub OIDC token |
 | `src/monitor.ts` | The minute cycle, storing the timetable, and retention |
 | `src/alerts.ts` | The alert rules (thresholds, updates, coalescing, window, expiry) |
@@ -19,6 +20,10 @@ TT-140, decisions D38 and D43. A Cloudflare Worker with a D1 database, on the fr
 ## Live Activity (TT-178, D74)
 
 The app sends its push-to-start token with the registration (`startToken`) and reports each before-departure activity to `PUT /v1/installations/:id/activities` (its update token, and `handedOff` once "I’m on board" turned it into the ride). For each alerted train whose installation has a push-to-start token, the minute cycle sends `event: start` 30 min before the expected departure (topic `ca.traintimes.TrainTimes.push-type.liveactivity`, the alert "Your 5:13 PM train is live"), once; `update` only when what the rider sees changes; and `end` 2 min after the train left, or at once when it is cancelled. Nothing more once the app reports the hand-off. These sends count toward the cycle's 45. GO's feeds post no platforms, so the server's activity always says "Check the board"; without live status it counts down on the timetable ("Scheduled"). The same .p8 key signs these pushes; nothing more to set up at Apple.
+
+## Feedback (TT-202, D85)
+
+The app's feedback sheet posts `{ kind, message, email?, appVersion, device, osVersion }` to `POST /v1/feedback`; the Worker checks it and stores it in the `feedback` table (no installation id; the email only when the rider gives one for a reply; kept a year). At most 300 messages a day are taken, against a script filling the table. To read them: Cloudflare dashboard › Storage & Databases › D1 › `traintimes-alerts` › Console, `SELECT datetime(created_at / 1000, 'unixepoch') AS at, kind, message, email, app_version, device FROM feedback ORDER BY id DESC;`, or ask a Claude session to read them through the Cloudflare connector.
 
 ## Free plan
 

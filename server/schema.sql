@@ -79,3 +79,17 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS rules_departure ON rules (departure);
 CREATE INDEX IF NOT EXISTS watches_service_date ON watches (service_date);
 CREATE INDEX IF NOT EXISTS activities_service_date ON activities (service_date);
+
+-- Feedback and questions from the app (TT-202, D85). New table only, like the ones above. No installation id; the email is
+-- optional, for a reply. Kept a year (daily retention).
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at INTEGER NOT NULL,      -- epoch ms
+  kind TEXT NOT NULL,               -- 'feedback' or 'question'
+  message TEXT NOT NULL,
+  email TEXT,
+  app_version TEXT NOT NULL,        -- '1.0 (45)'
+  device TEXT NOT NULL,             -- model identifier, 'iPhone18,1'
+  os_version TEXT NOT NULL          -- '26.1.0'
+);
+CREATE INDEX IF NOT EXISTS feedback_created_at ON feedback (created_at);

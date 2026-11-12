@@ -5,7 +5,8 @@ enum SettingsPage: Hashable {
     case notifications, about, testing
 }
 
-/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in two cards, the Testing
+/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in three cards (Support
+/// since TT-202, D85), the Testing
 /// row in TestFlight and Debug builds only. Time format changes in one tap; Notifications, About and Testing open their own
 /// pages. No Appearance row: the app follows the iOS appearance (D84).
 /// Nothing here is needed to use the timetable; no login, payment, advertising or rating prompt (D5).
@@ -44,6 +45,9 @@ struct SettingsView: View {
 struct SettingsMainPage: View {
     @Bindable var viewModel: SettingsViewModel
     let open: (SettingsPage) -> Void
+    @State private var showsFeedback = false
+    @Environment(\.feedbackSender) private var feedbackSender
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
@@ -62,6 +66,11 @@ struct SettingsMainPage: View {
                     notificationsRow
                 }
                 SettingsCard {
+                    feedbackRow
+                    SettingsHairline()
+                    emailRow
+                }
+                SettingsCard {
                     aboutRow
                     if viewModel.showsTesting {
                         SettingsHairline()
@@ -74,6 +83,7 @@ struct SettingsMainPage: View {
         }
         .background(TTColor.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showsFeedback) { FeedbackSheet(viewModel: FeedbackViewModel(sender: feedbackSender)) }
     }
 
     // MARK: Rows
@@ -123,6 +133,30 @@ struct SettingsMainPage: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("settings.notifications")
+    }
+
+    /// Support (TT-202, D85): the feedback sheet, and the rider's mail app as the fallback.
+    private var feedbackRow: some View {
+        Button { showsFeedback = true } label: {
+            SettingsRow(title: "settings.support.feedback") { SettingsChevron() }
+        }
+        .buttonStyle(SettingsRowButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("settings.feedback")
+    }
+
+    private var emailRow: some View {
+        Button { openURL(FeedbackViewModel.mailURL) } label: {
+            SettingsRow(title: "settings.support.email") {
+                SettingsValue(text: Text("settings.support.address"))
+                SettingsExternalArrow()
+            }
+        }
+        .buttonStyle(SettingsRowButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("settings.emailUs")
     }
 
     private var aboutRow: some View {

@@ -4,7 +4,7 @@ import SwiftUI
 /// tall like the Notice chip (solid, as text never sits on glass), icon only while the Notice chip shares the row. It opens the feedback sheet. To remove it after the early
 /// stage, set `isEarlyStage` to false; Settings › Support stays.
 struct FeedbackPill: View {
-    static let isEarlyStage = true
+    nonisolated static let isEarlyStage = true
 
     /// Icon only, so the line's name keeps its room next to the Notice chip.
     var compact = false

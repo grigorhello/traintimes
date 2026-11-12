@@ -1,9 +1,10 @@
 // Train Times alert server (TT-140, D38): a Cloudflare Worker with a D1 database, on the Workers Free plan (D43).
-// - fetch: the app's API (src/api.ts) and the daily timetable upload from GitHub Actions (src/upload.ts).
+// - fetch: the app's API (src/api.ts), feedback (src/feedback.ts) and the daily timetable upload from GitHub Actions (src/upload.ts).
 // - every minute: the monitoring cycle (src/monitor.ts).
 // - daily: retention.
 
 import { handleRequest } from './api.ts';
+import { handleFeedback } from './feedback.ts';
 import { ApnsClient } from './apns.ts';
 import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed, type Feed } from './realtime.ts';
@@ -65,7 +66,9 @@ async function githubKeys(): Promise<JWKS> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
-      if (new URL(request.url).pathname.startsWith('/v1/timetables/')) {
+      const pathname = new URL(request.url).pathname;
+      if (pathname === '/v1/feedback') return await handleFeedback(request, env.DB, Date.now());
+      if (pathname.startsWith('/v1/timetables/')) {
         return await handleTimetableUpload(request, env.DB, Date.now(), env.TIMETABLE_WORKFLOW, githubKeys);
       }
       return await handleRequest(request, env.DB, Date.now());

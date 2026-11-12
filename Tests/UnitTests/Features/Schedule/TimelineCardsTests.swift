@@ -15,7 +15,7 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(next.relativeTime, "in 11 min")
         XCTAssertEqual(next.status, .onTime)
         XCTAssertEqual(next.arrivalTime, "8:12 AM")
-        XCTAssertEqual(next.tripLength, "40 min")
+        XCTAssertEqual(next.tripLength, "40 min ride")
         XCTAssertEqual(next.platform, "Plat 2")
         XCTAssertEqual(next.platformValue, "2")
         XCTAssertTrue(next.hasPlatform)
@@ -71,7 +71,7 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(card.status, .delayed(minutes: 9))
         XCTAssertTrue(card.isDelayed)
         XCTAssertEqual(card.arrivalTime, "8:21 AM")
-        XCTAssertEqual(card.tripLength, "40 min", "Arrival minus departure of the shown times")
+        XCTAssertEqual(card.tripLength, "40 min ride", "Arrival minus departure of the shown times")
         XCTAssertEqual(card.relativeTime, "in 20 min")
         XCTAssertFalse(card.isCancelled)
 

@@ -300,7 +300,7 @@
 "feedback.try_again" = "Try again";
 "feedback.failed" = "Couldn’t send. Check your connection and try again.";
 "feedback.email_instead" = "Email us instead";
-"feedback.sent.title" = "Thanks!";
+"feedback.sent.title" = "Thank you";
 "feedback.sent.body" = "We read every message.";
 "feedback.sent.reply" = "We’ll reply by email.";
 "feedback.done" = "Done";

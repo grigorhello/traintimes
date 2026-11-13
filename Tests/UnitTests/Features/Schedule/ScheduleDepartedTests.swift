@@ -32,9 +32,9 @@ final class ScheduleDepartedTests: XCTestCase {
 
     /// A delayed train leaves at its expected time, not its scheduled one.
     func testADelayedTrainLeavesAtItsExpectedTime() async throws {
-        let (late, _) = try await model(.delayed, at: 7, 35)
+        let late = try await ScheduleViewModel.liveFixture(.delayed, minutesLater: 14) // 7:35, expected 7:41
         XCTAssertFalse(try XCTUnwrap(late.cards(formatter).first).isDeparted)
-        let (gone, _) = try await model(.delayed, at: 7, 41)
+        let gone = try await ScheduleViewModel.liveFixture(.delayed, minutesLater: 20) // 7:41
         let card = try XCTUnwrap(gone.cards(formatter).first)
         XCTAssertTrue(card.isDeparted)
         XCTAssertEqual(card.shownStatus, .departed)

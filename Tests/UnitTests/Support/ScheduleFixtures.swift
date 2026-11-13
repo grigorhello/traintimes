@@ -22,4 +22,21 @@ extension ScheduleViewModel {
         if dayIndex < 0 { await model.select(model.pastDays[model.pastDays.count + dayIndex]) }
         return model
     }
+
+    /// The fixture route `minutesLater` than 7:21 AM with its live status as if just fetched then, so a delay still
+    /// counts (stale live data falls back to the timetable, D13). No line notice.
+    @MainActor
+    static func liveFixture(
+        _ scenario: FixtureScheduleRepository.Scenario = .normal, minutesLater: Int
+    ) async throws -> ScheduleViewModel {
+        let fixtures = try FixtureScheduleRepository(scenario: scenario, bundle: Bundle(for: BundleToken.self))
+        let now = fixtures.now.addingTimeInterval(TimeInterval(minutesLater * 60))
+        var live = try await fixtures.liveStatus(for: fixtures.route, on: fixtures.serviceDay)
+        live.updatedAt = now
+        let trips = try await fixtures.trips(for: fixtures.route, on: fixtures.serviceDay)
+        let repository = StubScheduleRepository(tripList: trips, live: live, stopList: [])
+        let model = ScheduleViewModel(route: fixtures.route, repository: repository, clock: FixedClock(now: now))
+        await model.loadIfNeeded()
+        return model
+    }
 }

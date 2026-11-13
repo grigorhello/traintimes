@@ -191,7 +191,9 @@ extension TimelineLayout {
 
         // Shift everything down so the first card and marker sit 16 pt below the top, and Now can sit 5 min below it.
         let nowOffset = CGFloat(TTTimeline.nowOffsetFromTopMinutes) * ppm
-        let firstCardTop = breakY[cardBreak[0]] - size(0).anchor - lift(0)
+        // Today always keeps room for the first card's stepped-up place, so the content does not move under the rider when
+        // the day's first train leaves (D86).
+        let firstCardTop = breakY[cardBreak[0]] - size(0).anchor - (input.now == nil ? 0 : TTTimeline.departedLift)
         var top = min(firstCardTop, breakY[markerBreak[0]] - Self.markerRoom / 2) - gap
         if let now = input.now { top = min(top, rawY(minutes(now)) - nowOffset) }
         let contentTop = top

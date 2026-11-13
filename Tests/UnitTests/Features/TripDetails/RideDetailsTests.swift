@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-172: the ride display model through the demo ride's moments (Live-Ride), the ride strip, the "I'm on board" window
+/// TT-172, TT-204: the ride display model through the demo ride's moments (Live-Ride-Lean), the ride strip, the "I'm on board" window
 /// and the first-ride permission sheet, and Demo trains › Ride.
 @MainActor
 final class RideDetailsTests: XCTestCase {
@@ -15,101 +15,85 @@ final class RideDetailsTests: XCTestCase {
         try XCTUnwrap(rig.onBoard.details(for: rig.key, formatter: formatter))
     }
 
-    // MARK: The demo ride's moments
+    // MARK: The demo ride's moments (TT-204, D87: Live-Ride-Lean)
 
-    func testRidingShowsTheNextStopAndYourStop() async throws {
+    func testRidingShowsYourStopAndTheMinutesToIt() async throws {
         let rig = await DemoRideRig.started()
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .riding)
-        XCTAssertEqual(ride.label, "Next stop")
-        XCTAssertEqual(ride.name, "Port Credit GO")
-        XCTAssertEqual(ride.countdown, "4 min")
-        XCTAssertEqual(ride.countdownTime, "5:36 PM")
-        XCTAssertEqual(ride.detail, "5:36 PM · On time")
-        XCTAssertEqual(ride.yourStop, RideDetails.YourStop(name: "Clarkson GO", minutes: "11 min", time: "5:43 PM"))
-        XCTAssertEqual(ride.source, .live("Live · your location"))
-        XCTAssertEqual(ride.freshness, "Updated just now")
-        XCTAssertEqual(ride.stopsHeader, "2 stops to Clarkson")
-        XCTAssertEqual(ride.stopsBasis, "Expected")
-        XCTAssertEqual(ride.stops.map(\.time), ["5:13 PM", "5:19 PM", "5:25 PM", "5:30 PM", "5:36 PM", "5:43 PM"])
+        XCTAssertEqual(ride.kicker, "Your stop")
+        XCTAssertFalse(ride.isKickerAccent)
+        XCTAssertEqual(ride.countdown, "11 min")
+        XCTAssertNil(ride.late, "Nothing says On time")
+        // The list ends at your stop; passed stops have no time.
+        XCTAssertEqual(ride.stops.map(\.id), ["UN", "EX", "MI", "LO", "PO", "CL"])
+        XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, "5:36 PM", "5:43 PM"])
         XCTAssertEqual(ride.stops.map(\.isDone), [true, true, true, true, false, false])
         XCTAssertEqual(ride.stops.map(\.isNext), [false, false, false, false, true, false])
         XCTAssertEqual(ride.stops.map(\.isYours), [false, false, false, false, false, true])
+        XCTAssertFalse(ride.stops.contains(where: \.isLate))
         // 80 s of the 320 s from Long Branch to Port Credit: a quarter of the way.
         XCTAssertEqual(ride.trainPosition ?? 0, 3.25, accuracy: 0.01)
         XCTAssertFalse(ride.isTinted)
-        XCTAssertFalse(ride.highlightsYourStop)
         XCTAssertFalse(ride.pingsYourStop)
         XCTAssertEqual(ride.title, "5:13 PM train")
         XCTAssertEqual(ride.button, "End ride")
-        XCTAssertEqual(
-            ride.footnote, "A tap about 1 min before Clarkson and again when the train stops. Location is used only during this ride."
-        )
     }
 
-    func testAtAStationTheCardSaysNowAt() async throws {
+    func testAtTheStopBeforeYoursYourStopIsNext() async throws {
         let rig = await DemoRideRig.started(at: t(17, 36, 20))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .atStation)
-        XCTAssertEqual(ride.label, "Now at")
-        XCTAssertEqual(ride.name, "Port Credit GO")
-        XCTAssertEqual(ride.countdown, "Now")
-        XCTAssertEqual(ride.detail, "Your stop is next")
-        XCTAssertEqual(ride.yourStop?.minutes, "7 min")
-        XCTAssertEqual(ride.stopsHeader, "1 stop to Clarkson")
+        XCTAssertEqual(ride.kicker, "Your stop is next")
+        XCTAssertTrue(ride.isKickerAccent)
+        XCTAssertEqual(ride.countdown, "7 min")
         XCTAssertEqual(ride.trainPosition, 4)
         XCTAssertEqual(ride.stops.map(\.isDone), [true, true, true, true, true, false])
+        XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, nil, "5:43 PM"])
         XCTAssertEqual(ride.stops.last?.isNext, true)
     }
 
-    func testYourStopNextTintsAndRingsYourStop() async throws {
+    func testYourStopNextRingsYourStop() async throws {
         let rig = await DemoRideRig.started(at: t(17, 38))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .yourStopNext)
-        XCTAssertEqual(ride.label, "Next stop · yours")
-        XCTAssertEqual(ride.name, "Clarkson GO")
+        XCTAssertEqual(ride.kicker, "Your stop is next")
+        XCTAssertTrue(ride.isKickerAccent)
         XCTAssertEqual(ride.countdown, "5 min")
-        XCTAssertEqual(ride.detail, "5:43 PM · On time")
-        XCTAssertNil(ride.yourStop, "The card is about your stop now")
-        XCTAssertEqual(ride.stopsHeader, "Clarkson is next")
-        XCTAssertTrue(ride.highlightsYourStop)
         XCTAssertTrue(ride.pingsYourStop)
         XCTAssertFalse(ride.isTinted)
     }
 
-    func testArrivingTintsTheCard() async throws {
+    func testArrivingTintsTheHero() async throws {
         let rig = await DemoRideRig.started(at: t(17, 42, 20))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .arriving)
-        XCTAssertEqual(ride.label, "Arriving at your stop")
+        XCTAssertEqual(ride.kicker, "Arriving at your stop")
         XCTAssertEqual(ride.countdown, "1 min")
-        XCTAssertEqual(ride.detail, "Get ready to step off")
         XCTAssertTrue(ride.isTinted)
         XCTAssertTrue(ride.pingsYourStop)
         XCTAssertNotNil(ride.trainPosition)
     }
 
-    func testAtYourStopTheRideIsComplete() async throws {
+    func testAtYourStopItSaysNowAndShowsYourStopsTime() async throws {
         let rig = await DemoRideRig.started(at: t(17, 43, 5))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .atYourStop)
-        XCTAssertEqual(ride.label, "This is your stop")
+        XCTAssertEqual(ride.kicker, "This is your stop")
         XCTAssertEqual(ride.countdown, "Now")
-        XCTAssertEqual(ride.detail, "On time · Ride complete")
-        XCTAssertEqual(ride.source, .complete)
-        XCTAssertEqual(ride.freshness, "5:43 PM")
-        XCTAssertEqual(ride.stopsHeader, "You are at Clarkson")
+        XCTAssertNil(ride.late)
         XCTAssertNil(ride.trainPosition, "The tick takes the train's place")
         XCTAssertEqual(ride.railFill, 5)
         XCTAssertTrue(ride.isComplete)
+        XCTAssertTrue(ride.isTinted)
         XCTAssertFalse(ride.pingsYourStop)
-        XCTAssertTrue(ride.highlightsYourStop)
         XCTAssertEqual(ride.button, "Done")
         XCTAssertTrue(ride.stops.allSatisfy(\.isDone))
+        XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, nil, "5:43 PM"])
 
         // Standing at your stop is not running late.
         rig.drive(to: t(17, 50))
-        XCTAssertEqual(try details(rig).detail, "On time · Ride complete")
+        XCTAssertNil(try details(rig).late)
     }
 
     func testTheRideEndsTenMinutesAfterYourStopAndStaysCompleteInTheOpenSheetOnly() async throws {
@@ -135,31 +119,38 @@ final class RideDetailsTests: XCTestCase {
         plan().stops.first { $0.station.id == id }?.station
     }
 
-    func testALateTrainMovesTheTimesAheadAndSaysDelayed() throws {
+    func testALateTrainSaysHowLateAndMovesTheTimesAhead() throws {
         let state = RideState(
             phase: .riding, currentStop: nil, nextStop: station("PO"), stopsLeft: 2, minutesToYourStop: 13,
-            expectedArrival: t(17, 45), source: .trainFeed, lastUpdate: t(17, 30)
+            expectedArrival: t(17, 48), source: .trainFeed, lastUpdate: t(17, 30)
         )
         let ride = try XCTUnwrap(RideDetails(plan: plan(), state: state, now: t(17, 32), formatter: formatter))
-        XCTAssertEqual(ride.countdown, "6 min")
-        XCTAssertEqual(ride.countdownTime, "5:38 PM")
-        XCTAssertEqual(ride.detail, "5:38 PM · Delayed 2 min")
-        XCTAssertEqual(ride.yourStop?.time, "5:45 PM")
-        XCTAssertEqual(ride.source, .live("Live · GO train data"))
-        XCTAssertEqual(ride.freshness, "Updated 2 min ago")
-        // Passed stops keep their timetable times; the ones ahead are expected.
-        XCTAssertEqual(ride.stops.map(\.time), ["5:13 PM", "5:19 PM", "5:25 PM", "5:30 PM", "5:38 PM", "5:45 PM"])
+        XCTAssertEqual(ride.kicker, "Your stop")
+        XCTAssertEqual(ride.countdown, "16 min")
+        XCTAssertEqual(ride.late, "5 min late")
+        XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, "5:41 PM", "5:48 PM"])
+        XCTAssertEqual(ride.stops.map(\.isLate), [false, false, false, false, true, true])
     }
 
-    func testOnTheTimetableTheDotIsGreyAndTheTimesScheduled() throws {
+    func testUnderAMinuteLateIsOnTime() throws {
+        let state = RideState(
+            phase: .riding, currentStop: nil, nextStop: station("PO"), stopsLeft: 2, minutesToYourStop: 11,
+            expectedArrival: t(17, 43, 25), source: .trainFeed, lastUpdate: t(17, 30)
+        )
+        let ride = try XCTUnwrap(RideDetails(plan: plan(), state: state, now: t(17, 32), formatter: formatter))
+        XCTAssertNil(ride.late)
+        XCTAssertFalse(ride.stops.contains(where: \.isLate))
+    }
+
+    func testOnTheTimetableTheScreenIsTheSame() throws {
         let state = RideState(
             phase: .riding, currentStop: nil, nextStop: station("PO"), stopsLeft: 2, minutesToYourStop: 11,
             expectedArrival: t(17, 43), source: .timetable, lastUpdate: nil
         )
         let ride = try XCTUnwrap(RideDetails(plan: plan(), state: state, now: t(17, 32), formatter: formatter))
-        XCTAssertEqual(ride.source, .timetable)
-        XCTAssertNil(ride.freshness)
-        XCTAssertEqual(ride.stopsBasis, "Scheduled")
+        XCTAssertEqual(ride.kicker, "Your stop")
+        XCTAssertEqual(ride.countdown, "11 min")
+        XCTAssertNil(ride.late)
     }
 
     // MARK: The ride strip

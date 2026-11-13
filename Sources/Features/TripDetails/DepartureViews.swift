@@ -162,6 +162,18 @@ struct LiveDepartureCard: View {
         .frame(height: Self.yourStopRow)
     }
 
+    /// "Live" semibold in the accent, the rest after it regular in ink-secondary: the copy is one string, split at its
+    /// first " · ".
+    static func lead(_ text: String) -> AttributedString {
+        var styled = AttributedString(text)
+        styled.font = TTFont.subhead
+        styled.foregroundColor = TTColor.inkSecondary
+        let end = styled.range(of: " · ")?.lowerBound ?? styled.endIndex
+        styled[styled.startIndex..<end].font = TTFont.subhead.weight(.semibold)
+        styled[styled.startIndex..<end].foregroundColor = TTColor.accent
+        return styled
+    }
+
     /// The Live dot and "Live · GO train data", or "Timetable" with the grey dot; how fresh on the right.
     private var status: some View {
         HStack(spacing: TTSpace.s3) {
@@ -169,7 +181,7 @@ struct LiveDepartureCard: View {
                 switch departure.source {
                 case .live(let text):
                     LiveDot()
-                    Text(RideCard.lead(text))
+                    Text(Self.lead(text))
                 case .timetable, .complete:
                     LiveDot(isLive: false)
                     Text("onboard.live.timetable")

@@ -1,78 +1,59 @@
 import Foundation
 
-/// The ride as Trip details shows it in ride mode (TT-172, *Live-Ride*): the ride card, the stop list with the train on
-/// its rail, the footnote and the button. Every time is already formatted by the one formatter (D17).
+/// The ride as Trip details shows it in ride mode (TT-204, D87, *Live-Ride-Lean*): one job, how long until your stop. A
+/// kicker over the minutes, "5 min late" only when late, the stops from where you got on to your stop with the train on
+/// their rail, and the button. Every time is already formatted by the one formatter (D17).
 struct RideDetails: Equatable {
-    /// The card's five looks; an ended ride keeps the look of your stop.
+    /// The engine's five phases; an ended ride keeps the look of your stop.
     enum Moment: Equatable {
         case riding, atStation, yourStopNext, arriving, atYourStop
     }
 
-    /// The card's status row.
+    /// The departure card's status row (TT-177); the ride itself no longer says where its position comes from (D87).
     enum Source: Equatable {
-        /// "Live · your location" or "Live · GO train data", with the rippling dot.
+        /// "Live · GO train data", with the rippling dot.
         case live(String)
         /// "Timetable", with the grey dot.
         case timetable
-        /// "Ride complete", at your stop.
         case complete
-    }
-
-    /// The card's second row while your stop is two or more stops away.
-    struct YourStop: Equatable {
-        let name: String
-        /// "11 min".
-        let minutes: String
-        let time: String
     }
 
     struct Stop: Equatable, Identifiable {
         let id: String
         let name: String
-        let time: String
+        /// The expected time of a stop ahead, and your stop's once the train stands there; nil for a stop it has passed.
+        let time: String?
         let isFirst: Bool
         let isYours: Bool
         /// The train has left it, or stands at it.
         let isDone: Bool
         /// The first stop ahead.
         let isNext: Bool
+        /// The time is 1 min or more after the timetable's: drawn in the delay ink.
+        let isLate: Bool
     }
 
     let moment: Moment
     /// "5:13 PM train": the sheet's accessibility label.
     let title: String
-    /// "Next stop", "Now at", "Next stop · yours", "Arriving at your stop", "This is your stop".
-    let label: String
-    /// The station the card is about.
-    let name: String
-    /// "4 min", or "Now".
+    /// "Your stop", "Your stop is next", "Arriving at your stop", "This is your stop".
+    let kicker: String
+    /// The minutes to your stop, "11 min", or "Now" at it.
     let countdown: String
-    /// The time under the countdown.
-    let countdownTime: String
-    /// "5:36 PM · On time", "Your stop is next", "Get ready to step off", "On time · Ride complete".
-    let detail: String
-    let yourStop: YourStop?
-    let source: Source
-    /// "Updated just now", "Last reported 5:31 PM", or your stop's time once you are there.
-    let freshness: String?
-    /// "2 stops to Clarkson", "Clarkson is next", "You are at Clarkson".
-    let stopsHeader: String
-    /// "Expected", or "Scheduled" on the timetable alone.
-    let stopsBasis: String
+    /// "5 min late" when the train is 1 min or more late; nil on time and at your stop.
+    let late: String?
     let stops: [Stop]
     /// Where the train is on the stop list, in rows from the first stop: 3.25 is a quarter of the way from the fourth stop
     /// to the fifth. Nil at your stop, where the tick takes its place.
     let trainPosition: Double?
-    /// "A tap about 1 min before Clarkson and again when the train stops. …"
-    let footnote: String
     /// "End ride", or "Done" at your stop.
     let button: String
 
     var isComplete: Bool { moment == .atYourStop }
-    /// Arriving and at your stop tint the card.
+    /// Arriving and at your stop tint the hero card.
     var isTinted: Bool { moment == .arriving || moment == .atYourStop }
-    /// Your stop's row is tinted once it is next, and stays so.
-    var highlightsYourStop: Bool { moment == .yourStopNext || moment == .arriving || moment == .atYourStop }
+    /// Every kicker but "Your stop" is in the accent.
+    let isKickerAccent: Bool
     /// Your stop's pin rings until the train stops there.
     var pingsYourStop: Bool { moment == .yourStopNext || moment == .arriving }
     /// How far the rail is green, in the same rows as `trainPosition`.
@@ -90,8 +71,6 @@ extension RideDetails {
         guard let times = RideTimes(plan: plan, state: state) else { return nil }
         let stops = plan.stops
         let last = times.last
-        let destination = stops[last].station
-        let yours = Self.shortName(destination.name)
         let moment: Moment = switch state.phase {
         case .riding: .riding
         case .atStation: .atStation
@@ -101,93 +80,39 @@ extension RideDetails {
         }
         let isComplete = moment == .atYourStop
         let passed = isComplete ? last : times.passed
-        let next = min(passed + 1, last)
-        let punctuality = times.delayMinutes >= 1
-            ? String(format: String(localized: "status.delayed"), times.delayMinutes)
-            : String(localized: "status.on_time")
-        func pair(_ first: String, _ second: String) -> String {
-            String(format: String(localized: "onboard.detail"), first, second)
-        }
-        func minutes(_ count: Int) -> String {
-            String(format: String(localized: "onboard.minutes"), max(1, count))
-        }
+        let minutes = String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: last, from: now)))
+        let isLate = times.delayMinutes >= 1
 
+        // Standing at the stop before yours, your stop is the next one.
+        let yoursIsNext = moment == .yourStopNext || (moment == .atStation && passed + 1 == last)
         switch moment {
-        case .riding:
-            label = String(localized: "onboard.next")
-            name = stops[next].station.name
-            countdown = minutes(times.minutes(to: next, from: now))
-            countdownTime = formatter.time(times.time(at: next))
-            detail = pair(countdownTime, punctuality)
-        case .atStation:
-            label = String(localized: "onboard.nowAt")
-            name = stops[passed].station.name
-            countdown = String(localized: "onboard.now")
-            countdownTime = formatter.time(times.time(at: passed))
-            detail = state.stopsLeft == 1
-                ? String(localized: "onboard.yoursNext")
-                : String(format: String(localized: "onboard.stops"), state.stopsLeft, yours)
-        case .yourStopNext:
-            label = String(localized: "onboard.nextYours")
-            name = destination.name
-            countdown = minutes(times.minutes(to: last, from: now))
-            countdownTime = formatter.time(times.time(at: last))
-            detail = pair(countdownTime, punctuality)
+        case .riding, .atStation, .yourStopNext:
+            kicker = yoursIsNext ? String(localized: "onboard.yoursNext") : String(localized: "onboard.yourStop")
+            isKickerAccent = yoursIsNext
+            countdown = minutes
         case .arriving:
-            label = String(localized: "onboard.arriving")
-            name = destination.name
-            countdown = minutes(times.minutes(to: last, from: now))
-            countdownTime = formatter.time(times.time(at: last))
-            detail = String(localized: "onboard.getReady")
+            kicker = String(localized: "onboard.arriving")
+            isKickerAccent = true
+            countdown = minutes
         case .atYourStop:
-            label = String(localized: "onboard.thisIsYours")
-            name = destination.name
+            kicker = String(localized: "onboard.thisIsYours")
+            isKickerAccent = true
             countdown = String(localized: "onboard.now")
-            countdownTime = formatter.time(times.time(at: last))
-            detail = pair(punctuality, String(localized: "onboard.complete"))
         }
         self.moment = moment
+        late = isLate && !isComplete ? String(format: String(localized: "onboard.late"), times.delayMinutes) : nil
 
-        yourStop = moment == .riding || moment == .atStation
-            ? YourStop(name: destination.name, minutes: minutes(times.minutes(to: last, from: now)), time: formatter.time(times.time(at: last)))
-            : nil
-
-        if isComplete {
-            source = .complete
-            freshness = formatter.time(times.time(at: last))
-        } else {
-            switch state.source {
-            case .phone: source = .live(String(localized: "onboard.live.phone"))
-            case .trainFeed: source = .live(String(localized: "onboard.live.feed"))
-            case .timetable: source = .timetable
-            }
-            freshness = state.lastUpdate.map { update in
-                state.source == .timetable
-                    ? String(format: String(localized: "status.last_reported"), formatter.time(update))
-                    : formatter.updated(at: update, now: now)
-            }
-        }
-
-        stopsHeader = switch moment {
-        case .atYourStop: String(format: String(localized: "onboard.atYours"), yours)
-        case .yourStopNext, .arriving: String(format: String(localized: "onboard.isNext"), yours)
-        case .riding, .atStation:
-            state.stopsLeft == 1
-                ? String(format: String(localized: "onboard.stops_one"), yours)
-                : String(format: String(localized: "onboard.stops"), state.stopsLeft, yours)
-        }
-        stopsBasis = state.source == .timetable && times.delay == 0
-            ? String(localized: "trip.stops_scheduled")
-            : String(localized: "trip.stops_expected")
         self.stops = stops.enumerated().map { index, stop in
-            Stop(
+            let shows = index > passed || (isComplete && index == last)
+            return Stop(
                 id: stop.station.id,
                 name: stop.station.name,
-                time: formatter.time(index > passed ? times.time(at: index) : times.scheduled(at: index)),
+                time: shows ? formatter.time(times.time(at: index)) : nil,
                 isFirst: index == 0,
                 isYours: index == last,
                 isDone: index <= passed,
-                isNext: !isComplete && index == passed + 1
+                isNext: !isComplete && index == passed + 1,
+                isLate: isLate && index > passed
             )
         }
 
@@ -197,7 +122,6 @@ extension RideDetails {
         case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
         }
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
-        footnote = String(format: String(localized: "onboard.footnote"), yours)
         button = isComplete ? String(localized: "onboard.done") : String(localized: "onboard.end")
     }
 }

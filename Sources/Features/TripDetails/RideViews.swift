@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Trip details in ride mode (TT-172, *Live-Ride*): the ride card, the stops header, the stop list with the train riding its
-/// rail, and the footnote. The rows rise into place when the sheet opens on a ride.
+/// Trip details in ride mode (TT-204, D87, *Live-Ride-Lean*): the hero card with the minutes to your stop, and the stop
+/// list with the train riding its rail. The two rise into place when the sheet opens on a ride.
 struct RideContent: View {
     let ride: RideDetails
     /// False when the ride takes the departure card's place (TT-177, D69): the rows are there in the same update, with
@@ -12,28 +12,11 @@ struct RideContent: View {
     @State private var hasRisen = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RideCard(ride: ride)
+        VStack(alignment: .leading, spacing: TTSpace.s3) {
+            RideHero(ride: ride)
                 .modifier(RideRise(order: 0, hasRisen: settled))
-            HStack(alignment: .firstTextBaseline) {
-                Text(ride.stopsHeader).accessibilityAddTraits(.isHeader)
-                Spacer()
-                Text(ride.stopsBasis)
-            }
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .padding(.horizontal, TTSpace.s1)
-            .padding(.top, TTSpace.s4)
-            .modifier(RideRise(order: 1, hasRisen: settled))
             RideStopList(ride: ride)
-                .padding(.top, 6)
-                .modifier(RideRise(order: 2, hasRisen: settled))
-            Text(ride.footnote)
-                .font(TTFont.footnote)
-                .foregroundStyle(TTColor.inkSecondary)
-                .padding(.horizontal, TTSpace.s1)
-                .padding(.top, 10)
-                .modifier(RideRise(order: 3, hasRisen: settled))
+                .modifier(RideRise(order: 1, hasRisen: settled))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { hasRisen = true }
@@ -63,32 +46,54 @@ private struct RideRise: ViewModifier {
     }
 }
 
-// MARK: Ride card
+// MARK: Hero
 
-/// The ride card: what is next and how long to it, your stop while it is two or more stops away, and where the position
-/// comes from. Arriving and at your stop tint it and press it in.
-struct RideCard: View {
+/// The hero card: a 17 pt kicker over the 64 pt minutes to your stop, and "5 min late" under them when late. Arriving and
+/// at your stop tint it and press it in. A new kicker rises 10 pt as it fades in; the number changes in place.
+struct RideHero: View {
     let ride: RideDetails
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playsRideMotion) private var playsMotion
 
-    private static let nameFont = Font.system(size: 28, weight: .bold)
-    private static let yourStopRow: CGFloat = 60
-    private static let statusRow: CGFloat = 44
+    private static let lineFont = TTFont.headline
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: TTRadius.xl)
-        VStack(spacing: 0) {
-            block
-            if let yours = ride.yourStop {
-                hairline
-                yourStop(yours)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(ride.kicker)
+                .font(Self.lineFont)
+                .tracking(-0.4)
+                .foregroundStyle(ride.isKickerAccent ? TTColor.accent : TTColor.inkSecondary)
+                .lineLimit(1)
+                .id(ride.kicker)
+                .transition(kickerRise)
+            Text(ride.countdown)
+                .font(TTFont.rideMinutes)
+                .tracking(-2)
+                .monospacedDigit()
+                .foregroundStyle(TTColor.accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(height: 68)
+                .padding(.leading, -2)
+                .contentTransition(.numericText(countsDown: true))
+            if let late = ride.late {
+                Text(late)
+                    .font(Self.lineFont)
+                    .tracking(-0.4)
+                    .monospacedDigit()
+                    .foregroundStyle(TTColor.delayInk)
+                    .lineLimit(1)
+                    .padding(.top, 2)
             }
-            hairline
-            status
         }
-        .padding(.horizontal, TTSpace.s4)
+        .animation(playsMotion && !reduceMotion ? RideMotion.rise : nil, value: ride.kicker)
+        .animation(.easeOut(duration: 0.15), value: ride.countdown)
+        .padding(.top, 18)
+        .padding(.bottom, TTSpace.s4)
+        .padding(.horizontal, TTSpace.s5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(ride.isTinted ? TTColor.accentSoft : TTColor.surface, in: shape)
         .overlay(shape.strokeBorder(edgeColour, lineWidth: ride.isTinted ? 1 : 0.5))
@@ -118,152 +123,24 @@ struct RideCard: View {
         return .white.opacity(colorScheme == .dark ? 0.08 : 0)
     }
 
-    private var hairline: some View {
-        Rectangle()
-            .fill(ride.isTinted ? TTColor.accent.opacity(colorScheme == .dark ? 0.18 : 0.16) : TTColor.hairline)
-            .frame(height: 1)
-    }
-
-    /// "Next stop", the station, the line under it; the countdown and its time on the right.
-    private var block: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(ride.label)
-                .font(ride.isTinted ? TTFont.footnote.weight(.semibold) : TTFont.footnote)
-                .foregroundStyle(ride.isTinted ? TTColor.accent : TTColor.inkSecondary)
-                .lineLimit(1)
-            HStack(alignment: .center, spacing: TTSpace.s3) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: ride.name)
-                        .font(Self.nameFont)
-                        .tracking(-0.6)
-                        .foregroundStyle(ride.isTinted ? TTColor.accent : TTColor.ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .id(ride.name)
-                        .transition(rise)
-                    Text(ride.detail)
-                        .font(TTFont.subhead)
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.inkSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: -2) {
-                    Text(ride.countdown)
-                        .font(TTFont.timeLead)
-                        .tracking(-0.6)
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.accent)
-                        .contentTransition(.numericText(countsDown: true))
-                    Text(ride.countdownTime)
-                        .font(TTFont.footnote)
-                        .monospacedDigit()
-                        .foregroundStyle(TTColor.inkSecondary)
-                }
-                .lineLimit(1)
-                .fixedSize()
-            }
-            .animation(reduceMotion ? TTMotion.fade : RideMotion.rise, value: ride.name)
-            .animation(.easeOut(duration: 0.15), value: ride.countdown)
-        }
-        .padding(.top, TTSpace.s4)
-        .padding(.bottom, 14)
-    }
-
-    /// The next stop's name slides up 12 pt as it fades in.
-    private var rise: AnyTransition {
-        reduceMotion ? .opacity : .asymmetric(insertion: .offset(y: 12).combined(with: .opacity), removal: .opacity)
-    }
-
-    private func yourStop(_ yours: RideDetails.YourStop) -> some View {
-        HStack(spacing: TTSpace.s3) {
-            RoutePin()
-                .fill(TTColor.accent, style: FillStyle(eoFill: true))
-                .frame(width: 20, height: 20)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("onboard.yourStop")
-                    .font(TTFont.footnote)
-                    .foregroundStyle(TTColor.inkSecondary)
-                Text(verbatim: yours.name)
-                    .font(TTFont.headline)
-                    .foregroundStyle(TTColor.ink)
-            }
-            .lineLimit(1)
-            Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(yours.minutes)
-                    .font(TTFont.headline)
-                    .foregroundStyle(TTColor.ink)
-                    .contentTransition(.numericText(countsDown: true))
-                Text(yours.time)
-                    .font(TTFont.footnote)
-                    .foregroundStyle(TTColor.inkSecondary)
-            }
-            .monospacedDigit()
-            .lineLimit(1)
-            .fixedSize()
-            .animation(.easeOut(duration: 0.15), value: yours.minutes)
-        }
-        .frame(height: Self.yourStopRow)
-    }
-
-    /// The Live dot and "Live · your location", or "Timetable" with the grey dot, or "Ride complete"; how fresh on the right.
-    private var status: some View {
-        HStack(spacing: TTSpace.s3) {
-            HStack(spacing: TTSpace.s2) {
-                switch ride.source {
-                case .live(let text):
-                    LiveDot()
-                    Text(Self.lead(text))
-                case .timetable:
-                    LiveDot(isLive: false)
-                    Text("onboard.live.timetable")
-                        .font(TTFont.subhead.weight(.semibold))
-                        .foregroundStyle(TTColor.inkSecondary)
-                case .complete:
-                    Text("onboard.complete")
-                        .font(TTFont.subhead.weight(.semibold))
-                        .foregroundStyle(TTColor.accent)
-                }
-            }
-            .lineLimit(1)
-            Spacer(minLength: 0)
-            if let freshness = ride.freshness {
-                Text(freshness)
-                    .font(TTFont.footnote)
-                    .monospacedDigit()
-                    .foregroundStyle(TTColor.inkSecondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(height: Self.statusRow)
-    }
-
-    /// "Live" semibold in the accent, the rest after it regular in ink-secondary: the copy is one string, split at its
-    /// first " · ".
-    static func lead(_ text: String) -> AttributedString {
-        var styled = AttributedString(text)
-        styled.font = TTFont.subhead
-        styled.foregroundColor = TTColor.inkSecondary
-        let end = styled.range(of: " · ")?.lowerBound ?? styled.endIndex
-        styled[styled.startIndex..<end].font = TTFont.subhead.weight(.semibold)
-        styled[styled.startIndex..<end].foregroundColor = TTColor.accent
-        return styled
+    /// The new kicker rises 10 pt as it fades in.
+    private var kickerRise: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(insertion: .offset(y: 10).combined(with: .opacity), removal: .opacity)
     }
 }
 
 // MARK: Stop list
 
-/// The stops from yours back to where you got on, on one rail that turns green behind the train; the train's marker glides
-/// along it. Your stop is tinted once it is next, its pin rings until the train stops there, and turns into a tick.
+/// The stops from where you got on to yours, on one rail that turns green behind the train; the train's marker glides
+/// along it. Your stop's row is always tinted; its pin rings once it is next, and turns into a tick when the train stops
+/// there (D87). Passed stops have no time.
 struct RideStopList: View {
     let ride: RideDetails
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let row: CGFloat = 44
+    static let row: CGFloat = 50
     private static let markerColumn: CGFloat = 20
     private static let rail: CGFloat = 2
     private static let marker: CGFloat = 30
@@ -283,10 +160,9 @@ struct RideStopList: View {
         }
         .overlay(alignment: .topLeading) { train }
         .padding(.horizontal, TTSpace.s4)
-        .padding(.vertical, 6)
+        .padding(.vertical, TTSpace.s2)
         .ttSheetCard()
         .animation(reduceMotion ? nil : RideMotion.glide, value: ride.trainPosition)
-        .animation(RideMotion.tint, value: ride.highlightsYourStop)
     }
 
     /// Grey from the first stop's centre to the last one's, green as far as the train.
@@ -306,16 +182,14 @@ struct RideStopList: View {
         .accessibilityHidden(true)
     }
 
-    /// Your stop's row in accent soft, 10 pt wider than the rows on each side and 3 pt in from their edges, from your stop
-    /// next until the sheet closes.
+    /// Your stop's row in accent soft, 10 pt wider than the rows on each side and 4 pt in from their edges.
     private var yourStopTint: some View {
         let index = ride.stops.firstIndex(where: \.isYours) ?? max(0, ride.stops.count - 1)
         return RoundedRectangle(cornerRadius: TTRadius.md)
             .fill(TTColor.accentSoft)
-            .frame(height: Self.row - 6)
+            .frame(height: Self.row - 8)
             .padding(.horizontal, -10)
-            .offset(y: Self.row * CGFloat(index) + 3)
-            .opacity(ride.highlightsYourStop ? 1 : 0)
+            .offset(y: Self.row * CGFloat(index) + 4)
             .accessibilityHidden(true)
     }
 
@@ -336,18 +210,22 @@ struct RideStopList: View {
     private func row(_ stop: RideDetails.Stop) -> some View {
         let isBold = stop.isNext || stop.isYours
         let colour: Color = stop.isYours && stop.isDone ? TTColor.accent : stop.isDone ? TTColor.inkTertiary : TTColor.ink
+        let timeColour: Color = stop.isYours && stop.isDone ? TTColor.accent : stop.isLate ? TTColor.delayInk : TTColor.ink
         return HStack(spacing: TTSpace.s3) {
             marker(stop)
                 .frame(width: Self.markerColumn, height: Self.row)
             Text(verbatim: stop.name)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+                .foregroundStyle(colour)
             Spacer(minLength: TTSpace.s2)
-            Text(stop.time)
-                .monospacedDigit()
+            if let time = stop.time {
+                Text(time)
+                    .monospacedDigit()
+                    .foregroundStyle(timeColour)
+            }
         }
         .font(isBold ? TTFont.headline : TTFont.body)
-        .foregroundStyle(colour)
         .frame(height: Self.row)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("trip.ride.stop.\(stop.id)")

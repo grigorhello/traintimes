@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// On board against the canvas's Live-Ride, Live-Entry, Live-Permission and Live-Schedule boards (TT-172), light and dark:
+/// On board against the canvas's Live-Ride-Lean (TT-204), Live-Entry, Live-Permission and Live-Schedule boards (TT-172), light and dark:
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
 /// with "I'm on board"; the permission sheet; the ride strip. Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).
@@ -16,6 +16,9 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testArrivingDark() async throws { snap(await ride(at: DemoRideRig.time(17, 42, 20)), .dark) }
     @MainActor func testStoppedLight() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .light) }
     @MainActor func testStoppedDark() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .dark) }
+    /// TT-204: 5 min late, "5 min late" under the minutes and the times ahead in the delay ink.
+    @MainActor func testLateLight() { snap(late, .light) }
+    @MainActor func testLateDark() { snap(late, .dark) }
     @MainActor func testEntryLight() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .light) }
     @MainActor func testEntryDark() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .dark) }
     @MainActor func testPermissionLight() { snap(permission, .light) }
@@ -30,6 +33,27 @@ final class RideSnapshotTests: XCTestCase {
     private func ride(at time: Date) async -> some View {
         let rig = await DemoRideRig.started(at: time)
         return TripDetailsView(viewModel: rig.tripDetails())
+    }
+
+    /// The ride content alone, 5 min late at 5:32 PM, where the sheet puts it under its header.
+    @MainActor
+    private var late: some View {
+        let plan = DemoRide.plan(on: DemoRideRig.day)
+        let state = RideState(
+            phase: .riding, currentStop: nil, nextStop: plan.stops[4].station, stopsLeft: 2, minutesToYourStop: 16,
+            expectedArrival: DemoRideRig.time(17, 48), source: .trainFeed, lastUpdate: DemoRideRig.time(17, 31)
+        )
+        let ride = RideDetails(
+            plan: plan, state: state, now: DemoRideRig.time(17, 32), formatter: TimeFormatter(format: .twelveHour)
+        )
+        return VStack {
+            if let ride { RideContent(ride: ride) }
+            Spacer()
+        }
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.top, 150)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TTColor.canvas)
     }
 
     /// The sheet over a dimmed Trip details, as it rises from the bottom.

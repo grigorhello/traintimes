@@ -65,7 +65,7 @@ struct TripDetailsView: View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Above the scroll view, so the close button's glass shadow is not cut off by the top fade (a hard edge in light).
-                header
+                header(isRiding: ride != nil)
                     .zIndex(1)
                 ScrollView {
                     Group {
@@ -150,20 +150,24 @@ struct TripDetailsView: View {
     // MARK: Header
 
     /// The line tile and its name in the Schedule header's style, and the glass close button flush with the margin.
-    private var header: some View {
+    /// In ride mode (TT-204 review) the line name drops to 17 pt, so the state is the loudest line, and the close button is
+    /// a chevron: it lowers the sheet and the ride goes on.
+    private func header(isRiding: Bool) -> some View {
         HStack(spacing: Self.lineGap) {
             if let line = viewModel.route.line {
                 LineTile(line: line)
                 Text(verbatim: line.name)
-                    .font(TTFont.lineName)
-                    .tracking(-0.6)
+                    .font(isRiding ? TTFont.headline : TTFont.lineName)
+                    .tracking(isRiding ? -0.4 : -0.6)
                     .foregroundStyle(TTColor.ink)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("trip.title")
             }
             Spacer(minLength: 0)
-            GlassIconButton(systemName: "xmark", label: "button.close", tint: TTColor.ink) { dismiss() }
+            GlassIconButton(systemName: isRiding ? "chevron.down" : "xmark", label: "button.close", tint: TTColor.ink) {
+                dismiss()
+            }
                 .accessibilityIdentifier("trip.close")
         }
         .frame(height: Self.headerHeight)
@@ -610,8 +614,8 @@ struct TripDetailsView: View {
         .padding(.bottom, Self.buttonBottom)
     }
 
-    /// End ride, a glass capsule in ink; Done at your stop, filled in the accent. Either one ends the ride and closes the
-    /// sheet.
+    /// End ride as plain ink-secondary text, so a stray thumb on a moving train does not reach for it (TT-204 review); Done
+    /// at your stop, a filled accent capsule. Either one ends the ride and closes the sheet.
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
             closingRide = ride
@@ -620,13 +624,13 @@ struct TripDetailsView: View {
         } label: {
             let title = Text(ride.button)
                 .font(TTFont.headline)
-                .foregroundStyle(ride.isComplete ? TTColor.onAccent : TTColor.ink)
+                .foregroundStyle(ride.isComplete ? TTColor.onAccent : TTColor.inkSecondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.alertHeight)
             if ride.isComplete {
                 title.ttGlass(tint: TTColor.accent, in: Capsule())
             } else {
-                title.ttGlass(in: Capsule())
+                title
             }
         }
         .contentShape(Capsule())

@@ -18,8 +18,31 @@ struct RideDetails: Equatable {
         case complete
     }
 
+    /// A row of the drawn rail.
+    enum Row: Equatable, Identifiable {
+        case stop(Stop)
+        /// Stops left out, between two drawn ones: a short row with a dotted rail and no names.
+        case fold(after: String)
+
+        var id: String {
+            switch self {
+            case .stop(let stop): stop.id
+            case .fold(let after): "fold.\(after)"
+            }
+        }
+
+        /// The drawn stop's place in `stops`; nil for a fold.
+        var stopIndex: Int? {
+            if case .stop(let stop) = self { return stop.index }
+            return nil
+        }
+    }
+
     struct Stop: Equatable, Identifiable {
         let id: String
+        /// Its place in `stops`, where `trainPosition` counts.
+        let index: Int
+        /// "Port Credit", without " GO".
         let name: String
         /// The expected time of a stop ahead, and your stop's once the train stands there; nil for a stop it has passed.
         let time: String?
@@ -36,15 +59,21 @@ struct RideDetails: Equatable {
     let moment: Moment
     /// "5:13 PM train": the sheet's accessibility label.
     let title: String
-    /// "Your stop", "Your stop is next", "Arriving at your stop", "This is your stop".
+    /// "Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson": the stop named, so a guessed stop
+    /// can be checked at a glance.
     let kicker: String
     /// The minutes to your stop, "11 min", or "Now" at it.
     let countdown: String
     /// "5 min late" when the train is 1 min or more late; nil on time and at your stop.
     let late: String?
+    /// Every stop from where you got on to yours.
     let stops: [Stop]
-    /// Where the train is on the stop list, in rows from the first stop: 3.25 is a quarter of the way from the fourth stop
-    /// to the fifth. Nil at your stop, where the tick takes its place.
+    /// The rail as drawn: the boarding stop, the stops passed before the last one folded into one short dotted row, the
+    /// last stop passed, the next two, the ones between them and your stop folded, and your stop. Your stop's row always
+    /// fits on the screen, however long the trip (review of TT-204).
+    let rows: [Row]
+    /// Where the train is on `stops`: on a stop's index while it stands there, half way to the next one while it moves, so
+    /// it never covers your stop's pin. Nil at your stop, where the tick takes its place.
     let trainPosition: Double?
     /// "End ride", or "Done" at your stop.
     let button: String
@@ -52,14 +81,15 @@ struct RideDetails: Equatable {
     var isComplete: Bool { moment == .atYourStop }
     /// Arriving and at your stop tint the hero card.
     var isTinted: Bool { moment == .arriving || moment == .atYourStop }
-    /// Every kicker but "Your stop" is in the accent.
-    let isKickerAccent: Bool
+    /// Your stop is next, the train is arriving, or it is there: the kicker and the number turn to the accent. Before
+    /// that, and when late, they are ink, so the green means "your stop is close".
+    let isClose: Bool
     /// Your stop's pin rings until the train stops there.
     var pingsYourStop: Bool { moment == .yourStopNext || moment == .arriving }
     /// How far the rail is green, in the same rows as `trainPosition`.
     var railFill: Double { trainPosition ?? Double(max(0, stops.count - 1)) }
 
-    /// "Clarkson GO" reads "Clarkson" in running text.
+    /// "Clarkson GO" reads "Clarkson": every stop on a GO train is a GO station.
     static func shortName(_ name: String) -> String {
         name.hasSuffix(" GO") ? String(name.dropLast(3)) : name
     }
@@ -83,30 +113,33 @@ extension RideDetails {
         let minutes = String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: last, from: now)))
         let isLate = times.delayMinutes >= 1
 
+        let yours = Self.shortName(stops[last].station.name)
         // Standing at the stop before yours, your stop is the next one.
         let yoursIsNext = moment == .yourStopNext || (moment == .atStation && passed + 1 == last)
         switch moment {
         case .riding, .atStation, .yourStopNext:
-            kicker = yoursIsNext ? String(localized: "onboard.yoursNext") : String(localized: "onboard.yourStop")
-            isKickerAccent = yoursIsNext
+            let format = yoursIsNext ? String(localized: "onboard.isNext") : String(localized: "onboard.yourStopIn")
+            kicker = String(format: format, yours)
+            isClose = yoursIsNext
             countdown = minutes
         case .arriving:
-            kicker = String(localized: "onboard.arriving")
-            isKickerAccent = true
+            kicker = String(format: String(localized: "onboard.arrivingAt"), yours)
+            isClose = true
             countdown = minutes
         case .atYourStop:
-            kicker = String(localized: "onboard.thisIsYours")
-            isKickerAccent = true
+            kicker = String(format: String(localized: "onboard.thisIs"), yours)
+            isClose = true
             countdown = String(localized: "onboard.now")
         }
         self.moment = moment
         late = isLate && !isComplete ? String(format: String(localized: "onboard.late"), times.delayMinutes) : nil
 
-        self.stops = stops.enumerated().map { index, stop in
+        let built = stops.enumerated().map { index, stop -> Stop in
             let shows = index > passed || (isComplete && index == last)
             return Stop(
                 id: stop.station.id,
-                name: stop.station.name,
+                index: index,
+                name: Self.shortName(stop.station.name),
                 time: shows ? formatter.time(times.time(at: index)) : nil,
                 isFirst: index == 0,
                 isYours: index == last,
@@ -116,13 +149,43 @@ extension RideDetails {
             )
         }
 
+        self.stops = built
+        rows = Self.rows(built, passed: passed)
         trainPosition = switch moment {
         case .atYourStop: nil
         case .atStation: Double(passed)
-        case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
+        case .riding, .yourStopNext, .arriving: Double(passed) + 0.5
         }
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
         button = isComplete ? String(localized: "onboard.done") : String(localized: "onboard.end")
+    }
+}
+
+extension RideDetails {
+    /// The boarding stop, the last stop passed and your stop always show. Stops passed before the last one fold; stops
+    /// ahead all show while there are four at most, else the next two, then a fold, then yours. A fold never hides a single
+    /// stop: it shows instead. At most seven stop rows and two folds, so your stop stays on screen.
+    static func rows(_ stops: [Stop], passed: Int) -> [Row] {
+        let last = stops.count - 1
+        guard last >= 0 else { return [] }
+        let passed = min(max(passed, 0), last)
+        var shown: Set<Int> = [0, passed, last]
+        let ahead = last - passed
+        for index in (passed + 1)..<(last + 1) where ahead <= 4 || index <= passed + 2 {
+            shown.insert(index)
+        }
+        for index in 0...last where !shown.contains(index) && shown.contains(index - 1) && shown.contains(index + 1) {
+            shown.insert(index)
+        }
+        var rows: [Row] = []
+        for index in 0...last {
+            if shown.contains(index) {
+                rows.append(.stop(stops[index]))
+            } else if shown.contains(index - 1) {
+                rows.append(.fold(after: stops[index - 1].id))
+            }
+        }
+        return rows
     }
 }
 
@@ -226,7 +289,32 @@ extension OnBoard {
         return RideDetails(plan: plan, state: state, now: engine.now, formatter: formatter)
     }
 
-    /// The ride strip on Schedule; nil with no ride running.
+    extension RideDetails {
+    /// Stops passed before the last one fold when there are two or more of them; stops ahead fold between the second one
+    /// ahead and your stop when that leaves two or more out.
+    static func rows(_ stops: [Stop], passed: Int) -> [Row] {
+        let last = stops.count - 1
+        var shown = Set(0...min(last, 0))
+        shown.insert(min(passed, last))
+        shown.insert(last)
+        for index in (passed + 1)...max(passed + 1, min(last, passed + 2)) where index <= last { shown.insert(index) }
+        // A fold that would leave out a single stop shows it instead.
+        for index in 0...last where !shown.contains(index) {
+            if shown.contains(index - 1) && shown.contains(index + 1) { shown.insert(index) }
+        }
+        var rows: [Row] = []
+        for index in 0...last {
+            if shown.contains(index) {
+                rows.append(.stop(stops[index]))
+            } else if shown.contains(index - 1) {
+                rows.append(.fold(after: stops[index - 1].id))
+            }
+        }
+        return rows
+    }
+}
+
+/// The ride strip on Schedule; nil with no ride running.
     func strip(formatter: some TimeFormatting) -> RideStrip? {
         guard activeRide != nil, let engine, let plan = engine.plan, let state = engine.state else { return nil }
         return RideStrip(plan: plan, state: state, now: engine.now, formatter: formatter)

@@ -21,19 +21,22 @@ final class RideDetailsTests: XCTestCase {
         let rig = await DemoRideRig.started()
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .riding)
-        XCTAssertEqual(ride.kicker, "Your stop")
-        XCTAssertFalse(ride.isKickerAccent)
+        XCTAssertEqual(ride.kicker, "Clarkson in")
+        XCTAssertFalse(ride.isClose, "Ink until your stop is next")
         XCTAssertEqual(ride.countdown, "11 min")
         XCTAssertNil(ride.late, "Nothing says On time")
-        // The list ends at your stop; passed stops have no time.
+        // The list ends at your stop; passed stops have no time; no " GO" on the names.
         XCTAssertEqual(ride.stops.map(\.id), ["UN", "EX", "MI", "LO", "PO", "CL"])
+        XCTAssertEqual(ride.stops.last?.name, "Clarkson")
+        // Exhibition and Mimico fold; the last stop passed, the ones ahead and yours show.
+        XCTAssertEqual(ride.rows.map(\.id), ["UN", "fold.UN", "LO", "PO", "CL"])
         XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, "5:36 PM", "5:43 PM"])
         XCTAssertEqual(ride.stops.map(\.isDone), [true, true, true, true, false, false])
         XCTAssertEqual(ride.stops.map(\.isNext), [false, false, false, false, true, false])
         XCTAssertEqual(ride.stops.map(\.isYours), [false, false, false, false, false, true])
         XCTAssertFalse(ride.stops.contains(where: \.isLate))
-        // 80 s of the 320 s from Long Branch to Port Credit: a quarter of the way.
-        XCTAssertEqual(ride.trainPosition ?? 0, 3.25, accuracy: 0.01)
+        // Moving from Long Branch to Port Credit: half way between them, whatever the clock says.
+        XCTAssertEqual(ride.trainPosition, 3.5)
         XCTAssertFalse(ride.isTinted)
         XCTAssertFalse(ride.pingsYourStop)
         XCTAssertEqual(ride.title, "5:13 PM train")
@@ -44,8 +47,8 @@ final class RideDetailsTests: XCTestCase {
         let rig = await DemoRideRig.started(at: t(17, 36, 20))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .atStation)
-        XCTAssertEqual(ride.kicker, "Your stop is next")
-        XCTAssertTrue(ride.isKickerAccent)
+        XCTAssertEqual(ride.kicker, "Clarkson is next")
+        XCTAssertTrue(ride.isClose)
         XCTAssertEqual(ride.countdown, "7 min")
         XCTAssertEqual(ride.trainPosition, 4)
         XCTAssertEqual(ride.stops.map(\.isDone), [true, true, true, true, true, false])
@@ -57,8 +60,8 @@ final class RideDetailsTests: XCTestCase {
         let rig = await DemoRideRig.started(at: t(17, 38))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .yourStopNext)
-        XCTAssertEqual(ride.kicker, "Your stop is next")
-        XCTAssertTrue(ride.isKickerAccent)
+        XCTAssertEqual(ride.kicker, "Clarkson is next")
+        XCTAssertTrue(ride.isClose)
         XCTAssertEqual(ride.countdown, "5 min")
         XCTAssertTrue(ride.pingsYourStop)
         XCTAssertFalse(ride.isTinted)
@@ -68,18 +71,18 @@ final class RideDetailsTests: XCTestCase {
         let rig = await DemoRideRig.started(at: t(17, 42, 20))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .arriving)
-        XCTAssertEqual(ride.kicker, "Arriving at your stop")
+        XCTAssertEqual(ride.kicker, "Arriving at Clarkson")
         XCTAssertEqual(ride.countdown, "1 min")
         XCTAssertTrue(ride.isTinted)
         XCTAssertTrue(ride.pingsYourStop)
-        XCTAssertNotNil(ride.trainPosition)
+        XCTAssertEqual(ride.trainPosition, 4.5, "Still between Port Credit and Clarkson, off your stop's pin")
     }
 
     func testAtYourStopItSaysNowAndShowsYourStopsTime() async throws {
         let rig = await DemoRideRig.started(at: t(17, 43, 5))
         let ride = try details(rig)
         XCTAssertEqual(ride.moment, .atYourStop)
-        XCTAssertEqual(ride.kicker, "This is your stop")
+        XCTAssertEqual(ride.kicker, "This is Clarkson")
         XCTAssertEqual(ride.countdown, "Now")
         XCTAssertNil(ride.late)
         XCTAssertNil(ride.trainPosition, "The tick takes the train's place")
@@ -125,7 +128,8 @@ final class RideDetailsTests: XCTestCase {
             expectedArrival: t(17, 48), source: .trainFeed, lastUpdate: t(17, 30)
         )
         let ride = try XCTUnwrap(RideDetails(plan: plan(), state: state, now: t(17, 32), formatter: formatter))
-        XCTAssertEqual(ride.kicker, "Your stop")
+        XCTAssertEqual(ride.kicker, "Clarkson in")
+        XCTAssertFalse(ride.isClose, "Late reads ink and amber, not green")
         XCTAssertEqual(ride.countdown, "16 min")
         XCTAssertEqual(ride.late, "5 min late")
         XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, "5:41 PM", "5:48 PM"])
@@ -148,9 +152,38 @@ final class RideDetailsTests: XCTestCase {
             expectedArrival: t(17, 43), source: .timetable, lastUpdate: nil
         )
         let ride = try XCTUnwrap(RideDetails(plan: plan(), state: state, now: t(17, 32), formatter: formatter))
-        XCTAssertEqual(ride.kicker, "Your stop")
+        XCTAssertEqual(ride.kicker, "Clarkson in")
         XCTAssertEqual(ride.countdown, "11 min")
         XCTAssertNil(ride.late)
+    }
+
+    // MARK: The rail on a long trip
+
+    private func stops(_ count: Int) -> [RideDetails.Stop] {
+        (0..<count).map { index in
+            RideDetails.Stop(
+                id: "S\(index)", index: index, name: "Stop \(index)", time: nil, isFirst: index == 0,
+                isYours: index == count - 1, isDone: false, isNext: false, isLate: false
+            )
+        }
+    }
+
+    func testALongTripFoldsSoYourStopFits() {
+        // Union to Kitchener-like, 12 stops, just left the boarding stop: the next two, a fold, your stop.
+        XCTAssertEqual(RideDetails.rows(stops(12), passed: 0).map(\.id), ["S0", "S1", "S2", "fold.S2", "S11"])
+        // Half way: the boarding stop, a fold, the last one passed, the next two, a fold, yours.
+        XCTAssertEqual(
+            RideDetails.rows(stops(12), passed: 5).map(\.id), ["S0", "fold.S0", "S5", "S6", "S7", "fold.S7", "S11"]
+        )
+        // Four or fewer ahead all show.
+        XCTAssertEqual(RideDetails.rows(stops(12), passed: 7).map(\.id), ["S0", "fold.S0", "S7", "S8", "S9", "S10", "S11"])
+        // At your stop: the boarding stop, a fold, yours.
+        XCTAssertEqual(RideDetails.rows(stops(12), passed: 11).map(\.id), ["S0", "fold.S0", "S11"])
+    }
+
+    func testAFoldNeverHidesASingleStop() {
+        XCTAssertEqual(RideDetails.rows(stops(4), passed: 2).map(\.id), ["S0", "S1", "S2", "S3"])
+        XCTAssertEqual(RideDetails.rows(stops(2), passed: 0).map(\.id), ["S0", "S1"])
     }
 
     // MARK: The ride strip

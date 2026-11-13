@@ -48,8 +48,9 @@ private struct RideRise: ViewModifier {
 
 // MARK: Hero
 
-/// The hero card: a 17 pt kicker over the 64 pt minutes to your stop, and "5 min late" under them when late. Arriving and
-/// at your stop tint it and press it in. A new kicker rises 10 pt as it fades in; the number changes in place.
+/// The hero card: a 26 pt kicker naming your stop over the 64 pt minutes to it, and "5 min late" under them when late. Ink
+/// until your stop is next, then the accent; arriving and at your stop tint the card and press it in. A new kicker rises
+/// 10 pt as it fades in; the number changes in place.
 struct RideHero: View {
     let ride: RideDetails
 
@@ -57,23 +58,23 @@ struct RideHero: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsRideMotion) private var playsMotion
 
-    private static let lineFont = TTFont.headline
-
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: TTRadius.xl)
+        let ink = ride.isClose ? TTColor.accent : TTColor.ink
         VStack(alignment: .leading, spacing: 0) {
             Text(ride.kicker)
-                .font(Self.lineFont)
-                .tracking(-0.4)
-                .foregroundStyle(ride.isKickerAccent ? TTColor.accent : TTColor.inkSecondary)
+                .font(TTFont.rideKicker)
+                .tracking(-0.6)
+                .foregroundStyle(ink)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .id(ride.kicker)
                 .transition(kickerRise)
             Text(ride.countdown)
                 .font(TTFont.rideMinutes)
                 .tracking(-2)
                 .monospacedDigit()
-                .foregroundStyle(TTColor.accent)
+                .foregroundStyle(ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(height: 68)
@@ -81,7 +82,7 @@ struct RideHero: View {
                 .contentTransition(.numericText(countsDown: true))
             if let late = ride.late {
                 Text(late)
-                    .font(Self.lineFont)
+                    .font(TTFont.headline)
                     .tracking(-0.4)
                     .monospacedDigit()
                     .foregroundStyle(TTColor.delayInk)
@@ -91,7 +92,8 @@ struct RideHero: View {
         }
         .animation(playsMotion && !reduceMotion ? RideMotion.rise : nil, value: ride.kicker)
         .animation(.easeOut(duration: 0.15), value: ride.countdown)
-        .padding(.top, 18)
+        .animation(RideMotion.tint, value: ride.isClose)
+        .padding(.top, TTSpace.s4)
         .padding(.bottom, TTSpace.s4)
         .padding(.horizontal, TTSpace.s5)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -131,9 +133,11 @@ struct RideHero: View {
 
 // MARK: Stop list
 
-/// The stops from where you got on to yours, on one rail that turns green behind the train; the train's marker glides
-/// along it. Your stop's row is always tinted; its pin rings once it is next, and turns into a tick when the train stops
-/// there (D87). Passed stops have no time.
+/// The rail from where you got on to your stop (`RideDetails.rows`): passed stops before the last one, and stops between
+/// the second one ahead and yours, fold into a short dotted row, so your stop stays on screen on a long trip. The rail turns
+/// green behind the train, which stands on a stop's dot or rides half way between two, never on your stop's pin. Your
+/// stop's row is always tinted; its pin rings once it is next and turns into a check in a filled circle when the train
+/// stops there. Passed stops have no time.
 struct RideStopList: View {
     let ride: RideDetails
 
@@ -141,18 +145,22 @@ struct RideStopList: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let row: CGFloat = 50
+    static let fold: CGFloat = 26
     private static let markerColumn: CGFloat = 20
     private static let rail: CGFloat = 2
     private static let marker: CGFloat = 30
 
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(ride.stops) { stop in
-                row(stop)
+            ForEach(Array(zip(ride.rows.indices, ride.rows)), id: \.1.id) { index, row in
+                switch row {
+                case .stop(let stop): stopRow(stop)
+                case .fold: foldRow(top: tops[index])
+                }
             }
         }
         .background(alignment: .topLeading) {
-            // Your stop's tint lies under the rail, so the rail runs on into its pin (Live-Ride).
+            // Your stop's tint lies under the rail, so the rail runs on into its pin.
             ZStack(alignment: .topLeading) {
                 yourStopTint
                 rail
@@ -163,51 +171,86 @@ struct RideStopList: View {
         .padding(.vertical, TTSpace.s2)
         .ttSheetCard()
         .animation(reduceMotion ? nil : RideMotion.glide, value: ride.trainPosition)
+        .animation(reduceMotion ? nil : RideMotion.glide, value: ride.rows)
     }
 
-    /// Grey from the first stop's centre to the last one's, green as far as the train.
+    // MARK: Geometry
+
+    private func height(_ row: RideDetails.Row) -> CGFloat {
+        if case .fold = row { return Self.fold }
+        return Self.row
+    }
+
+    /// The top of each drawn row.
+    private var tops: [CGFloat] {
+        var top: CGFloat = 0
+        return ride.rows.map { row in
+            defer { top += height(row) }
+            return top
+        }
+    }
+
+    private var totalHeight: CGFloat { ride.rows.reduce(0) { $0 + height($1) } }
+
+    /// The centre of the row that draws stop `index`; nil when it is folded away.
+    private func centre(ofStop index: Int) -> CGFloat? {
+        guard let row = ride.rows.firstIndex(where: { $0.stopIndex == index }) else { return nil }
+        return tops[row] + Self.row / 2
+    }
+
+    /// The train's centre down the rail: on its stop's dot, or that far towards the next drawn stop.
+    private var trainY: CGFloat {
+        let last = max(0, ride.stops.count - 1)
+        let position = ride.trainPosition ?? Double(last)
+        let index = min(Int(position), last)
+        let from = centre(ofStop: index) ?? Self.row / 2
+        let to = centre(ofStop: min(index + 1, last)) ?? from
+        return from + (to - from) * CGFloat(position - Double(index))
+    }
+
+    // MARK: Layers
+
+    /// Grey from the first row's centre to the last one's, green as far as the train.
     private var rail: some View {
-        let length = Self.row * CGFloat(max(0, ride.stops.count - 1))
-        let filled = Self.row * CGFloat(min(max(ride.railFill, 0), Double(max(0, ride.stops.count - 1))))
+        let start = Self.row / 2
+        let end = totalHeight - Self.row / 2
+        let filled = ride.trainPosition == nil ? end : trainY
         let x = Self.markerColumn / 2 - Self.rail / 2
         return ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(TTColor.controlBorder.opacity(colorScheme == .dark ? 0.42 : 0.38))
-                .frame(width: Self.rail, height: length)
+                .frame(width: Self.rail, height: max(0, end - start))
             Rectangle()
                 .fill(TTColor.accent)
-                .frame(width: Self.rail, height: filled)
+                .frame(width: Self.rail, height: max(0, filled - start))
         }
-        .offset(x: x, y: Self.row / 2)
+        .offset(x: x, y: start)
         .accessibilityHidden(true)
     }
 
     /// Your stop's row in accent soft, 10 pt wider than the rows on each side and 4 pt in from their edges.
     private var yourStopTint: some View {
-        let index = ride.stops.firstIndex(where: \.isYours) ?? max(0, ride.stops.count - 1)
-        return RoundedRectangle(cornerRadius: TTRadius.md)
+        RoundedRectangle(cornerRadius: TTRadius.md)
             .fill(TTColor.accentSoft)
             .frame(height: Self.row - 8)
             .padding(.horizontal, -10)
-            .offset(y: Self.row * CGFloat(index) + 4)
+            .offset(y: totalHeight - Self.row + 4)
             .accessibilityHidden(true)
     }
 
     /// The train glyph on a surface disc, centred on the rail; gone at your stop.
     private var train: some View {
-        let position = ride.trainPosition ?? Double(max(0, ride.stops.count - 1))
-        return TrainMarker()
+        TrainMarker()
             .frame(width: Self.marker, height: Self.marker)
-            .offset(
-                x: Self.markerColumn / 2 - Self.marker / 2,
-                y: Self.row / 2 + Self.row * CGFloat(position) - Self.marker / 2
-            )
+            .offset(x: Self.markerColumn / 2 - Self.marker / 2, y: trainY - Self.marker / 2)
             .opacity(ride.trainPosition == nil ? 0 : 1)
             .animation(.easeOut(duration: 0.2), value: ride.trainPosition == nil)
             .accessibilityHidden(true)
     }
 
-    private func row(_ stop: RideDetails.Stop) -> some View {
+    // MARK: Rows
+
+    private func stopRow(_ stop: RideDetails.Stop) -> some View {
         let isBold = stop.isNext || stop.isYours
         let colour: Color = stop.isYours && stop.isDone ? TTColor.accent : stop.isDone ? TTColor.inkTertiary : TTColor.ink
         let timeColour: Color = stop.isYours && stop.isDone ? TTColor.accent : stop.isLate ? TTColor.delayInk : TTColor.ink
@@ -231,13 +274,33 @@ struct RideStopList: View {
         .accessibilityIdentifier("trip.ride.stop.\(stop.id)")
     }
 
+    /// Stops left out: three dots on a surface gap in the rail, green when the train has passed them.
+    private func foldRow(top: CGFloat) -> some View {
+        let isPassed = ride.trainPosition == nil || trainY > top + Self.fold / 2
+        let dot = isPassed ? TTColor.accent : TTColor.controlBorder
+        return HStack(spacing: 0) {
+            VStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle().fill(dot).frame(width: 3, height: 3)
+                }
+            }
+            .frame(width: Self.markerColumn, height: Self.fold)
+            .background(TTColor.surface)
+            Spacer(minLength: 0)
+        }
+        .frame(height: Self.fold)
+        .accessibilityHidden(true)
+    }
+
     @ViewBuilder private func marker(_ stop: RideDetails.Stop) -> some View {
         if stop.isYours {
             ZStack {
                 if ride.isComplete {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(TTColor.accent)
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundStyle(TTColor.onAccent)
+                        .frame(width: 20, height: 20)
+                        .background(TTColor.accent, in: Circle())
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
                 } else {
                     if ride.pingsYourStop { PinRing() }
@@ -248,15 +311,8 @@ struct RideStopList: View {
                 }
             }
             .animation(reduceMotion ? TTMotion.fade : RideMotion.tick, value: ride.isComplete)
-        } else if stop.isFirst {
-            Circle()
-                .strokeBorder(stop.isDone ? TTColor.accent : TTColor.inkSecondary, lineWidth: 2.5)
-                .frame(width: 12, height: 12)
-                .background(TTColor.surface, in: Circle())
-                .padding(2)
-                .background(TTColor.surface, in: Circle())
         } else {
-            let size: CGFloat = stop.isNext ? 10 : 8
+            let size: CGFloat = stop.isFirst ? 12 : stop.isNext ? 10 : 8
             Circle()
                 .fill(stop.isNext ? TTColor.ink : stop.isDone ? TTColor.accent : TTColor.controlBorder)
                 .frame(width: size, height: size)

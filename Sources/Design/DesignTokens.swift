@@ -75,6 +75,7 @@ enum TTFont {
     static let lineCodeSmall = Font.system(size: 10, weight: .bold)                           // the code in the picker's 26 pt line tile (D54)
     static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D54)
     static let rideMinutes = Font.system(size: 64, weight: .bold)                             // the minutes to your stop on the ride screen (TT-204, D87)
+    static let rideKicker = Font.system(size: 26, weight: .semibold)                          // "Clarkson in" over them
     static let question   = Font.system(size: 20, weight: .bold)                              // "On the 5:13 PM train?" (TT-175)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }

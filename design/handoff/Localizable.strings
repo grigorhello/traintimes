@@ -82,13 +82,16 @@
 "onboard.done" = "Done";
 "onboard.next" = "Next stop";
 "onboard.nowAt" = "Now at";
-"onboard.arriving" = "Arriving at your stop";
 "onboard.thisIsYours" = "This is your stop";
 "onboard.yourStop" = "Your stop";
 "onboard.complete" = "Ride complete";
 "onboard.now" = "Now";
 "onboard.minutes" = "%d min";
 "onboard.late" = "%d min late";
+"onboard.yourStopIn" = "%@ in";
+"onboard.isNext" = "%@ is next";
+"onboard.arrivingAt" = "Arriving at %@";
+"onboard.thisIs" = "This is %@";
 "onboard.detail" = "%@ · %@";
 "onboard.yoursNext" = "Your stop is next";
 "onboard.live.feed" = "Live · GO train data";

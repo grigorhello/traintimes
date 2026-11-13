@@ -329,6 +329,8 @@ struct DepartureCardView: View {
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
+    /// The time's laid-out width, for the bolt's place while the time scales.
+    @State private var timeWidth: CGFloat = 0
     @Environment(\.displayScale) private var displayScale
 
     /// Top, trailing (the bell side), bottom and leading padding from the canvas.
@@ -420,13 +422,16 @@ struct DepartureCardView: View {
                 // "12:47 PM" may shrink a little across, never to fit the 38 pt row: a 34 pt line is taller than the row.
                 .minimumScaleFactor(Self.timeMinimumScale)
                 .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { timeWidth = $0 }
+                .scaleEffect(look.timeScale, anchor: .leading)
             if !card.isCancelled {
+                // The bolt keeps its place beside the time while the time changes size in a departure's play (D86); a
+                // padding, so at rest the layout is exactly as before.
                 ExpressBolt(isExpress: card.isExpress)
+                    .padding(.leading, timeWidth * (look.timeScale - 1))
             }
             Spacer(minLength: card.isCancelled ? 0 : Self.bellRoom)
         }
-        // The bolt grows with the time, so it keeps its place beside it while the time changes size (D86).
-        .scaleEffect(look.timeScale, anchor: .leading)
         .frame(height: Self.timeRowHeight)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
             anchor = $0

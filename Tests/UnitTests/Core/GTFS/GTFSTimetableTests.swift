@@ -39,6 +39,19 @@ final class GTFSTimetableTests: XCTestCase {
         XCTAssertEqual(timetable.lastServiceDay, friday)
     }
 
+    /// TT-200 (D83): metres along Lakeshore West from Union follow the order its trains call, past the branch at
+    /// Aldershot (West Harbour and Hamilton GO Centre before St. Catharines, which is nearer Union in a straight line).
+    func testDistanceFromUnionFollowsTheLine() throws {
+        let stations = try timetable().stations
+        let ids = ["EX", "OA", "BU", "AL", "WR", "HA", "CF", "SCTH", "NI"]
+        let along = ids.map { id in stations.first { $0.id == id }?.distanceFromUnion["Lakeshore West"] ?? -1 }
+        XCTAssertEqual(along, along.sorted())
+        XCTAssertFalse(along.contains(-1))
+        XCTAssertEqual(along.first ?? 0, 3265, accuracy: 50)
+        XCTAssertNil(stations.first { $0.id == "UN" }?.distanceFromUnion["Lakeshore West"])
+        XCTAssertNil(stations.first { $0.id == "OA" }?.distanceFromUnion["Kitchener"])
+    }
+
     func testLineBetweenStations() throws {
         let timetable = try timetable()
         XCTAssertEqual(timetable.line(between: "OA", and: "UN"), Line(id: "LW", name: "Lakeshore West", colorHex: "#98002e"))

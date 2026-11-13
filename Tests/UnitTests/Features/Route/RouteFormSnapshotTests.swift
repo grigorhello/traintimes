@@ -20,6 +20,8 @@ final class RouteFormSnapshotTests: XCTestCase {
     @MainActor func testPickingFromDark() async throws { snap(try await pickingFrom(), .dark) }
     @MainActor func testPickingToLight() async throws { snap(try await pickingTo(), .light) }
     @MainActor func testPickingToDark() async throws { snap(try await pickingTo(), .dark) }
+    @MainActor func testSameLineFirstLight() async throws { snap(try await sameLineFirst(), .light) }
+    @MainActor func testSameLineFirstDark() async throws { snap(try await sameLineFirst(), .dark) }
     @MainActor func testSchedulePickingLight() async throws { snap(try await schedulePicking(), .light) }
     @MainActor func testSchedulePickingDark() async throws { snap(try await schedulePicking(), .dark) }
 
@@ -64,6 +66,17 @@ final class RouteFormSnapshotTests: XCTestCase {
         model.open(.from)
         model.pick(try XCTUnwrap(model.stations.first { $0.id == "OA" }))
         model.query = "un"
+        return form(model)
+    }
+
+    /// First use, Oakville GO chosen and nothing typed: Lakeshore West first, then Other stations (TT-200, D83).
+    @MainActor
+    private func sameLineFirst() async throws -> some View {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let model = RouteFormViewModel(route: nil, repository: repository)
+        await model.loadStations()
+        model.open(.from)
+        model.pick(try XCTUnwrap(model.stations.first { $0.id == "OA" }))
         return form(model)
     }
 

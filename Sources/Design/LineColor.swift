@@ -16,6 +16,25 @@ enum GOLineColor {
     static func color(for line: Line) -> Color {
         (hex[line.id] ?? line.colorHex).flatMap { Color(hex: $0) } ?? TTColor.inkSecondary
     }
+
+    /// GO's lines by the names the feed gives them, clockwise round Union as on GO's own map (TT-200, D83): the order of
+    /// the picker's line sections.
+    static let lines: [(id: String, name: String)] = [
+        ("LW", "Lakeshore West"), ("MI", "Milton"), ("KI", "Kitchener"), ("BR", "Barrie"),
+        ("RH", "Richmond Hill"), ("ST", "Stouffville"), ("LE", "Lakeshore East"),
+    ]
+
+    /// The line a station's line name stands for, with its id so it takes its GO colour; a name GO does not list keeps
+    /// the name as its id (ink-secondary).
+    static func line(named name: String) -> Line {
+        Line(id: lines.first { $0.name == name }?.id ?? name, name: name, colorHex: nil)
+    }
+
+    /// Line names in GO's order; names it does not list go last, alphabetically.
+    static func ordered(_ names: [String]) -> [String] {
+        let rank = { (name: String) in lines.firstIndex { $0.name == name } ?? lines.count }
+        return names.sorted { (rank($0), $0) < (rank($1), $1) }
+    }
 }
 
 extension Color {

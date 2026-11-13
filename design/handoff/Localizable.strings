@@ -183,6 +183,7 @@
 "stations.yours" = "Your stations";
 "stations.all" = "All stations";
 "stations.results" = "Stations";
+"stations.other" = "Other stations";
 "stations.none" = "No stations match";
 "stations.all_lines" = "All lines";
 "stations.same_as_to" = "%@ · Same as To";

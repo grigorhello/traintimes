@@ -4,7 +4,8 @@ import Foundation
 /// between them on a service day, as domain types.
 struct GTFSTimetable: Sendable {
     let feed: GTFSFeed
-    /// Every station a train calls at, alphabetically, with the names of its lines.
+    /// Every station a train calls at, alphabetically, with the names of its lines and its place (the picker orders a line
+    /// from Union outward by it, TT-200).
     let stations: [Station]
     /// The last service day with trains (the feed's validity window, Q6); the day strip stops there.
     let lastServiceDay: ServiceDay?
@@ -22,11 +23,44 @@ struct GTFSTimetable: Sendable {
         self.tripsByDate = tripsByDate
         lastServiceDay = tripsByDate.keys.max().map(ServiceDay.init(dateKey:))
         stopIndex = Dictionary(feed.stops.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let alongLine = Self.distancesFromUnion(feed)
         stations = feed.stops.enumerated()
             .map { index, stop in
-                Station(id: stop.id, name: stop.name, lines: stationLines[index].map { feed.lines[$0].name }.sorted())
+                Station(
+                    id: stop.id, name: stop.name, lines: stationLines[index].map { feed.lines[$0].name }.sorted(),
+                    place: stop.place, distanceFromUnion: alongLine[index] ?? [:]
+                )
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// For each stop, metres from Union along each line's trains (the sum of the straight hops between calls), by line
+    /// name, the least over the trips that call at Union (TT-200, D83): a line's stations in the order its trains reach
+    /// them, so a branch's far end (St. Catharines past West Harbour) stays in line order. Each stopping pattern is walked
+    /// once.
+    private static func distancesFromUnion(_ feed: GTFSFeed) -> [Int: [String: Double]] {
+        guard let union = feed.stops.firstIndex(where: { $0.id == "UN" }) else { return [:] }
+        var result: [Int: [String: Double]] = [:]
+        var walked = Set<[Int]>()
+        for trip in feed.trips {
+            guard let start = trip.stops.firstIndex(of: union),
+                  walked.insert([trip.line] + trip.stops).inserted else { continue }
+            let name = feed.lines[trip.line].name
+            for direction in [1, -1] {
+                var distance = 0.0
+                var previous = start
+                var index = start + direction
+                while trip.stops.indices.contains(index),
+                      let from = feed.stops[trip.stops[previous]].place, let to = feed.stops[trip.stops[index]].place {
+                    distance += TrackShape.distance(from, to)
+                    let stop = trip.stops[index]
+                    result[stop, default: [:]][name] = min(result[stop]?[name] ?? .infinity, distance)
+                    previous = index
+                    index += direction
+                }
+            }
+        }
+        return result
     }
 
     /// The route codes a service alert may name for a line (TT-132, D37): its routes' codes, and the line id itself.

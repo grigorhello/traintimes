@@ -93,4 +93,7 @@ enum TTTimeline {
     static let labelWidth: CGFloat = 40              // the gridline time column (40 pt after the 12 pt inset)
     static let nowOffsetFromTopMinutes = 5           // initial scroll puts Now about 5 min (35 pt) below the top edge
     static let foregroundRefreshSeconds: TimeInterval = 30
+    static let departedLift: CGFloat = 88            // a departed card on Today sits this far above its timetable place (D86)
+    static let departedRailLift: CGFloat = 30        // its dot and connector, level with its bottom row ("Departed")
+    static let departedScale: CGFloat = 0.96         // a departed card, pressed back
 }

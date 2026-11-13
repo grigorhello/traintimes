@@ -8,18 +8,28 @@ struct Card<Content: View>: View {
     /// A panel hangs right under the card (the station picker, D54): the bottom corners square off and the 1 pt shadow
     /// goes, so the card and the panel read as one surface.
     var joinsBelow = false
+    /// A departed timeline card (TT-203, D86), 0 to 1: the surface turns to the canvas colour and the shadow to a 1 pt
+    /// hairline outline.
+    var flatness: CGFloat = 0
     @ViewBuilder let content: Content
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: TTRadius.lg)
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TTColor.surface, in: RoundedRectangle(cornerRadius: TTRadius.lg))
+            .background {
+                if flatness > 0 {
+                    shape.fill(TTColor.canvas).opacity(flatness)
+                        .overlay(shape.strokeBorder(TTColor.hairline, lineWidth: 1).opacity(flatness))
+                }
+            }
+            .background(TTColor.surface, in: shape)
             // A strip behind the content (not over it, which clipped the route pin) squares off the rounded bottom corners.
             .background(alignment: .bottom) {
                 Rectangle().fill(TTColor.surface).frame(height: TTRadius.lg).opacity(joinsBelow ? 1 : 0).allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(colorScheme == .dark || joinsBelow ? 0 : 0.06), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(colorScheme == .dark || joinsBelow ? 0 : 0.06 * (1 - flatness)), radius: 1, x: 0, y: 1)
     }
 }
 

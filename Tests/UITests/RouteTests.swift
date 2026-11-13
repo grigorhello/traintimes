@@ -39,8 +39,9 @@ final class RouteTests: XCTestCase {
         let oakville = app.buttons["station.OA"]
         require(oakville, "oakville", in: app)
         oakville.tap()
-        // Picking From moves straight on to To, with Union Station GO suggested first.
+        // Picking From moves straight on to To, with Oakville's line first (TT-200) and Union Station GO first on it.
         require(app.textFields["route.to"], "textFields[route.to]", in: app)
+        require(app.descendants(matching: .any)["stations.line.LW"], "stations.line.LW", in: app)
         let union = app.buttons["station.UN"]
         require(union, "union", in: app)
         union.tap()

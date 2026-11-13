@@ -181,6 +181,32 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertNil(result.nowY)
         XCTAssertEqual(result.initialScrollOffset, 0)
         XCTAssertEqual(result.cards[0].top, TTTimeline.minCardGap, accuracy: 0.001)
+        XCTAssertFalse(result.cards.contains { $0.isSteppedUp }, "Another day has no Now line to clear (D86)")
+    }
+
+    // MARK: Departed (TT-203, D86)
+
+    /// Trains that have left sit 88 pt above their place, the last one just above the Now line at its minute, tied to the
+    /// rail 30 pt above their time; they move together, so the gap between them stays.
+    func testDepartedCardsStepUpAboveTheNowLine() throws {
+        let result = layout([train("a", 7, 25), train("b", 7, 32), train("c", 7, 58)], now: at(7, 32))
+        let cards = result.cards
+        XCTAssertEqual(cards.map(\.isSteppedUp), [true, true, false], "Departed at or before now")
+        let nowY = try XCTUnwrap(result.nowY)
+        XCTAssertEqual(cards[1].top, cards[1].markerY - standard.anchor - TTTimeline.departedLift, accuracy: 0.001)
+        XCTAssertEqual(cards[1].railY, cards[1].markerY - TTTimeline.departedRailLift, accuracy: 0.001)
+        XCTAssertEqual(cards[2].railY, cards[2].markerY, accuracy: 0.001)
+        XCTAssertEqual(nowY - cards[1].bottom, 3, accuracy: 0.001, "4 pt clear of the line once pressed to 0.96")
+        XCTAssertEqual(cards[1].top - cards[0].bottom, TTTimeline.minCardGap, accuracy: 0.001, "No overlap")
+        XCTAssertEqual(cards[0].top, TTTimeline.minCardGap, accuracy: 0.001, "The content starts above the raised card")
+    }
+
+    /// A delayed train leaves at its expected time and drops its amber bar and scheduled ring.
+    func testDelayedTrainStepsUpAtItsExpectedTime() {
+        XCTAssertFalse(layout([delayed7_32(), train("b", 7, 58)], now: at(7, 40)).cards[0].isSteppedUp)
+        let gone = layout([delayed7_32(), train("b", 7, 58)], now: at(7, 41)).cards[0]
+        XCTAssertTrue(gone.isSteppedUp)
+        XCTAssertNil(gone.delayBar)
     }
 
     // MARK: Compact scale

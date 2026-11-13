@@ -9,6 +9,8 @@ struct Station: Hashable, Sendable, Identifiable {
     /// Where the station is (GTFS stop_lat/stop_lon), for the Directions link on Trip details (TT-188, D64). Nil where the
     /// feed gives none, and on stations that only name a route (the saved route, alert rules).
     var place: GeoPoint?
+    /// Metres from Union along each of its lines, by line name (GTFS only, TT-200, D83): the station picker's line order.
+    var distanceFromUnion: [String: Double] = [:]
 
     /// One station is one id, whatever name or lines it was loaded with, so a station from the saved route equals the
     /// same station picked in search.

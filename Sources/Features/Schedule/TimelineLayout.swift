@@ -28,12 +28,19 @@ struct TimelineInput: Hashable, Sendable {
 struct TimelineLayout: Hashable, Sendable {
     struct Card: Hashable, Sendable, Identifiable {
         let id: TripKey
-        /// The centre of the marker and the connector: the expected departure, else the scheduled one.
+        /// The train's place on the rail: the expected departure, else the scheduled one.
         let markerY: CGFloat
         let top: CGFloat
         let bottom: CGFloat
-        /// Delayed train only: the hollow marker at the scheduled time.
+        /// Delayed train only: the hollow marker at the scheduled time. None once the train has left.
         let scheduledMarkerY: CGFloat?
+        /// Departed on Today (TT-203, D86): the card is drawn `TTTimeline.departedLift` above its timetable place, so
+        /// departed cards stack above the Now line and never cover it.
+        var isSteppedUp = false
+
+        /// Where the marker and the connector are drawn: the train's place, or for a stepped-up card
+        /// `TTTimeline.departedRailLift` above it, level with the card's bottom row.
+        var railY: CGFloat { isSteppedUp ? markerY - TTTimeline.departedRailLift : markerY }
 
         /// The 4 pt bar from the scheduled marker down to the expected one; its length is the delay.
         var delayBar: ClosedRange<CGFloat>? { scheduledMarkerY.map { $0...markerY } }
@@ -88,6 +95,10 @@ extension TimelineLayout {
         let ppm = input.pointsPerMinute
         let gap = TTTimeline.minCardGap
         func size(_ index: Int) -> TimelineCardSize { input.cardSizes[departures[index].id] ?? .standard }
+        /// Departed on Today: expected departure at or before now (TT-203, D86). Departures are in time order, so the
+        /// stepped-up cards are the first ones and all move by the same amount: they never overlap.
+        func stepsUp(_ index: Int) -> Bool { input.now.map { departures[index].departureTime <= $0 } ?? false }
+        func lift(_ index: Int) -> CGFloat { stepsUp(index) ? TTTimeline.departedLift : 0 }
 
         // Every marker on the rail, in time order: each card's marker, plus the scheduled marker of a delayed train.
         let origin = departures.map { $0.scheduledMarker ?? $0.departureTime }.min() ?? first.departureTime
@@ -180,7 +191,9 @@ extension TimelineLayout {
 
         // Shift everything down so the first card and marker sit 16 pt below the top, and Now can sit 5 min below it.
         let nowOffset = CGFloat(TTTimeline.nowOffsetFromTopMinutes) * ppm
-        let firstCardTop = breakY[cardBreak[0]] - size(0).anchor
+        // Today always keeps room for the first card's stepped-up place, so the content does not move under the rider when
+        // the day's first train leaves (D86).
+        let firstCardTop = breakY[cardBreak[0]] - size(0).anchor - (input.now == nil ? 0 : TTTimeline.departedLift)
         var top = min(firstCardTop, breakY[markerBreak[0]] - Self.markerRoom / 2) - gap
         if let now = input.now { top = min(top, rawY(minutes(now)) - nowOffset) }
         let contentTop = top
@@ -189,12 +202,14 @@ extension TimelineLayout {
         cards = departures.indices.map { index in
             let markerY = breakY[cardBreak[index]] - contentTop
             let card = size(index)
+            let top = markerY - card.anchor - lift(index)
             return Card(
                 id: departures[index].id,
                 markerY: markerY,
-                top: markerY - card.anchor,
-                bottom: markerY - card.anchor + card.height,
-                scheduledMarkerY: scheduledBreak[index].map { breakY[$0] - contentTop }
+                top: top,
+                bottom: top + card.height,
+                scheduledMarkerY: stepsUp(index) ? nil : scheduledBreak[index].map { breakY[$0] - contentTop },
+                isSteppedUp: stepsUp(index)
             )
         }
 

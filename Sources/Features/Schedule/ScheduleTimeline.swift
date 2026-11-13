@@ -17,6 +17,8 @@ struct ScheduleTimeline: View {
     var onBell: (TripKey) -> Void = { _ in }
     /// The cards' cascade, at rest unless a new set of trains has just been shown.
     var cascade: CascadeCue = .rest
+    /// A train leaving at the minute tick (TT-203, D86), at rest unless one has just left.
+    var departure: DepartureCue = .rest
     /// When the Now line's play started, read by the Now line, dot and label alone; nil draws them at rest.
     var motion: ScheduleMotionClock?
 
@@ -31,6 +33,10 @@ struct ScheduleTimeline: View {
     private static let nowDot: CGFloat = 10
     /// The card column starts where the 14 pt connector from the 12 pt marker ends.
     private static let cardX = railX + markerSize / 2 + TTTimeline.connectorLength
+    /// A departed train's small solid dot (TT-203, D86).
+    private static let departedDot: CGFloat = 6
+    /// A departed train's line starts under its dot and runs on under the pressed-back card, which is opaque.
+    private static let departedConnector = markerSize / 2 + TTTimeline.connectorLength + TTSpace.s2
 
     var body: some View {
         let layout = viewModel.layout
@@ -68,10 +74,17 @@ struct ScheduleTimeline: View {
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DepartureCardView(
-                    card: card, bell: bell(card.id), shakes: shakes(card.id), onOpen: { onOpen(card.id) }, onBell: { onBell(card.id) }
-                ) { size in
-                    viewModel.setCardSize(size, for: card.id)
+                DeparturePlaying(cue: departure, involved: departure.moves(card.id)) { elapsed, reduceMotion in
+                    let pose = cardPose(card, at: elapsed, reduceMotion: reduceMotion)
+                    DepartureCardView(
+                        card: card, bell: bell(card.id), shakes: shakes(card.id), pose: pose, onOpen: { onOpen(card.id) },
+                        onBell: { onBell(card.id) }
+                    ) { size in
+                        viewModel.setCardSize(size, for: card.id)
+                    }
+                    .scaleEffect(pose.scale)
+                    .offset(y: pose.offsetY)
+                    .opacity(pose.opacity)
                 }
                 .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
                 .padding(.leading, Self.cardX)
@@ -79,6 +92,22 @@ struct ScheduleTimeline: View {
                 .offset(y: place.top)
             }
         }
+    }
+
+    /// A card's pose in a departure's play, or at rest.
+    private func cardPose(_ card: DepartureCard, at elapsed: Double?, reduceMotion: Bool) -> DeparturePlay.Card {
+        guard let elapsed else { return .rest(departed: card.isDeparted) }
+        if departure.departing.contains(card.id) {
+            return DeparturePlay.departing(at: elapsed, wasLead: departure.lead == card.id, reduceMotion: reduceMotion)
+        }
+        if departure.next == card.id { return DeparturePlay.next(at: elapsed, reduceMotion: reduceMotion) }
+        return .rest(departed: card.isDeparted)
+    }
+
+    /// A departing train's ring in the play, or at rest.
+    private func railPose(_ card: DepartureCard, at elapsed: Double?, reduceMotion: Bool) -> DeparturePlay.Rail {
+        guard let elapsed, departure.departing.contains(card.id) else { return DeparturePlay.Rail() }
+        return DeparturePlay.rail(at: elapsed, reduceMotion: reduceMotion)
     }
 
     // MARK: Rail
@@ -163,10 +192,22 @@ struct ScheduleTimeline: View {
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                NextGlintLine(colour: card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary, glints: card.isNext && !card.isCancelled)
-                    .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
-                    .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
-                    .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
+                DeparturePlaying(cue: departure, involved: departure.moves(card.id)) { elapsed, reduceMotion in
+                    let rail = railPose(card, at: elapsed, reduceMotion: reduceMotion)
+                    // The glint leaves the departing train at the tick and starts on the next one a moment later (D86).
+                    let holdsGlint = elapsed.map { departure.next == card.id && $0 < DeparturePlay.glintDelay } ?? false
+                    // The departing lead keeps its glint until its card starts to move.
+                    let keepsGlint = elapsed.map { departure.lead == card.id && $0 <= DeparturePlay.delay } ?? false
+                    NextGlintLine(
+                        colour: card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary,
+                        glints: (card.isNext || keepsGlint) && !card.isCancelled && !holdsGlint
+                    )
+                    .frame(width: card.isDeparted ? Self.departedConnector : TTTimeline.connectorLength, height: Self.railWidth)
+                    .offset(y: rail.offsetY)
+                    .opacity(rail.opacity)
+                }
+                .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
+                .offset(x: card.isDeparted ? Self.railX : Self.railX + Self.markerSize / 2, y: place.railY - Self.railWidth / 2)
             }
         }
     }
@@ -183,16 +224,22 @@ struct ScheduleTimeline: View {
                         .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                         .centred(x: Self.railX, y: scheduledY)
                 }
-                marker(for: card)
-                    .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
-                    .centred(x: Self.railX, y: place.markerY)
+                DeparturePlaying(cue: departure, involved: departure.departing.contains(card.id)) { elapsed, reduceMotion in
+                    let rail = railPose(card, at: elapsed, reduceMotion: reduceMotion)
+                    marker(for: card, fill: rail.fill)
+                        .offset(y: rail.offsetY)
+                        .opacity(rail.opacity)
+                }
+                .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
+                .centred(x: Self.railX, y: place.railY)
             }
         }
     }
 
     /// A 16 pt red x for a cancelled train or skipped stop; a 12 pt ink-tertiary ring for every other train, the next one too
-    /// (its line's glint marks it). None is green, so nothing on the rail reads as the Now line (D80).
-    @ViewBuilder private func marker(for card: DepartureCard) -> some View {
+    /// (its line's glint marks it). None is green, so nothing on the rail reads as the Now line (D80). A departed train's
+    /// ring is a 6 pt solid dot; `fill` runs from the ring (0) to the dot (1) as it leaves (D86).
+    @ViewBuilder private func marker(for card: DepartureCard, fill: CGFloat) -> some View {
         if card.isCancelled {
             Image(systemName: card.status.symbol)
                 .resizable()
@@ -200,6 +247,13 @@ struct ScheduleTimeline: View {
                 .foregroundStyle(TTColor.cancelInk)
                 .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
                 .background(TTColor.canvas, in: Circle())
+        } else if card.isDeparted {
+            let size = Self.departedDot + (Self.markerSize - Self.departedDot) * (1 - fill)
+            Circle()
+                .fill(TTColor.surface)
+                .overlay(Circle().fill(TTColor.inkTertiary).opacity(fill))
+                .overlay(Circle().strokeBorder(TTColor.inkTertiary, lineWidth: Self.railWidth))
+                .frame(width: size, height: size)
         } else {
             ring(TTColor.inkTertiary)
         }
@@ -216,12 +270,13 @@ struct ScheduleTimeline: View {
     /// The 2 pt accent line across the timeline, under the cards (a dot on the rail and "Now" in the label column mark it).
     /// When Now plays it draws across from the rail.
     private func nowRule(at y: CGFloat) -> some View {
-        NowPulsing(motion: motion) { pose in
+        NowPulsing(motion: motion, departure: departure) { pose in
             Rectangle()
                 .fill(TTColor.accent)
                 .frame(height: Self.railWidth)
                 .scaleEffect(x: pose.ruleReveal, y: 1, anchor: .leading)
                 .opacity(pose.opacity)
+                .offset(y: pose.offsetY)
         }
         .padding(.leading, Self.railX)
         .padding(.trailing, TTSpace.s5)
@@ -231,15 +286,16 @@ struct ScheduleTimeline: View {
     /// The Now dot on the rail and the "Now" label. When Now plays (`NowPulse`) the dot swells, two 2 pt rings spread from
     /// it and fade, and the label pops. At rest there is no ring.
     @ViewBuilder private func nowMarker(at y: CGFloat) -> some View {
-        NowDot(motion: motion, size: Self.nowDot, ring: Self.railWidth)
+        NowDot(motion: motion, departure: departure, size: Self.nowDot, ring: Self.railWidth)
             .centred(x: Self.railX, y: y)
-        NowPulsing(motion: motion) { pose in
+        NowPulsing(motion: motion, departure: departure) { pose in
             Text("button.now")
                 .font(TTFont.footnote.weight(.semibold))
                 .lineLimit(1)
                 .foregroundStyle(TTColor.accent)
                 .scaleEffect(pose.labelScale, anchor: .trailing)
                 .opacity(pose.opacity)
+                .offset(y: pose.offsetY)
         }
         .frame(width: Self.labelColumn, alignment: .trailing)
         .centred(y: y)
@@ -265,12 +321,16 @@ struct DepartureCardView: View {
     var bell: AlertBellModel.Bell = .off
     /// Each increase shakes the bell (TT-190).
     var shakes = 0
+    /// The card's look in a departure's play (TT-203, D86); nil draws it at rest. Scale and offset are the timeline's.
+    var pose: DeparturePlay.Card?
     let onOpen: () -> Void
     var onBell: () -> Void = {}
     let onSize: (TimelineCardSize) -> Void
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
+    /// The time's laid-out width, for the bolt's place while the time scales.
+    @State private var timeWidth: CGFloat = 0
     @Environment(\.displayScale) private var displayScale
 
     /// Top, trailing (the bell side), bottom and leading padding from the canvas.
@@ -287,10 +347,13 @@ struct DepartureCardView: View {
     private static let bellRoom = bellTarget - padding.trailing + TTSpace.s2
     private static let timeMinimumScale: CGFloat = 0.85
 
+    private var look: DeparturePlay.Card { pose ?? .rest(departed: card.isDeparted) }
+
     var body: some View {
-        Card(padding: 0) {
+        Card(padding: 0, flatness: look.look) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
+                    .departedLook(look.look)
                 HStack(spacing: TTSpace.s2) {
                     detail
                     Spacer(minLength: 0)
@@ -302,10 +365,12 @@ struct DepartureCardView: View {
                         .fixedSize()
                 }
                 .frame(height: Self.detailRowHeight)
+                .departedLook(look.look)
                 HStack(spacing: TTSpace.s2) {
-                    StatusLine(status: card.status)
+                    status
                     Spacer(minLength: 0)
                     arrival
+                        .departedLook(look.look)
                 }
                 .frame(height: Self.statusRowHeight)
             }
@@ -326,8 +391,22 @@ struct DepartureCardView: View {
         .overlay(alignment: .topTrailing) {
             if !card.isCancelled {
                 bellButton
+                    .departedLook(look.look)
                     .padding(.top, Self.bellTop)
             }
+        }
+    }
+
+    /// The status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so it
+    /// reads (D86). A cancelled train keeps "Cancelled".
+    @ViewBuilder private var status: some View {
+        if card.shownStatus != card.status {
+            ZStack(alignment: .leading) {
+                StatusLine(status: card.status).opacity(look.statusOut)
+                StatusLine(status: card.shownStatus).opacity(look.statusIn)
+            }
+        } else {
+            StatusLine(status: card.status)
         }
     }
 
@@ -343,8 +422,13 @@ struct DepartureCardView: View {
                 // "12:47 PM" may shrink a little across, never to fit the 38 pt row: a 34 pt line is taller than the row.
                 .minimumScaleFactor(Self.timeMinimumScale)
                 .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { timeWidth = $0 }
+                .scaleEffect(look.timeScale, anchor: .leading)
             if !card.isCancelled {
+                // The bolt keeps its place beside the time while the time changes size in a departure's play (D86); a
+                // padding, so at rest the layout is exactly as before.
                 ExpressBolt(isExpress: card.isExpress)
+                    .padding(.leading, timeWidth * (look.timeScale - 1))
             }
             Spacer(minLength: card.isCancelled ? 0 : Self.bellRoom)
         }
@@ -372,15 +456,19 @@ struct DepartureCardView: View {
                 // 20 pt row into the gaps.
                 PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
                     .animation(.easeInOut(duration: 0.2), value: card.platformValue)
-                if let relative = card.relativeTime {
+                // A departing lead keeps its "Departing" until the play fades it (D86).
+                if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
+                    let opacity = card.relativeTime == nil ? look.leadOut : look.countdown
                     // A separator glyph, not copy.
                     Text(verbatim: "·")
                         .font(TTFont.subhead)
                         .foregroundStyle(TTColor.inkTertiary)
+                        .opacity(opacity)
                     Text(relative)
                         .font(TTFont.subhead.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
+                        .opacity(opacity)
                 }
             }
             .lineLimit(1)
@@ -453,6 +541,11 @@ private struct VerticalLine: Shape {
 }
 
 private extension View {
+    /// A departed card's content (D86): half opacity and no colour at `look` 1.
+    func departedLook(_ look: CGFloat) -> some View {
+        opacity(1 - 0.5 * look).saturation(1 - look)
+    }
+
     /// Centres the view on a point of the timeline whatever its size: on `y`, and on `x` when given.
     func centred(x: CGFloat? = nil, y: CGFloat) -> some View {
         frame(width: x == nil ? nil : 0, height: 0)
@@ -465,13 +558,36 @@ private extension View {
 private struct NowPulsing<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let motion: ScheduleMotionClock?
+    /// A departure's play glides the line onto the departing ring and draws the rule out (TT-203); it wins over the pulse.
+    var departure: DepartureCue = .rest
     @ViewBuilder let content: (NowPulse.Pose) -> Content
 
     var body: some View {
         let start = motion?.pulseStart
-        TimelineView(.animation(paused: start == nil)) { context in
-            let elapsed = start.map { context.date.timeIntervalSince($0) }
-            content(elapsed.map { NowPulse.pose(at: $0, reduceMotion: reduceMotion) } ?? NowPulse.rest)
+        let run = departure.run
+        TimelineView(.animation(paused: start == nil && run.start == nil)) { context in
+            if let elapsed = run.elapsed(at: context.date), elapsed < DeparturePlay.duration {
+                content(DeparturePlay.now(at: elapsed, glide: departure.glide, reduceMotion: reduceMotion))
+            } else {
+                let elapsed = start.map { context.date.timeIntervalSince($0) }
+                content(elapsed.map { NowPulse.pose(at: $0, reduceMotion: reduceMotion) } ?? NowPulse.rest)
+            }
+        }
+    }
+}
+
+/// Draws `content` from a departure's play (TT-203, D86): the seconds since it started, or nil at rest. Only a view the play
+/// moves (`involved`) reads the clock, so its start and end redraw those views alone.
+private struct DeparturePlaying<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let cue: DepartureCue
+    let involved: Bool
+    @ViewBuilder let content: (Double?, Bool) -> Content
+
+    var body: some View {
+        let run = involved ? cue.run : .rest
+        TimelineView(.animation(paused: run.start == nil)) { context in
+            content(run.elapsed(at: context.date), reduceMotion)
         }
     }
 }
@@ -516,11 +632,12 @@ private struct NextGlintLine: View {
 /// The Now dot and its two rings.
 private struct NowDot: View {
     let motion: ScheduleMotionClock?
+    var departure: DepartureCue = .rest
     let size: CGFloat
     let ring: CGFloat
 
     var body: some View {
-        NowPulsing(motion: motion) { pose in
+        NowPulsing(motion: motion, departure: departure) { pose in
             ZStack {
                 ringView(scale: pose.ringScale, opacity: pose.ringOpacity)
                 ringView(scale: pose.echoScale, opacity: pose.echoOpacity)
@@ -530,6 +647,7 @@ private struct NowDot: View {
                     .scaleEffect(pose.dotScale)
             }
             .opacity(pose.opacity)
+            .offset(y: pose.offsetY)
         }
     }
 

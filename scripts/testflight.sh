@@ -3,7 +3,6 @@
 # Run by .github/workflows/testflight.yml on a GitHub macOS runner.
 #
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8   App Store Connect API key with the Admin role (secrets)
-#   METROLINX_API_KEY                       optional (D36); without it the build shows the timetable only
 #   BUILD_NUMBER                            CFBundleVersion, unique per upload (the workflow's run number)
 #   DRY_RUN=1                               archive without signing and stop: checks that Release compiles
 #
@@ -40,14 +39,6 @@ fi
 for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 BUILD_NUMBER; do
   [[ -n "${!name:-}" ]] || { echo "::error::Missing $name. Add it under Settings › Secrets and variables › Actions."; exit 1; }
 done
-
-# D36: the Metrolinx key reaches the app through the git-ignored Config/Secrets.xcconfig.
-if [[ -n "${METROLINX_API_KEY:-}" ]]; then
-  printf 'METROLINX_API_KEY = %s\n' "$METROLINX_API_KEY" > Config/Secrets.xcconfig
-  echo "Built with the Metrolinx key: live status and line notices on."
-else
-  echo "::warning::No METROLINX_API_KEY secret: this build shows the timetable only, with no live status or line notices."
-fi
 
 KEY_PATH="$WORK/AuthKey_$ASC_KEY_ID.p8"
 printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"

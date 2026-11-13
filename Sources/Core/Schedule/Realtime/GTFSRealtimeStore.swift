@@ -1,18 +1,15 @@
 import Foundation
 
-/// Fetches one of GO's GTFS-realtime feeds: TripUpdates (TT-131, D36) or Alerts (TT-132, D37). One feed covers the
-/// whole network, so the Schedule screen and the Trip details sheet share each fetch: a feed fetched in the last 20 s is
-/// reused. The last good feed is kept in memory only, so a feed from an earlier run of the app can never show as live.
+/// Fetches one of GO's GTFS-realtime feeds: TripUpdates (TT-131, D36) or Alerts (TT-132, D37), relayed by the alert
+/// server, which holds the Metrolinx key (TT-179, D88): the app ships no key. One feed covers the whole network, so the
+/// Schedule screen and the Trip details sheet share each fetch: a feed fetched in the last 20 s is reused. The last good feed is kept in memory only, so a feed from an earlier run of the app can never show as live.
 actor GTFSRealtimeStore {
-    /// The Metrolinx Open Data API needs the key with every call (Q1). The `key` parameter name is to be confirmed when
-    /// the key arrives.
-    static let feedURL = URL(string: "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/TripUpdates")!
+    /// GO's TripUpdates as the alert server relays them, at most 30 s old.
+    static let feedURL = HTTPAlertServer.production.appending(path: "v1/live/trip-updates")
     /// Service alerts, for line notices (TT-132).
-    static let alertsURL = URL(string: "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/Alerts")!
+    static let alertsURL = HTTPAlertServer.production.appending(path: "v1/live/alerts")
     /// A fetch this recent is reused.
     static let reuseInterval: TimeInterval = 20
-    /// Info.plist key filled from the `METROLINX_API_KEY` build setting (`Config/Secrets.xcconfig`, never committed).
-    static let apiKeyInfoKey = "MetrolinxAPIKey"
 
     typealias Download = @Sendable () async throws -> Data
 
@@ -37,25 +34,16 @@ actor GTFSRealtimeStore {
         self.download = download
     }
 
-    /// A feed from Metrolinx with the app's key: TripUpdates unless another feed's URL is given.
-    static func metrolinx(apiKey: String, url: URL = feedURL) -> GTFSRealtimeStore {
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+    /// A feed from the alert server's relay: TripUpdates unless another feed's URL is given. The server answers 503
+    /// while GO fails, which shows as Offline.
+    static func relay(url: URL = feedURL) -> GTFSRealtimeStore {
         // A dead connection shows Offline within seconds rather than after URLSession's default minute.
-        let request = URLRequest(url: components.url!, timeoutInterval: 10)
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         return GTFSRealtimeStore {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             return data
         }
-    }
-
-    /// The key built into the app; nil when it was built without one, as every build is until the key arrives.
-    static func apiKey(in bundle: Bundle = .main) -> String? {
-        guard let key = (bundle.object(forInfoDictionaryKey: apiKeyInfoKey) as? String)?.trimmingCharacters(in: .whitespaces),
-              !key.isEmpty, !key.hasPrefix("$(")
-        else { return nil }
-        return key
     }
 
     /// The feed, fetched again unless the last fetch is under 20 s old. A failed fetch keeps the last good feed and says

@@ -85,6 +85,14 @@ class ProtobufReader {
     return this.varint().lo | 0;
   }
 
+  /** A 32-bit float (wire type 5), as GTFS-realtime positions travel. */
+  float(): number {
+    if (this.end - this.pos < 4) throw new Error('Truncated protobuf');
+    const value = new DataView(this.bytes.buffer, this.bytes.byteOffset + this.pos, 4).getFloat32(0, true);
+    this.pos += 4;
+    return value;
+  }
+
   message(): ProtobufReader {
     const [start, end] = this.lengthDelimited();
     return new ProtobufReader(this.bytes, start, end);
@@ -280,4 +288,77 @@ export function liveStatus(update: TripUpdate, call: Call, feedTime: number): Li
     expected: call.departures[call.from] + delay * 1000,
     reportedAt,
   };
+}
+
+/** One train from GO's VehiclePosition feed (TT-179), as `GET /v1/trains` serves it. */
+export interface TrainPosition {
+  tripId: string;
+  /** "20261109"; undefined when the feed leaves it out. */
+  startDate?: string;
+  routeId?: string;
+  latitude: number;
+  longitude: number;
+  /** STOPPED_AT a stop. */
+  stopped: boolean;
+  /** When the train reported this position, epoch milliseconds. */
+  timestamp?: number;
+}
+
+/** Decodes a VehiclePosition `FeedMessage`: the trains with a trip and a position, the feed's own timestamp. */
+export function decodeVehicles(bytes: Uint8Array): { timestamp?: number; trains: TrainPosition[] } {
+  const message = new ProtobufReader(bytes);
+  const result: { timestamp?: number; trains: TrainPosition[] } = { trains: [] };
+  for (let field = message.next(); field; field = message.next()) {
+    if (field.number === 1 && field.wireType === 2) {
+      const header = message.message();
+      for (let f = header.next(); f; f = header.next()) {
+        if (f.number === 3 && f.wireType === 0) result.timestamp = instant(header.uint());
+        else header.skip(f);
+      }
+    } else if (field.number === 2 && field.wireType === 2) {
+      const entity = message.message();
+      let deleted = false;
+      let train: TrainPosition | null = null;
+      for (let f = entity.next(); f; f = entity.next()) {
+        if (f.number === 2 && f.wireType === 0) deleted = entity.varint().lo !== 0;
+        else if (f.number === 4 && f.wireType === 2) train = vehiclePosition(entity.message());
+        else entity.skip(f);
+      }
+      if (train && !deleted) result.trains.push(train);
+    } else message.skip(field);
+  }
+  return result;
+}
+
+function vehiclePosition(reader: ProtobufReader): TrainPosition | null {
+  let tripId: string | undefined;
+  let startDate: string | undefined;
+  let routeId: string | undefined;
+  let latitude: number | undefined;
+  let longitude: number | undefined;
+  // IN_TRANSIT_TO is the default status.
+  let status = 2;
+  let timestamp: number | undefined;
+  for (let field = reader.next(); field; field = reader.next()) {
+    if (field.number === 1 && field.wireType === 2) {
+      const trip = reader.message();
+      for (let f = trip.next(); f; f = trip.next()) {
+        if (f.number === 1 && f.wireType === 2) tripId = trip.string();
+        else if (f.number === 3 && f.wireType === 2) startDate = trip.string();
+        else if (f.number === 5 && f.wireType === 2) routeId = trip.string();
+        else trip.skip(f);
+      }
+    } else if (field.number === 2 && field.wireType === 2) {
+      const position = reader.message();
+      for (let f = position.next(); f; f = position.next()) {
+        if (f.number === 1 && f.wireType === 5) latitude = position.float();
+        else if (f.number === 2 && f.wireType === 5) longitude = position.float();
+        else position.skip(f);
+      }
+    } else if (field.number === 4 && field.wireType === 0) status = reader.varint().lo;
+    else if (field.number === 5 && field.wireType === 0) timestamp = instant(reader.uint());
+    else reader.skip(field);
+  }
+  if (!tripId || latitude === undefined || longitude === undefined) return null;
+  return { tripId, startDate, routeId, latitude, longitude, stopped: status === 1, timestamp };
 }

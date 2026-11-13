@@ -16,7 +16,8 @@ crons = ["* * * * *", "17 8 * * *"]
 
 [vars]
 APNS_TOPIC = "ca.traintimes.TrainTimes"
-TRIP_UPDATES_URL = "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/TripUpdates"
+# GO's GTFS-realtime feeds, relayed to the app through src/relay.ts (D88). The key is the secret METROLINX_API_KEY.
+GO_FEEDS_URL = "https://api.openmetrolinx.com/OpenDataAPI/api/V1/Gtfs/Feed/"
 # The workflow whose GitHub OIDC token may upload timetables (src/upload.ts).
 TIMETABLE_WORKFLOW = "grigorhello/traintimes/.github/workflows/server-timetable.yml@refs/heads/main"
 

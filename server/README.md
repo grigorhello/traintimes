@@ -11,7 +11,8 @@ TT-140, decisions D38 and D43. A Cloudflare Worker with a D1 database, on the fr
 | `src/alerts.ts` | The alert rules (thresholds, updates, coalescing, window, expiry) |
 | `src/activity.ts` | The before-departure Live Activity's content and its start, update and end payloads (TT-178, D74) |
 | `src/copy.ts` | Notification and Live Activity copy, word for word from `design/handoff/Localizable.strings` |
-| `src/realtime.ts` | GTFS-realtime decoder and live mapping, ported from the app (D36) |
+| `src/realtime.ts` | GTFS-realtime decoder and live mapping, ported from the app (D36), and the VehiclePosition decoder (TT-179) |
+| `src/relay.ts` | GO's live feeds relayed to the app with the Worker's key (TT-179, D88) |
 | `src/timetable.ts` | GTFS zip import and repeating-rule resolution |
 | `src/apns.ts` | APNs with a .p8 key |
 | `schema.sql` | The D1 tables |
@@ -20,6 +21,10 @@ TT-140, decisions D38 and D43. A Cloudflare Worker with a D1 database, on the fr
 ## Live Activity (TT-178, D74)
 
 The app sends its push-to-start token with the registration (`startToken`) and reports each before-departure activity to `PUT /v1/installations/:id/activities` (its update token, and `handedOff` once "I’m on board" turned it into the ride). For each alerted train whose installation has a push-to-start token, the minute cycle sends `event: start` 30 min before the expected departure (topic `ca.traintimes.TrainTimes.push-type.liveactivity`, the alert "Your 5:13 PM train is live"), once; `update` only when what the rider sees changes; and `end` 2 min after the train left, or at once when it is cancelled. Nothing more once the app reports the hand-off. These sends count toward the cycle's 45. GO's feeds post no platforms, so the server's activity always says "Check the board"; without live status it counts down on the timetable ("Scheduled"). The same .p8 key signs these pushes; nothing more to set up at Apple.
+
+## Live feeds (TT-179, D88)
+
+The Metrolinx key is only this Worker's secret `METROLINX_API_KEY`; the app ships none and reads GO's live data here: `GET /v1/live/trip-updates` and `GET /v1/live/alerts` (GTFS-realtime protobuf, as GO sends it) and `GET /v1/trains[?line=LW]` (JSON from the VehiclePosition feed: trip id, service date, latitude, longitude, stopped, timestamp in seconds). Each feed is fetched from GO at most once per 30 s per Cloudflare data centre, whatever the number of phones (a copy in the isolate's memory, then the Cache API), and the minute cycle reads TripUpdates through the same copy. A failed GO call is remembered for 30 s as well, and without the key GO is never called, so a bad key or an outage never floods Metrolinx (it can suspend a key for many failed calls or 429s). While GO fails the endpoints answer 503 and the app shows Offline.
 
 ## Feedback (TT-202, D85)
 
@@ -31,7 +36,7 @@ The Workers Free plan is enough for hundreds of riders (D43). Its limits, and ho
 
 - **10 ms of CPU per run.** Reading the GTFS zip takes about 2 s, so GitHub Actions does it and the Worker only stores the result. A minute cycle reads only the rules whose watch window is open, decodes only the watched trips in the feed and reads today's timetable (the coming week's only when the usual train is missing today): about 3 ms for 300 riders at rush hour, measured locally. Cloudflare lets a run go over now and then, for example on a cold start.
 - **50 outside requests per run.** The feed takes one, so a cycle makes at most 45 APNs calls (`MAX_SENDS` in `src/monitor.ts`). The rest are decided again the next minute, riders who have had no alert yet first, so in a big disruption with many riders on one line the last alerts can come a few minutes late.
-- **100,000 requests a day.** The crons make about 1,500 and the app a few per rider.
+- **100,000 requests a day.** The crons make about 1,500, and the app a few per rider plus its live polls: two every 30 s while Schedule is open, so about 10,000 a day for 300 riders who look for 10 minutes.
 - **D1: 5 million rows read and 100,000 written a day, 5 GB.** A cycle reads the rules in their window and the watched day's watches (about one row per watched trip): roughly 1 to 2 million rows a day for 300 riders.
 
 If the app grows past this, turn on Workers Paid ($5 a month) and raise `MAX_SENDS`; nothing else changes.
@@ -61,6 +66,6 @@ These steps need Grigor's accounts. Never paste a key in chat or commit it. Run 
 3. **Secrets.** Run `npx wrangler secret put APNS_KEY < AuthKey_XXXXXXXXXX.p8`, then `npx wrangler secret put APNS_KEY_ID` and `npx wrangler secret put APNS_TEAM_ID`. Or add them in the Cloudflare dashboard under Workers, then traintimes-alerts, then Settings, then Variables and Secrets.
 4. **Deploy.** Run `npx wrangler deploy`. This also creates the `alerts.traintimes.ca` custom domain.
 5. **Timetable.** Merge the database id from step 1 to main; until then the timetable workflow does nothing. Then run it once (GitHub, Actions, Alert server timetable, Run workflow) so the server has the timetable at once; after that it runs every morning. It needs no secret: the Worker checks the workflow's GitHub OIDC token. Each run covers 8 days, so a missed day does no harm. GitHub turns off scheduled workflows in a public repository after 60 days without a commit and emails a warning first; turn it back on in the Actions tab. A week after the last upload, repeat alerts stop (nothing is decided without a timetable), while This-trip alerts keep working from the feed's estimate at the rider's station.
-6. **When the Metrolinx key arrives**, run `npx wrangler secret put METROLINX_API_KEY`. Until then there is no live feed, so the server sends nothing.
+6. **The Metrolinx key** (received 2026-11-13): `npx wrangler secret put METROLINX_API_KEY`, or Cloudflare dashboard › Workers › `traintimes-alerts` › Settings › Variables and Secrets › Add, type Secret. Without it GO is never called: the live endpoints answer 503 and the server sends nothing.
 
 A development build's device token works only with APNs sandbox, so the app registers with `"environment": "sandbox"` in Debug and `"production"` in TestFlight and App Store builds.

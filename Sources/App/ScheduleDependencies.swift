@@ -2,7 +2,7 @@ import Foundation
 import UIKit
 
 /// What the Schedule tab and the route form read: GO Transit's GTFS feed, its GTFS-realtime TripUpdates and Alerts feeds
-/// when the app is built with the Metrolinx key, and the device clock in the app (TT-130, TT-131, TT-132, D35 to D37);
+/// and train positions through the alert server (D88), and the device clock in the app (TT-130, TT-131, TT-132, TT-179);
 /// the fixture repository and clock from `Fixtures.json` in previews and tests (D20).
 struct ScheduleDependencies {
     let repository: any ScheduleRepository
@@ -12,6 +12,8 @@ struct ScheduleDependencies {
     var rides: (any RideDataProviding)?
     /// The trains train detection matches the phone against (TT-175): the GO feed in the app; none in fixture runs.
     var candidates: (any TrainCandidatesProviding)?
+    /// Where GO's train feed places each train (TT-179): the alert server's `/v1/trains` in the app; none in fixture runs.
+    var trains: (any TrainPositionProviding)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -23,14 +25,14 @@ struct ScheduleDependencies {
             return fixtures(scenario: scenario).withTesting()
         }
         #endif
-        let key = GTFSRealtimeStore.apiKey()
         let repository = GTFSScheduleRepository(
             store: .shared,
-            live: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0) },
-            alerts: key.map { GTFSRealtimeStore.metrolinx(apiKey: $0, url: GTFSRealtimeStore.alertsURL) }
+            live: GTFSRealtimeStore.relay(),
+            alerts: GTFSRealtimeStore.relay(url: GTFSRealtimeStore.alertsURL)
         )
         let live = ScheduleDependencies(
-            repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository
+            repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository,
+            trains: RelayTrainPositions.shared
         )
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
@@ -48,7 +50,8 @@ struct ScheduleDependencies {
             stations: stations,
             clock: mocked,
             rides: rides,
-            candidates: candidates
+            candidates: candidates,
+            trains: trains
         )
     }
 
@@ -74,6 +77,7 @@ extension RideEngine {
         return RideEngine(
             data: dependencies.rides,
             location: SystemLocationProvider(),
+            trains: dependencies.trains,
             clock: dependencies.clock,
             defaults: dependencies.rides == nil ? nil : .standard
         )
@@ -96,6 +100,7 @@ extension TrainDetector {
         return TrainDetector(
             candidates: candidates,
             location: SystemLocationProvider(keepsInBackground: false),
+            trains: dependencies.trains,
             clock: dependencies.clock,
             defaults: .standard
         )
@@ -110,6 +115,7 @@ extension BackgroundDetection {
         let dependencies = ScheduleDependencies.app(environment: environment)
         guard let candidates = dependencies.candidates else { return nil }
         let clock = dependencies.clock
+        let trains = dependencies.trains
         return BackgroundDetection(
             location: SystemWakeLocation(),
             candidates: candidates,
@@ -120,7 +126,10 @@ extension BackgroundDetection {
             isRiding: { ride.ride != nil && ride.state?.phase != .ended },
             isInForeground: { UIApplication.shared.applicationState != .background },
             makeDetector: {
-                TrainDetector(candidates: candidates, location: BackgroundFixes(), clock: clock, defaults: .standard, tickInterval: nil)
+                TrainDetector(
+                    candidates: candidates, location: BackgroundFixes(), trains: trains, clock: clock, defaults: .standard,
+                    tickInterval: nil
+                )
             }
         )
     }

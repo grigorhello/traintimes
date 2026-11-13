@@ -3,8 +3,9 @@ import SwiftUI
 /// The to-scale timeline (TT-113): rail, gridlines, Now line, markers and cards, placed by the TT-111 layout. The left column
 /// holds the gridline times only, never a train's own time, which its card shows (D49). Across, it follows the canvas `.tl`
 /// geometry: labels end at 52 pt, the rail is centred on 62 pt and cards start at 82 pt. Everything but the cards is
-/// decoration and hidden from assistive tech. A new set of trains cascades in, each card with its rail marks, and the Now dot
-/// pulses on the way back to Now (TT-164, D61).
+/// decoration and hidden from assistive tech. A new set of trains cascades in, each card with its rail marks, and the Now line
+/// plays when the timeline shows (TT-164, D61; TT-197, D80). The train marks are neutral, so the Now line is the only green
+/// line on the rail (D80).
 struct ScheduleTimeline: View {
     let viewModel: ScheduleViewModel
     let formatter: any TimeFormatting
@@ -16,7 +17,7 @@ struct ScheduleTimeline: View {
     var onBell: (TripKey) -> Void = { _ in }
     /// The cards' cascade, at rest unless a new set of trains has just been shown.
     var cascade: CascadeCue = .rest
-    /// When the Now dot's pulse started, read by the dot alone; nil draws it at rest.
+    /// When the Now line's play started, read by the Now line, dot and label alone; nil draws them at rest.
     var motion: ScheduleMotionClock?
 
     /// The right edge of the label column.
@@ -28,8 +29,6 @@ struct ScheduleTimeline: View {
     /// The amber bar from a delayed train's scheduled marker down to its expected one (TT-114).
     private static let delayBarWidth: CGFloat = 4
     private static let nowDot: CGFloat = 10
-    /// The canvas ring that lifts the next train's dot off the rail.
-    private static let leadRing: CGFloat = 3
     /// The card column starts where the 14 pt connector from the 12 pt marker ends.
     private static let cardX = railX + markerSize / 2 + TTTimeline.connectorLength
 
@@ -157,14 +156,14 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// 2 pt line from each marker to its card, in the marker's colour.
+    /// 2 pt line from each marker to its card, in the marker's colour: ink-tertiary, cancel-ink for a cancelled train. The next
+    /// train's line carries a glint that runs from the rail into its card, over and over (D80).
     private func connectors(
         _ cards: [DepartureCard], _ places: [TripKey: TimelineLayout.Card], _ orders: [TripKey: Int]
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                Rectangle()
-                    .fill(card.isCancelled ? TTColor.cancelInk : TTColor.accent)
+                NextGlintLine(colour: card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary, glints: card.isNext && !card.isCancelled)
                     .frame(width: TTTimeline.connectorLength, height: Self.railWidth)
                     .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                     .offset(x: Self.railX + Self.markerSize / 2, y: place.markerY - Self.railWidth / 2)
@@ -191,8 +190,8 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// 16 pt solid accent dot for the next usable train, with a canvas ring; a 16 pt red x for a cancelled train or skipped
-    /// stop; a 12 pt ring for the others.
+    /// A 16 pt red x for a cancelled train or skipped stop; a 12 pt ink-tertiary ring for every other train, the next one too
+    /// (its line's glint marks it). None is green, so nothing on the rail reads as the Now line (D80).
     @ViewBuilder private func marker(for card: DepartureCard) -> some View {
         if card.isCancelled {
             Image(systemName: card.status.symbol)
@@ -201,18 +200,12 @@ struct ScheduleTimeline: View {
                 .foregroundStyle(TTColor.cancelInk)
                 .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
                 .background(TTColor.canvas, in: Circle())
-        } else if card.isNext {
-            Circle()
-                .fill(TTColor.accent)
-                .frame(width: Self.leadMarkerSize, height: Self.leadMarkerSize)
-                .padding(Self.leadRing)
-                .background(TTColor.canvas, in: Circle())
         } else {
-            ring(TTColor.accent)
+            ring(TTColor.inkTertiary)
         }
     }
 
-    /// A 12 pt hollow marker: accent for a train, amber at a delayed train's scheduled time.
+    /// A 12 pt hollow marker: ink-tertiary for a train, amber at a delayed train's scheduled time.
     private func ring(_ colour: Color) -> some View {
         Circle()
             .fill(TTColor.surface)
@@ -221,22 +214,35 @@ struct ScheduleTimeline: View {
     }
 
     /// The 2 pt accent line across the timeline, under the cards (a dot on the rail and "Now" in the label column mark it).
+    /// When Now plays it draws across from the rail.
     private func nowRule(at y: CGFloat) -> some View {
-        Rectangle()
-            .fill(TTColor.accent)
-            .frame(height: Self.railWidth)
-            .padding(.leading, Self.railX)
-            .padding(.trailing, TTSpace.s5)
-            .centred(y: y)
+        NowPulsing(motion: motion) { pose in
+            Rectangle()
+                .fill(TTColor.accent)
+                .frame(height: Self.railWidth)
+                .scaleEffect(x: pose.ruleReveal, y: 1, anchor: .leading)
+                .opacity(pose.opacity)
+        }
+        .padding(.leading, Self.railX)
+        .padding(.trailing, TTSpace.s5)
+        .centred(y: y)
     }
 
-    /// The Now dot on the rail and the "Now" label. On the way back to Now the dot pulses once (`NowPulse`): it swells and a
-    /// 2 pt ring spreads from it and fades. At rest there is no ring.
+    /// The Now dot on the rail and the "Now" label. When Now plays (`NowPulse`) the dot swells, two 2 pt rings spread from
+    /// it and fade, and the label pops. At rest there is no ring.
     @ViewBuilder private func nowMarker(at y: CGFloat) -> some View {
         NowDot(motion: motion, size: Self.nowDot, ring: Self.railWidth)
             .centred(x: Self.railX, y: y)
-        label(Text("button.now"), at: y, weight: .semibold)
-            .foregroundStyle(TTColor.accent)
+        NowPulsing(motion: motion) { pose in
+            Text("button.now")
+                .font(TTFont.footnote.weight(.semibold))
+                .lineLimit(1)
+                .foregroundStyle(TTColor.accent)
+                .scaleEffect(pose.labelScale, anchor: .trailing)
+                .opacity(pose.opacity)
+        }
+        .frame(width: Self.labelColumn, alignment: .trailing)
+        .centred(y: y)
     }
 
     /// Footnote text, right-aligned in the label column and centred on `y`.
@@ -454,29 +460,86 @@ private extension View {
     }
 }
 
-/// The Now dot, pulsing from the clock's `pulseStart`. A view of its own, so a pulse redraws the dot alone.
+/// Draws `content` in the Now line's pose, from the clock's `pulseStart`: a view of its own, so a play redraws the Now
+/// line, dot and label alone, and paused (no frames) at rest.
+private struct NowPulsing<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let motion: ScheduleMotionClock?
+    @ViewBuilder let content: (NowPulse.Pose) -> Content
+
+    var body: some View {
+        let start = motion?.pulseStart
+        TimelineView(.animation(paused: start == nil)) { context in
+            let elapsed = start.map { context.date.timeIntervalSince($0) }
+            content(elapsed.map { NowPulse.pose(at: $0, reduceMotion: reduceMotion) } ?? NowPulse.rest)
+        }
+    }
+}
+
+/// A train's 2 pt line to its card. On the next train a short ink glint runs along it from the rail into the card every
+/// 1.6 s, for as long as it is the next train (D80); without Schedule motion (snapshots) or under Reduce Motion the line is
+/// plain ink instead, so the next train still stands out.
+private struct NextGlintLine: View {
+    @Environment(\.playsScheduleMotion) private var playsMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let colour: Color
+    let glints: Bool
+
+    static let period = 1.6
+    /// The glint crosses the line in the first part of each period, then the line rests.
+    static let travel = 0.9
+    static let glintLength: CGFloat = 8
+
+    var body: some View {
+        if glints, playsMotion, !reduceMotion {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.travel
+                GeometryReader { proxy in
+                    let width = proxy.size.width
+                    Rectangle().fill(colour)
+                        .overlay(alignment: .leading) {
+                            if phase < 1 {
+                                LinearGradient(colors: [TTColor.ink.opacity(0), TTColor.ink, TTColor.ink.opacity(0)], startPoint: .leading, endPoint: .trailing)
+                                    .frame(width: Self.glintLength)
+                                    .offset(x: -Self.glintLength + (width + Self.glintLength) * UnitCurve.easeInOut.value(at: phase))
+                            }
+                        }
+                        .clipped()
+                }
+            }
+        } else {
+            Rectangle().fill(glints ? TTColor.ink : colour)
+        }
+    }
+}
+
+/// The Now dot and its two rings.
 private struct NowDot: View {
     let motion: ScheduleMotionClock?
     let size: CGFloat
     let ring: CGFloat
 
     var body: some View {
-        let start = motion?.pulseStart
-        TimelineView(.animation(paused: start == nil)) { context in
-            let pose = start.map { NowPulse.pose(at: context.date.timeIntervalSince($0)) } ?? NowPulse.rest
+        NowPulsing(motion: motion) { pose in
             ZStack {
-                if pose.ringOpacity > 0 {
-                    Circle()
-                        .strokeBorder(TTColor.accent, lineWidth: ring)
-                        .frame(width: size + 2 * ring, height: size + 2 * ring)
-                        .scaleEffect(pose.ringScale)
-                        .opacity(pose.ringOpacity)
-                }
+                ringView(scale: pose.ringScale, opacity: pose.ringOpacity)
+                ringView(scale: pose.echoScale, opacity: pose.echoOpacity)
                 Circle()
                     .fill(TTColor.accent)
                     .frame(width: size, height: size)
                     .scaleEffect(pose.dotScale)
             }
+            .opacity(pose.opacity)
+        }
+    }
+
+    @ViewBuilder private func ringView(scale: CGFloat, opacity: Double) -> some View {
+        if opacity > 0 {
+            Circle()
+                .strokeBorder(TTColor.accent, lineWidth: ring)
+                .frame(width: size + 2 * ring, height: size + 2 * ring)
+                .scaleEffect(scale)
+                .opacity(opacity)
         }
     }
 }

@@ -57,6 +57,19 @@ final class ScheduleScrollTests: XCTestCase {
         XCTAssertFalse(card(app, "0524").isHittable, "The first train of the morning is scrolled away")
     }
 
+    /// TT-197 (D80): scrolled away from Now on Today, a tap on the Today tile scrolls back to Now, as the Schedule tab does.
+    @MainActor
+    func testTheTodayTileScrollsBackToNow() {
+        let app = launch(mockTime: Moment.evening)
+        let next = card(app, "1754")
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        waitUntilHittable(app, next, "The timeline opens at Now")
+        for _ in 0..<3 where next.isHittable { app.swipeDown(velocity: .fast) }
+        XCTAssertFalse(next.isHittable, "Scrolled away from Now")
+        app.buttons["schedule.day.0"].tap()
+        waitUntilHittable(app, next, "The Today tile scrolls back to Now")
+    }
+
     /// 11:45 PM, after the last train: the timeline ends on that train, not on the first one.
     @MainActor
     func testLateAtNightOpensAtTheEndOfTheDay() {

@@ -74,7 +74,8 @@ final class ScheduleViewModel {
     /// Bumped when the rider picks a day or the Schedule tab takes them back to Today: the accent tile glides there. The
     /// midnight turn and a Mock time jump move the selection without it, so nothing slides at midnight (TT-164, D61).
     private(set) var daySelection = 0
-    /// Bumped when the Schedule tab is tapped again, and once when the launch's scroll has settled: the Now dot pulses.
+    /// Bumped when the Schedule tab or the Today tile is tapped, once when the launch's scroll has settled, and when the
+    /// timeline shows again (`timelineAppeared()`): the Now line plays (TT-164, TT-197).
     private(set) var nowPulse = 0
     /// The launch's scroll request pulses Now once it settles.
     @ObservationIgnored private var pulsesOnSettle = false
@@ -421,8 +422,10 @@ final class ScheduleViewModel {
         }
     }
 
-    /// Another day shows scheduled times only, with no Now line, starting at that day's first train.
+    /// Another day shows scheduled times only, with no Now line, starting at that day's first train. Today, also when it is
+    /// already selected, does what tapping the Schedule tab again does: back to Now, with the pulse (TT-197, D80).
     func select(_ day: ServiceDay) async {
+        if day == today { return await backToNow() }
         guard day != selectedDay else { return }
         selectedDay = day
         daySelection += 1
@@ -441,6 +444,13 @@ final class ScheduleViewModel {
             await loadNewTrains()
         }
         requestScroll(jumping: jumping)
+        nowPulse += 1
+    }
+
+    /// The timeline shows again (back to the Schedule tab, back to the foreground): Now plays where it is, without scrolling,
+    /// so the rider sees which moment the line marks (TT-197, D80). The launch's own play waits for its scroll to settle.
+    func timelineAppeared() {
+        guard hasLoaded, isToday, !pulsesOnSettle else { return }
         nowPulse += 1
     }
 

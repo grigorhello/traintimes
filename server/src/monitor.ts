@@ -465,6 +465,7 @@ export async function applyRetention(db: D1Database, now: number): Promise<void>
     db.prepare('DELETE FROM rules WHERE installation_id NOT IN (SELECT id FROM installations)'),
     db.prepare('DELETE FROM watches WHERE installation_id NOT IN (SELECT id FROM installations)'),
     db.prepare('DELETE FROM activities WHERE installation_id NOT IN (SELECT id FROM installations)'),
+    db.prepare('DELETE FROM feedback WHERE created_at < ?').bind(now - 365 * DAY),
     db.prepare('DELETE FROM start_tokens WHERE installation_id NOT IN (SELECT id FROM installations)'),
     db.prepare('DELETE FROM timetables WHERE service_date < ?').bind(addDays(today, -1)),
   ]);

@@ -19,6 +19,11 @@ struct RideActivityStyle {
     /// The train's disc on the Lock Screen card, which hides the bar under it.
     static let lockDisc = Color(red: 30 / 255, green: 35 / 255, blue: 46 / 255)
 
+    /// The platform pill (TT-199): the number in mint on a mint tint, the dash in grey on a grey one.
+    static let platform = PlatformBadge.Palette(
+        numberInk: mint, numberFill: mint.opacity(0.2), dashInk: .white.opacity(0.62), dashFill: .white.opacity(0.16)
+    )
+
     let isAlert: Bool
     let isStale: Bool
     /// What the train's disc is filled with: the card, the island's black or the alert green.
@@ -483,7 +488,7 @@ struct RideActivityTimeLabel: View {
     }
 }
 
-/// "5:13 PM to Clarkson" (the time and the station semibold, "to" regular and grey) over "Platform 7 · On time", the delay
+/// "5:13 PM to Clarkson" (the time and the station semibold, "to" regular and grey) over "Platform [7] · On time", the delay
 /// in amber and Boarding now in mint; "Updated 5:01 PM" once stale.
 struct RideActivityDepartureTitle: View {
     let attributes: RideActivityAttributes
@@ -498,13 +503,12 @@ struct RideActivityDepartureTitle: View {
             Group {
                 if style.isStale {
                     Text(state.updated)
-                } else if state.pill, let platform = state.platform, state.detail.hasPrefix(platform) {
-                    // "Platform", the still pill, then " · On time".
-                    HStack(spacing: 4) {
-                        Text(platform)
-                        Capsule()
-                            .fill(style.secondary.opacity(0.5))
-                            .frame(width: 18, height: 9)
+                } else if let platform = state.platform, state.pill || state.platformNumber != nil,
+                          state.detail.hasPrefix(platform) {
+                    // "Platform", the platform pill (the number, or the still dash, TT-199), then "· On time".
+                    HStack(spacing: 6) {
+                        Text(Self.label(platform, number: state.platformNumber))
+                        PlatformBadge(number: state.platformNumber, size: 12, palette: RideActivityStyle.platform)
                         Text(detail(String(state.detail.dropFirst(platform.count)).trimmingCharacters(in: .whitespaces)))
                     }
                 } else {
@@ -532,6 +536,12 @@ struct RideActivityDepartureTitle: View {
             }
         }
         return text
+    }
+
+    /// "Platform" from "Platform 7": the number goes in the pill.
+    private static func label(_ platform: String, number: String?) -> String {
+        guard let number, platform.hasSuffix(number) else { return platform }
+        return String(platform.dropLast(number.count)).trimmingCharacters(in: .whitespaces)
     }
 
     /// The status after " · " in amber while late, in mint while boarding.

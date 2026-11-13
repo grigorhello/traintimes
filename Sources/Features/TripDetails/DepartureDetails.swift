@@ -124,7 +124,7 @@ struct DepartureStrip: Equatable {
     let title: String
     /// "Platform 7"; nil while it is pending.
     let platform: String?
-    /// A pending platform: "Platform" with the pill when it is worth waiting for (it pulses), else "Check the board".
+    /// A pending platform's dash pill pulses while it is worth waiting for (D55).
     let pillPulses: Bool
     /// "On time", "Delayed 3 min", "Boarding now", or "Scheduled" on the timetable alone.
     let status: String
@@ -148,15 +148,6 @@ struct DepartureStrip: Equatable {
         isDelayed = live.phase == .countingDown && live.delayMinutes != nil
         countdown = String(format: String(localized: "onboard.minutes"), live.minutes(at: now))
     }
-
-    /// "Platform 7", "Platform" (the pill follows), or "Check the board".
-    var lead: String {
-        if let platform { return String(format: String(localized: "depart.platform"), platform) }
-        return pillPulses ? String(localized: "depart.platformLabel") : String(localized: "depart.checkBoard")
-    }
-
-    /// The pill follows "Platform".
-    var showsPill: Bool { platform == nil && pillPulses }
 }
 
 extension OnBoard {

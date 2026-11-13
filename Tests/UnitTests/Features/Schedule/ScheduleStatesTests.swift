@@ -36,7 +36,7 @@ final class ScheduleStatesTests: XCTestCase {
         let cards = model.cards(formatter)
         XCTAssertEqual(cards.map(\.status), Array(repeating: .scheduled, count: 4), "Offline: Scheduled")
         XCTAssertEqual(model.statusRowMode(formatter), .offline(lastUpdated: "6:52 AM"))
-        XCTAssertEqual(Set(cards.map(\.platform)), ["Plat —"])
+        XCTAssertEqual(Set(cards.map(\.hasPlatform)), [false])
         XCTAssertNotNil(model.layout.nowY, "The Now line still follows the device clock")
         XCTAssertEqual(cards.first?.relativeTime, "in 11 min")
     }

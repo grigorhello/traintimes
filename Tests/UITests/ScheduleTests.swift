@@ -47,11 +47,11 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(next.waitForExistence(timeout: 10))
         XCTAssertTrue(next.label.contains("in 8 min"), next.label)
         XCTAssertTrue(next.label.contains("Platform pending"), next.label)
-        XCTAssertFalse(next.label.contains("Plat —"), next.label)
+        XCTAssertFalse(next.label.contains("Platform —"), next.label)
 
         let later = card("LW-0758-20261105")
         XCTAssertTrue(later.waitForExistence(timeout: 5))
-        XCTAssertTrue(later.label.contains("Plat —"), later.label)
+        XCTAssertTrue(later.label.contains("Platform —"), later.label)
         XCTAssertFalse(later.label.contains("Platform pending"), later.label)
     }
 

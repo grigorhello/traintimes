@@ -192,6 +192,39 @@ final class ScheduleMotionStateTests: XCTestCase {
         XCTAssertEqual(model.nowPulse, 2)
     }
 
+    /// The Today tile does what the Schedule tab does: from another day back to Today, and on Today (where a tap used to do
+    /// nothing) a scroll to Now, each with the pulse (TT-197, D80).
+    func testTheTodayTileGoesBackToNow() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        XCTAssertEqual(model.days[0], model.today)
+        await model.select(model.days[1])
+        let scrolls = model.scrollRequest
+        await model.select(model.today)
+        XCTAssertTrue(model.isToday)
+        XCTAssertEqual(model.scrollRequest, scrolls + 1)
+        XCTAssertEqual(model.nowPulse, 1)
+        await model.select(model.today)
+        XCTAssertEqual(model.scrollRequest, scrolls + 2, "Today tapped on Today scrolls to Now")
+        XCTAssertEqual(model.nowPulse, 2)
+        XCTAssertFalse(model.scrollJumps, "On Today the scroll glides, as the tab's does")
+    }
+
+    /// Coming back to the timeline plays Now where it is, on Today only, and never before the launch's own play.
+    func testTheTimelineAppearingPlaysNow() async throws {
+        let model = try await ScheduleViewModel.loadedFixture()
+        model.timelineAppeared()
+        XCTAssertEqual(model.nowPulse, 0, "The launch plays once its scroll settles")
+        for id in model.departures.map(\.id) { model.setCardSize(measured, for: id) }
+        XCTAssertEqual(model.nowPulse, 1)
+        let scrolls = model.scrollRequest
+        model.timelineAppeared()
+        XCTAssertEqual(model.nowPulse, 2)
+        XCTAssertEqual(model.scrollRequest, scrolls, "It does not scroll")
+        await model.select(model.days[1])
+        model.timelineAppeared()
+        XCTAssertEqual(model.nowPulse, 2, "No Now line on another day")
+    }
+
     /// The launch pulses Now once, when its scroll has settled on the measured cards; a later settle does not.
     func testTheLaunchPulsesNowOnceItsScrollHasSettled() async throws {
         let model = try await ScheduleViewModel.loadedFixture()

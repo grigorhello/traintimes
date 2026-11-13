@@ -36,34 +36,69 @@ enum CascadeMotion {
     }
 }
 
-/// The Now dot pulsing once when the Schedule tab is tapped again, and once after the launch's scroll has settled: the dot
-/// swells to 1.7 and back over 0.6 s while a 2 pt accent ring spreads from it to 3.4 times and fades (ease-out, as the
-/// board's keyframes). Nothing under Reduce Motion.
+/// The Now line playing once when the timeline shows: after the launch's scroll settles, on the Schedule tab or the Today
+/// tile, and on coming back to the tab or the app (TT-164, D61; TT-197, D80). The rule draws across from the rail on
+/// `TTMotion.drawInCurve`, the dot swells to 1.7 and back over 0.6 s while a 2 pt accent ring spreads from it to 3.4 times
+/// and fades, a second ring follows 0.3 s later, and the "Now" label pops to 1.15 and back. Under Reduce Motion nothing
+/// moves: the line, dot and label dip to 45 % and come back over 0.6 s.
 enum NowPulse {
     struct Pose: Equatable {
         var dotScale: CGFloat = 1
         var ringScale: CGFloat = 1
         /// 0 at rest, when the ring is not drawn.
         var ringOpacity = 0.0
+        /// The second ring, 0.3 s behind the first.
+        var echoScale: CGFloat = 1
+        var echoOpacity = 0.0
+        /// How much of the rule is drawn, from the rail; 1 at rest.
+        var ruleReveal: CGFloat = 1
+        var labelScale: CGFloat = 1
+        /// The line, dot and label together; only Reduce Motion changes it.
+        var opacity = 1.0
     }
 
     static let rest = Pose()
-    static let duration = 0.6
+    /// One ring's spread, and the dot's swell.
+    static let ringDuration = 0.6
+    static let echoDelay = 0.3
+    static let duration = echoDelay + ringDuration
+    static let reducedDuration = 0.6
     static let peakScale: CGFloat = 1.7
-    /// The dot is largest at 35 % of the pulse.
+    /// The dot is largest at 35 % of its swell.
     static let peakAt = 0.35
     static let ringEndScale: CGFloat = 3.4
     static let ringStartOpacity = 0.6
+    static let labelPeak: CGFloat = 1.15
+    static let labelDuration = 0.45
+    static let reducedDip = 0.55
 
-    static func pose(at elapsed: Double) -> Pose {
-        guard elapsed >= 0, elapsed < duration else { return rest }
-        let fraction = elapsed / duration
+    static func pose(at elapsed: Double, reduceMotion: Bool = false) -> Pose {
+        guard elapsed >= 0 else { return rest }
+        if reduceMotion {
+            guard elapsed < reducedDuration else { return rest }
+            return Pose(opacity: 1 - reducedDip * sin(Double.pi * elapsed / reducedDuration))
+        }
+        guard elapsed < duration else { return rest }
         let ease = UnitCurve.easeOut
-        let dot = fraction < peakAt
-            ? 1 + (peakScale - 1) * ease.value(at: fraction / peakAt)
-            : peakScale - (peakScale - 1) * ease.value(at: (fraction - peakAt) / (1 - peakAt))
-        let ring = ease.value(at: fraction)
-        return Pose(dotScale: dot, ringScale: 1 + (ringEndScale - 1) * ring, ringOpacity: ringStartOpacity * (1 - ring))
+        var pose = Pose()
+        if elapsed < ringDuration {
+            let fraction = elapsed / ringDuration
+            pose.dotScale = fraction < peakAt
+                ? 1 + (peakScale - 1) * ease.value(at: fraction / peakAt)
+                : peakScale - (peakScale - 1) * ease.value(at: (fraction - peakAt) / (1 - peakAt))
+            (pose.ringScale, pose.ringOpacity) = ring(at: fraction)
+        }
+        let echo = (elapsed - echoDelay) / ringDuration
+        if echo >= 0, echo < 1 { (pose.echoScale, pose.echoOpacity) = ring(at: echo) }
+        pose.ruleReveal = min(1, TTMotion.drawInCurve.progress(at: elapsed))
+        if elapsed < labelDuration { pose.labelScale = 1 + (labelPeak - 1) * sin(Double.pi * elapsed / labelDuration) }
+        return pose
+    }
+
+    /// A ring `fraction` of the way through its spread: its scale and opacity.
+    private static func ring(at fraction: Double) -> (CGFloat, Double) {
+        let spread = UnitCurve.easeOut.value(at: fraction)
+        return (1 + (ringEndScale - 1) * spread, ringStartOpacity * (1 - spread))
     }
 }
 

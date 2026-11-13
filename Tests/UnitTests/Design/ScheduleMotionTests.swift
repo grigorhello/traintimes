@@ -72,20 +72,39 @@ final class ScheduleMotionTests: XCTestCase {
         XCTAssertEqual(CascadeMotion.pose(at: 0.06 + 0.18, order: 0, reduceMotion: true).opacity, 1, accuracy: 1e-6)
     }
 
-    /// The Now dot swells to 1.7 at 35 % of 0.6 s and back, while the ring spreads to 3.4 times and fades; none at rest.
+    /// The Now dot swells to 1.7 at 35 % of 0.6 s and back while a ring spreads to 3.4 times and fades, a second ring 0.3 s
+    /// behind it; the rule draws across from the rail and the label pops (TT-197, D80); none of it at rest.
     func testNowPulse() {
         XCTAssertEqual(NowPulse.pose(at: -0.1), NowPulse.rest)
         let start = NowPulse.pose(at: 0)
         XCTAssertEqual(start.dotScale, 1, accuracy: 1e-6)
         XCTAssertEqual(start.ringScale, 1, accuracy: 1e-6)
         XCTAssertEqual(start.ringOpacity, 0.6, accuracy: 1e-6)
+        XCTAssertEqual(start.echoOpacity, 0, "The second ring waits")
+        XCTAssertEqual(start.ruleReveal, 0, accuracy: 1e-6, "The rule starts at the rail")
         XCTAssertEqual(NowPulse.pose(at: 0.21).dotScale, 1.7, accuracy: 1e-6)
+        XCTAssertEqual(NowPulse.pose(at: 0.225).labelScale, 1.15, accuracy: 1e-6)
+        XCTAssertEqual(NowPulse.pose(at: 0.3).echoOpacity, 0.6, accuracy: 1e-6)
         let late = NowPulse.pose(at: 0.599)
         XCTAssertEqual(late.dotScale, 1, accuracy: 0.01)
         XCTAssertEqual(late.ringScale, 3.4, accuracy: 0.01)
         XCTAssertEqual(late.ringOpacity, 0, accuracy: 0.01)
-        XCTAssertEqual(NowPulse.pose(at: 0.6), NowPulse.rest)
+        XCTAssertEqual(late.ruleReveal, 1, accuracy: 0.01, "The rule is drawn by then")
+        XCTAssertEqual(NowPulse.pose(at: 0.899).echoOpacity, 0, accuracy: 0.01)
+        XCTAssertEqual(NowPulse.pose(at: 0.9), NowPulse.rest)
         XCTAssertEqual(NowPulse.rest.ringOpacity, 0, "No ring is drawn at rest")
+        XCTAssertEqual(NowPulse.rest.ruleReveal, 1)
+    }
+
+    /// Under Reduce Motion nothing moves: the line, dot and label dip to 45 % and come back over 0.6 s.
+    func testNowPulseUnderReduceMotion() {
+        let middle = NowPulse.pose(at: 0.3, reduceMotion: true)
+        XCTAssertEqual(middle.opacity, 0.45, accuracy: 1e-6)
+        XCTAssertEqual(middle.dotScale, 1)
+        XCTAssertEqual(middle.ringOpacity, 0)
+        XCTAssertEqual(middle.ruleReveal, 1)
+        XCTAssertEqual(middle.labelScale, 1)
+        XCTAssertEqual(NowPulse.pose(at: 0.6, reduceMotion: true), NowPulse.rest)
     }
 
     /// The frame before the start is taken draws the first pose; at rest there is none.

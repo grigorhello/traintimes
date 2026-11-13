@@ -64,7 +64,8 @@ actor RelayTrainPositions: TrainPositionProviding {
     private func fetch() async throws -> [String: (startDate: Int?, position: TrainPosition)] {
         if let fetching { return try await fetching.value }
         let task = Task.detached { [download] in
-            let body = try JSONDecoder().decode(Body.self, from: try await download())
+            let data = try await download()
+            let body = try JSONDecoder().decode(Body.self, from: data)
             let feedTime = body.timestamp ?? 0
             var trains: [String: (startDate: Int?, position: TrainPosition)] = [:]
             for train in body.trains {

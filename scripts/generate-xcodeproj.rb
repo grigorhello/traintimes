@@ -98,7 +98,7 @@ ui_tests_dir = synced_group(project, 'UITests', tests)
 # App target.
 app = project.new_target(:application, 'TrainTimes', :ios, DEPLOYMENT_TARGET, nil, :swift)
 app.file_system_synchronized_groups << sources << resources << preview << shared
-# TT-131 (D36): Config/App.xcconfig reads the Metrolinx key from Config/Secrets.xcconfig, which git ignores.
+# Config/App.xcconfig: the app target's base configuration (TT-131; empty since D88, which moved the Metrolinx key to the alert server).
 app_xcconfig = project.main_group.new_group('Config', 'Config').new_file('App.xcconfig')
 app.build_configurations.each do |config|
   config.base_configuration_reference = app_xcconfig
@@ -128,7 +128,6 @@ app.build_configurations.each do |config|
       'Train Times notices when you’re on a GO train and offers On board. Your location stays on the phone.',
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D49 reverses D25: no UIDesignRequiresCompatibility key, so iOS 26 draws Liquid Glass (TT-156).
-    # D36: MetrolinxAPIKey comes from the METROLINX_API_KEY setting in Config/App.xcconfig (TT-131).
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).
     # TT-171: UIBackgroundModes location keeps a ride's location going in the background (On board).
     # TT-174: NSSupportsLiveActivities for the ride's Live Activity, and the traintimes:// scheme its taps open.

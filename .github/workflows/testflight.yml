@@ -2,7 +2,7 @@ name: TestFlight
 
 # Archives the app and uploads it to TestFlight (TT-154, D47). Start it from Actions › TestFlight › Run workflow.
 # Secrets (Settings › Secrets and variables › Actions): ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8, an App Store Connect
-# API key with the Admin role, and METROLINX_API_KEY once it arrives (without it the build shows the timetable only).
+# API key with the Admin role. The app ships no Metrolinx key: live data comes through the alert server (D88).
 # On a pull request that changes the release files it only checks that the Release archive builds, unsigned.
 on:
   workflow_dispatch:
@@ -48,7 +48,6 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-          METROLINX_API_KEY: ${{ secrets.METROLINX_API_KEY }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: scripts/testflight.sh
 

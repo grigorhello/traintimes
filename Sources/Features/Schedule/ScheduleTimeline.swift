@@ -196,9 +196,11 @@ struct ScheduleTimeline: View {
                     let rail = railPose(card, at: elapsed, reduceMotion: reduceMotion)
                     // The glint leaves the departing train at the tick and starts on the next one a moment later (D86).
                     let holdsGlint = elapsed.map { departure.next == card.id && $0 < DeparturePlay.glintDelay } ?? false
+                    // The departing lead keeps its glint until its card starts to move.
+                    let keepsGlint = elapsed.map { departure.lead == card.id && $0 <= DeparturePlay.delay } ?? false
                     NextGlintLine(
                         colour: card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary,
-                        glints: card.isNext && !card.isCancelled && !holdsGlint
+                        glints: (card.isNext || keepsGlint) && !card.isCancelled && !holdsGlint
                     )
                     .frame(width: card.isDeparted ? Self.departedConnector : TTTimeline.connectorLength, height: Self.railWidth)
                     .offset(y: rail.offsetY)
@@ -418,12 +420,13 @@ struct DepartureCardView: View {
                 // "12:47 PM" may shrink a little across, never to fit the 38 pt row: a 34 pt line is taller than the row.
                 .minimumScaleFactor(Self.timeMinimumScale)
                 .fixedSize(horizontal: false, vertical: true)
-                .scaleEffect(look.timeScale, anchor: .leading)
             if !card.isCancelled {
                 ExpressBolt(isExpress: card.isExpress)
             }
             Spacer(minLength: card.isCancelled ? 0 : Self.bellRoom)
         }
+        // The bolt grows with the time, so it keeps its place beside it while the time changes size (D86).
+        .scaleEffect(look.timeScale, anchor: .leading)
         .frame(height: Self.timeRowHeight)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
             anchor = $0
@@ -448,17 +451,19 @@ struct DepartureCardView: View {
                 // 20 pt row into the gaps.
                 PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
                     .animation(.easeInOut(duration: 0.2), value: card.platformValue)
-                if let relative = card.relativeTime {
+                // A departing lead keeps its "Departing" until the play fades it (D86).
+                if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
+                    let opacity = card.relativeTime == nil ? look.leadOut : look.countdown
                     // A separator glyph, not copy.
                     Text(verbatim: "·")
                         .font(TTFont.subhead)
                         .foregroundStyle(TTColor.inkTertiary)
-                        .opacity(look.countdown)
+                        .opacity(opacity)
                     Text(relative)
                         .font(TTFont.subhead.weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
-                        .opacity(look.countdown)
+                        .opacity(opacity)
                 }
             }
             .lineLimit(1)

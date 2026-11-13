@@ -122,6 +122,9 @@ enum DeparturePlay {
         var timeScale: CGFloat = 1
         var countdown = 1.0
         var opacity = 1.0
+        /// A departing lead's old countdown ("· Departing"), held from the tick and faded with its status, so nothing on it
+        /// changes before the play moves it.
+        var leadOut = 0.0
 
         /// At rest: departed cards flat, grey and pressed back, the others as they are.
         static func rest(departed: Bool) -> Card {
@@ -141,7 +144,8 @@ enum DeparturePlay {
     static let statusOutDuration = 0.14
     static let statusInDelay = 0.16
     static let statusInDuration = 0.2
-    static let ruleDelay = 0.16
+    /// The rising card covers the rule until it is nearly up, so the rule draws out once it clears.
+    static let ruleDelay = 0.34
     static let nextDelay = 0.3
     static let nextUp = 0.12
     static let nextLift: CGFloat = 1.03
@@ -182,6 +186,7 @@ enum DeparturePlay {
         pose.scale = 1 - (1 - TTTimeline.departedScale) * progress
         pose.look = look
         pose.statusOut = 1 - easeOut(elapsed, statusOutDuration)
+        pose.leadOut = wasLead ? pose.statusOut : 0
         pose.statusIn = easeOut(elapsed - statusInDelay, statusInDuration)
         pose.timeScale = wasLead ? 1 + (leadTimeRatio - 1) * (1 - look) : 1
         return pose

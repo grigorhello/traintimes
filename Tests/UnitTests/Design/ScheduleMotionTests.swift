@@ -141,4 +141,20 @@ final class ScheduleMotionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(samples.min() ?? 0, 0.90)
         XCTAssertEqual(DayPressMotion.scale(presses: 3.9999), 1, accuracy: 0.002)
     }
+
+    /// The play's first frame looks like the lead before the tick (34 pt time, "Departing", old status), so nothing changes
+    /// before the card moves; it ends departed. The Now rule waits until the card has nearly cleared it (D86).
+    func testDeparturePlayStartsAsTheLead() {
+        let first = DeparturePlay.departing(at: 0, wasLead: true)
+        XCTAssertEqual(first.offsetY, TTTimeline.departedLift)
+        XCTAssertEqual(first.timeScale, DeparturePlay.leadTimeRatio, accuracy: 1e-6)
+        XCTAssertEqual(first.leadOut, 1)
+        XCTAssertEqual(first.statusOut, 1)
+        XCTAssertEqual(first.look, 0)
+        XCTAssertEqual(DeparturePlay.departing(at: 0, wasLead: false).leadOut, 0)
+        XCTAssertEqual(DeparturePlay.departing(at: 0.5, wasLead: true).leadOut, 0, accuracy: 1e-6)
+        XCTAssertEqual(DeparturePlay.departing(at: DeparturePlay.duration, wasLead: true), .rest(departed: true))
+        XCTAssertEqual(DeparturePlay.now(at: 0.3, glide: 7).ruleReveal, 0)
+        XCTAssertEqual(DeparturePlay.now(at: DeparturePlay.duration - 0.01, glide: 7).ruleReveal, 1, accuracy: 0.01)
+    }
 }

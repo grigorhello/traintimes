@@ -58,6 +58,15 @@ enum TTMotion {
     static let settleCurve = Curve(response: 0.40, damping: 0.70)
     /// Trip details' "Alert on" drawing in to make room for Repeat, with no overshoot (TT-192).
     static let drawInCurve = Curve(response: 0.28, damping: 1.0)
+    /// A departed card rising 88 pt above the Now line as it presses to 0.96, about 2 pt past and back, and its rail dot
+    /// following 30 pt (TT-203, D86).
+    static let stepUpCurve = Curve(response: 0.55, damping: 0.78)
+    /// The Now line gliding the minute's 7 pt onto a departing train's ring (TT-203).
+    static let nowGlideCurve = Curve(response: 0.35, damping: 0.85)
+    /// The next card springing back from its 1.03 lift: the departure's one bouncy moment (TT-203).
+    static let liftBackCurve = Curve(response: 0.35, damping: 0.45)
+    /// The next card's time growing from 32 to 34 pt as it takes the lead (TT-203).
+    static let leadTimeCurve = Curve(response: 0.45, damping: 0.72)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }

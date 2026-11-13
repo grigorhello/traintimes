@@ -10,9 +10,12 @@ import XCTest
 final class ScheduleGTFSSnapshotTests: XCTestCase {
     @MainActor func testRealScheduleLight() async throws { snap(try await model(), .light) }
     @MainActor func testRealScheduleDark() async throws { snap(try await model(), .dark) }
+    // TT-203 (D86): Sun Nov 8, a past day: every card flat and grey in its own place.
+    @MainActor func testPastDayLight() async throws { snap(try await model(pastDay: true), .light) }
+    @MainActor func testPastDayDark() async throws { snap(try await model(pastDay: true), .dark) }
 
     @MainActor
-    private func model() async throws -> ScheduleViewModel {
+    private func model(pastDay: Bool = false) async throws -> ScheduleViewModel {
         let zip = try GTFSTimetableTests.sampleZip()
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
@@ -24,6 +27,7 @@ final class ScheduleGTFSSnapshotTests: XCTestCase {
         )
         let model = ScheduleViewModel(route: route, repository: repository, clock: clock)
         await model.loadIfNeeded()
+        if pastDay { await model.select(monday.adding(days: -1)) }
         return model
     }
 

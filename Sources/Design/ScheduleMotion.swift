@@ -55,6 +55,8 @@ enum NowPulse {
         var labelScale: CGFloat = 1
         /// The line, dot and label together; only Reduce Motion changes it.
         var opacity = 1.0
+        /// The line, dot and label gliding down onto a departing train's ring (TT-203); 0 at rest.
+        var offsetY: CGFloat = 0
     }
 
     static let rest = Pose()
@@ -102,6 +104,166 @@ enum NowPulse {
     }
 }
 
+/// A train leaving Today's timeline at the minute tick (TT-203, D86; the Departed-A2 board on the canvas): the Now line glides
+/// onto its ring and the dot swells with one ring; the card presses to 0.96 and rises 88 pt, going flat and grey, while its
+/// ring follows 30 pt up and fills to a small dot; "Departed" cross-fades in; the Now rule draws out from the rail under
+/// where the card was; the next card lifts to 1.03 and springs back as its time grows to 34 pt and its countdown and glint
+/// start. Still by about 1.05 s. Under Reduce Motion the card and its dot fade in at their new place over 0.28 s.
+enum DeparturePlay {
+    /// A card's pose: offset and scale on top of its place, how far it has gone flat and grey (`look`, 1 departed), its
+    /// status swap, its time's scale and the countdown's opacity.
+    struct Card: Equatable {
+        var offsetY: CGFloat = 0
+        var scale: CGFloat = 1
+        var look: CGFloat = 0
+        /// The departed status's opacity; the old status shows at `statusOut`.
+        var statusIn = 0.0
+        var statusOut = 1.0
+        var timeScale: CGFloat = 1
+        var countdown = 1.0
+        var opacity = 1.0
+        /// A departing lead's old countdown ("· Departing"), held from the tick and faded with its status, so nothing on it
+        /// changes before the play moves it.
+        var leadOut = 0.0
+
+        /// At rest: departed cards flat, grey and pressed back, the others as they are.
+        static func rest(departed: Bool) -> Card {
+            departed ? Card(scale: TTTimeline.departedScale, look: 1, statusIn: 1, statusOut: 0) : Card()
+        }
+    }
+
+    /// A departing train's ring on the rail: offset above its rest place, and how far it has filled into the small dot.
+    struct Rail: Equatable {
+        var offsetY: CGFloat = 0
+        var fill: CGFloat = 1
+        var opacity = 1.0
+    }
+
+    static let delay = 0.06
+    static let lookDuration = 0.26
+    static let statusOutDuration = 0.14
+    static let statusInDelay = 0.16
+    static let statusInDuration = 0.2
+    /// The rising card covers the rule until it is nearly up, so the rule draws out once it clears.
+    static let ruleDelay = 0.34
+    static let nextDelay = 0.3
+    static let nextUp = 0.12
+    static let nextLift: CGFloat = 1.03
+    static let countdownDuration = 0.2
+    /// The glint starts on the next train's connector this long after the tick.
+    static let glintDelay = 0.35
+    static let dotPeak: CGFloat = 1.6
+    static let dotOut = 0.16
+    static let dotBack = 0.3
+    static let ringEnd: CGFloat = 3.2
+    static let ringDuration = 0.58
+    static let duration = 1.1
+    static let reducedDuration = 0.28
+    /// The lead's 34 pt time against the others' 32 pt.
+    static let leadTimeRatio: CGFloat = 34.0 / 32.0
+
+    private static func fraction(_ time: Double, _ duration: Double) -> Double { min(max(time / duration, 0), 1) }
+    private static func easeOut(_ time: Double, _ duration: Double) -> Double {
+        UnitCurve.easeOut.value(at: fraction(time, duration))
+    }
+    /// The card's and its ring's spring, from `delay`.
+    private static func stepUp(_ elapsed: Double) -> CGFloat {
+        guard elapsed > delay else { return 0 }
+        return CGFloat(TTMotion.stepUpCurve.progress(at: elapsed - delay))
+    }
+
+    /// The departing card `elapsed` seconds into the play; `wasLead` when it was the next train (34 pt time).
+    static func departing(at elapsed: Double, wasLead: Bool, reduceMotion: Bool = false) -> Card {
+        var pose = Card.rest(departed: true)
+        if reduceMotion {
+            pose.opacity = easeOut(elapsed, reducedDuration)
+            return pose
+        }
+        guard elapsed < duration else { return pose }
+        let progress = stepUp(elapsed)
+        let look = CGFloat(easeOut(elapsed - delay, lookDuration))
+        pose.offsetY = TTTimeline.departedLift * (1 - progress)
+        pose.scale = 1 - (1 - TTTimeline.departedScale) * progress
+        pose.look = look
+        pose.statusOut = 1 - easeOut(elapsed, statusOutDuration)
+        pose.leadOut = wasLead ? pose.statusOut : 0
+        pose.statusIn = easeOut(elapsed - statusInDelay, statusInDuration)
+        pose.timeScale = wasLead ? 1 + (leadTimeRatio - 1) * (1 - look) : 1
+        return pose
+    }
+
+    /// The new next card `elapsed` seconds into the play.
+    static func next(at elapsed: Double, reduceMotion: Bool = false) -> Card {
+        var pose = Card()
+        guard !reduceMotion, elapsed < duration else { return pose }
+        let time = elapsed - nextDelay
+        let smallTime: CGFloat = 1 / leadTimeRatio
+        guard time > 0 else {
+            pose.timeScale = smallTime
+            pose.countdown = 0
+            return pose
+        }
+        if time < nextUp {
+            pose.scale = 1 + (nextLift - 1) * CGFloat(easeOut(time, nextUp))
+        } else {
+            pose.scale = nextLift - (nextLift - 1) * CGFloat(TTMotion.liftBackCurve.progress(at: time - nextUp))
+        }
+        pose.timeScale = smallTime + (1 - smallTime) * CGFloat(TTMotion.leadTimeCurve.progress(at: time))
+        pose.countdown = easeOut(time, countdownDuration)
+        return pose
+    }
+
+    /// The departing train's ring `elapsed` seconds into the play.
+    static func rail(at elapsed: Double, reduceMotion: Bool = false) -> Rail {
+        if reduceMotion { return Rail(opacity: easeOut(elapsed, reducedDuration)) }
+        guard elapsed < duration else { return Rail() }
+        let progress = stepUp(elapsed)
+        return Rail(offsetY: TTTimeline.departedRailLift * (1 - progress), fill: min(max(progress, 0), 1))
+    }
+
+    /// The Now line, dot and label `elapsed` seconds into the play, after a move of `glide` points.
+    static func now(at elapsed: Double, glide: CGFloat, reduceMotion: Bool = false) -> NowPulse.Pose {
+        var pose = NowPulse.Pose()
+        guard !reduceMotion, elapsed < duration else { return pose }
+        pose.offsetY = -glide * (1 - CGFloat(TTMotion.nowGlideCurve.progress(at: elapsed)))
+        let dot = elapsed - delay
+        if dot > 0, dot < dotOut {
+            pose.dotScale = 1 + (dotPeak - 1) * CGFloat(easeOut(dot, dotOut))
+        } else if dot >= dotOut, dot < dotOut + dotBack {
+            pose.dotScale = dotPeak - (dotPeak - 1) * CGFloat(UnitCurve.easeInOut.value(at: fraction(dot - dotOut, dotBack)))
+        }
+        if dot > 0, dot < ringDuration {
+            let spread = easeOut(dot, ringDuration)
+            pose.ringScale = 1 + (ringEnd - 1) * CGFloat(spread)
+            pose.ringOpacity = NowPulse.ringStartOpacity * (1 - spread)
+        }
+        pose.ruleReveal = elapsed <= ruleDelay ? 0 : CGFloat(min(1, TTMotion.drawInCurve.progress(at: elapsed - ruleDelay)))
+        return pose
+    }
+}
+
+/// What the timeline needs for a departure's play: the clock, the latest request, which cards it moves and how far the Now
+/// line went. Only the views it moves read the clock, so its start redraws them alone.
+struct DepartureCue: Sendable {
+    var clock: ScheduleMotionClock?
+    var request = 0
+    var departing: Set<TripKey> = []
+    var lead: TripKey?
+    var next: TripKey?
+    var glide: CGFloat = 0
+    var plays = false
+
+    static let rest = DepartureCue()
+
+    /// Pending from the update that moved the trains until the start is taken, so they never flash at their new place.
+    @MainActor var run: MotionRun {
+        guard plays, let clock else { return .rest }
+        return MotionRun(start: clock.departureStart, pending: request != clock.departureSeen)
+    }
+
+    func moves(_ id: TripKey) -> Bool { departing.contains(id) || next == id }
+}
+
 /// The tapped day pressing to 0.90 and springing back to about 1.016 on `TTMotion.press`'s curve, from rest, over 0.75 s:
 /// the screen's one bouncy moment (TT-164, D61).
 enum DayPressMotion {
@@ -129,9 +291,13 @@ enum DayPressMotion {
     var cascadeSeen: Int
     var cascadeStart: Date?
     var pulseStart: Date?
+    /// The last `ScheduleViewModel.departureRequest` whose play has been started, and when it started (TT-203).
+    var departureSeen: Int
+    var departureStart: Date?
 
-    init(cascadeSeen: Int = 0) {
+    init(cascadeSeen: Int = 0, departureSeen: Int = 0) {
         self.cascadeSeen = cascadeSeen
+        self.departureSeen = departureSeen
     }
 }
 

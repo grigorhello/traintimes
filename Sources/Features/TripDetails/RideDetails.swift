@@ -289,32 +289,7 @@ extension OnBoard {
         return RideDetails(plan: plan, state: state, now: engine.now, formatter: formatter)
     }
 
-    extension RideDetails {
-    /// Stops passed before the last one fold when there are two or more of them; stops ahead fold between the second one
-    /// ahead and your stop when that leaves two or more out.
-    static func rows(_ stops: [Stop], passed: Int) -> [Row] {
-        let last = stops.count - 1
-        var shown = Set(0...min(last, 0))
-        shown.insert(min(passed, last))
-        shown.insert(last)
-        for index in (passed + 1)...max(passed + 1, min(last, passed + 2)) where index <= last { shown.insert(index) }
-        // A fold that would leave out a single stop shows it instead.
-        for index in 0...last where !shown.contains(index) {
-            if shown.contains(index - 1) && shown.contains(index + 1) { shown.insert(index) }
-        }
-        var rows: [Row] = []
-        for index in 0...last {
-            if shown.contains(index) {
-                rows.append(.stop(stops[index]))
-            } else if shown.contains(index - 1) {
-                rows.append(.fold(after: stops[index - 1].id))
-            }
-        }
-        return rows
-    }
-}
-
-/// The ride strip on Schedule; nil with no ride running.
+    /// The ride strip on Schedule; nil with no ride running.
     func strip(formatter: some TimeFormatting) -> RideStrip? {
         guard activeRide != nil, let engine, let plan = engine.plan, let state = engine.state else { return nil }
         return RideStrip(plan: plan, state: state, now: engine.now, formatter: formatter)

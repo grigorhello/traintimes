@@ -66,7 +66,9 @@ struct ScheduleView: View {
         self.onOpenDeparture = onOpenDeparture
         _picker = State(initialValue: picker)
         // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
-        _motion = State(initialValue: ScheduleMotionClock(cascadeSeen: viewModel.entranceRequest))
+        _motion = State(
+            initialValue: ScheduleMotionClock(cascadeSeen: viewModel.entranceRequest, departureSeen: viewModel.departureRequest)
+        )
     }
     /// The rider has dragged the timeline since the last scroll request, so the later scrolls to Now stay out of the way.
     @State private var riderScrolled = false
@@ -100,6 +102,7 @@ struct ScheduleView: View {
             }
             .onChange(of: viewModel.entranceRequest) { startEntrance() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
+            .onChange(of: viewModel.departureRequest) { startDeparture() }
             // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
             // play waits for its scroll to settle, so the first appearance asks for nothing.
             .onAppear { viewModel.timelineAppeared() }
@@ -136,6 +139,32 @@ struct ScheduleView: View {
             motion.cascadeStart = start
             try? await Task.sleep(for: .seconds(CascadeMotion.duration))
             if motion.cascadeStart == start { motion.cascadeStart = nil }
+        }
+    }
+
+    /// A train leaving (TT-203, D86): the cards it moves and the Now line work it out from the clock.
+    private var departure: DepartureCue {
+        DepartureCue(
+            clock: motion, request: viewModel.departureRequest, departing: viewModel.departing, lead: viewModel.departureLead,
+            next: viewModel.departureNext, glide: viewModel.departureGlide, plays: playsMotion
+        )
+    }
+
+    /// Started on the next turn, like the cascade, so its first frames are drawn.
+    private func startDeparture() {
+        let request = viewModel.departureRequest
+        let motion = motion
+        guard playsMotion else {
+            motion.departureSeen = request
+            return
+        }
+        Task { @MainActor in
+            guard request == viewModel.departureRequest else { return }
+            let start = Date()
+            motion.departureSeen = request
+            motion.departureStart = start
+            try? await Task.sleep(for: .seconds(DeparturePlay.duration))
+            if motion.departureStart == start { motion.departureStart = nil }
         }
     }
 
@@ -514,7 +543,7 @@ struct ScheduleView: View {
                 case .timeline:
                     ScheduleTimeline(
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
-                        onBell: tapBell(_:), cascade: cascade, motion: motion
+                        onBell: tapBell(_:), cascade: cascade, departure: departure, motion: motion
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)

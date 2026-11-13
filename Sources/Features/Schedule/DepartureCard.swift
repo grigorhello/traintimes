@@ -29,6 +29,12 @@ struct DepartureCard: Hashable, Identifiable {
     let note: String?
     /// The train's name, its scheduled departure (D9): "7:32 AM", for the bell's label (TT-141).
     let trainName: String
+    /// The train has left (TT-203, D86): expected departure at or before now on Today, every train on a past day. The card
+    /// goes flat and grey with "Departed" (a cancelled one keeps "Cancelled") and its rail mark is a small solid dot.
+    let isDeparted: Bool
+
+    /// What the status row says: "Departed" once the train has left, unless it was cancelled.
+    var shownStatus: TripStatus { isDeparted && !isCancelled ? .departed : status }
 
     /// Delayed: the time and arrival are amber (D50).
     var isDelayed: Bool {
@@ -37,10 +43,11 @@ struct DepartureCard: Hashable, Identifiable {
     }
 
     init(
-        _ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, awaitsPlatform: Bool = false, now: Date,
-        formatter: some TimeFormatting
+        _ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, awaitsPlatform: Bool = false,
+        isDeparted: Bool = false, now: Date, formatter: some TimeFormatting
     ) {
         id = departure.id
+        self.isDeparted = isDeparted
         self.awaitsPlatform = awaitsPlatform
         self.isNext = isNext
         time = formatter.time(departure.departureTime)

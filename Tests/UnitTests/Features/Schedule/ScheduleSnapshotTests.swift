@@ -23,6 +23,14 @@ final class ScheduleSnapshotTests: XCTestCase {
     @MainActor func testCancelledLight() async throws { snap(try await .loadedFixture(.cancelled), .light) }
     @MainActor func testCancelledDark() async throws { snap(try await .loadedFixture(.cancelled), .dark) }
     @MainActor func testEveningDark() async throws { snap(try await .loadedFixture(.eveningDark), .dark) }
+    // TT-203 (D86): trains that have left, flat and grey above the Now line. 7:51 AM: the 7:32 has left; 7:42 AM: the
+    // delayed 7:32 (expected 7:41) has left; 7:33 AM: the cancelled 7:32 has gone flat with its red x.
+    @MainActor func testDepartedLight() async throws { snap(try await .loadedFixture(minutesLater: 30), .light) }
+    @MainActor func testDepartedDark() async throws { snap(try await .loadedFixture(minutesLater: 30), .dark) }
+    @MainActor func testDepartedDelayedLight() async throws { snap(try await .loadedFixture(.delayed, minutesLater: 21), .light) }
+    @MainActor func testDepartedDelayedDark() async throws { snap(try await .loadedFixture(.delayed, minutesLater: 21), .dark) }
+    @MainActor func testDepartedCancelledLight() async throws { snap(try await .loadedFixture(.cancelled, minutesLater: 12), .light) }
+    @MainActor func testDepartedCancelledDark() async throws { snap(try await .loadedFixture(.cancelled, minutesLater: 12), .dark) }
 
     @MainActor
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {

@@ -22,7 +22,9 @@ extension GTFSRealtimeFeed.TripUpdate {
     /// - Departure: the origin's own departure, else its arrival; else the delay of the nearest earlier stop with an
     ///   estimate, which carries on down the line as GTFS-realtime defines; else the trip-wide delay. NO_DATA at the
     ///   origin, or at that earlier stop, means no estimate.
-    /// - Arrival: only the destination's own arrival estimate (Q3, D15); a delay carried from earlier stops is not one.
+    /// - Arrival: only the destination's own estimate (Q3, D15); a delay carried from earlier stops is not one. GO's feed
+    ///   posts departures only, the last stop included, and its timetable has each arrival equal to the departure, so the
+    ///   destination's departure stands in when it has no arrival (D89).
     func live(on call: GTFSTimetable.Call, feedTime: Date) -> LiveTripUpdate? {
         let reportedAt = timestamp ?? feedTime
         if isCancelled { return LiveTripUpdate(isCancelled: true, reportedAt: reportedAt) }
@@ -51,8 +53,8 @@ extension GTFSRealtimeFeed.TripUpdate {
 
         let scheduledArrival = call.arrivals[call.to]
         let expectedArrival = destination.flatMap { stop -> Date? in
-            guard stop.relationship == .scheduled, let arrival = stop.arrival else { return nil }
-            return arrival.time ?? arrival.delay.map { scheduledArrival.addingTimeInterval(TimeInterval($0)) }
+            guard stop.relationship == .scheduled, let event = stop.arrival ?? stop.departure else { return nil }
+            return event.time ?? event.delay.map { scheduledArrival.addingTimeInterval(TimeInterval($0)) }
         }
         return LiveTripUpdate(
             expectedDeparture: scheduledDeparture.addingTimeInterval(departureDelay),

@@ -133,7 +133,7 @@ Simulator and CI results are for main at TT-153's merge (PR #65). Status words: 
 - [ ] With the key
 
 ### 20. Timeline positions are computed from expected time, scale and the minimum-gap rule, and recomputed on every refresh without resetting scroll.
-- Simulator and CI: **passes** for the layout and identity: `TimelineLayoutTests` (expected time, scale, minimum gap, `testLayoutIsDeterministicAndKeyedByTrip`), `ScheduleViewModelTests.testRefreshKeepsCardIdentityAndScrollPosition`, `ScheduleLiveTests.testPollingFollowsTheFeedAndKeepsTheScroll` (a poll never scrolls). The on-screen scroll position through a refresh is a phone check; Q10 waits for the key.
+- Simulator and CI: **passes** for the layout and identity: `TimelineLayoutTests` (expected time, scale, minimum gap, `testLayoutIsDeterministicAndKeyedByTrip`), `ScheduleViewModelTests.testRefreshKeepsCardIdentityAndScrollPosition`, `ScheduleLiveTests.testPollingFollowsTheFeedAndKeepsTheScroll` (a poll never scrolls). The on-screen scroll position through a refresh is a phone check; Q10 closed on the real feed (D89).
 - iPhone: scroll so a train is mid-screen and wait two minutes: no jump back to Now, the Now line creeps down. Pull to refresh: no jump.
 - [ ] Light
 - [ ] Dark

@@ -13,4 +13,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install gtfs-realtime-bindings==1.0.0
-      - run: python .github/feed-check/check.py 24
+      - run: python .github/feed-check/check2.py

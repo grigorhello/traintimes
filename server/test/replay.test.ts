@@ -156,6 +156,27 @@ describe('feed replay', () => {
     assert.deepEqual(await cycle('7:58', delayFeed('7:58', 'LW-1308', 20)), []);
   });
 
+  test("GO's real feed (D89): stops left drop out, which ends alerts; a cancelled trip skips every stop", async () => {
+    await setUp({ 'LW-1308': '7:51', 'LW-1858': '7:28' });
+    // Departures only, for the stops still ahead, Oakville's 7:51 first.
+    const go = (time: string, minutes: number, stops: string[]): Feed => ({
+      timestamp: at(time),
+      tripUpdates: [
+        { tripId: '20261109-LW-1308', startDate: '20261109', cancelled: false, timestamp: at(time), stopTimeUpdates: stops.map((stopId) => ({ stopId, relationship: 'scheduled' as const, departure: { delay: minutes * 60 } })) },
+        { tripId: '20261109-LW-1858', startDate: '20261109', cancelled: true, timestamp: at('7:20'), stopTimeUpdates: ['OA', 'UN'].map((stopId) => ({ stopId, relationship: 'skipped' as const })) },
+      ],
+    });
+    assert.deepEqual(await cycle('7:40', go('7:40', 4, ['OA', 'CL', 'UN'])), [
+      '7:28 AM train cancelled | Oakville to Union. Cancelled, as reported at 7:20 AM. Open to see the next trains.',
+      '7:51 AM train delayed 4 min | Oakville to Union. Now expected 7:55 AM, as reported at 7:40 AM.',
+    ]);
+    // Oakville is gone from the update: the train left, so the watch ends and a growing delay sends nothing.
+    assert.deepEqual(await cycle('7:56', go('7:56', 5, ['CL', 'UN'])), []);
+    const done = await db.prepare(`SELECT done FROM watches WHERE key LIKE '%LW-1308%'`).first<{ done: number }>();
+    assert.equal(done!.done, 1);
+    assert.deepEqual(await cycle('7:58', go('7:58', 12, ['CL', 'UN'])), []);
+  });
+
   test('stale or missing live data sends nothing', async () => {
     await setUp({ 'LW-1308': '7:51' });
     assert.deepEqual(await cycle('7:10', delayFeed('7:06', 'LW-1308', 10)), []);

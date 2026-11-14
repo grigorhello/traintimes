@@ -399,9 +399,18 @@ final class ScheduleViewModel {
                 title: String(format: String(localized: "notice.title"), notice.lineName),
                 text: notice.text,
                 details: notice.details,
-                reported: String(format: String(localized: "notice.reported"), formatter.time(notice.reportedAt))
+                reported: reported(notice.reportedAt, formatter)
             )
         }
+    }
+
+    /// "Reported at 7:12 AM" today, else with the day, "Reported Nov 7 at 1:57 PM": GO's notices start when they were
+    /// posted, often days before (D90).
+    private func reported(_ date: Date, _ formatter: some TimeFormatting) -> String {
+        if ServiceDay(calendarDayContaining: date) == ServiceDay(calendarDayContaining: now) {
+            return String(format: String(localized: "notice.reported"), formatter.time(date))
+        }
+        return String(format: String(localized: "notice.reported_on"), formatter.shortDate(date), formatter.time(date))
     }
 
     /// Hides the notice until a notice with a new id arrives, after a relaunch too.

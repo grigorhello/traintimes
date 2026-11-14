@@ -66,4 +66,17 @@ final class ScheduleLineNoticeTests: XCTestCase {
         XCTAssertEqual(model.lineNotices.count, 1)
         XCTAssertEqual(model.todayNotices, model.lineNotices)
     }
+
+    /// GO's notices start when they were posted (D90): one from another day says the day too.
+    @MainActor
+    func testANoticeFromAnotherDaySaysTheDay() async throws {
+        let clock = TestClock(now: monday.date(hour: 7, minute: 2).addingTimeInterval(30))
+        let model = try await loadedModel(try FeedReplay("alerts-go-real"), clock: clock, defaults: .ephemeral())
+        XCTAssertEqual(
+            model.noticeRows(TimeFormatter(format: .twelveHour)).map(\.reported),
+            ["Reported Nov 7 at 1:57 PM", "Reported at 6:40 AM"]
+        )
+        XCTAssertEqual(model.noticeRows(TimeFormatter(format: .twentyFourHour)).first?.reported, "Reported Nov 7 at 13:57")
+        XCTAssertFalse(model.departures.contains { if case .cancelled = $0.status { true } else { false } })
+    }
 }

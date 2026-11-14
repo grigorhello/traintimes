@@ -25,6 +25,15 @@ extension TimeFormatting {
         return full.split(separator: " ").first.map(String.init) ?? full
     }
 
+    /// A day in America/Toronto as month and day, "Nov 7": a line notice reported on another day (D90).
+    func shortDate(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        return "\(calendar.shortMonthSymbols[(parts.month ?? 1) - 1]) \(parts.day ?? 1)"
+    }
+
     /// A trip's length, the one wording everywhere it shows (TT-157, TT-198, D81): "40 min ride" up to 99 min, then
     /// "1 h 45 min ride" ("2 h ride" on the hour).
     func tripLength(from departure: Date, to arrival: Date) -> String {

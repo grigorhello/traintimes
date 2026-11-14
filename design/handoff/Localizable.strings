@@ -35,6 +35,7 @@
 "schedule.notice_chip" = "Notice";
 "notice.title" = "%@ notice";
 "notice.reported" = "Reported at %@";
+"notice.reported_on" = "Reported %1$@ at %2$@";
 "notice.dismiss" = "Dismiss notice";
 "schedule.scheduled_arrival" = "Scheduled arrival";
 "schedule.arrival" = "Arrival";

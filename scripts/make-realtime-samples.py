@@ -182,3 +182,68 @@ m = feed("07:05:00")
 alert(m, "LW-1002", "Delays of up to 25 min near Port Credit", routes=["09261126-LW"], start="07:04:00")
 alerts_common(m)
 write("alerts-0705.pb", m)
+
+
+# GO's real Alerts feed (checked through the alert server on 2026-11-14, D90), on the sample's Monday at 7:02 AM: numeric
+# ids; every informed entity sets agency_id, route_id, route_type and stop_id, the unused ones as "" or 0; a line notice
+# names its route with an empty stop; a station alert has an empty route; a trip alert names the trip with route_type 2
+# and lists its stations apart; every active period starts when GO posted the alert (often days before) and ends about
+# 19 h after the feed's time, whatever the alert; English with French, or English only.
+def go_entity(a, route="", stop="", agency=None, trip_id=None):
+    informed = a.informed_entity.add()
+    informed.agency_id = agency if agency is not None else ("GO" if route else "")
+    informed.route_id = route
+    informed.route_type = 2 if trip_id else 0
+    informed.stop_id = stop
+    if trip_id:
+        informed.trip.trip_id = f"{DATE}-{trip_id}"
+        informed.trip.route_id = route
+
+
+def go_alert(message, entity_id, header, description, posted, entities, effect=rt.Alert.OTHER_EFFECT, french=True):
+    entity = message.entity.add()
+    entity.id = entity_id
+    a = entity.alert
+    period = a.active_period.add()
+    period.start = calendar.timegm(posted.timetuple())
+    period.end = at("07:02:00") + 19 * 3600
+    for kwargs in entities:
+        go_entity(a, **kwargs)
+    a.cause = rt.Alert.UNKNOWN_CAUSE
+    a.effect = effect
+    a.url.translation.add(text="https://www.gotransit.com/en/service-updates/service-updates", language="en")
+    a.header_text.translation.add(text=header, language="en")
+    a.description_text.translation.add(text=description, language="en")
+    if french:
+        a.header_text.translation.add(text="Avis", language="fr")
+        a.description_text.translation.add(text="Avis.", language="fr")
+
+
+def utc(month, day, hour, minute):
+    return datetime.datetime(2026, month, day, hour, minute)
+
+
+m = feed("07:02:00")
+# Lakeshore West, posted Saturday Nov 7 at 1:57 PM Toronto: a line notice reported on another day.
+go_alert(m, "532843", "Lakeshore West - Track speed reductions",
+         "Ongoing track conditions between Confederation GO and Niagara Falls GO continue to require trains to operate "
+         "at reduced speeds through the area.", utc(11, 7, 18, 57), [dict(route="09261126-LW")],
+         effect=rt.Alert.SIGNIFICANT_DELAYS, french=False)
+# Lakeshore West, posted today at 6:40 AM: a notice about a later day is active from its posting.
+go_alert(m, "533119", "Nov. 21: Service adjustments", "On Saturday, Nov. 21, GO trains will run every hour.",
+         utc(11, 9, 11, 40), [dict(route="09261126-LW")])
+# A station alert at Oakville, and the same day's notice told by station only: neither is a line notice.
+go_alert(m, "480679", "Elevator out of service", "The elevator to platform 2 is out of service.", utc(9, 29, 5, 30),
+         [dict(stop="OA")], effect=rt.Alert.UNKNOWN_EFFECT)
+go_alert(m, "533122", "Nov. 21: Service adjustments", "No GO Transit service at this station.", utc(11, 9, 11, 40),
+         [dict(stop="EX"), dict(stop="MI")], effect=rt.Alert.UNKNOWN_EFFECT)
+# The 7:21 AM train cancelled, told about the trip and its stations: never a line notice or a status.
+go_alert(m, "533305", "Train cancelled - Oakville GO 07:21 - Union Station 07:48", "The train is cancelled.",
+         utc(11, 9, 11, 55), [dict(route="09261126-LW", trip_id="LW-1108"), dict(stop="OA"), dict(stop="UN")],
+         effect=rt.Alert.SIGNIFICANT_DELAYS)
+# Kitchener (route GT) and Barrie together, and a bus route alone (route 18 serves Oakville GO).
+go_alert(m, "532102", "Kitchener and Barrie line service adjustments.", "Tonight, there are late-evening adjustments.",
+         utc(11, 9, 11, 0), [dict(route="09261126-BR"), dict(route="09261126-GT")], effect=rt.Alert.MODIFIED_SERVICE)
+go_alert(m, "532280", "Nov. 15: Temporary Outer Bus Loop Closure at Oakville GO", "The outer bus loop is closed.",
+         utc(11, 5, 15, 0), [dict(route="09261126-18")], effect=rt.Alert.STOP_MOVED)
+write("alerts-go-real.pb", m)

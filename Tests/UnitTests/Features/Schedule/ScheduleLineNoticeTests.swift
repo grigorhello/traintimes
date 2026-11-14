@@ -71,7 +71,7 @@ final class ScheduleLineNoticeTests: XCTestCase {
     @MainActor
     func testANoticeFromAnotherDaySaysTheDay() async throws {
         let clock = TestClock(now: monday.date(hour: 7, minute: 2).addingTimeInterval(30))
-        let model = try await loadedModel(try FeedReplay("alerts-go-real"), clock: clock, defaults: .ephemeral())
+        let model = try await loadedModel(FeedReplay("alerts-go-real"), clock: clock, defaults: .ephemeral())
         XCTAssertEqual(
             model.noticeRows(TimeFormatter(format: .twelveHour)).map(\.reported),
             ["Reported Nov 7 at 1:57 PM", "Reported at 6:40 AM"]

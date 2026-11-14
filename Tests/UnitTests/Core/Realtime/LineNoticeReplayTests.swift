@@ -89,4 +89,23 @@ final class LineNoticeReplayTests: XCTestCase {
         XCTAssertEqual(departures.first { $0.id == key }?.status, .delayed(minutes: 5, reportedAt: at(7, 0)))
         XCTAssertFalse(departures.contains { if case .cancelled = $0.status { true } else { false } })
     }
+
+    /// GO's real Alerts feed (D91), modelled in `alerts-go-real.pb`: every informed entity sets agency, route, route
+    /// type and stop, the unused ones empty; a line notice names its route with an empty stop, and its active period
+    /// starts when GO posted it. Station and trip alerts, a bus route and other lines are not Lakeshore West notices.
+    func testRealGoFeedScopesNoticesToTheLine() async throws {
+        let feed = try GTFSRealtimeFeed(protobuf: FeedReplay.sample("alerts-go-real"))
+        XCTAssertEqual(feed.alerts.first?.informedEntities, [GTFSRealtimeFeed.InformedEntity(routeId: "09261126-LW", stopId: "", hasTrip: false)])
+
+        let clock = TestClock(now: at(7, 2, 30))
+        let repository = try GTFSScheduleRepository.replaying(nil, alerts: FeedReplay("alerts-go-real"), clock: clock, directory: directory)
+        let notices = try await repository.lineNotices(for: lakeshore)
+        XCTAssertEqual(notices.map(\.id), ["532843", "533119"])
+        XCTAssertEqual(notices.first?.text, "Lakeshore West - Track speed reductions")
+        XCTAssertEqual(notices.first?.reportedAt, ServiceDay(year: 2026, month: 11, day: 7).date(hour: 13, minute: 57))
+        XCTAssertEqual(notices.last?.reportedAt, at(6, 40))
+
+        let kitchenerNotices = try await repository.lineNotices(for: kitchener)
+        XCTAssertEqual(kitchenerNotices.map(\.id), ["532102"], "Named with Barrie, by route GT")
+    }
 }

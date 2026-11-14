@@ -9,7 +9,7 @@ import { handleFeedback } from './feedback.ts';
 import { ApnsClient } from './apns.ts';
 import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed } from './realtime.ts';
-import { FeedRelay, handleLive, type FeedName } from './relay.ts';
+import { downloadFeed, FeedRelay, handleLive } from './relay.ts';
 import { GITHUB_JWKS_URL, handleTimetableUpload, type JWKS } from './upload.ts';
 
 export interface Env {
@@ -42,29 +42,15 @@ function apnsClient(env: Env): ApnsClient | null {
   return apns;
 }
 
-/** One call to GO for a feed; null without the key (an unkeyed call is a failed call) or when GO fails. */
-async function downloadFeed(env: Env, feed: FeedName): Promise<Uint8Array | null> {
-  if (!env.METROLINX_API_KEY) return null;
-  const url = new URL(feed, env.GO_FEEDS_URL);
-  url.searchParams.set('key', env.METROLINX_API_KEY);
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok) {
-      console.warn(`${feed} ${response.status}`);
-      return null;
-    }
-    return new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    console.warn(`${feed} fetch failed`, error);
-    return null;
-  }
-}
-
 let relay: FeedRelay | null = null;
 
 /** One relay per isolate, so its copies in memory serve every request the isolate takes. */
 function feedRelay(env: Env): FeedRelay {
-  relay ??= new FeedRelay({ download: (feed) => downloadFeed(env, feed), cache: caches.default, now: Date.now });
+  relay ??= new FeedRelay({
+    download: (feed) => downloadFeed(fetch, env.GO_FEEDS_URL, env.METROLINX_API_KEY, feed),
+    cache: caches.default,
+    now: Date.now,
+  });
   return relay;
 }
 

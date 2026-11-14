@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeVehicles } from '../src/realtime.ts';
-import { FeedRelay, handleLive, type FeedName } from '../src/relay.ts';
+import { downloadFeed, FeedRelay, handleLive, type FeedName } from '../src/relay.ts';
 import { at, repoFile } from './support.ts';
 
 // A small protobuf writer for a VehiclePosition sample (the TT-131 samples have no positions).
@@ -145,4 +145,19 @@ test('requests at the same time share one GO call', async () => {
   const { relay, calls } = rig({ Alerts: new Uint8Array([9]) });
   await Promise.all([relay.get('Alerts'), relay.get('Alerts'), relay.get('Alerts')]);
   assert.deepEqual(calls, ['Alerts']);
+});
+
+test('asks GO for protobuf and turns down anything else', async () => {
+  const seen: { url: string; accept: string | null }[] = [];
+  const answer = (body: BodyInit, type: string, status = 200) => (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push({ url: String(input), accept: new Headers(init?.headers).get('accept') });
+    return new Response(body, { status, headers: { 'content-type': type } });
+  }) as typeof fetch;
+  const base = 'https://go.example/Gtfs/Feed/';
+  assert.deepEqual(await downloadFeed(answer(sample, 'application/x-protobuf'), base, 'k', 'VehiclePosition'), sample);
+  assert.deepEqual(seen[0], { url: 'https://go.example/Gtfs/Feed/VehiclePosition?key=k', accept: 'application/x-protobuf' });
+  assert.equal(await downloadFeed(answer('{ "header": {} }', 'application/json'), base, 'k', 'TripUpdates'), null);
+  assert.equal(await downloadFeed(answer('', 'text/plain', 429), base, 'k', 'Alerts'), null);
+  assert.equal(await downloadFeed(answer(sample, 'application/x-protobuf'), base, undefined, 'Alerts'), null);
+  assert.equal(seen.length, 3, 'no call without the key');
 });

@@ -272,6 +272,17 @@ export function liveStatus(update: TripUpdate, call: Call, feedTime: number): Li
   if (origin?.relationship === 'skipped') return { kind: 'skipped', stop: 'origin', reportedAt };
   if (destination?.relationship === 'skipped') return { kind: 'skipped', stop: 'destination', reportedAt };
 
+  // GO lists only the stops still ahead and never leaves early (D89), so once the scheduled departure has passed, an
+  // update whose stops all lie past the origin is a train that has left it. Its departure is the origin's time carried
+  // back from the next stop's estimate, never later than the report, so the watch ends there (a reliable departure)
+  // instead of reading as Scheduled until the window closes.
+  const scheduled = call.departures[call.from];
+  if (!origin && scheduled <= reportedAt && positioned.length > 0 && positioned.every((entry) => entry.position > call.from)) {
+    const next = positioned.reduce((a, b) => (b.position < a.position ? b : a));
+    const carried = Math.max(0, lateness(next.stop, call.arrivals[next.position], call.departures[next.position]) ?? 0);
+    return { kind: 'running', delayMin: Math.trunc(carried / 60), expected: Math.min(scheduled + carried * 1000, reportedAt), reportedAt };
+  }
+
   let delay: number | null;
   if (origin) {
     delay = lateness(origin, call.arrivals[call.from], call.departures[call.from]);

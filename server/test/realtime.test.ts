@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decide, hasDeparted } from '../src/alerts.ts';
-import { decodeFeed, liveStatus, tripUpdatesOn, type Call } from '../src/realtime.ts';
+import { decodeFeed, liveStatus, tripUpdatesOn, type Call, type TripUpdate } from '../src/realtime.ts';
 import { importTimetables } from '../src/timetable.ts';
 import { gtfsInstant } from '../src/time.ts';
 import { at, repoFile, sampleFeed, sampleGTFS } from './support.ts';
@@ -45,6 +45,24 @@ test('maps the feed as the app does: own estimate, propagated delay, trip-wide d
   assert.deepEqual(status(feed, 'LW-1308'), { kind: 'running', delayMin: 4, expected: at('7:55'), reportedAt: at('7:02') });
   assert.deepEqual(status(feed, 'LW-1860'), { kind: 'running', delayMin: 3, expected: at('8:01'), reportedAt: at('7:02') });
   assert.equal(status(feed, 'LW-1258'), null, 'an estimate at Union only is no departure estimate');
+});
+
+test("GO's real feed (D89): a train whose stops ahead all lie past the origin has left it", () => {
+  const ahead = (time: string, delay: number, stops = ['CL', 'PO', 'LO', 'MI', 'EX', 'UN']): TripUpdate => ({
+    tripId: '20261109-LW-1308',
+    startDate: '20261109',
+    cancelled: false,
+    timestamp: at(time),
+    stopTimeUpdates: stops.map((stopId) => ({ stopId, relationship: 'scheduled' as const, departure: { delay } })),
+  });
+  // Oakville (7:51) dropped out: it left 5 min late, as the next stop's estimate says, and never after the report.
+  assert.deepEqual(liveStatus(ahead('7:58', 300), call('LW-1308'), at('7:58')), { kind: 'running', delayMin: 5, expected: at('7:56'), reportedAt: at('7:58') });
+  assert.deepEqual(liveStatus(ahead('7:54', 600), call('LW-1308'), at('7:54')), { kind: 'running', delayMin: 10, expected: at('7:54'), reportedAt: at('7:54') });
+  assert.equal(hasDeparted(liveStatus(ahead('7:54', 600), call('LW-1308'), at('7:54')), at('7:54')), true);
+  // Before its scheduled time a train has not left the origin (GO never leaves early): no estimate, as before.
+  assert.equal(liveStatus(ahead('7:40', 0), call('LW-1308'), at('7:40')), null);
+  // With Oakville still listed, its own departure counts.
+  assert.deepEqual(liveStatus(ahead('7:52', 120, ['OA', 'CL', 'UN']), call('LW-1308'), at('7:52')), { kind: 'running', delayMin: 2, expected: at('7:53'), reportedAt: at('7:52') });
 });
 
 test('alert rules: thresholds, steps, status changes and coalescing', () => {

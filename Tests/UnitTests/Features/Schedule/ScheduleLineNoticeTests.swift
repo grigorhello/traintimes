@@ -67,7 +67,7 @@ final class ScheduleLineNoticeTests: XCTestCase {
         XCTAssertEqual(model.todayNotices, model.lineNotices)
     }
 
-    /// GO's notices start when they were posted (D90): one from another day says the day too.
+    /// GO's notices start when they were posted (D91): one from another day says the day too.
     @MainActor
     func testANoticeFromAnotherDaySaysTheDay() async throws {
         let clock = TestClock(now: monday.date(hour: 7, minute: 2).addingTimeInterval(30))

@@ -90,7 +90,7 @@ final class LineNoticeReplayTests: XCTestCase {
         XCTAssertFalse(departures.contains { if case .cancelled = $0.status { true } else { false } })
     }
 
-    /// GO's real Alerts feed (D90), modelled in `alerts-go-real.pb`: every informed entity sets agency, route, route
+    /// GO's real Alerts feed (D91), modelled in `alerts-go-real.pb`: every informed entity sets agency, route, route
     /// type and stop, the unused ones empty; a line notice names its route with an empty stop, and its active period
     /// starts when GO posted it. Station and trip alerts, a bus route and other lines are not Lakeshore West notices.
     func testRealGoFeedScopesNoticesToTheLine() async throws {

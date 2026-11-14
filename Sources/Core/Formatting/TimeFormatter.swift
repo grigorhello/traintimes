@@ -25,7 +25,7 @@ extension TimeFormatting {
         return full.split(separator: " ").first.map(String.init) ?? full
     }
 
-    /// A day in America/Toronto as month and day, "Nov 7": a line notice reported on another day (D90).
+    /// A day in America/Toronto as month and day, "Nov 7": a line notice reported on another day (D91).
     func shortDate(_ date: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = goTimeZone

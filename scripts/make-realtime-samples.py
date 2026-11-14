@@ -184,7 +184,7 @@ alerts_common(m)
 write("alerts-0705.pb", m)
 
 
-# GO's real Alerts feed (checked through the alert server on 2026-11-14, D90), on the sample's Monday at 7:02 AM: numeric
+# GO's real Alerts feed (checked through the alert server on 2026-11-14, D91), on the sample's Monday at 7:02 AM: numeric
 # ids; every informed entity sets agency_id, route_id, route_type and stop_id, the unused ones as "" or 0; a line notice
 # names its route with an empty stop; a station alert has an empty route; a trip alert names the trip with route_type 2
 # and lists its stations apart; every active period starts when GO posted the alert (often days before) and ends about

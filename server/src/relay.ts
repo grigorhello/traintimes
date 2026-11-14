@@ -25,6 +25,38 @@ export interface RelayDependencies {
   now: () => number;
 }
 
+/**
+ * One call to GO for a feed; null without the key (an unkeyed call is a failed call), when GO fails, or when the answer
+ * is not GTFS-realtime protobuf. GO answers JSON unless asked for protobuf (checked against the real feeds on
+ * 2026-11-14), so the request says `Accept: application/x-protobuf`, and a FeedMessage starts with its header, byte 0x0a.
+ */
+export async function downloadFeed(
+  fetcher: typeof fetch,
+  base: string,
+  key: string | undefined,
+  feed: FeedName,
+): Promise<Uint8Array | null> {
+  if (!key) return null;
+  const url = new URL(feed, base);
+  url.searchParams.set('key', key);
+  try {
+    const response = await fetcher(url, { headers: { accept: 'application/x-protobuf' }, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) {
+      console.warn(`${feed} ${response.status}`);
+      return null;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes[0] !== 0x0a) {
+      console.warn(`${feed} is not protobuf (${response.headers.get('content-type')})`);
+      return null;
+    }
+    return bytes;
+  } catch (error) {
+    console.warn(`${feed} fetch failed`, error);
+    return null;
+  }
+}
+
 /** The cache key's origin: the Cache API keys on URLs of the Worker's own zone. */
 const CACHE_ORIGIN = 'https://alerts.traintimes.ca/__relay/';
 

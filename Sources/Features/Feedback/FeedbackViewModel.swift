@@ -65,6 +65,7 @@ final class FeedbackViewModel {
         do {
             try await sender.send(outgoing)
             phase = .sent
+            Analytics.track(.feedbackSent(outgoing.kind, withEmail: outgoing.email != nil))
         } catch {
             phase = .failed
         }

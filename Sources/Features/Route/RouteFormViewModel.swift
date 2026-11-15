@@ -203,6 +203,7 @@ final class RouteFormViewModel {
 
     /// Swap is explicit, never automatic.
     func swap() {
+        Analytics.track(.routeSwapped)
         (from, to) = (to, from)
     }
 

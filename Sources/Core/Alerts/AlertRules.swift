@@ -150,6 +150,9 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     func requestPermission() async {
         if await permissions.current() == .notAsked {
             _ = await permissions.request()
+            await refreshPermission()
+            Analytics.track(.notificationPermission(permission))
+            return
         }
         await refreshPermission()
     }
@@ -178,7 +181,10 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         let previousState = serverStates[id]
         if previous == nil { pendingDeletes.removeAll { $0 == id } }
         await save(candidate)
-        guard contains(id), serverStates[id] == .couldNotSave, !inFlight.contains(id) else { return true }
+        guard contains(id), serverStates[id] == .couldNotSave, !inFlight.contains(id) else {
+            if let saved = rules.first(where: { $0.id == id }) { Analytics.track(.alertSaved(saved, isNew: previous == nil)) }
+            return true
+        }
         if let previous, let index = rules.firstIndex(where: { $0.id == id }) {
             rules[index] = previous
             serverStates[id] = previousState ?? .couldNotSave

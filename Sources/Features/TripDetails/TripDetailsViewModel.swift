@@ -161,6 +161,7 @@ final class TripDetailsViewModel {
     /// The Directions link: Apple Maps with directions to the departure station.
     func openDirections() {
         guard let station = directionsStation, let place = station.place else { return }
+        Analytics.track(.directionsOpened)
         maps.openDirections(to: station.name, at: place)
     }
 
@@ -385,7 +386,7 @@ final class TripDetailsViewModel {
         return live?.key == key ? live : nil
     }
 
-    /// The hero card over the folded trip (TT-205, D92), while the train has not left and no ride shows: this train is the
+    /// The hero card over the folded trip (TT-205, D93), while the train has not left and no ride shows: this train is the
     /// alerted one in its window (TT-177), or "I’m on board" shows (any train, from 20 min before). One look either way.
     func departureHero(_ formatter: some TimeFormatting) -> DepartureHero? {
         guard !isRiding, let departure, liveDeparture != nil || showsOnBoardButton,

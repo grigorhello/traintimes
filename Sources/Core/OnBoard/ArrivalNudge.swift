@@ -62,7 +62,7 @@ final class SystemRideNotifications: RideNotificationScheduling {
 ///
 /// With the app open, `.phase(.arriving)` plays the taps, the rumble and the chime, and reaching your stop one tap
 /// (`ArrivalFeedback`). For the app closed or locked, one Time Sensitive notification is scheduled when the ride starts,
-/// from the timetable: "Your stop is next" a minute before the expected arrival (TT-205, D92: one notification, no body,
+/// from the timetable: "Your stop is next" a minute before the expected arrival (TT-205, D93: one notification, no body,
 /// none at the stop). It moves with the estimate under the same identifier, so a new one replaces the pending one, and
 /// stays where it is when location dies, so it still goes off on the timetable. While the app is open iOS does not show it
 /// (`AppDelegate`), so the rider gets the nudge once either way.

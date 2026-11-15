@@ -3,7 +3,7 @@ import XCTest
 
 private final class BundleToken {}
 
-/// Before departure in Trip details (TT-177, D69; the hero card since TT-205, D92): the demo's states (pending, platform
+/// Before departure in Trip details (TT-177, D69; the hero card since TT-205, D93): the demo's states (pending, platform
 /// posted, late, boarding, departed), the hand-off into the ride, and only the alerted train that leaves first shows it.
 @MainActor
 final class DepartureDetailsTests: XCTestCase {
@@ -125,7 +125,7 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(hero.late)
     }
 
-    /// D92: no countdown strip and no checking strip on Schedule; the ride wins over the question.
+    /// D93: no countdown strip and no checking strip on Schedule; the ride wins over the question.
     func testTheStripSlotShowsTheRideThenTheQuestion() {
         let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
         let asking = TrainMatcher.State.asking(DetectionFixtures.question())

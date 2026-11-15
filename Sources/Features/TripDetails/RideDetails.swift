@@ -180,7 +180,7 @@ extension RideDetails {
     }
 }
 
-/// The ride strip on Schedule (TT-172; one line since TT-205, D92, *Live-Schedule*): the ride screen's line and minutes. A
+/// The ride strip on Schedule (TT-172; one line since TT-205, D93, *Live-Schedule*): the ride screen's line and minutes. A
 /// tap opens Trip details in ride mode.
 struct RideStrip: Equatable {
     /// "Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson": the ride screen's kicker.

@@ -12,7 +12,7 @@ struct TrainTimesWidgets: WidgetBundle {
 }
 
 /// The ride on the Lock Screen and in the Dynamic Island, and before it the alerted train's countdown: one card for every
-/// moment (TT-205, D92; boards 3, 12, 13 and 15 of the Live view canvas). A tap anywhere opens Trip details on the ride (on
+/// moment (TT-205, D93; boards 3, 12, 13 and 15 of the Live view canvas). A tap anywhere opens Trip details on the ride (on
 /// the train before departure), where "I’m on board" and End ride are; the card has no buttons. iOS does not grey a stale
 /// activity, so the views do (`isStale`).
 struct RideActivityWidget: Widget {

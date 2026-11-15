@@ -340,7 +340,7 @@ private struct TrainMarker: View {
 
 // MARK: Permission sheet
 
-/// The first "I'm on board" (*Live-Permission*; one straight ask since TT-205, D92, board 5): "Train Times needs your
+/// The first "I'm on board" (*Live-Permission*; one straight ask since TT-205, D93, board 5): "Train Times needs your
 /// location", one line, Allow location (on to the iOS prompt) and Not now (starts nothing). Shown only while the app still
 /// has to ask iOS.
 struct RideIntroSheet: View {

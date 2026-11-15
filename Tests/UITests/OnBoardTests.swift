@@ -48,7 +48,7 @@ final class OnBoardTests: XCTestCase {
         XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
         XCTAssertFalse(
             app.descendants(matching: .any).matching(identifier: "schedule.departure").firstMatch.exists,
-            "no countdown strip on Schedule (D92)"
+            "no countdown strip on Schedule (D93)"
         )
 
         // The departure's Live Activity link, as a tap on the Lock Screen card sends it.

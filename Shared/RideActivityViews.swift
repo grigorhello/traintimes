@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The On board Live Activity's views (TT-174, D67; one card for every moment since TT-205, D92, after the Live view canvas's
+// The On board Live Activity's views (TT-174, D67; one card for every moment since TT-205, D93, after the Live view canvas's
 // boards 3, 12, 13 and 15). The widget extension draws them on the Lock Screen and in the Dynamic Island; they live here,
 // beside the attributes, so the app's snapshot tests can draw them too. The activity is dark in both appearances (the
 // island is always black), so these views keep their own palette rather than the app's tokens, which the extension does
@@ -260,7 +260,7 @@ extension RideActivityAttributes.ContentState {
     }
 }
 
-/// The one card (TT-205, D92) on the Lock Screen and in the expanded island: the line's tile and the one line with the
+/// The one card (TT-205, D93) on the Lock Screen and in the expanded island: the line's tile and the one line with the
 /// label at the right; the number at 40 pt with the value under the label ("Platform" over the pill before departure,
 /// "Arrives" over "5:43 PM" during the ride); during the ride the stop line under both. Arriving and at your stop the right
 /// side is empty. Sizes 40, 26 and 15 pt; under 160 pt tall with the Lock Screen's padding.

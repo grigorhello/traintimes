@@ -190,7 +190,7 @@ struct TripDetailsView: View {
         .animation(TTMotion.fade, value: details)
     }
 
-    // MARK: Before departure (TT-205, D92)
+    // MARK: Before departure (TT-205, D93)
 
     /// Boards 2 and 4: the hero card, then the trip folded to its two stations with the stops between in one row; nothing
     /// under it. One look whether the train has an alert or "I’m on board" shows.

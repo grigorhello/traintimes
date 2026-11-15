@@ -42,7 +42,7 @@ final class ArrivalNudgeTests: XCTestCase {
 
     // MARK: Notifications
 
-    /// TT-205 (D92): one notification, "Your stop is next", no body, a minute before your stop.
+    /// TT-205 (D93): one notification, "Your stop is next", no body, a minute before your stop.
     func testARideSchedulesOneNotificationFromTheTimetable() {
         let rig = rig()
         send(.update(state(.atStation, arrival: t(11, 52))), to: rig, at: t(11, 17))
@@ -155,7 +155,7 @@ final class ArrivalNudgeTests: XCTestCase {
 
     // MARK: Your stop
 
-    /// D92: no notification at your stop; one still pending would come late, so it goes.
+    /// D93: no notification at your stop; one still pending would come late, so it goes.
     func testReachingYourStopEarlyRemovesThePendingNotification() {
         let rig = rig()
         send(.update(state(.yourStopNext, arrival: t(11, 52))), to: rig, at: t(11, 40))

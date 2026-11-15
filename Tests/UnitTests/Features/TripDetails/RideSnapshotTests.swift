@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// On board against the canvas's Live-Ride-Lean (TT-204) and the Live view canvas's boards (TT-205, D92), light and dark:
+/// On board against the canvas's Live-Ride-Lean (TT-204) and the Live view canvas's boards (TT-205, D93), light and dark:
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
 /// with "I'm on board" (the hero card over the folded trip); the location sheet; the one-line ride strip. Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).

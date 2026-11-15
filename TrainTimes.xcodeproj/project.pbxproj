@@ -7,42 +7,43 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3D3A3968EDBBE68FA83DF2A4C44B2C42 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = D489DE22B387BB5636ED5EBAFB84DA5E /* PostHog */; };
 		65DF5D3167C6B35C62C512161A531D7A /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = ABE0D06A4A268476EFEB0DCF093082BE /* SnapshotTesting */; };
-		71FD9AFB94A52CDB68DFEC6A8612855F /* TrainTimesWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1ECA676A888BB49F4EB56F42BC971CBA /* TrainTimesWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F63042527C98B7E4CC648ED952621981 /* TrainTimesWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1ECA676A888BB49F4EB56F42BC971CBA /* TrainTimesWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		083E6B8593BB5AD72F0AFC6F9962C336 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 07D49AD58D17336DA0289D4ACA33FF85;
-			remoteInfo = TrainTimes;
-		};
-		19D16715FDD06F34BADB3F7C8B2E39CD /* PBXContainerItemProxy */ = {
+		4B0AF460DDC064186AB98236583E70C9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = AE4E305DDAFBB7A901AADFEF727DE921;
 			remoteInfo = TrainTimesWidgets;
 		};
-		682B9FF4E6644DBFBFF29C71F06C45F4 /* PBXContainerItemProxy */ = {
+		C84638D4592BBABCC57881F0421EA8BC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 07D49AD58D17336DA0289D4ACA33FF85;
+			remoteGlobalIDString = 19E04196F8F31A99892F55DA6AC9F025;
+			remoteInfo = TrainTimes;
+		};
+		F78ED63BB4E1959AE4DFD705481979CE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 58F6240D71E1CF90331F71CA6B26AB73 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 19E04196F8F31A99892F55DA6AC9F025;
 			remoteInfo = TrainTimes;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		B620240B63C162790B590D8962551086 /* Embed Foundation Extensions */ = {
+		7022B4E5AF6E3312FADA970B06B16344 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				71FD9AFB94A52CDB68DFEC6A8612855F /* TrainTimesWidgets.appex in Embed Foundation Extensions */,
+				F63042527C98B7E4CC648ED952621981 /* TrainTimesWidgets.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -110,14 +111,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		31D91EEEBF3A43084AE85BD5E98F0845 /* Frameworks */ = {
+		2E47F2B60DEB7D340FFEDB3CAB860012 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3D3A3968EDBBE68FA83DF2A4C44B2C42 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9ED2CE78E90D005FD36760BB62AE5CA4 /* Frameworks */ = {
+		31D91EEEBF3A43084AE85BD5E98F0845 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,19 +191,19 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		07D49AD58D17336DA0289D4ACA33FF85 /* TrainTimes */ = {
+		19E04196F8F31A99892F55DA6AC9F025 /* TrainTimes */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 928B1798EE4D365B8C8991C62B0D88D0 /* Build configuration list for PBXNativeTarget "TrainTimes" */;
+			buildConfigurationList = 378E434833C7FF4B0C54105730829BEE /* Build configuration list for PBXNativeTarget "TrainTimes" */;
 			buildPhases = (
-				0425DA2B43E2565A6A8E1B7F3B491850 /* Sources */,
-				9ED2CE78E90D005FD36760BB62AE5CA4 /* Frameworks */,
-				C5ABEF2D046B115659F3C74BA2088CCD /* Resources */,
-				B620240B63C162790B590D8962551086 /* Embed Foundation Extensions */,
+				47333EE76982E991424B93303BFD1215 /* Sources */,
+				2E47F2B60DEB7D340FFEDB3CAB860012 /* Frameworks */,
+				08D355A70A4AAF0853A32FD71BBFEDDB /* Resources */,
+				7022B4E5AF6E3312FADA970B06B16344 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				314F119081509212B1A639A7097D82EF /* PBXTargetDependency */,
+				EC2BBFC0B34CBE9FAB4DD1DF96B43172 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F124E55860BAA04B1BC286AC8BEF68A6 /* Sources */,
@@ -210,6 +212,9 @@
 				BBA0FCB8AF128F89E29EBF6E9B320E65 /* Shared */,
 			);
 			name = TrainTimes;
+			packageProductDependencies = (
+				D489DE22B387BB5636ED5EBAFB84DA5E /* PostHog */,
+			);
 			productName = TrainTimes;
 			productReference = 847DBDF687AAA6F04C70695FFAA0131E /* TrainTimes.app */;
 			productType = "com.apple.product-type.application";
@@ -225,7 +230,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				1F858AD03B422F9DB23174C1E978D751 /* PBXTargetDependency */,
+				DC0C435DA6F84B453010A5B3148F578C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8EF5FD145E3AB94A80C9955D1397BF0A /* UnitTests */,
@@ -250,7 +255,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				5498BA48F5361637DC54CE1B85B2A760 /* PBXTargetDependency */,
+				4FF8738F6176099A34DF00584D46960E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				7B7EE69AFE984B44FFA8A0E93C47E8DC /* UITests */,
@@ -291,16 +296,16 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
-					07D49AD58D17336DA0289D4ACA33FF85 = {
+					19E04196F8F31A99892F55DA6AC9F025 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 					6CB0184C0E73A26CD2884657F138677F = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = 07D49AD58D17336DA0289D4ACA33FF85;
+						TestTargetID = 19E04196F8F31A99892F55DA6AC9F025;
 					};
 					9216EF03F57C212ECA9135EC4F28A64B = {
 						CreatedOnToolsVersion = 16.0;
-						TestTargetID = 07D49AD58D17336DA0289D4ACA33FF85;
+						TestTargetID = 19E04196F8F31A99892F55DA6AC9F025;
 					};
 					AE4E305DDAFBB7A901AADFEF727DE921 = {
 						CreatedOnToolsVersion = 16.0;
@@ -319,13 +324,14 @@
 			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
 				80D34BB7C21E0FACA125B10C598AD4B1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+				CC155584110464EDEFEEE16AEA8512E5 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 52A4803FF3D2FF7854AF7A7E7B6840E5 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				07D49AD58D17336DA0289D4ACA33FF85 /* TrainTimes */,
+				19E04196F8F31A99892F55DA6AC9F025 /* TrainTimes */,
 				AE4E305DDAFBB7A901AADFEF727DE921 /* TrainTimesWidgets */,
 				6CB0184C0E73A26CD2884657F138677F /* TrainTimesTests */,
 				9216EF03F57C212ECA9135EC4F28A64B /* TrainTimesUITests */,
@@ -334,6 +340,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		08D355A70A4AAF0853A32FD71BBFEDDB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		40B1A017C9A1BC9220132784FF40339E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -355,24 +368,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C5ABEF2D046B115659F3C74BA2088CCD /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		0425DA2B43E2565A6A8E1B7F3B491850 /* Sources */ = {
+		0B37459AECA2E1FFCD1A7B5310555ECE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		0B37459AECA2E1FFCD1A7B5310555ECE /* Sources */ = {
+		47333EE76982E991424B93303BFD1215 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -396,23 +402,23 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		1F858AD03B422F9DB23174C1E978D751 /* PBXTargetDependency */ = {
+		4FF8738F6176099A34DF00584D46960E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimes;
-			target = 07D49AD58D17336DA0289D4ACA33FF85 /* TrainTimes */;
-			targetProxy = 682B9FF4E6644DBFBFF29C71F06C45F4 /* PBXContainerItemProxy */;
+			target = 19E04196F8F31A99892F55DA6AC9F025 /* TrainTimes */;
+			targetProxy = C84638D4592BBABCC57881F0421EA8BC /* PBXContainerItemProxy */;
 		};
-		314F119081509212B1A639A7097D82EF /* PBXTargetDependency */ = {
+		DC0C435DA6F84B453010A5B3148F578C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TrainTimes;
+			target = 19E04196F8F31A99892F55DA6AC9F025 /* TrainTimes */;
+			targetProxy = F78ED63BB4E1959AE4DFD705481979CE /* PBXContainerItemProxy */;
+		};
+		EC2BBFC0B34CBE9FAB4DD1DF96B43172 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TrainTimesWidgets;
 			target = AE4E305DDAFBB7A901AADFEF727DE921 /* TrainTimesWidgets */;
-			targetProxy = 19D16715FDD06F34BADB3F7C8B2E39CD /* PBXContainerItemProxy */;
-		};
-		5498BA48F5361637DC54CE1B85B2A760 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = TrainTimes;
-			target = 07D49AD58D17336DA0289D4ACA33FF85 /* TrainTimes */;
-			targetProxy = 083E6B8593BB5AD72F0AFC6F9962C336 /* PBXContainerItemProxy */;
+			targetProxy = 4B0AF460DDC064186AB98236583E70C9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -530,7 +536,7 @@
 			};
 			name = Release;
 		};
-		3F77F8B5A5F3EB1DA39303C44DAF2EB5 /* Debug */ = {
+		348E3C4512310845989F75F5032AF429 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -568,7 +574,7 @@
 			};
 			name = Debug;
 		};
-		4D157E6EBFB66D1DDA981F5A7481E33B /* Release */ = {
+		454CF56EC4E4ADA141A9A974A4087E70 /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -784,6 +790,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		378E434833C7FF4B0C54105730829BEE /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				454CF56EC4E4ADA141A9A974A4087E70 /* Release */,
+				348E3C4512310845989F75F5032AF429 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		55F64983617E2B83DA518BF5E87E24AA /* Build configuration list for PBXNativeTarget "TrainTimesUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -798,15 +813,6 @@
 			buildConfigurations = (
 				A1AD530AF883A2A1D974A0D3710F8ABB /* Release */,
 				E8E1A18053E7550B4B7E8FE9C4E20197 /* Debug */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		928B1798EE4D365B8C8991C62B0D88D0 /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4D157E6EBFB66D1DDA981F5A7481E33B /* Release */,
-				3F77F8B5A5F3EB1DA39303C44DAF2EB5 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -831,6 +837,14 @@
 				version = 1.19.7;
 			};
 		};
+		CC155584110464EDEFEEE16AEA8512E5 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 3.97.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -838,6 +852,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 80D34BB7C21E0FACA125B10C598AD4B1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
 			productName = SnapshotTesting;
+		};
+		D489DE22B387BB5636ED5EBAFB84DA5E /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC155584110464EDEFEEE16AEA8512E5 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

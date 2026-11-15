@@ -2,7 +2,7 @@
 // Island from 30 min before it leaves. The server starts it with a push-to-start (iOS 17.2+), updates it only when what it
 // shows changes, and ends it 2 min after the train left, unless the app's ride took it over (the same activity becomes the
 // ride). Every word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
-// looks the same: one card for every moment (TT-205, D92), "7:13 AM departs in" over the minutes, "Platform" and the pill.
+// looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes, "Platform" and the pill.
 // GO's feeds post no platforms (D35, D36), so the server's pill is always the dash.
 
 import { DELAY_MIN } from './alerts.ts';

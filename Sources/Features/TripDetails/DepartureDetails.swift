@@ -1,6 +1,6 @@
 import Foundation
 
-/// Trip details before departure (TT-205, D92, boards 2 and 4 of the Live view canvas): the hero card over the folded trip,
+/// Trip details before departure (TT-205, D93, boards 2 and 4 of the Live view canvas): the hero card over the folded trip,
 /// one look whether the train has an alert or "I’m on board" shows. "5:13 PM departs in" over the minutes to the expected
 /// departure, "Platform" and the pill at the right, "3 min late" under the minutes only when late; "5:16 PM boarding now"
 /// in the last 2 min. Every time is already formatted by the one formatter (D17).

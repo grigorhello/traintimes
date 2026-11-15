@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-/// The background question as a notification (TT-176; TT-205, D92, *Live-Detect-Lock*): "On the train to Clarkson?" with no
+/// The background question as a notification (TT-176; TT-205, D93, *Live-Detect-Lock*): "On the train to Clarkson?" with no
 /// body, and Yes (opens the app, which starts the ride) and No. It names the rider's stop of the train that fits best, as
 /// Schedule's question does.
 struct DetectionNotice: Equatable {

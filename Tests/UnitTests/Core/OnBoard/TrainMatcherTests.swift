@@ -54,7 +54,7 @@ final class TrainMatcherTests: XCTestCase {
         XCTAssertEqual(question(of: matcher)?.stops.map(\.id), ["EX", "MI"])
     }
 
-    /// TT-205 (D92): no question with less than 5 min left to the rider's stop. The same train ending at Long Branch
+    /// TT-205 (D93): no question with less than 5 min left to the rider's stop. The same train ending at Long Branch
     /// (11:38) is ready on the timetable only after about 11:35, too close, so it is never asked.
     func testNoQuestionWithLessThanFiveMinutesToTheLastStop() throws {
         let full = try candidate("A")

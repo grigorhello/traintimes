@@ -248,7 +248,7 @@ final class BackgroundDetectionTests: XCTestCase {
 
         let notice = try XCTUnwrap(DetectionNotice(question))
 
-        // TT-205 (D92): the same one line as Schedule's question, no body.
+        // TT-205 (D93): the same one line as Schedule's question, no body.
         XCTAssertEqual(notice.title, "On the train to Clarkson?")
     }
 

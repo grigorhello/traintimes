@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The ride strip under the day strip while a ride runs (TT-172; one line since TT-205, D92, *Live-Schedule*): the Live dot,
+/// The ride strip under the day strip while a ride runs (TT-172; one line since TT-205, D93, *Live-Schedule*): the Live dot,
 /// the ride screen's line ("Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson"), the minutes in
 /// the accent, a chevron. A tap opens Trip details in ride mode.
 struct RideStripView: View {
@@ -47,7 +47,7 @@ struct RideStripView: View {
     }
 }
 
-/// What the strip under the day strip shows (TT-175; TT-205, D92): the ride strip, train detection's question, or the
+/// What the strip under the day strip shows (TT-175; TT-205, D93): the ride strip, train detection's question, or the
 /// watched-trip strip. Nothing shows while the matcher checks (no checking strip), and no countdown before departure: the
 /// train's own card says it.
 enum RideStripContent: Equatable {

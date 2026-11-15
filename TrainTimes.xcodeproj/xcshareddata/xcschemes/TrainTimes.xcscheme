@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "07D49AD58D17336DA0289D4ACA33FF85"
+               BlueprintIdentifier = "19E04196F8F31A99892F55DA6AC9F025"
                BuildableName = "TrainTimes.app"
                BlueprintName = "TrainTimes"
                ReferencedContainer = "container:TrainTimes.xcodeproj">
@@ -78,7 +78,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "07D49AD58D17336DA0289D4ACA33FF85"
+            BlueprintIdentifier = "19E04196F8F31A99892F55DA6AC9F025"
             BuildableName = "TrainTimes.app"
             BlueprintName = "TrainTimes"
             ReferencedContainer = "container:TrainTimes.xcodeproj">
@@ -95,7 +95,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "07D49AD58D17336DA0289D4ACA33FF85"
+            BlueprintIdentifier = "19E04196F8F31A99892F55DA6AC9F025"
             BuildableName = "TrainTimes.app"
             BlueprintName = "TrainTimes"
             ReferencedContainer = "container:TrainTimes.xcodeproj">

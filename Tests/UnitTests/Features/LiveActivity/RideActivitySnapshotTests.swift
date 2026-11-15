@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The On board Live Activity's one card (TT-205, D92) against the Live view canvas's boards 3, 12, 13 and 15, on a light and
+/// The On board Live Activity's one card (TT-205, D93) against the Live view canvas's boards 3, 12, 13 and 15, on a light and
 /// a dark Lock Screen: the Lock Screen card riding (5:32 PM), your stop next (5:38), arriving (5:42) and stale; the island
 /// compact, compact arriving, minimal, expanded riding, arriving and at your stop. The system draws the island's black
 /// shape and the Lock Screen's rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone

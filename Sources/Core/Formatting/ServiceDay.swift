@@ -63,6 +63,11 @@ extension ServiceDay {
         ServiceDay(containing: Self.calendar.date(byAdding: .day, value: days, to: noon)!)
     }
 
+    /// Whole days from this service day to `other`: 1 for the next, -1 for the one before.
+    func days(to other: ServiceDay) -> Int {
+        Self.calendar.dateComponents([.day], from: noon, to: other.noon).day ?? 0
+    }
+
     /// 1 for Sunday through 7 for Saturday.
     var weekday: Int { Self.calendar.component(.weekday, from: noon) }
 

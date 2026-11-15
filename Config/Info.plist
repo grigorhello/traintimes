@@ -17,6 +17,8 @@
 	<false/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>TTPostHogToken</key>
+	<string>$(POSTHOG_PROJECT_TOKEN)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

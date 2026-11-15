@@ -438,6 +438,7 @@ final class AlertBellModel {
         case .thisTrip:
             // Gone on device now; the bell and Undo answer while the server's delete is on its way, and Undo waits for it.
             offTask = rules.deleteInBackground(rule.id)
+            Analytics.track(.alertRemoved(source: .bell))
             show(.off, trip: trip, route: route, undo: rule)
         case .repeating:
             var off = rule

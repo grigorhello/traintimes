@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The hero card before departure (TT-205, D92, boards 2 and 4): "5:13 PM departs in" at 22 pt (the time in ink, the words in
+/// The hero card before departure (TT-205, D93, boards 2 and 4): "5:13 PM departs in" at 22 pt (the time in ink, the words in
 /// ink-secondary) over the minutes at 64 pt; "Platform" over the pill at the right (the dash, pulsing while it may be posted
 /// any minute, then the number pressing in with a light tap); "3 min late" in delay-ink under the minutes only when late.
 /// Boarding: the number in the accent. One view, driven by `DepartureHero`, so a later ticket can show it for every train.

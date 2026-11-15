@@ -18,6 +18,8 @@ PROJECT_PATH = File.join(ROOT, 'TrainTimes.xcodeproj')
 BUNDLE_ID = 'ca.traintimes.TrainTimes'
 DEPLOYMENT_TARGET = '17.0'
 SNAPSHOT_TESTING_VERSION = '1.19.7'
+# posthog-ios, the app's one runtime dependency: anonymous product analytics (TT-208, D92).
+POSTHOG_VERSION = '3.97.1'
 # The app's version; the widget extension's must match it, or App Store Connect refuses the upload (TT-174).
 MARKETING_VERSION = '1.0'
 
@@ -120,7 +122,7 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
-    # TT-171: asked only when a ride starts (On board; words from TT-205, D92); the background session also needs UIBackgroundModes location.
+    # TT-171: asked only when a ride starts (On board; words from TT-205, D93); the background session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
       'Your location shows which station is next while you ride, and tells you before your stop.',
     # TT-176: asked only when the rider turns on "Detect my train" (the offer after the first completed ride, or Settings).
@@ -236,6 +238,20 @@ unit.package_product_dependencies << product
 build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
 build_file.product_ref = product
 unit.frameworks_build_phase.files << build_file
+
+# posthog-ios, app target only (TT-208, D92): the widget extension sends no analytics.
+posthog = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+posthog.repositoryURL = 'https://github.com/PostHog/posthog-ios'
+posthog.requirement = { 'kind' => 'exactVersion', 'version' => POSTHOG_VERSION }
+project.root_object.package_references << posthog
+
+posthog_product = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+posthog_product.package = posthog
+posthog_product.product_name = 'PostHog'
+app.package_product_dependencies << posthog_product
+posthog_build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+posthog_build_file.product_ref = posthog_product
+app.frameworks_build_phase.files << posthog_build_file
 
 # new_target links Foundation.framework from a pinned SDK path; SwiftUI apps import it implicitly.
 [app, widgets, unit, ui].each do |target|

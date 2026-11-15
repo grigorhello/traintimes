@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The offer after the first completed ride (TT-176, *Live-Always*; one straight ask since TT-205, D92, board 16): "Detect
+/// The offer after the first completed ride (TT-176, *Live-Always*; one straight ask since TT-205, D93, board 16): "Detect
 /// my train next time?", one line, Turn on and Not now, in the first ride's sheet's shape (`PermissionAsk`). Turn on leads
 /// to the iOS "also when you are not using the app" dialog; the sheet closes once it is answered. Shown once.
 struct DetectOfferSheet: View {

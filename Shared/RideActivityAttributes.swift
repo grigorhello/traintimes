@@ -22,7 +22,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
     /// The stops on the stop line, the origin and your stop included.
     let stopCount: Int
 
-    /// One card for every moment (TT-205, D92): the line's tile and one line, the big number under it, one labelled fact at
+    /// One card for every moment (TT-205, D93): the line's tile and one line, the big number under it, one labelled fact at
     /// the right, and during the ride the stop line. The same words as the app's screens.
     struct ContentState: Codable, Hashable, Sendable {
         /// Where the ride is (`RidePhase`), or before it where the alerted train is (`LiveDeparture.Phase`, TT-178): one
@@ -128,7 +128,7 @@ extension RideActivityAttributes.ContentState {
 }
 
 /// The app's links from the activity: during the ride a tap opens Trip details on the ride; before departure (TT-178) a tap
-/// opens the train's Trip details. The card has no buttons since TT-205 (D92); `end` and `board` stay as links the app
+/// opens the train's Trip details. The card has no buttons since TT-205 (D93); `end` and `board` stay as links the app
 /// understands.
 enum RideActivityLink: Equatable {
     case open

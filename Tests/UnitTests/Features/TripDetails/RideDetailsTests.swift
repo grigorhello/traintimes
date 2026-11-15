@@ -188,7 +188,7 @@ final class RideDetailsTests: XCTestCase {
 
     // MARK: The ride strip
 
-    /// D92: one line, the ride screen's kicker and minutes.
+    /// D93: one line, the ride screen's kicker and minutes.
     func testTheStripSaysTheRideScreensLine() async throws {
         let rig = await DemoRideRig.started()
         let strip = try XCTUnwrap(rig.onBoard.strip(formatter: formatter))

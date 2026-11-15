@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Train detection's question (TT-175; one question since TT-205, D92, *Live-Detect*): "On the train to Clarkson?", asked by
+/// Train detection's question (TT-175; one question since TT-205, D93, *Live-Detect*): "On the train to Clarkson?", asked by
 /// the rider's stop, Yes or No. When two trains fit, it is still one question and Yes starts the matcher's first.
 struct TrainQuestion: Equatable {
     /// "On the train to Clarkson?".

@@ -4,7 +4,7 @@ import XCTest
 @testable import TrainTimes
 
 /// Train detection's question on Schedule against board 9 of the Live view canvas (TT-175; one line, Yes and No since
-/// TT-205, D92), light and dark. Drawn under the top of the screen on the canvas ground, with the ripple still.
+/// TT-205, D93), light and dark. Drawn under the top of the screen on the canvas ground, with the ripple still.
 final class DetectionSnapshotTests: XCTestCase {
     @MainActor func testQuestionLight() { snap(question, .light) }
     @MainActor func testQuestionDark() { snap(question, .dark) }

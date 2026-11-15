@@ -3,7 +3,7 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Before departure against boards 2 and 4 of the Live view canvas (TT-205, D92), light and dark: the demo train's Trip
+/// Before departure against boards 2 and 4 of the Live view canvas (TT-205, D93), light and dark: the demo train's Trip
 /// details with the hero card over the folded trip, pending (5:01 PM), with Platform 7 (5:03), 3 min late (5:07) and
 /// boarding (5:14). Glass is drawn as its solid fallback, and the motion is off (the pill still).
 final class DepartureSnapshotTests: XCTestCase {

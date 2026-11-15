@@ -88,7 +88,6 @@ final class SystemArrivalFeedback: ArrivalFeedback {
     /// Outputs only the rider hears, where the chime plays over their music; elsewhere it keeps to the ring/silent switch.
     private static let privateOutputs: Set<AVAudioSession.Port> = [.headphones, .bluetoothA2DP, .bluetoothLE, .bluetoothHFP]
 
-    private var haptics: CHHapticEngine?
     private var player: AVAudioPlayer?
 
     func arriving() {
@@ -102,17 +101,9 @@ final class SystemArrivalFeedback: ArrivalFeedback {
         play(ArrivingHaptics.atYourStop)
     }
 
+    /// On the app's one shared engine (TT-214, D95).
     private func play(_ pattern: ArrivingHaptics.Pattern) {
-        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }
-        do {
-            let engine = try haptics ?? CHHapticEngine()
-            haptics = engine
-            // Starting again is harmless, and brings the engine back after iOS stopped it while the app was away.
-            try engine.start()
-            try engine.makePlayer(with: ArrivingHaptics.pattern(pattern)).start(atTime: CHHapticTimeImmediate)
-        } catch {
-            haptics = nil
-        }
+        TTHaptics.shared.play(pattern)
     }
 
     /// `arrive.caf`, the notification's sound: in AirPods or other headphones over the rider's music, which ducks for it;

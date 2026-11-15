@@ -79,11 +79,11 @@ final class AlertBellModel {
 
     let rules: AlertRules
     private(set) var capsule: Capsule?
-    /// Counts alerts turned on, for the light haptic.
+    /// Counts alerts turned on.
     private(set) var enabledCount = 0
     /// Counts day tiles lit in the panel, for the selection haptic.
     private(set) var dayOnCount = 0
-    /// Counts refusals (notifications off, or a save that failed), for the warning haptic (TT-190).
+    /// Counts refusals (notifications off, or a save that failed) (TT-190).
     private(set) var refusedCount = 0
     /// The train whose bell asked iOS, while the dialog is up (TT-190).
     private(set) var asking: TripKey?
@@ -99,6 +99,11 @@ final class AlertBellModel {
     private let afterPrompt: @MainActor () async -> Void
     private let actionDuration: Duration
     private let plainDuration: Duration
+    /// The feels (TT-214, D93): Rail joint when an alert turns on, Tap when it turns off, Warning on a refusal, Fail when a
+    /// save fails.
+    private let haptics: any HapticPlaying
+    /// A save not back this long after the tap plays the soft wait tap at once, and Rail joint when On lands.
+    private let slowSaveAfter: Duration
     /// Trains whose tap is being handled, so repeated taps send one request.
     @ObservationIgnored private var busy: Set<TripKey> = []
     @ObservationIgnored private var capsuleCount = 0
@@ -130,17 +135,20 @@ final class AlertBellModel {
     }
 
     /// A capsule with an action shows for 5 s, one without for 2.5 s (TT-191). Tests pass no
-    /// `refusalDelay` and an `afterPrompt` that returns at once (TT-190).
+    /// `refusalDelay` and an `afterPrompt` that returns at once (TT-190), and a fake `haptics` (TT-214).
     init(
         rules: AlertRules, actionDuration: Duration = .seconds(5), plainDuration: Duration = .milliseconds(2500),
         refusalDelay: Duration = .milliseconds(120),
-        afterPrompt: @escaping @MainActor () async -> Void = AlertBellModel.waitUntilActive
+        afterPrompt: @escaping @MainActor () async -> Void = AlertBellModel.waitUntilActive,
+        haptics: any HapticPlaying = TTHaptics.shared, slowSaveAfter: Duration = .milliseconds(150)
     ) {
         self.rules = rules
         self.actionDuration = actionDuration
         self.plainDuration = plainDuration
         self.refusalDelay = refusalDelay
         self.afterPrompt = afterPrompt
+        self.haptics = haptics
+        self.slowSaveAfter = slowSaveAfter
     }
 
     /// The card's face (TT-189, TT-190). A rule paused on the Alerts tab (TT-143) or by the bell sends nothing, so its bell
@@ -241,7 +249,7 @@ final class AlertBellModel {
     func sibling() -> AlertBellModel {
         AlertBellModel(
             rules: rules, actionDuration: actionDuration, plainDuration: plainDuration,
-            refusalDelay: refusalDelay, afterPrompt: afterPrompt
+            refusalDelay: refusalDelay, afterPrompt: afterPrompt, haptics: haptics, slowSaveAfter: slowSaveAfter
         )
     }
 
@@ -405,11 +413,14 @@ final class AlertBellModel {
     }
 
     /// Saves the alert switched on, the bell waiting at half strength until the server has it. A capsule already up stays
-    /// through the wait, then the new one takes its place. A save that fails shakes the bell (TT-190).
+    /// through the wait, then the new one takes its place. A save that fails shakes the bell (TT-190). Rail joint plays when
+    /// On lands, beat 2 on the bell's fill; a save not back 150 ms after the tap plays the soft wait tap first (TT-214).
     private func turnOn(_ rule: AlertRule, trip: Trip, route: Route) async {
         hideTask?.cancel()
         saving = trip.key
+        let wait = haptics.play(.wait, after: slowSaveAfter)
         let committed = await rules.commit(rule)
+        wait.cancel()
         saving = nil
         guard committed else {
             await refuse(.failed(.turnOn), trip: trip, route: route, retry: .turnOn(trip, route))
@@ -426,6 +437,7 @@ final class AlertBellModel {
             return
         }
         enabledCount += 1
+        haptics.play(.railJoint)
         show(.on, trip: trip, route: route, repeats: saved.kind == .repeating ? saved.weekdays : [])
     }
 
@@ -438,13 +450,16 @@ final class AlertBellModel {
         case .thisTrip:
             // Gone on device now; the bell and Undo answer while the server's delete is on its way, and Undo waits for it.
             offTask = rules.deleteInBackground(rule.id)
+            haptics.play(.tap)
             show(.off, trip: trip, route: route, undo: rule)
         case .repeating:
             var off = rule
             off.paused = true
             if await rules.commit(off) {
+                haptics.play(.tap)
                 show(.off, trip: trip, route: route, repeats: rule.weekdays, undo: rule)
             } else {
+                haptics.play(.fail)
                 show(.failed(.turnOff), trip: trip, route: route, retry: .turnOff(trip, route))
             }
         }
@@ -456,10 +471,12 @@ final class AlertBellModel {
         return !alert.paused && rules.state(of: alert) == .on
     }
 
-    /// The bell shakes with the warning haptic and the capsule says why 120 ms later (the Motion board's Refused).
+    /// The bell shakes with the warning haptic (Fail when a save failed, TT-214) and the capsule says why 120 ms later (the
+    /// Motion board's Refused).
     private func refuse(_ kind: Capsule.Kind, trip: Trip, route: Route, retry: Retry? = nil) async {
         shakeCounts[trip.key, default: 0] += 1
         refusedCount += 1
+        if case .failed = kind { haptics.play(.fail) } else { haptics.play(.warning) }
         dismissCapsule()
         if refusalDelay > .zero { try? await Task.sleep(for: refusalDelay) }
         show(kind, trip: trip, route: route, retry: retry)

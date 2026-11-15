@@ -279,7 +279,24 @@ struct PressScaleStyle: ButtonStyle {
     }
 }
 
+/// A train card's press (TT-214, D95): reports `isPressed` so the card and the bell over it sink together (`cardPress`).
+/// A button style, so a scroll that starts on a card does not press it.
+struct CardPressStyle: ButtonStyle {
+    @Binding var isPressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, pressed in isPressed = pressed }
+    }
+}
+
 extension View {
+    /// A held card sinks to 0.98 in 0.1 s ease-out and comes back on `TTMotion.cardPressBack`; Reduce Motion keeps it still.
+    func cardPress(_ isPressed: Bool, reduceMotion: Bool) -> some View {
+        scaleEffect(isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(isPressed ? TTMotion.cardPressDown : TTMotion.cardPressBack, value: isPressed)
+    }
+
     /// Buttons scale to 0.97 on press, 0.2 s ease-out.
     func pressScale(_ isPressed: Bool) -> some View {
         scaleEffect(isPressed ? 0.97 : 1).animation(.easeOut(duration: 0.2), value: isPressed)

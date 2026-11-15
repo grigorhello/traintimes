@@ -49,6 +49,11 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testTestingLiveDataLight() { snap(SettingsTestingPage(viewModel: liveModel()), .light) }
     @MainActor func testTestingLiveDataDark() { snap(SettingsTestingPage(viewModel: liveModel()), .dark) }
 
+    // MARK: Haptics (TT-214)
+
+    @MainActor func testHapticsLight() { snap(SettingsHapticsPage(), .light) }
+    @MainActor func testHapticsDark() { snap(SettingsHapticsPage(), .dark) }
+
     // MARK: Helpers
 
     @MainActor

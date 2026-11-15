@@ -331,7 +331,10 @@ struct DepartureCardView: View {
     @State private var anchor: CGFloat = 0
     /// The time's laid-out width, for the bolt's place while the time scales.
     @State private var timeWidth: CGFloat = 0
+    /// The card is held (TT-214).
+    @State private var isPressed = false
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Top, trailing (the bell side), bottom and leading padding from the canvas.
     private static let padding = EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 10)
@@ -350,6 +353,25 @@ struct DepartureCardView: View {
     private var look: DeparturePlay.Card { pose ?? .rest(departed: card.isDeparted) }
 
     var body: some View {
+        // A button, so the card sinks while held and a scroll that starts on it does not press it (TT-214). No haptic:
+        // opening Trip details is navigation.
+        Button(action: onOpen) { cardFace }
+            .buttonStyle(CardPressStyle(isPressed: $isPressed))
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
+            // The bell sits over the time row, outside the card's one element, so it is a separate button.
+            .overlay(alignment: .topTrailing) {
+                if !card.isCancelled {
+                    bellButton
+                        .departedLook(look.look)
+                        .padding(.top, Self.bellTop)
+                }
+            }
+            .cardPress(isPressed, reduceMotion: reduceMotion)
+    }
+
+    private var cardFace: some View {
         Card(padding: 0, flatness: look.look) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
@@ -383,18 +405,6 @@ struct DepartureCardView: View {
             report()
         }
         .contentShape(RoundedRectangle(cornerRadius: TTRadius.lg))
-        .onTapGesture(perform: onOpen)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
-        // The bell sits over the time row, outside the card's one element, so it is a separate button.
-        .overlay(alignment: .topTrailing) {
-            if !card.isCancelled {
-                bellButton
-                    .departedLook(look.look)
-                    .padding(.top, Self.bellTop)
-            }
-        }
     }
 
     /// The status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so it

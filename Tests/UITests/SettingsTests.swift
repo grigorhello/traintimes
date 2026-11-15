@@ -6,7 +6,7 @@ final class SettingsTests: XCTestCase {
     }
 
     /// The main view's glass switch changes Time format in one tap (there is no Appearance row, D84), and Notifications, About and Testing open
-    /// and close (TT-105, TT-168).
+    /// and close (TT-105, TT-168), and Testing › Haptics (TT-214).
     @MainActor
     func testChangeTimeFormatAndOpenThePages() {
         let app = XCUIApplication.onFixtures()
@@ -53,6 +53,11 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.testing"].tap()
         XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["settings.demoTrains.off"].isSelected)
+        // Testing › Haptics opens (TT-214): a row per feel.
+        app.buttons["settings.haptics"].tap()
+        XCTAssertTrue(app.buttons["haptics.feel.railJoint"].waitForExistence(timeout: 15))
+        app.buttons["settings.back"].tap()
+        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 15))
         app.buttons["settings.back"].tap()
         XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
     }

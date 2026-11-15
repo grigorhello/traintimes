@@ -86,10 +86,7 @@ struct ScheduleView: View {
             .simultaneousGesture(TapGesture().onEnded { bells?.closePanel() }, including: isPanelOpen ? .all : .subviews)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { capsuleLayer }
-            // A light haptic when an alert turns on (TT-141), the warning one when a bell is refused (TT-190), the selection
-            // haptic when a day tile lights (TT-191).
-            .sensoryFeedback(.impact(weight: .light), trigger: bells?.enabledCount ?? 0)
-            .sensoryFeedback(.warning, trigger: bells?.refusedCount ?? 0)
+            // The selection haptic when a day tile lights (TT-191). The bell's own feels play from `AlertBellModel` (TT-214).
             .sensoryFeedback(.selection, trigger: bells?.dayOnCount ?? 0)
             .onDisappear { bells?.closePanel() }
             .toolbar(.hidden, for: .navigationBar)

@@ -12,7 +12,8 @@ enum GlassSwitchLabel {
 /// by Time format (three words) and the Testing switches (TT-172) in Settings. The thumb is Liquid
 /// Glass on iOS 26 and later, like the tab bar's pill, and a solid raised surface before it and when `\.rendersGlass` is off.
 /// The chosen symbol or word is accent and semibold and presses in on a spring (`settingsPress`); with `turns` a symbol
-/// also turns a quarter. The track is 40 pt tall with 3 pt around the 34 pt thumb.
+/// also turns a quarter. The track is 40 pt tall with 3 pt around the 34 pt thumb. A change clicks as the thumb arrives
+/// (`SwitchClick`, TT-214).
 struct GlassSwitch<Value: Hashable>: View {
     struct Option {
         let value: Value
@@ -59,6 +60,7 @@ struct GlassSwitch<Value: Hashable>: View {
     private func segment(_ option: Option) -> some View {
         let isSelected = option.value == selection
         return Button {
+            SwitchClick.tapped(from: selection, to: option.value, haptics: TTHaptics.shared)
             selection = option.value
         } label: {
             SwitchSegmentLabel(label: option.label, isSelected: isSelected, turns: turns)
@@ -70,6 +72,18 @@ struct GlassSwitch<Value: Hashable>: View {
         .accessibilityLabel(Text(option.name))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier(option.identifier)
+    }
+}
+
+/// The switch's feel (TT-214, D95): one Click as the thumb arrives, 140 ms after the tap, the same both ways; none when the
+/// tapped option was already chosen.
+enum SwitchClick {
+    static let delay: Duration = .milliseconds(140)
+
+    @MainActor @discardableResult
+    static func tapped<Value: Equatable>(from old: Value, to new: Value, haptics: any HapticPlaying) -> Task<Void, Never>? {
+        guard old != new else { return nil }
+        return haptics.play(.click, after: delay)
     }
 }
 

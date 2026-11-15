@@ -72,7 +72,8 @@ struct AlertBellButton: View {
                 .frame(width: target, height: target)
                 .contentShape(Circle())
         }
-        .buttonStyle(PressScaleStyle())
+        // Warms the haptic engine on touch-down, so Rail joint's first beat is not late (TT-214).
+        .buttonStyle(WarmsHapticsPressStyle())
         .accessibilityLabel(label)
         .scaleEffect(scale)
         .keyframeAnimator(initialValue: 1.0, trigger: offs) { content, scale in

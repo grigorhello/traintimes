@@ -112,10 +112,7 @@ struct TripDetailsView: View {
             try? await Task.sleep(for: .seconds(1))
             entranceSettled = true
         }
-        // The bell's haptics, as on Schedule (TT-191): a light tap when an alert turns on, the warning on a refusal, the
-        // selection tick when a day lights.
-        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.bells?.enabledCount ?? 0)
-        .sensoryFeedback(.warning, trigger: viewModel.bells?.refusedCount ?? 0)
+        // The selection tick when a day lights, as on Schedule (TT-191). The bell's own feels play from its model (TT-214).
         .sensoryFeedback(.selection, trigger: viewModel.bells?.dayOnCount ?? 0)
         // Back from the capsule's Turn on with notifications on, the alert turns on (D72).
         .task(id: scenePhase) {

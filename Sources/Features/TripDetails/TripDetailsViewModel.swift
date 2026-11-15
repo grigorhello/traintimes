@@ -105,10 +105,6 @@ final class TripDetailsViewModel {
     /// The route's trains resolved at the last load or tick: the departure card shows only on the alerted one that leaves
     /// first (TT-177).
     @ObservationIgnored private var departures: [Departure] = []
-    /// The sheet saw this train's platform pending while it was live, then saw it posted at `platformPostedAt`: the card
-    /// says "just announced" for 2 min.
-    @ObservationIgnored private var sawPendingPlatform = false
-    private var platformPostedAt: Date?
     /// The sheet follows a ride: it opened on this trip's running ride, or "I'm on board" started one here. Only then
     /// does a ride that ended at your stop stay on screen as Ride complete.
     private var followsRide: Bool
@@ -346,14 +342,6 @@ final class TripDetailsViewModel {
     /// The first "I'm on board" shows the app's sheet, then the iOS prompt. The demo asks for nothing.
     var needsLocationIntro: Bool { demoDeparture == nil && (onBoard?.asksForLocation ?? false) }
 
-    /// The footnote under the stops while the button shows.
-    var onBoardHint: String {
-        String(format: String(localized: "onboard.hint"), RideDetails.shortName(route.to.name))
-    }
-
-    /// Your stop's short name, for the permission sheet.
-    var destinationName: String { RideDetails.shortName(route.to.name) }
-
     func rideDetails(_ formatter: some TimeFormatting) -> RideDetails? {
         guard isRiding else { return nil }
         return onBoard?.details(for: key, formatter: formatter)
@@ -397,39 +385,20 @@ final class TripDetailsViewModel {
         return live?.key == key ? live : nil
     }
 
-    /// The departure card in place of the journey card, while this train is live before departure and no ride shows.
-    func departureDetails(_ formatter: some TimeFormatting) -> DepartureDetails? {
-        guard !isRiding, let live = liveDeparture else { return nil }
-        let justAnnounced = platformPostedAt.map { now.timeIntervalSince($0) < DepartureDetails.announcedFor } ?? false
-        return DepartureDetails(
-            live,
-            origin: stops.first?.station.name ?? route.from.name,
-            destination: stops.last?.station.name ?? route.to.name,
-            now: now,
-            freshness: freshness,
-            hasPlatformSource: hasPlatformSource,
-            justAnnounced: live.platform != nil && justAnnounced,
-            formatter: formatter
-        )
+    /// The hero card over the folded trip (TT-205, D92), while the train has not left and no ride shows: this train is the
+    /// alerted one in its window (TT-177), or "I’m on board" shows (any train, from 20 min before). One look either way.
+    func departureHero(_ formatter: some TimeFormatting) -> DepartureHero? {
+        guard !isRiding, let departure, liveDeparture != nil || showsOnBoardButton,
+              let live = LiveDeparture(departure, now: now) else { return nil }
+        return DepartureHero(live, now: now, pillPulses: hasPlatformSource && (freshness?.isLive ?? false), formatter: formatter)
     }
 
-    /// The sheet follows the clock each second: riding, or live before departure.
-    var followsClock: Bool { isRiding || liveDeparture != nil || demoDeparture != nil }
+    /// The sheet follows the clock each second: riding, or before departure (the hero's countdown).
+    var followsClock: Bool { isRiding || liveDeparture != nil || demoDeparture != nil || showsOnBoardButton }
 
     /// Each second while `followsClock`: the countdown, Boarding now and Departed follow the clock between loads.
     func tick() {
         resolve()
-    }
-
-    /// Notes when the live train's platform is posted after the sheet saw it pending.
-    private func notePlatform() {
-        guard let live = liveDeparture else { return }
-        if live.platform == nil {
-            sawPendingPlatform = true
-            platformPostedAt = nil
-        } else if sawPendingPlatform, platformPostedAt == nil {
-            platformPostedAt = now
-        }
     }
 
     /// End ride, or Done at your stop.
@@ -476,7 +445,6 @@ final class TripDetailsViewModel {
             freshness = Freshness(live, now: current)
             hasPlatformSource = live.hasPlatformSource
             nextDepartureId = key
-            notePlatform()
             return
         }
         let current = clock.now
@@ -489,6 +457,5 @@ final class TripDetailsViewModel {
         self.freshness = freshness
         self.departures = departures
         hasPlatformSource = isToday && live.hasPlatformSource
-        notePlatform()
     }
 }

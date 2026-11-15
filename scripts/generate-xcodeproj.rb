@@ -120,12 +120,12 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
-    # TT-171: asked only when a ride starts (On board); the background session also needs UIBackgroundModes location.
+    # TT-171: asked only when a ride starts (On board; words from TT-205, D92); the background session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
-      'Your location shows which station is next while you ride, and taps you before your stop.',
+      'Your location shows which station is next while you ride, and tells you before your stop.',
     # TT-176: asked only when the rider turns on "Detect my train" (the offer after the first completed ride, or Settings).
     'INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription' =>
-      'Train Times notices when you’re on a GO train and offers On board. Your location stays on the phone.',
+      'Train Times asks when you get on a GO train. Your location stays on the phone.',
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D49 reverses D25: no UIDesignRequiresCompatibility key, so iOS 26 draws Liquid Glass (TT-156).
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).

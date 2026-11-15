@@ -1,8 +1,8 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-174: the ride as its Live Activity shows it, through the demo ride's moments (Live-Lock, Live-Island), its size,
-/// and the rules that update, alert and end it.
+/// TT-174, TT-205: the ride as its Live Activity's one card shows it, through the demo ride's moments (boards 12, 13 and 15),
+/// its size, and the rules that update, alert and end it.
 @MainActor
 final class RideActivityContentTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
@@ -46,31 +46,32 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertNil(unknown.lineColorHex, "No line: a grey tile")
     }
 
-    func testRidingShowsTheNextStopAndCountsDownToIt() async throws {
+    func testRidingSaysTheRideScreensLineAndCountsDownToYourStop() async throws {
         let rig = await DemoRideRig.started()
         let content = try content(rig)
         XCTAssertEqual(content.phase, .riding)
-        XCTAssertEqual(content.title, "Next stop · Port Credit")
-        XCTAssertEqual(content.detail, "Clarkson 5:43 PM · 2 stops")
-        XCTAssertEqual(try secondsLeft(content), 4 * 60, accuracy: 5, "On the device clock, to 5:36 on the engine's")
-        XCTAssertEqual(content.time, "5:36 PM")
-        XCTAssertEqual(content.departure, "Union Station 5:13 PM")
-        XCTAssertEqual(content.arrival, "Clarkson 5:43 PM")
+        XCTAssertEqual(content.title, "Clarkson in")
+        XCTAssertEqual(try secondsLeft(content), 11 * 60, accuracy: 5, "On the device clock, to 5:43 on the engine's: your stop")
+        XCTAssertEqual(content.label, "Arrives")
+        XCTAssertEqual(content.value, "5:43 PM")
+        XCTAssertNil(content.delay)
+        XCTAssertFalse(content.late)
         XCTAssertEqual(content.position, 3.25, accuracy: 0.01)
+        XCTAssertFalse(content.isClose)
         XCTAssertFalse(content.isAlert)
-        XCTAssertEqual(content.button, "End ride")
+        XCTAssertFalse(content.isGreen)
         XCTAssertEqual(content.now, "Now")
         XCTAssertEqual(content.updated, "Updated 5:32 PM")
     }
 
-    func testAtAStationTheTrainSitsOnItsDotAndSaysNow() async throws {
+    func testAtTheStopBeforeYoursYourStopIsNext() async throws {
         let rig = await DemoRideRig.started(at: t(17, 36, 20))
         let content = try content(rig)
         XCTAssertEqual(content.phase, .atStation)
-        XCTAssertEqual(content.title, "Now at · Port Credit")
-        XCTAssertEqual(content.detail, "Your stop is next")
-        XCTAssertNil(content.countdownEnd, "Now in place of the countdown")
-        XCTAssertEqual(content.time, "5:36 PM")
+        XCTAssertEqual(content.title, "Clarkson is next")
+        XCTAssertTrue(content.isClose)
+        XCTAssertEqual(try secondsLeft(content), 400, accuracy: 5, "Still counting to your stop")
+        XCTAssertEqual(content.value, "5:43 PM")
         XCTAssertEqual(content.position, 4)
     }
 
@@ -78,34 +79,36 @@ final class RideActivityContentTests: XCTestCase {
         let rig = await DemoRideRig.started(at: t(17, 38))
         let content = try content(rig)
         XCTAssertEqual(content.phase, .yourStopNext)
-        XCTAssertEqual(content.title, "Next stop · Clarkson")
-        XCTAssertEqual(content.detail, "Your stop is next")
+        XCTAssertEqual(content.title, "Clarkson is next")
         XCTAssertEqual(try secondsLeft(content), 5 * 60, accuracy: 5)
-        XCTAssertEqual(content.time, "5:43 PM")
+        XCTAssertEqual(content.label, "Arrives")
+        XCTAssertTrue(content.isClose)
         XCTAssertFalse(content.isAlert)
     }
 
-    func testArrivingTurnsGreen() async throws {
+    func testArrivingTurnsGreenWithNothingAtTheRight() async throws {
         let rig = await DemoRideRig.started(at: t(17, 42, 20))
         let content = try content(rig)
         XCTAssertEqual(content.phase, .arriving)
         XCTAssertTrue(content.isAlert)
+        XCTAssertTrue(content.isGreen)
         XCTAssertEqual(content.title, "Arriving at Clarkson")
-        XCTAssertEqual(content.detail, "Your stop · doors in a minute")
+        XCTAssertEqual(content.label, "")
+        XCTAssertNil(content.value)
         XCTAssertEqual(try secondsLeft(content), 40, accuracy: 5)
         XCTAssertGreaterThan(content.position, 4)
         XCTAssertLessThan(content.position, 5)
     }
 
-    func testAtYourStopTheRideIsComplete() async throws {
+    func testAtYourStopItSaysNow() async throws {
         let rig = await DemoRideRig.started(at: t(17, 43, 5))
         let content = try content(rig)
         XCTAssertEqual(content.phase, .atYourStop)
-        XCTAssertEqual(content.title, "This is your stop")
-        XCTAssertEqual(content.detail, "Clarkson · Ride complete")
+        XCTAssertEqual(content.title, "This is Clarkson")
         XCTAssertNil(content.countdownEnd)
+        XCTAssertEqual(content.now, "Now")
         XCTAssertEqual(content.position, 5, "The train on the pin")
-        XCTAssertEqual(content.button, "Done")
+        XCTAssertTrue(content.isGreen)
         XCTAssertFalse(content.isAlert)
 
         // The ride ends 10 min later and its activity keeps the last card.
@@ -113,7 +116,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(rig.engine?.state?.phase, .ended)
         let ended = try self.content(rig)
         XCTAssertEqual(ended.phase, .atYourStop)
-        XCTAssertEqual(ended.button, "Done")
+        XCTAssertEqual(ended.title, "This is Clarkson")
     }
 
     func testTheTwentyFourHourClockFormatsEveryTime() async throws {
@@ -123,10 +126,27 @@ final class RideActivityContentTests: XCTestCase {
             plan: rig.plan, state: try XCTUnwrap(engine.state), now: engine.now, deviceNow: deviceNow,
             formatter: TimeFormatter(format: .twentyFourHour)
         ))
-        XCTAssertEqual(content.detail, "Clarkson 17:43 · 2 stops")
-        XCTAssertEqual(content.time, "17:36")
-        XCTAssertEqual(content.departure, "Union Station 17:13")
+        XCTAssertEqual(content.value, "17:43")
         XCTAssertEqual(content.updated, "Updated 17:32")
+    }
+
+    func testAPushFromAnOlderServerStillDecodes() throws {
+        // The alert server before TT-205 wrote these keys (TT-178); the card reads its title, countdown and label.
+        let json = """
+        {"phase":"countingDown","title":"5:13 PM to Clarkson","detail":"Check the board · On time","countdownEnd":1800000000,
+        "now":"","time":"departs","departure":"Union 5:13 PM","arrival":"Clarkson 5:43 PM","arrives":"Arrives Clarkson 5:43 PM",
+        "position":0,"button":"I’m on board","updated":"Updated 4:43 PM","platform":"Check the board","pill":false,"late":false}
+        """
+        let state = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: Data(json.utf8))
+        XCTAssertEqual(state.phase, .countingDown)
+        XCTAssertEqual(state.title, "5:13 PM to Clarkson")
+        XCTAssertEqual(state.countdownEnd, Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertEqual(state.label, "Check the board")
+        XCTAssertNil(state.platformNumber)
+
+        // And what this app writes reads back the same.
+        let again = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: JSONEncoder().encode(state))
+        XCTAssertEqual(again, state)
     }
 
     // MARK: Size
@@ -137,7 +157,7 @@ final class RideActivityContentTests: XCTestCase {
         var content = try content(rig)
         // The longest words GO's names give, to be sure.
         content.title = "Arriving at Bloomington"
-        content.detail = String(repeating: "Exhibition 12:59 PM · 12 stops ", count: 2)
+        content.value = "12:59 PM"
         let size = try JSONEncoder().encode(attributes).count + JSONEncoder().encode(content).count
         XCTAssertLessThan(size, 1024, "Apple's limit is 4 KB for the attributes and the state together")
     }
@@ -169,7 +189,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertFalse(shown.looksLike(later), "A train a minute late moves the countdown")
 
         var renamed = shown
-        renamed.title = "Now at · Long Branch"
+        renamed.title = "Clarkson is next"
         XCTAssertFalse(shown.looksLike(renamed))
     }
 

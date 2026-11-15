@@ -12,6 +12,8 @@ struct PlatformTag: View {
     var pillSize: CGFloat?
     /// The dash pill pulses (a platform feed is live and the platform may be posted any minute, D55).
     var pulses = false
+    /// The label over the pill, right-aligned (Trip details' hero card, TT-205); beside it otherwise.
+    var isStacked = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -21,7 +23,10 @@ struct PlatformTag: View {
     @State private var dimmed = false
 
     var body: some View {
-        HStack(spacing: size * 0.55) {
+        let layout = isStacked
+            ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: size * 0.55))
+        layout {
             Text("schedule.platform_label")
                 .font(.system(size: size))
                 .foregroundStyle(TTColor.inkSecondary)

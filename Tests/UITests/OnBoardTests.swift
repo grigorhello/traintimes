@@ -1,9 +1,10 @@
 import XCTest
 
-/// TT-172, TT-175: Demo trains › Ride first asks on Schedule "On the 5:13 PM train?" (about 25 s after launch), and its Yes
-/// starts the ride from Union to Clarkson and opens Trip details in ride mode. Closing the sheet keeps the ride and the
+/// TT-172, TT-175: Demo trains › Ride first asks on Schedule "On the train to Clarkson?" (about 25 s after launch), and its
+/// Yes starts the ride from Union to Clarkson and opens Trip details in ride mode. Closing the sheet keeps the ride and the
 /// strip opens it again; End ride ends it and the strip goes. TT-177: Demo trains › Departure counts down to the same
-/// train; its strip opens the departure card, and "I’m on board" turns it into the ride.
+/// train; the Live Activity's link opens its hero card (TT-205: Schedule has no countdown strip), and "I’m on board" turns
+/// it into the ride.
 final class OnBoardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -28,7 +29,7 @@ final class OnBoardTests: XCTestCase {
         app.buttons["trip.close"].tap()
         XCTAssertTrue(card.waitForNonExistence(timeout: 15))
         XCTAssertTrue(strip.waitForExistence(timeout: 15))
-        XCTAssertTrue(strip.label.contains("On board"), strip.label)
+        XCTAssertTrue(strip.label.contains("Clarkson"), strip.label)
         XCTAssertFalse(question.exists)
         strip.tap()
         XCTAssertTrue(card.waitForExistence(timeout: 15))
@@ -44,23 +45,28 @@ final class OnBoardTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "departure"]
         app.launch()
 
-        let strip = app.descendants(matching: .any).matching(identifier: "schedule.departure").firstMatch
-        XCTAssertTrue(strip.waitForExistence(timeout: 10))
-        XCTAssertTrue(strip.label.contains("train"), strip.label)
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "schedule.departure").firstMatch.exists,
+            "no countdown strip on Schedule (D92)"
+        )
 
-        strip.tap()
+        // The departure's Live Activity link, as a tap on the Lock Screen card sends it.
+        app.open(URL(string: "traintimes://departure")!)
+        // iOS may ask first whether to open the link in the app.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.buttons["Open"].waitForExistence(timeout: 3) { springboard.buttons["Open"].tap() }
         let card = app.descendants(matching: .any).matching(identifier: "trip.departure").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        // The demo loops every 102 s and reads Departed for 12 s of it, when the sheet shows the trip instead.
+        XCTAssertTrue(card.waitForExistence(timeout: 30))
 
         app.buttons["trip.onboard"].tap()
         let ride = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
-        XCTAssertTrue(ride.waitForExistence(timeout: 5))
-        XCTAssertFalse(card.exists, "the departure card turned into the ride")
+        XCTAssertTrue(ride.waitForExistence(timeout: 15))
+        XCTAssertFalse(card.exists, "the hero card turned into the ride")
 
-        // End ride stops the demo ride and closes the sheet; the countdown is back on Schedule.
+        // End ride stops the demo ride.
         app.buttons["trip.endRide"].tap()
-        XCTAssertTrue(ride.waitForNonExistence(timeout: 5))
-        // The strip is away for 12 s of each 102 s loop, while the demo train reads Departed.
-        XCTAssertTrue(strip.waitForExistence(timeout: 15))
+        XCTAssertTrue(ride.waitForNonExistence(timeout: 15))
     }
 }

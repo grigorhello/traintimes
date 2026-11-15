@@ -188,19 +188,17 @@ final class RideDetailsTests: XCTestCase {
 
     // MARK: The ride strip
 
-    func testTheStripShowsTheNextStopAndYourStop() async throws {
+    /// D92: one line, the ride screen's kicker and minutes.
+    func testTheStripSaysTheRideScreensLine() async throws {
         let rig = await DemoRideRig.started()
         let strip = try XCTUnwrap(rig.onBoard.strip(formatter: formatter))
-        XCTAssertEqual(strip.title, "On board · 5:13 PM train")
-        XCTAssertEqual(strip.next, "Next stop Port Credit")
-        XCTAssertEqual(strip.countdown, "4 min")
-        XCTAssertEqual(strip.destination, "Clarkson")
-        XCTAssertEqual(strip.arrival, "5:43 PM")
+        XCTAssertEqual(strip.line, "Clarkson in")
+        XCTAssertEqual(strip.countdown, "11 min")
         XCTAssertTrue(strip.isLive)
 
         rig.drive(to: t(17, 43, 5))
         let there = try XCTUnwrap(rig.onBoard.strip(formatter: formatter))
-        XCTAssertEqual(there.next, "This is your stop")
+        XCTAssertEqual(there.line, "This is Clarkson")
         XCTAssertEqual(there.countdown, "Now")
     }
 
@@ -263,10 +261,6 @@ final class RideDetailsTests: XCTestCase {
         let inWindow = try await TripDetailsViewModel.onBoardFixture()
         XCTAssertTrue(inWindow.showsOnBoardButton)
         XCTAssertFalse(inWindow.isRiding)
-        XCTAssertEqual(
-            inWindow.onBoardHint,
-            "On board shows your stops as you ride and taps you about 1 minute before Union. It works from 20 minutes before departure until you arrive."
-        )
         let early = try await TripDetailsViewModel.onBoardFixture(minutesLater: -30)
         XCTAssertFalse(early.showsOnBoardButton)
     }

@@ -17,11 +17,13 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
     /// The line's code on its tile, "LW", and its colour, "#8B1A31" (D49); nil draws the tile grey.
     let lineCode: String
     let lineColorHex: String?
-    /// "Clarkson", set in semibold in the bar's right label.
+    /// "Clarkson": the rider's stop.
     let destinationName: String
-    /// The stops on the bar, the origin and your stop included.
+    /// The stops on the stop line, the origin and your stop included.
     let stopCount: Int
 
+    /// One card for every moment (TT-205, D92): the line's tile and one line, the big number under it, one labelled fact at
+    /// the right, and during the ride the stop line. The same words as the app's screens.
     struct ContentState: Codable, Hashable, Sendable {
         /// Where the ride is (`RidePhase`), or before it where the alerted train is (`LiveDeparture.Phase`, TT-178): one
         /// activity carries the departure and then the ride.
@@ -31,48 +33,40 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         }
 
         var phase: Phase
-        /// "Next stop · Port Credit", "Now at · Mimico", "Arriving at Clarkson", "This is your stop"; before departure the
-        /// train, "5:13 PM to Clarkson".
+        /// The one line: "5:13 PM departs in", "5:16 PM boarding now", "Departed 5:16 PM"; during the ride "Clarkson in",
+        /// "Clarkson is next", "Arriving at Clarkson", "This is Clarkson".
         var title: String
-        /// "Clarkson 5:43 PM · 2 stops", "Your stop · doors in a minute"; before departure "Platform 7 · On time".
-        var detail: String
-        /// The countdown runs on the device to this time (timer text, no updates needed); nil shows `now` instead.
+        /// The big number runs on the device to this time (timer text, no updates needed): the expected departure, or the
+        /// expected arrival at your stop. Nil shows `now` instead.
         var countdownEnd: Date?
-        /// "Now", in place of the countdown at a station and at your stop; empty before departure.
+        /// "Now" at your stop; empty once the train has left before a ride.
         var now: String
-        /// The time under the countdown, "5:36 PM"; "departs" before departure.
-        var time: String
-        /// The bar's two labels: "Union Station 5:13 PM", when the train left the origin, and "Clarkson 5:43 PM", when it is
-        /// expected at your stop.
-        var departure: String
-        var arrival: String
-        /// Where the train is on the bar, in stops from the origin: 3.25 is a quarter of the way from the fourth stop to
-        /// the fifth; the last stop's index at your stop.
+        /// The label at the right: "Platform" before departure, "Arrives" during the ride; empty when the card shows
+        /// nothing there (arriving, at your stop).
+        var label: String
+        /// The value under it during the ride, "5:43 PM"; nil before departure, where the platform pill is the value.
+        var value: String?
+        /// "3 min late" beside the minutes while a train counts down late; nil otherwise.
+        var delay: String?
+        /// The posted platform, "7", in its pill (TT-199); nil draws the dash (the alert server knows no platforms).
+        var platformNumber: String?
+        /// The train runs late: the clock time in the line, and the arrival, in amber.
+        var late = false
+        /// Where the train is on the stop line, in stops from the origin: 3.25 is a quarter of the way from the fourth stop
+        /// to the fifth; the last stop's index at your stop.
         var position: Double
-        /// "End ride", or "Done" at your stop: the expanded island's link.
-        var button: String
-        /// "Updated 5:31 PM": takes the detail's place once the activity is stale (the app stopped updating it).
+        /// Your stop is next, or the train is boarding: the number turns mint, as on the ride screen.
+        var isClose = false
+        /// "Updated 5:31 PM": shown in place of the line once the activity is stale (the app stopped updating it).
         var updated: String
 
-        // Before departure (TT-178); nil and false during the ride.
-
-        /// The expanded island's line, "Arrives Clarkson 5:43 PM".
-        var arrives: String?
-        /// The start of the detail: "Platform 7", "Platform" (the pill follows), or "Check the board".
-        var platform: String?
-        /// The posted platform, "7", drawn in its pill after "Platform" (TT-199); nil while pending, and from the alert
-        /// server, which knows no platforms.
-        var platformNumber: String?
-        /// The pending platform's dash pill follows "Platform" (D55; still, since an activity does not animate).
-        var pill = false
-        /// Counting down a late train: the countdown and the delay in amber.
-        var late = false
-
-        /// About a minute before your stop: the activity turns brand green (the compact island's countdown on a green
-        /// capsule) and alerts once.
+        /// About a minute before your stop: the activity alerts once.
         var isAlert: Bool { phase == .arriving }
 
-        /// Before departure: the countdown to the train, "I’m on board" in the expanded island.
+        /// Arriving and at your stop: the Lock Screen card turns brand green.
+        var isGreen: Bool { phase == .arriving || phase == .atYourStop }
+
+        /// Before departure: the countdown to the train.
         var isDeparture: Bool {
             switch phase {
             case .countingDown, .boarding, .departed: true
@@ -90,56 +84,52 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
-        case phase, title, detail, countdownEnd, now, time, departure, arrival, position, button, updated
-        case arrives, platform, platformNumber, pill, late
+        case phase, title, countdownEnd, now, label, value, delay, platformNumber, late, position, isClose, updated
+        /// Written by the alert server before TT-205: the label's fallback, "Check the board".
+        case platform
     }
 
     /// The alert server's push carries the same keys (`server/src/activity.ts`). `countdownEnd` travels as seconds since
     /// 1970, so the app and the server write it alike whatever date strategy ActivityKit decodes with; a missing key reads as
-    /// empty rather than failing the whole activity.
+    /// empty rather than failing the whole activity, so a push from an older server still updates the card (its title, the
+    /// countdown, and "Check the board" as the label).
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         phase = try container.decode(Phase.self, forKey: .phase)
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
-        detail = try container.decodeIfPresent(String.self, forKey: .detail) ?? ""
         countdownEnd = try container.decodeIfPresent(Double.self, forKey: .countdownEnd).map(Date.init(timeIntervalSince1970:))
         now = try container.decodeIfPresent(String.self, forKey: .now) ?? ""
-        time = try container.decodeIfPresent(String.self, forKey: .time) ?? ""
-        departure = try container.decodeIfPresent(String.self, forKey: .departure) ?? ""
-        arrival = try container.decodeIfPresent(String.self, forKey: .arrival) ?? ""
-        position = try container.decodeIfPresent(Double.self, forKey: .position) ?? 0
-        button = try container.decodeIfPresent(String.self, forKey: .button) ?? ""
-        updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
-        arrives = try container.decodeIfPresent(String.self, forKey: .arrives)
-        platform = try container.decodeIfPresent(String.self, forKey: .platform)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+            ?? container.decodeIfPresent(String.self, forKey: .platform) ?? ""
+        value = try container.decodeIfPresent(String.self, forKey: .value)
+        delay = try container.decodeIfPresent(String.self, forKey: .delay)
         platformNumber = try container.decodeIfPresent(String.self, forKey: .platformNumber)
-        pill = try container.decodeIfPresent(Bool.self, forKey: .pill) ?? false
         late = try container.decodeIfPresent(Bool.self, forKey: .late) ?? false
+        position = try container.decodeIfPresent(Double.self, forKey: .position) ?? 0
+        isClose = try container.decodeIfPresent(Bool.self, forKey: .isClose) ?? false
+        updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
     }
 
     func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(phase, forKey: .phase)
         try container.encode(title, forKey: .title)
-        try container.encode(detail, forKey: .detail)
         try container.encodeIfPresent(countdownEnd?.timeIntervalSince1970, forKey: .countdownEnd)
         try container.encode(now, forKey: .now)
-        try container.encode(time, forKey: .time)
-        try container.encode(departure, forKey: .departure)
-        try container.encode(arrival, forKey: .arrival)
-        try container.encode(position, forKey: .position)
-        try container.encode(button, forKey: .button)
-        try container.encode(updated, forKey: .updated)
-        try container.encodeIfPresent(arrives, forKey: .arrives)
-        try container.encodeIfPresent(platform, forKey: .platform)
+        try container.encode(label, forKey: .label)
+        try container.encodeIfPresent(value, forKey: .value)
+        try container.encodeIfPresent(delay, forKey: .delay)
         try container.encodeIfPresent(platformNumber, forKey: .platformNumber)
-        try container.encode(pill, forKey: .pill)
         try container.encode(late, forKey: .late)
+        try container.encode(position, forKey: .position)
+        try container.encode(isClose, forKey: .isClose)
+        try container.encode(updated, forKey: .updated)
     }
 }
 
-/// The app's links from the activity: during the ride a tap opens Trip details on the ride and the expanded island's button
-/// ends it; before departure (TT-178) a tap opens the train's Trip details and the button starts the ride on it.
+/// The app's links from the activity: during the ride a tap opens Trip details on the ride; before departure (TT-178) a tap
+/// opens the train's Trip details. The card has no buttons since TT-205 (D92); `end` and `board` stay as links the app
+/// understands.
 enum RideActivityLink: Equatable {
     case open
     case end

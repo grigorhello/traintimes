@@ -11,10 +11,10 @@ struct TrainTimesWidgets: WidgetBundle {
     }
 }
 
-/// The ride on the Lock Screen and in the Dynamic Island (*Live-Lock*, *Live-Island*, D67), and before it the alerted
-/// train's countdown (*Live-Depart-Lock*, TT-178, D74). A tap anywhere opens Trip details on the ride (on the train before
-/// departure); the expanded island's End ride, or "I’m on board" before departure, is a link, the one control Apple lets
-/// work there. iOS does not grey a stale activity, so the views do (`isStale`).
+/// The ride on the Lock Screen and in the Dynamic Island, and before it the alerted train's countdown: one card for every
+/// moment (TT-205, D92; boards 3, 12, 13 and 15 of the Live view canvas). A tap anywhere opens Trip details on the ride (on
+/// the train before departure), where "I’m on board" and End ride are; the card has no buttons. iOS does not grey a stale
+/// activity, so the views do (`isStale`).
 struct RideActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RideActivityAttributes.self) { context in
@@ -27,50 +27,18 @@ struct RideActivityWidget: Widget {
             let state = context.state
             let style = RideActivityStyle.island(state, isStale: context.isStale)
             return DynamicIsland {
-                // Arriving: the green card fills the island under the camera (the bottom region, the full width); otherwise
-                // the Lock Screen layout around the camera.
-                DynamicIslandExpandedRegion(.leading) {
-                    if !state.isAlert {
-                        RideActivityTile(attributes: attributes, size: .large, edge: style.tileEdge)
-                    }
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    if state.isDeparture {
-                        RideActivityDepartureCountdown(state: state, style: style)
-                    } else if !state.isAlert {
-                        RideActivityCountdownStack(state: state, style: style)
-                    }
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    if state.isDeparture {
-                        RideActivityDepartureTitle(attributes: attributes, state: state, style: style)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if !state.isAlert {
-                        RideActivityTitle(state: state, style: style)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+                // The card under the camera, the full width; the island stays black (iOS draws it so).
                 DynamicIslandExpandedRegion(.bottom) {
-                    if state.isDeparture {
-                        RideActivityDepartureBottom(state: state, style: style)
-                    } else if state.isAlert {
-                        RideActivityExpandedAlert(attributes: attributes, state: state, style: style)
-                    } else {
-                        RideActivityExpandedBottom(attributes: attributes, state: state, style: style)
-                    }
+                    RideActivityExpanded(attributes: attributes, state: state, style: style)
                 }
             } compactLeading: {
                 RideActivityTile(attributes: attributes, size: .compact)
             } compactTrailing: {
-                if state.isDeparture {
-                    RideActivityDepartureCompactTrailing(state: state, style: style)
-                } else {
-                    RideActivityCompactTrailing(state: state, style: style)
-                }
+                RideActivityCompactTrailing(state: state, style: style)
             } minimal: {
                 RideActivityTile(attributes: attributes, size: .minimal)
             }
-            .keylineTint(state.isAlert ? RideActivityStyle.alertGreen : state.late ? RideActivityStyle.amber : RideActivityStyle.mint)
+            .keylineTint(state.isClose ? RideActivityStyle.mint : .white.opacity(0.3))
             .widgetURL(Self.link(state).url)
         }
     }

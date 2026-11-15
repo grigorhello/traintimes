@@ -42,19 +42,16 @@ final class ArrivalNudgeTests: XCTestCase {
 
     // MARK: Notifications
 
-    func testARideSchedulesBothNotificationsFromTheTimetable() {
+    /// TT-205 (D92): one notification, "Your stop is next", no body, a minute before your stop.
+    func testARideSchedulesOneNotificationFromTheTimetable() {
         let rig = rig()
         send(.update(state(.atStation, arrival: t(11, 52))), to: rig, at: t(11, 17))
 
-        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.pending.count, 1)
         let arriving = rig.notifications.pending[rig.nudge.id(.arriving)]
-        XCTAssertEqual(arriving?.title, "Arriving at Clarkson in 1 min")
-        XCTAssertEqual(arriving?.body, "Your stop is next. Get ready to step off.")
+        XCTAssertEqual(arriving?.title, "Your stop is next")
+        XCTAssertEqual(arriving?.body, "")
         XCTAssertEqual(arriving?.delay ?? 0, 34 * 60, accuracy: 0.5)
-        let here = rig.notifications.pending[rig.nudge.id(.here)]
-        XCTAssertEqual(here?.title, "This is Clarkson")
-        XCTAssertEqual(here?.body, "Your stop. Doors are open.")
-        XCTAssertEqual(here?.delay ?? 0, 35 * 60, accuracy: 0.5)
     }
 
     /// Acceptance: a changed estimate replaces the pending notification instead of adding a second.
@@ -63,11 +60,10 @@ final class ArrivalNudgeTests: XCTestCase {
         send(.update(state(.riding, arrival: t(11, 52))), to: rig, at: t(11, 17))
         send(.update(state(.riding, arrival: t(11, 55))), to: rig, at: t(11, 30))
 
-        XCTAssertEqual(rig.notifications.added.count, 4)
-        XCTAssertEqual(Set(rig.notifications.added.map(\.id)).count, 2, "the same two identifiers")
-        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.added.count, 2)
+        XCTAssertEqual(Set(rig.notifications.added.map(\.id)).count, 1, "the same identifier")
+        XCTAssertEqual(rig.notifications.pending.count, 1)
         XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.arriving)]?.delay ?? 0, 24 * 60, accuracy: 0.5)
-        XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.here)]?.delay ?? 0, 25 * 60, accuracy: 0.5)
     }
 
     /// A fix every second moves the estimate a little each time; the notifications move only for 15 s or more.
@@ -75,7 +71,7 @@ final class ArrivalNudgeTests: XCTestCase {
         let rig = rig()
         send(.update(state(.riding, arrival: t(11, 52))), to: rig, at: t(11, 17))
         send(.update(state(.riding, arrival: t(11, 52, 10))), to: rig, at: t(11, 18))
-        XCTAssertEqual(rig.notifications.added.count, 2)
+        XCTAssertEqual(rig.notifications.added.count, 1)
     }
 
     func testANotificationThatWentOffIsNotScheduledAgain() {
@@ -84,8 +80,7 @@ final class ArrivalNudgeTests: XCTestCase {
         // Past 11:51, "Arriving" has gone off; the train then runs two minutes late.
         send(.update(state(.arriving, arrival: t(11, 54))), to: rig, at: t(11, 51, 30))
 
-        XCTAssertEqual(rig.notifications.added.map(\.id), [rig.nudge.id(.arriving), rig.nudge.id(.here), rig.nudge.id(.here)])
-        XCTAssertEqual(rig.notifications.added.last?.delay ?? 0, 150, accuracy: 0.5)
+        XCTAssertEqual(rig.notifications.added.map(\.id), [rig.nudge.id(.arriving)])
     }
 
     func testATrainAheadOfItsEstimateSendsArrivingAtOnce() {
@@ -107,15 +102,15 @@ final class ArrivalNudgeTests: XCTestCase {
         rig.nudge.follow(engine)
         let started = await engine.start(ride)
         XCTAssertTrue(started)
-        await until { rig.notifications.added.count >= 2 }
+        await until { rig.notifications.added.count >= 1 }
 
-        // The phone finds the train still at Union at 11:20, three minutes late: both move to 11:54 and 11:55.
+        // The phone finds the train still at Union at 11:20, three minutes late: it moves to 11:54 (the train now reaches Clarkson at 11:55).
         clock.set(t(11, 20))
         location.send(try OnBoardFixtures.fix(along: 0, plan: plan))
-        await until { rig.notifications.added.count >= 4 }
+        await until { rig.notifications.added.count >= 2 }
         await until { false }
-        XCTAssertEqual(rig.notifications.added.count, 4)
-        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.added.count, 2)
+        XCTAssertEqual(rig.notifications.pending.count, 1)
         XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.arriving)]?.delay ?? 0, 34 * 60, accuracy: 0.5)
 
         // No fix for four minutes: the timetable places the train, three minutes late, and nothing moves.
@@ -124,15 +119,15 @@ final class ArrivalNudgeTests: XCTestCase {
         await until { false }
         XCTAssertEqual(engine.state?.source, .timetable)
         XCTAssertEqual(engine.state?.expectedArrival, t(11, 55))
-        XCTAssertEqual(rig.notifications.added.count, 4, "nothing moved")
+        XCTAssertEqual(rig.notifications.added.count, 2, "nothing moved")
         XCTAssertTrue(rig.notifications.removed.isEmpty, "nothing was removed")
-        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.pending.count, 1)
     }
 
     func testEndingTheRideRemovesItsPendingNotifications() {
         let rig = rig()
         send(.update(state(.riding, arrival: t(11, 52))), to: rig, at: t(11, 17))
-        let ids = [rig.nudge.id(.arriving), rig.nudge.id(.here)]
+        let ids = [rig.nudge.id(.arriving)]
         send(.phase(.ended), to: rig, at: t(11, 20))
 
         XCTAssertEqual(Set(rig.notifications.removed), Set(ids))
@@ -142,12 +137,12 @@ final class ArrivalNudgeTests: XCTestCase {
     func testARideOnAnotherTrainRemovesTheOldRidesNotifications() {
         let rig = rig()
         send(.update(state(.riding, arrival: t(11, 52))), to: rig, at: t(11, 17))
-        let old = [rig.nudge.id(.arriving), rig.nudge.id(.here)]
+        let old = [rig.nudge.id(.arriving)]
         let later = Ride(trip: TripKey(serviceDay: OnBoardFixtures.friday, tripId: "20261127-LW-1047"), from: "UN", to: "CL")
         rig.nudge.handle(.update(state(.atStation, arrival: t(12, 22))), ride: later, destination: clarkson, now: t(11, 40))
 
         XCTAssertEqual(Set(rig.notifications.removed), Set(old))
-        XCTAssertEqual(rig.notifications.pending.count, 2)
+        XCTAssertEqual(rig.notifications.pending.count, 1)
         XCTAssertTrue(rig.notifications.pending.keys.allSatisfy { $0.contains("20261127-LW-1047") })
     }
 
@@ -156,20 +151,20 @@ final class ArrivalNudgeTests: XCTestCase {
         send(.update(state(.riding, arrival: t(17, 43))), to: rig, at: t(17, 32))
 
         XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.arriving)]?.delay ?? 0, 100, accuracy: 0.5)
-        XCTAssertEqual(rig.notifications.pending[rig.nudge.id(.here)]?.delay ?? 0, 110, accuracy: 0.5)
     }
 
     // MARK: Your stop
 
-    func testReachingYourStopEarlySaysThisIsAtOnce() {
+    /// D92: no notification at your stop; one still pending would come late, so it goes.
+    func testReachingYourStopEarlyRemovesThePendingNotification() {
         let rig = rig()
         send(.update(state(.yourStopNext, arrival: t(11, 52))), to: rig, at: t(11, 40))
-        let arriving = rig.nudge.id(.arriving), here = rig.nudge.id(.here)
+        let arriving = rig.nudge.id(.arriving)
         send(.phase(.atYourStop), to: rig, at: t(11, 50))
 
-        XCTAssertEqual(rig.notifications.removed, [arriving], "\"Arriving\" would come after the train got there")
-        XCTAssertEqual(rig.notifications.pending.keys.sorted(), [here])
-        XCTAssertEqual(rig.notifications.pending[here]?.delay, 1)
+        XCTAssertEqual(rig.notifications.removed, [arriving], "it would come after the train got there")
+        XCTAssertTrue(rig.notifications.pending.isEmpty)
+        XCTAssertEqual(rig.notifications.added.count, 1, "nothing is sent at the stop")
         XCTAssertEqual(rig.feedback.stops, 1)
     }
 
@@ -203,7 +198,7 @@ final class ArrivalNudgeTests: XCTestCase {
         let rig = await DemoRideRig.started {
             ArrivalNudge(notifications: notifications, feedback: feedback, rate: DemoRide.speed)
         }
-        await until { notifications.pending.count == 2 }
+        await until { notifications.pending.count == 1 }
         XCTAssertEqual(notifications.added.first?.delay ?? 0, 100, accuracy: 3, "5:42 PM on the demo clock")
 
         rig.drive(to: DemoRideRig.time(17, 41, 50))
@@ -227,11 +222,11 @@ final class ArrivalNudgeTests: XCTestCase {
         let rig = await DemoRideRig.started {
             ArrivalNudge(notifications: notifications, feedback: FakeArrivalFeedback(), rate: DemoRide.speed)
         }
-        await until { notifications.pending.count == 2 }
-        XCTAssertEqual(notifications.pending.count, 2)
+        await until { notifications.pending.count == 1 }
+        XCTAssertEqual(notifications.pending.count, 1)
 
         await rig.onBoard.setDemo(false)
-        XCTAssertEqual(notifications.removed.count, 2)
+        XCTAssertEqual(notifications.removed.count, 1)
         XCTAssertTrue(notifications.pending.isEmpty)
     }
 
@@ -250,8 +245,8 @@ final class ArrivalNudgeTests: XCTestCase {
         onBoard.setDemoDeparture(true)
         let handedOff = await onBoard.handOffDemo()
         XCTAssertTrue(handedOff)
-        await until { notifications.pending.count == 2 }
-        XCTAssertEqual(notifications.pending.count, 2)
+        await until { notifications.pending.count == 1 }
+        XCTAssertEqual(notifications.pending.count, 1)
 
         onBoard.end()
         await until { notifications.pending.isEmpty }
@@ -266,8 +261,8 @@ final class ArrivalNudgeTests: XCTestCase {
         var engine: RideEngine? = DemoRide.engine(on: day, clock: TestClock(now: DemoRideRig.time(17, 32)), tickInterval: nil)
         nudge.follow(engine!)
         await engine?.start(DemoRide.ride(on: day))
-        await until { notifications.pending.count == 2 }
-        XCTAssertEqual(notifications.pending.count, 2)
+        await until { notifications.pending.count == 1 }
+        XCTAssertEqual(notifications.pending.count, 1)
 
         // Dropped without its last events being read, as a demo ride is.
         engine?.end()
@@ -294,10 +289,9 @@ final class ArrivalNudgeTests: XCTestCase {
         await relaunch.engine.restore()
         relaunch.nudge.restoreFinished()
         XCTAssertEqual(relaunch.engine.state?.phase, .ended)
-        await until { relaunch.notifications.removed.count >= 2 }
+        await until { relaunch.notifications.removed.count >= 1 }
         let ids = Set(relaunch.notifications.removed)
         XCTAssertTrue(ids.contains("onboard.arriving.\(ride.tripId).\(ride.serviceDate)"))
-        XCTAssertTrue(ids.contains("onboard.here.\(ride.tripId).\(ride.serviceDate)"))
         XCTAssertTrue(relaunch.notifications.added.isEmpty)
     }
 
@@ -305,9 +299,9 @@ final class ArrivalNudgeTests: XCTestCase {
         let relaunch = try await savedRide()
         await relaunch.engine.restore()
         relaunch.nudge.restoreFinished()
-        await until { relaunch.notifications.pending.count == 2 }
+        await until { relaunch.notifications.pending.count == 1 }
         XCTAssertEqual(relaunch.notifications.removedAll, 0)
-        XCTAssertEqual(relaunch.notifications.pending.count, 2)
+        XCTAssertEqual(relaunch.notifications.pending.count, 1)
     }
 
     /// A ride started and saved on device, then the app's engine and nudge as the next launch makes them, not restored yet.

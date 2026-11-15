@@ -3,9 +3,9 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// On board against the canvas's Live-Ride-Lean (TT-204), Live-Entry, Live-Permission and Live-Schedule boards (TT-172), light and dark:
+/// On board against the canvas's Live-Ride-Lean (TT-204) and the Live view canvas's boards (TT-205, D92), light and dark:
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
-/// with "I'm on board"; the permission sheet; the ride strip. Glass is drawn as its solid fallback, and the motion is off
+/// with "I'm on board" (the hero card over the folded trip); the location sheet; the one-line ride strip. Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).
 final class RideSnapshotTests: XCTestCase {
     @MainActor func testRidingLight() async throws { snap(await ride(at: DemoRideRig.time(17, 32)), .light) }
@@ -23,7 +23,7 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testEntryDark() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .dark) }
     @MainActor func testPermissionLight() { snap(permission, .light) }
     @MainActor func testPermissionDark() { snap(permission, .dark) }
-    /// Live-Always (TT-176): "Notice your train by itself", after the first completed ride.
+    /// Live-Always (TT-176, cut down by TT-205): "Detect my train next time?", after the first completed ride.
     @MainActor func testDetectOfferLight() { snap(detectOffer, .light) }
     @MainActor func testDetectOfferDark() { snap(detectOffer, .dark) }
     @MainActor func testStripLight() async { snap(await strip(), .light) }
@@ -62,7 +62,7 @@ final class RideSnapshotTests: XCTestCase {
         ZStack(alignment: .bottom) {
             TTColor.canvas
             Color.black.opacity(0.2)
-            RideIntroSheet(destination: "Clarkson")
+            RideIntroSheet()
                 .frame(height: RideIntroSheet.height)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: TTRadius.sheet, topTrailingRadius: TTRadius.sheet))
         }

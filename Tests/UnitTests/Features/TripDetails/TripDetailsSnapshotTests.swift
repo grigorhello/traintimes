@@ -17,7 +17,8 @@ final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testEndDark() async throws { snap(try await .longTripFixture(), .dark, startsAtEnd: true) }
     @MainActor func testDepartedLight() async throws { snap(try await .departedFixture(), .light) }
     @MainActor func testDepartedDark() async throws { snap(try await .departedFixture(), .dark) }
-    /// TT-192 (*Alert-Trip-Days-Dark*): the alert on, Repeat tapped: the day panel above the bar, Mon to Fri lit.
+    /// TT-192 (*Alert-Trip-Days-Dark*): the alert on, Repeat tapped: the day panel above the bar, Mon to Fri lit. The
+    /// 7:32 AM train is 11 min out with its alert on, so the hero card sits over the folded trip (TT-205, D92).
     @MainActor func testAlertDaysLight() async throws { snap(try await alertDays(), .light) }
     @MainActor func testAlertDaysDark() async throws { snap(try await alertDays(), .dark) }
 

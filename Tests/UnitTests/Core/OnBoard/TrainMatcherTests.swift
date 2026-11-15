@@ -120,14 +120,15 @@ final class TrainMatcherTests: XCTestCase {
     }
 
     func testOneSharedStopNeverAsksOnTheTimetable() throws {
-        // An express from Union to Exhibition, then Port Credit: one shared stop for 21 minutes.
+        // An express from Union to Exhibition, then Port Credit: one shared stop for 21 minutes, never asked. (Once it
+        // shares Port Credit too, Clarkson is under 5 min away, so TT-205's lead keeps it from asking then as well.)
         let express = try candidate("X", skipping: ["MI", "LO"])
         var matcher = TrainMatcher()
         matcher.setCandidates([express])
         let run = try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(express.plan))
 
-        XCTAssertGreaterThan(try XCTUnwrap(run.asked), OnBoardFixtures.time(11, 45))
-        XCTAssertEqual(question(of: matcher)?.stops.map(\.id), ["EX", "PO"])
+        XCTAssertNil(run.asked)
+        XCTAssertNotNil(run.firstTime(sharing: 1), "it shared Exhibition")
     }
 
     // MARK: The feed's one stop and 3 minutes

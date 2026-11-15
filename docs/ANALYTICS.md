@@ -11,7 +11,8 @@ app sends and what each property means.
   only send events).
 - Every event carries `channel` (`testflight` or `appstore`) and PostHog's own device properties (app version and build,
   iOS version, iPhone model, locale, a random anonymous id per install).
-- Claude reads it through PostHog's MCP connector (`https://mcp.posthog.com/mcp`, TT-210).
+- Claude reads it through PostHog's MCP connector (`https://mcp.posthog.com/mcp`, TT-210), signed in as Grigor in
+  claude.ai, so any project thread can query it: project **737150** ("Default project"), timezone UTC.
 
 ## Privacy rules
 
@@ -87,3 +88,33 @@ Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and
 - What riders want to know more about: `interest_tapped` by `element`, and rage taps (`count` 3 or more).
 - Where riders give up: `notification_permission` denied, `alert_removed` soon after `alert_saved`, `ride_ended` with
   `by_rider` before `arrived`.
+
+## Dashboard: Train Times · Health (TT-210)
+
+[Train Times · Health](https://us.posthog.com/project/737150/dashboard/2357010), pinned in PostHog. Read it with the
+connector's `dashboard-get` / `insight-query` (insight ids below), or answer a new question with `query-trends`,
+`query-funnel` or `execute-sql` after checking the event exists (`read-data-schema`). All tiles count both channels;
+add `channel = appstore` to see real riders only.
+
+| Insight | Id | Shows |
+|---|---|---|
+| Riders who set a route, last 7 days | `xN0Mez8k` | Unique installs with `route_set` in the last 7 days, against the 7 days before |
+| Daily and weekly riders | `31YL0cpo` | Unique installs with `Application Opened` per day, and over a rolling week, 30 days |
+| Activation: install → route → trip → alert | `j38322Z7` | Funnel `Application Installed` → `route_set` (`is_first`) → `trip_opened` → `alert_saved`, 14-day window |
+| Retention after install (day 1, 7, 30) | `qjN8pG7a` | Share of installs that open the app again N days after installing (read days 1, 7 and 30) |
+| Top screens | `FXtEnTvy` | `$screen` by `$screen_name`, last 7 days |
+| Routes set by line | `YyeHODYY` | Riders with `route_set` by `line`, last 7 days |
+| Notification permission answers | `FS1vafrf` | `notification_permission` by `result` (allowed, denied), per week |
+| Interest taps by element | `tkrLa7Sg` | Riders with `interest_tapped` by `element`, last 7 days |
+| Rage taps by element | `1PEakxMp` | `interest_tapped` with `count` 3 or more, by `element` |
+
+Offline views have no event yet, so the dashboard cannot show them.
+
+## Weekly review (TT-210)
+
+A scheduled task wakes the TT-210 project thread every Monday at 8:13 AM Toronto time. It reads every insight above for
+the last 7 days against the 7 before, with this dictionary, and posts in that thread: the headline numbers (riders, routes
+set, activation, day 1/7/30 retention), then up to three findings, each with the number behind it and a proposed ticket
+(title and one line), or "nothing to act on". It files nothing itself. Until a Release build with analytics is in riders'
+hands the project has no events, and the review says so in one line.
+

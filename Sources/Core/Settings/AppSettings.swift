@@ -8,7 +8,10 @@ final class AppSettings {
     static let timeFormatKey = "settings.timeFormat"
 
     var timeFormat: TimeFormat {
-        didSet { defaults.set(timeFormat.rawValue, forKey: Self.timeFormatKey) }
+        didSet {
+            defaults.set(timeFormat.rawValue, forKey: Self.timeFormatKey)
+            if timeFormat != oldValue { Analytics.track(.settingChanged("time_format", value: timeFormat.rawValue)) }
+        }
     }
 
     /// Settings › Testing › Demo trains (D49), shown in TestFlight and Debug builds only.

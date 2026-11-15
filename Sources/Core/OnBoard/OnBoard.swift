@@ -102,7 +102,7 @@ final class OnBoard {
     /// "I'm on board" (or the question's Yes): starts the ride on the app's engine, where location is asked, then asks for
     /// notifications if they were never asked, for the arriving notifications (TT-173). False when it did not start.
     @discardableResult
-    func start(_ ride: Ride, on route: Route) async -> Bool {
+    func start(_ ride: Ride, on route: Route, source: RideStartSource = .onBoard) async -> Bool {
         if handOffEnded {
             demo = nil
             demoIsHandOff = false
@@ -110,6 +110,7 @@ final class OnBoard {
         guard let app, demo == nil else { return false }
         let started = await app.start(ride)
         guard started else { return false }
+        Analytics.track(.rideStarted(source: source, demo: false))
         self.route = route
         await requestNotifications()
         nudge?.replan()
@@ -271,17 +272,21 @@ final class OnBoard {
             demo = session.engine
             followDemo(session.engine)
             let started = await session.engine.start(session.ride)
+            Analytics.track(.detectionAnswered(yes: true))
+            if started { Analytics.track(.rideStarted(source: .detection, demo: true)) }
             // The question stays until the ride shows, so the strip goes straight from one to the other.
             demoDetector = nil
             return started
         }
-        guard let detector, await start(train.ride, on: train.route) else { return false }
+        Analytics.track(.detectionAnswered(yes: true))
+        guard let detector, await start(train.ride, on: train.route, source: .detection) else { return false }
         detector.accepted()
         return true
     }
 
     /// No on the question: its trains are not asked about again today.
     func decline() {
+        Analytics.track(.detectionAnswered(yes: false))
         (demoDetector ?? detector)?.decline()
     }
 

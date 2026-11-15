@@ -103,6 +103,23 @@ struct RootView: View {
 
     var body: some View {
         detectsTrains(tabs)
+            // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
+            .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
+    }
+
+    /// The screen on top: the presented sheet, else the selected tab (the route form until a route is saved).
+    private var analyticsScreen: AnalyticsScreen {
+        switch router.presentedSheet {
+        case .tripDetails: return .tripDetails
+        case .lineNotices: return .lineNotices
+        case .detectOffer: return .detectOffer
+        case nil: break
+        }
+        switch router.selectedTab {
+        case .schedule: return schedule.route == nil ? .routeForm : .schedule
+        case .alerts: return .alerts
+        case .settings: return .settings
+        }
     }
 
     private var tabs: some View {
@@ -290,6 +307,7 @@ struct RootView: View {
             get: { router.selectedTab },
             set: { tab in
                 if tab == .schedule, router.selectedTab == .schedule {
+                    Analytics.track(.backToNow)
                     Task { await schedule.backToNow() }
                 }
                 router.selectedTab = tab
@@ -317,8 +335,9 @@ struct RootView: View {
         }
     }
 
-    private func openTrip(_ key: TripKey, on route: Route? = nil) {
+    private func openTrip(_ key: TripKey, on route: Route? = nil, source: TripOpenSource = .schedule) {
         guard let route = route ?? schedule.route else { return }
+        Analytics.track(.tripOpened(source: source, isToday: key.serviceDay == ServiceDay(containing: clock.now)))
         // The sheet's own bell model on the same alert rules (TT-192): "Alert me" turns the alert on in place, and its
         // capsule shows in the sheet, never on Schedule under it.
         tripDetails = TripDetailsViewModel(
@@ -336,9 +355,9 @@ struct RootView: View {
     /// The countdown strip (TT-177): the alerted train's Trip details, or the demo departure's on its own route.
     private func openDeparture(_ key: TripKey) {
         if let demo = onBoard.departureDemo, demo.key == key {
-            openTrip(key, on: demo.route)
+            openTrip(key, on: demo.route, source: .departure)
         } else {
-            openTrip(key)
+            openTrip(key, source: .departure)
         }
     }
 
@@ -363,9 +382,9 @@ struct RootView: View {
         let key = ride.tripKey
         if let demo = onBoard.departureDemo, demo.key == key {
             router.showSchedule()
-            openTrip(key, on: demo.route)
+            openTrip(key, on: demo.route, source: .departure)
         } else {
-            await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId))
+            await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId), source: .departure)
         }
         guard boards, let details = tripDetails, details.key == key else { return }
         await details.load()
@@ -412,10 +431,10 @@ struct RootView: View {
         let link = NotificationLink.trip(train.trip, originId: train.originId, destinationId: train.destinationId)
         guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
         if request.startsRide, onBoard.activeRide == nil {
-            _ = await onBoard.start(train.ride, on: route)
+            _ = await onBoard.start(train.ride, on: route, source: .notification)
         }
         router.showSchedule()
-        openTrip(train.trip, on: route)
+        openTrip(train.trip, on: route, source: .detection)
     }
 
     /// Demo trains › Ride is on, in a build that shows Settings › Testing.
@@ -434,12 +453,12 @@ struct RootView: View {
     /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).
     private func openRide() async {
         guard let ride = onBoard.activeRide, let route = await onBoard.rideRoute(stations: stations) else { return }
-        openTrip(ride.tripKey, on: route)
+        openTrip(ride.tripKey, on: route, source: .ride)
     }
 
     /// A notification tap: Trip details for its trip and service date, over the timeline of the alert's route and day, so
     /// closing the sheet shows the next trains; the Alerts tab for a past service date or a rule to review (rule 10).
-    private func open(_ link: NotificationLink) async {
+    private func open(_ link: NotificationLink, source: TripOpenSource = .notification) async {
         switch link.target(today: ServiceDay(containing: clock.now)) {
         case .alerts:
             router.showAlerts()
@@ -447,7 +466,7 @@ struct RootView: View {
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
             router.showSchedule()
             // The sheet first; the timeline behind it follows without holding it up.
-            openTrip(key, on: route)
+            openTrip(key, on: route, source: source)
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
             // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
             if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }

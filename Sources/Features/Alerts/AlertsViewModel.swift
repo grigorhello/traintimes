@@ -257,6 +257,7 @@ final class AlertsViewModel {
         openID = nil
         wantedDays[id] = nil
         let task = rules.deleteInBackground(id)
+        Analytics.track(.alertRemoved(source: .alertsTab))
         show(.removed)
         removed = rule
         removeTask = task

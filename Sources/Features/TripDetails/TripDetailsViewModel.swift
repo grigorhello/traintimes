@@ -165,6 +165,7 @@ final class TripDetailsViewModel {
     /// The Directions link: Apple Maps with directions to the departure station.
     func openDirections() {
         guard let station = directionsStation, let place = station.place else { return }
+        Analytics.track(.directionsOpened)
         maps.openDirections(to: station.name, at: place)
     }
 

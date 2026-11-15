@@ -235,6 +235,7 @@ final class RideEngine {
         ended.phase = .ended
         ended.endReason = reason
         state = ended
+        Analytics.track(.rideEnded(reason))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
         emit(.phase(.ended))

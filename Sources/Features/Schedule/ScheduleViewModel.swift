@@ -462,6 +462,7 @@ final class ScheduleViewModel {
     func select(_ day: ServiceDay) async {
         if day == today { return await backToNow() }
         guard day != selectedDay else { return }
+        Analytics.track(.dayChanged(offset: today.days(to: day)))
         selectedDay = day
         daySelection += 1
         await loadNewTrains()
@@ -518,6 +519,7 @@ final class ScheduleViewModel {
 
     /// The route from the route form (TT-120), saved on device so the next launch opens it.
     func show(_ route: Route) async {
+        Analytics.track(.routeSet(route, isFirst: self.route == nil))
         self.route = route
         routeStore?.save(route)
         recents.record(route)

@@ -246,10 +246,10 @@ final class BackgroundDetectionTests: XCTestCase {
         try await rig.ride(until: day.gtfsTime(17 * 3600 + 40 * 60))
         let question = try XCTUnwrap(rig.notifier.posted.first)
 
-        let notice = try XCTUnwrap(DetectionNotice(question, formatter: TimeFormatter(format: .twelveHour)))
+        let notice = try XCTUnwrap(DetectionNotice(question))
 
-        XCTAssertEqual(notice.title, "On the 5:13 PM train?")
-        XCTAssertEqual(notice.body, "Lakeshore West, moving with it since Union. Start On board for a tap before Clarkson.")
+        // TT-205 (D93): the same one line as Schedule's question, no body.
+        XCTAssertEqual(notice.title, "On the train to Clarkson?")
     }
 
     // MARK: Not me

@@ -23,14 +23,14 @@ extension RideActivityAttributes {
 }
 
 extension RideActivityAttributes.ContentState {
-    /// The activity at `now` on the engine's clock (Mock time, or the demo ride's own clock). The countdown is anchored on
-    /// the device clock, which timer text runs on: it ends `deviceNow` plus the time left on the engine's clock. Nil for a
-    /// plan with fewer than two stops.
+    /// The activity at `now` on the engine's clock (Mock time, or the demo ride's own clock), in the ride screen's words
+    /// (`RideDetails`, TT-205): "Clarkson in" over the minutes to your stop, "Arrives 5:43 PM" at the right, the stop line.
+    /// The countdown is anchored on the device clock, which timer text runs on: it ends `deviceNow` plus the time left on
+    /// the engine's clock. Nil for a plan with fewer than two stops.
     init?(plan: RidePlan, state: RideState, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
-        guard let times = RideTimes(plan: plan, state: state) else { return nil }
-        let stops = plan.stops
+        guard let times = RideTimes(plan: plan, state: state),
+              let details = RideDetails(plan: plan, state: state, now: now, formatter: formatter) else { return nil }
         let last = times.last
-        let yours = RideDetails.shortName(stops[last].station.name)
         let phase: Phase = switch state.phase {
         case .riding: .riding
         case .atStation: .atStation
@@ -39,54 +39,24 @@ extension RideActivityAttributes.ContentState {
         case .atYourStop, .ended: .atYourStop
         }
         let passed = phase == .atYourStop ? last : times.passed
-        let next = min(passed + 1, last)
-        func pair(_ first: String, _ second: String) -> String {
-            String(format: String(localized: "onboard.detail"), first, second)
-        }
-        func name(_ index: Int) -> String {
-            RideDetails.shortName(stops[index].station.name)
-        }
-        let arrival = formatter.time(times.time(at: last))
-        let toYourStop = state.stopsLeft == 1
-            ? String(localized: "onboard.yoursNext")
-            : String(format: String(localized: "live.toYourStop"), yours, arrival, state.stopsLeft)
-
-        let countdownTo: Date?
-        switch phase {
-        case .riding:
-            title = pair(String(localized: "onboard.next"), name(next))
-            detail = toYourStop
-            countdownTo = times.time(at: next)
-        case .atStation:
-            title = pair(String(localized: "onboard.nowAt"), name(passed))
-            detail = toYourStop
-            countdownTo = nil
-        case .yourStopNext:
-            title = pair(String(localized: "onboard.next"), yours)
-            detail = String(localized: "onboard.yoursNext")
-            countdownTo = times.time(at: last)
-        case .arriving:
-            title = String(format: String(localized: "live.arriving"), yours)
-            detail = String(localized: "live.arrivingDetail")
-            countdownTo = times.time(at: last)
-        case .atYourStop, .countingDown, .boarding, .departed:
-            // A ride's state is never a departure phase (`phase` is mapped from `RidePhase` above).
-            title = String(localized: "onboard.thisIsYours")
-            detail = pair(yours, String(localized: "onboard.complete"))
-            countdownTo = nil
-        }
+        let countdownTo: Date? = phase == .atYourStop ? nil : times.time(at: last)
+        // Arriving and at your stop the card says one thing: nothing at the right.
+        let showsArrival = phase == .riding || phase == .atStation || phase == .yourStopNext
         self.phase = phase
+        title = details.kicker
         countdownEnd = countdownTo.map { deviceNow.addingTimeInterval($0.timeIntervalSince(now)) }
         self.now = String(localized: "onboard.now")
-        time = formatter.time(countdownTo ?? times.time(at: passed))
-        departure = String(format: String(localized: "live.stopTime"), name(0), formatter.time(times.scheduled(at: 0)))
-        self.arrival = String(format: String(localized: "live.stopTime"), yours, arrival)
+        label = showsArrival ? String(localized: "depart.arrivesLabel") : ""
+        value = showsArrival ? formatter.time(times.time(at: last)) : nil
+        delay = nil
+        platformNumber = nil
+        late = times.delayMinutes >= 1 && phase != .atYourStop
         position = switch phase {
         case .atYourStop, .countingDown, .boarding, .departed: Double(last)
         case .atStation: Double(passed)
         case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
         }
-        button = phase == .atYourStop ? String(localized: "onboard.done") : String(localized: "onboard.end")
+        isClose = details.isClose
         updated = String(format: String(localized: "live.updated"), formatter.time(now))
     }
 
@@ -115,57 +85,32 @@ extension RideActivityAttributes.ContentState {
 
 extension RideActivityAttributes.ContentState {
     /// The alerted train's activity at `now` on its clock (Mock time, or the demo departure's own), the countdown anchored on
-    /// the device clock as the ride's is. `server/src/activity.ts` writes the same words for the same train, so the alert
-    /// server's activity and the app's look alike; only the app knows a posted platform (GO's feeds post none, D35).
-    init(
-        departure live: LiveDeparture, origin: String, destination: String, hasPlatformSource: Bool, now: Date, deviceNow: Date,
-        formatter: some TimeFormatting
-    ) {
-        let departure = live.departure
-        let trip = departure.trip
+    /// the device clock as the ride's is: "5:13 PM departs in" over the minutes to the expected departure, "Platform" and the
+    /// pill at the right; "5:16 PM boarding now" in the last 2 min. `server/src/activity.ts` writes the same words for the
+    /// same train, so the alert server's activity and the app's look alike; only the app knows a posted platform (GO's feeds
+    /// post none, D35).
+    init(departure live: LiveDeparture, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
         let leaves = formatter.time(live.leaves)
-        let arrivalTime = formatter.time(departure.expectedArrival ?? trip.scheduledArrival)
-        let yours = RideDetails.shortName(destination)
-        // A pending platform worth waiting for (fresh live data from a feed that posts platforms, D55) shows the pill.
-        let showsPill = live.platform == nil && hasPlatformSource && live.isLive
-        let platformText = if let posted = live.platform {
-            String(format: String(localized: "depart.platform"), posted)
-        } else if showsPill {
-            String(localized: "depart.platformLabel")
-        } else {
-            String(localized: "depart.checkBoard")
-        }
-        let word = switch live.phase {
-        case .boarding: String(localized: "depart.boarding")
-        case .departed: String(format: String(localized: "depart.departed"), leaves)
-        case .countingDown:
-            if let minutes = live.delayMinutes {
-                String(format: String(localized: "depart.delayed"), minutes)
-            } else {
-                live.isLive ? String(localized: "status.on_time") : String(localized: "status.scheduled")
-            }
-        }
-
         phase = switch live.phase {
         case .countingDown: .countingDown
         case .boarding: .boarding
         case .departed: .departed
         }
-        title = String(format: String(localized: "schedule.route_title"), formatter.time(trip.scheduledDeparture), yours)
-        detail = String(format: String(localized: "onboard.detail"), platformText, word)
-        platform = platformText
-        platformNumber = live.platform
-        pill = showsPill
-        late = live.phase == .countingDown && live.delayMinutes != nil
+        title = switch live.phase {
+        case .countingDown: String(format: String(localized: "depart.line"), leaves)
+        case .boarding: String(format: String(localized: "depart.boardingLine"), leaves)
+        case .departed: String(format: String(localized: "depart.departed"), leaves)
+        }
+        let isLate = live.phase != .departed && live.delayMinutes != nil
         countdownEnd = live.phase == .departed ? nil : deviceNow.addingTimeInterval(live.leaves.timeIntervalSince(now))
         self.now = ""
-        time = live.phase == .departed ? "" : String(localized: "depart.in")
-        self.departure = String(format: String(localized: "live.stopTime"), TrainQuestion.shortName(origin), leaves)
-        let arrivalText = String(format: String(localized: "live.stopTime"), yours, arrivalTime)
-        arrival = arrivalText
-        arrives = String(format: String(localized: "depart.arrives"), arrivalText)
+        label = String(localized: "depart.platformLabel")
+        value = nil
+        delay = isLate ? live.delayMinutes.map { String(format: String(localized: "onboard.late"), $0) } : nil
+        platformNumber = live.platform
+        late = isLate
         position = 0
-        button = String(localized: "onboard.button")
+        isClose = live.phase == .boarding
         updated = String(format: String(localized: "live.updated"), formatter.time(now))
     }
 }

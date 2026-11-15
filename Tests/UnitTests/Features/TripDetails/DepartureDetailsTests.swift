@@ -3,87 +3,59 @@ import XCTest
 
 private final class BundleToken {}
 
-/// Before departure in Trip details and on Schedule (TT-177, D69): the demo's states (pending, platform posted, delayed,
-/// boarding, departed, over), "just announced" only after the pill was seen, the strip, the hand-off into the ride, and only
-/// the alerted train that leaves first shows the card.
+/// Before departure in Trip details (TT-177, D69; the hero card since TT-205, D93): the demo's states (pending, platform
+/// posted, late, boarding, departed), the hand-off into the ride, and only the alerted train that leaves first shows it.
 @MainActor
 final class DepartureDetailsTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    private func details(at time: Date) async throws -> DepartureDetails {
+    private func hero(at time: Date) async throws -> DepartureHero {
         let model = await DepartureRig.started(at: time).tripDetails()
-        return try XCTUnwrap(model.departureDetails(formatter))
+        return try XCTUnwrap(model.departureHero(formatter))
     }
 
-    func testPendingCountsDownWithThePulsingPill() async throws {
-        let card = try await details(at: DepartureRig.time(17, 1))
-        XCTAssertEqual(card.label, "Departs from Union Station GO")
-        XCTAssertNil(card.platform)
-        XCTAssertEqual(card.platformText, "Platform")
-        XCTAssertTrue(card.pillPulses)
-        XCTAssertEqual(card.countdown, "12 min")
-        XCTAssertEqual(card.countdownTime, "5:13 PM")
-        XCTAssertEqual(card.detail, "On time · platform soon")
-        XCTAssertEqual(card.emphasis, "platform soon")
-        XCTAssertFalse(card.isDelayed)
-        XCTAssertFalse(card.isBoarding)
-        XCTAssertEqual(card.yourStop, "Clarkson GO")
-        XCTAssertEqual(card.arrival, "5:43 PM")
-        XCTAssertEqual(card.rideLength, "30 min ride")
-        XCTAssertEqual(card.source, .live("Live · GO train data"))
-        XCTAssertEqual(card.freshness, "Updated just now")
+    func testPendingCountsDownWithThePulsingDash() async throws {
+        let hero = try await hero(at: DepartureRig.time(17, 1))
+        XCTAssertEqual(hero.line, "5:13 PM departs in")
+        XCTAssertEqual(hero.time, "5:13 PM")
+        XCTAssertEqual(hero.countdown, "12 min")
+        XCTAssertNil(hero.platform)
+        XCTAssertTrue(hero.pillPulses)
+        XCTAssertNil(hero.late)
+        XCTAssertFalse(hero.isLate)
+        XCTAssertFalse(hero.isBoarding)
     }
 
-    func testThePlatformPostedWhileOpenIsJustAnnounced() async throws {
+    func testThePostedPlatformShowsInThePill() async throws {
         let rig = DepartureRig.started()
         let model = await rig.tripDetails()
         rig.move(to: DepartureRig.time(17, 3), model)
 
-        let card = try XCTUnwrap(model.departureDetails(formatter))
-        XCTAssertEqual(card.platform, "7")
-        XCTAssertEqual(card.platformText, "Platform 7")
-        XCTAssertEqual(card.countdown, "10 min")
-        XCTAssertEqual(card.detail, "On time · just announced")
-        XCTAssertEqual(card.emphasis, "just announced")
+        let hero = try XCTUnwrap(model.departureHero(formatter))
+        XCTAssertEqual(hero.platform, "7")
+        XCTAssertEqual(hero.countdown, "10 min")
     }
 
-    func testAPlatformAlreadyPostedWhenOpenedIsNotNews() async throws {
-        let card = try await details(at: DepartureRig.time(17, 3, 30))
-        XCTAssertEqual(card.platformText, "Platform 7")
-        XCTAssertEqual(card.detail, "On time")
-        XCTAssertNil(card.emphasis)
-    }
-
-    func testALateTrainCountsToItsLateTimeInDelayInk() async throws {
-        let card = try await details(at: DepartureRig.time(17, 7))
-        XCTAssertEqual(card.countdown, "9 min")
-        XCTAssertEqual(card.countdownTime, "5:16 PM")
-        XCTAssertEqual(card.detail, "Delayed 3 min · was 5:13 PM")
-        XCTAssertEqual(card.emphasis, "was 5:13 PM")
-        XCTAssertTrue(card.isDelayed)
-        XCTAssertEqual(card.arrival, "5:46 PM")
+    func testALateTrainNamesItsLateTimeAndSaysHowLate() async throws {
+        let hero = try await hero(at: DepartureRig.time(17, 7))
+        XCTAssertEqual(hero.line, "5:16 PM departs in")
+        XCTAssertEqual(hero.time, "5:16 PM")
+        XCTAssertEqual(hero.countdown, "9 min")
+        XCTAssertEqual(hero.late, "3 min late")
+        XCTAssertTrue(hero.isLate)
     }
 
     func testBoardingNowFor2MinBeforeItLeaves() async throws {
-        let card = try await details(at: DepartureRig.time(17, 14))
-        XCTAssertEqual(card.label, "Boarding now")
-        XCTAssertTrue(card.isBoarding)
-        XCTAssertFalse(card.isDelayed)
-        XCTAssertEqual(card.countdown, "2 min")
-        XCTAssertEqual(card.detail, "Doors close at 5:16 PM")
-        XCTAssertEqual(card.emphasis, "5:16 PM")
+        let hero = try await hero(at: DepartureRig.time(17, 14))
+        XCTAssertEqual(hero.line, "5:16 PM boarding now")
+        XCTAssertTrue(hero.isBoarding)
+        XCTAssertEqual(hero.countdown, "2 min")
     }
 
-    func testDepartedFor2MinThenTheJourneyCardIsBack() async throws {
+    func testOnceTheTrainLeavesTheTripIsBack() async throws {
         let rig = DepartureRig.started(at: DepartureRig.time(17, 16))
         let model = await rig.tripDetails()
-        let card = try XCTUnwrap(model.departureDetails(formatter))
-        XCTAssertEqual(card.label, "Departed 5:16 PM")
-        XCTAssertNil(card.countdown)
-        XCTAssertEqual(card.detail, "Delayed 3 min")
-
-        rig.move(to: DepartureRig.time(17, 18), model)
-        XCTAssertNil(model.departureDetails(formatter))
+        XCTAssertNil(model.departureHero(formatter), "no hero once it has left")
         XCTAssertNotNil(model.details(formatter))
     }
 
@@ -95,7 +67,6 @@ final class DepartureDetailsTests: XCTestCase {
         model.openDirections()
         XCTAssertEqual(maps.opened.map(\.name), ["Union Station GO"])
         rig.move(to: DepartureRig.time(17, 16), model)
-        XCTAssertNotNil(model.departureDetails(formatter), "Departed still shows the card")
         XCTAssertNil(model.directionsStation, "the train has left Union: no link")
     }
 
@@ -109,13 +80,13 @@ final class DepartureDetailsTests: XCTestCase {
     func testImOnBoardTurnsTheSameSheetIntoTheRide() async throws {
         let rig = DepartureRig.started(at: DepartureRig.time(17, 10))
         let model = await rig.tripDetails()
-        XCTAssertNotNil(model.departureDetails(formatter))
+        XCTAssertNotNil(model.departureHero(formatter))
 
         let started = await model.startRide()
 
         XCTAssertTrue(started)
         XCTAssertTrue(model.isRiding)
-        XCTAssertNil(model.departureDetails(formatter))
+        XCTAssertNil(model.departureHero(formatter))
         XCTAssertNotNil(model.rideDetails(formatter))
         XCTAssertFalse(model.showsOnBoardButton)
         XCTAssertTrue(model.ridesInPlace, "the ride takes the card's place at rest, with no rise")
@@ -131,49 +102,16 @@ final class DepartureDetailsTests: XCTestCase {
 
         XCTAssertNil(rig.onBoard.activeRide)
         XCTAssertNil(rig.onBoard.demo)
-        XCTAssertNotNil(model.departureDetails(formatter))
+        XCTAssertNotNil(model.departureHero(formatter))
     }
 
     func testTurningTheDemoOffStopsIt() {
         let rig = DepartureRig.started()
         rig.onBoard.setDemoDeparture(false)
         XCTAssertNil(rig.onBoard.departureDemo)
-        XCTAssertNil(rig.onBoard.demoDepartureStrip(formatter: formatter))
     }
 
-    // MARK: Strip
-
-    func testTheStripCountsDownThroughTheStates() throws {
-        let rig = DepartureRig.started()
-        let pending = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
-        XCTAssertEqual(pending.title, "Your 5:13 PM train")
-        XCTAssertNil(pending.platform)
-        XCTAssertTrue(pending.pillPulses)
-        XCTAssertEqual(pending.status, "On time")
-        XCTAssertEqual(pending.countdown, "12 min")
-
-        rig.clock.set(DepartureRig.time(17, 3))
-        let posted = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
-        XCTAssertEqual(posted.platform, "7")
-        XCTAssertEqual(posted.countdown, "10 min")
-
-        rig.clock.set(DepartureRig.time(17, 7))
-        let delayed = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
-        XCTAssertEqual(delayed.title, "Your 5:13 PM train", "the scheduled time stays the train's name")
-        XCTAssertEqual(delayed.status, "Delayed 3 min")
-        XCTAssertTrue(delayed.isDelayed)
-        XCTAssertEqual(delayed.countdown, "9 min")
-
-        rig.clock.set(DepartureRig.time(17, 14))
-        let boarding = try XCTUnwrap(rig.onBoard.demoDepartureStrip(formatter: formatter))
-        XCTAssertEqual(boarding.status, "Boarding now")
-        XCTAssertFalse(boarding.isDelayed)
-
-        rig.clock.set(DepartureRig.time(17, 16))
-        XCTAssertNil(rig.onBoard.demoDepartureStrip(formatter: formatter), "once it has left the watched strip takes over")
-    }
-
-    func testWithoutAPlatformFeedThePendingPlatformStaysStill() throws {
+    func testWithoutAPlatformFeedTheDashStaysStill() throws {
         let day = DepartureRig.day
         let trip = Trip(
             key: TripKey(serviceDay: day, tripId: "A"), scheduledDeparture: DepartureRig.time(17, 13),
@@ -181,31 +119,20 @@ final class DepartureDetailsTests: XCTestCase {
         )
         let departure = Departure(trip: trip, status: .scheduled, expectedDeparture: nil, expectedArrival: nil)
         let live = try XCTUnwrap(LiveDeparture(departure, now: DepartureRig.time(17, 1)))
-
-        let strip = DepartureStrip(live, now: DepartureRig.time(17, 1), hasPlatformSource: false, formatter: formatter)
-        XCTAssertNil(strip.platform, "The still dash pill")
-        XCTAssertFalse(strip.pillPulses)
-        XCTAssertEqual(strip.status, "Scheduled")
-
-        let card = DepartureDetails(
-            live, origin: "Union Station GO", destination: "Clarkson GO", now: DepartureRig.time(17, 1), freshness: .scheduledOnly,
-            hasPlatformSource: false, justAnnounced: false, formatter: formatter
-        )
-        XCTAssertFalse(card.pillPulses)
-        XCTAssertEqual(card.detail, "Scheduled · Check the board")
-        XCTAssertEqual(card.source, .timetable)
-        XCTAssertNil(card.freshness)
+        let hero = try XCTUnwrap(DepartureHero(live, now: DepartureRig.time(17, 1), pillPulses: false, formatter: formatter))
+        XCTAssertNil(hero.platform, "the still dash")
+        XCTAssertFalse(hero.pillPulses)
+        XCTAssertNil(hero.late)
     }
 
-    func testTheCountdownStripRanksUnderTheRideAndTrainDetection() {
+    /// D93: no countdown strip and no checking strip on Schedule; the ride wins over the question.
+    func testTheStripSlotShowsTheRideThenTheQuestion() {
         let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
         let asking = TrainMatcher.State.asking(DetectionFixtures.question())
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle, departs: true), .departure)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle, departs: false), .otherwise)
-        // The phone moving with a train, and a ride, win over the countdown (D68, D69).
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking, departs: true), .checking)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: asking, departs: true), .asking)
-        XCTAssertEqual(RideStripContent(isRiding: true, detection: .idle, departs: true), .riding)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle), .otherwise)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking), .otherwise)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: asking), .asking)
+        XCTAssertEqual(RideStripContent(isRiding: true, detection: asking), .riding)
     }
 
     func testAHandOffRideThatEndedOnItsOwnLetsARealRideStart() async throws {
@@ -258,41 +185,17 @@ final class DepartureDetailsTests: XCTestCase {
 
     func testOnlyTheAlertedTrainThatLeavesFirstShowsTheCard() async throws {
         let both = try await fixtureModels(alerted: ["LW-0732-20261105", "LW-0758-20261105"])
-        XCTAssertEqual(both.first.departureDetails(formatter)?.countdown, "3 min")
-        XCTAssertNil(both.second.departureDetails(formatter), "the 7:32 AM train leaves first")
+        XCTAssertEqual(both.first.departureHero(formatter)?.countdown, "3 min")
+        XCTAssertNil(both.second.departureHero(formatter), "the 7:32 AM train leaves first")
 
         let later = try await fixtureModels(alerted: ["LW-0758-20261105"])
-        XCTAssertNil(later.first.departureDetails(formatter), "no alert on the 7:32 AM train")
-        XCTAssertEqual(later.second.departureDetails(formatter)?.countdown, "29 min")
+        XCTAssertNil(later.first.departureHero(formatter), "no alert on the 7:32 AM train")
+        XCTAssertEqual(later.second.departureHero(formatter)?.countdown, "29 min")
     }
 
     func testNoAlertsNoCard() async throws {
         let none = try await fixtureModels(alerted: [])
-        XCTAssertNil(none.first.departureDetails(formatter))
+        XCTAssertNil(none.first.departureHero(formatter))
         XCTAssertFalse(none.first.followsClock)
-    }
-
-    func testScheduleShowsTheStripForTheAlertedTrainThatLeavesFirst() async throws {
-        let repository = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
-        let day = repository.serviceDay
-        let keys = ["LW-0732-20261105", "LW-0758-20261105"].map { TripKey(serviceDay: day, tripId: $0) }
-        let model = ScheduleViewModel(
-            route: repository.route, repository: repository, clock: FixedClock(now: day.date(hour: 7, minute: 21)),
-            watchedTrips: FakeWatchedTrips(Set(keys))
-        )
-        await model.loadIfNeeded()
-
-        let strip = try XCTUnwrap(model.departureStrip(formatter))
-        XCTAssertEqual(strip.key, keys[0])
-        XCTAssertEqual(strip.title, "Your 7:32 AM train")
-        XCTAssertEqual(strip.platform, "2")
-        XCTAssertEqual(strip.countdown, "11 min")
-
-        let unalerted = ScheduleViewModel(
-            route: repository.route, repository: repository, clock: FixedClock(now: day.date(hour: 7, minute: 21)),
-            watchedTrips: FakeWatchedTrips()
-        )
-        await unalerted.loadIfNeeded()
-        XCTAssertNil(unalerted.departureStrip(formatter))
     }
 }

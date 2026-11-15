@@ -343,15 +343,37 @@ private struct TrainMarker: View {
 
 // MARK: Permission sheet
 
-/// The first "I'm on board" (*Live-Permission*): what On board does with location, before iOS asks. Continue goes on to the
-/// iOS prompt; Not now starts nothing.
+/// The first "I'm on board" (*Live-Permission*; one straight ask since TT-205, D93, board 5): "Train Times needs your
+/// location", one line, Allow location (on to the iOS prompt) and Not now (starts nothing). Shown only while the app still
+/// has to ask iOS.
 struct RideIntroSheet: View {
-    /// "Clarkson", in the second point.
-    let destination: String
     var onContinue: () -> Void = {}
     var onNotNow: () -> Void = {}
 
-    static let height: CGFloat = 608
+    static let height: CGFloat = PermissionAsk.height
+
+    var body: some View {
+        PermissionAsk(
+            title: "loc.title", line: "loc.subtitle", action: "loc.allow",
+            actionID: "onboard.intro.continue", laterID: "onboard.intro.later",
+            onAction: onContinue, onLater: onNotNow
+        )
+        .accessibilityIdentifier("sheet.onboardIntro")
+    }
+}
+
+/// The two location asks' one shape (TT-205, boards 5 and 16): the pin in its soft tile, a title, one line, the accent
+/// button and Not now. No bullets, no footnote.
+struct PermissionAsk: View {
+    let title: LocalizedStringKey
+    let line: LocalizedStringKey
+    let action: LocalizedStringKey
+    let actionID: String
+    let laterID: String
+    var onAction: () -> Void = {}
+    var onLater: () -> Void = {}
+
+    static let height: CGFloat = 400
 
     var body: some View {
         VStack(spacing: 14) {
@@ -363,81 +385,42 @@ struct RideIntroSheet: View {
                     .background(TTColor.accentSoft, in: RoundedRectangle(cornerRadius: 20))
                     .padding(.bottom, TTSpace.s2)
                     .accessibilityHidden(true)
-                Text("loc.title")
-                    .font(.system(size: 22, weight: .bold))
+                Text(title)
+                    .font(TTFont.route)
                     .tracking(-0.5)
                     .foregroundStyle(TTColor.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text("loc.subtitle")
+                Text(line)
                     .font(TTFont.subhead)
                     .foregroundStyle(TTColor.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, TTSpace.s2)
             .padding(.top, TTSpace.s1)
-            .padding(.bottom, 2)
+            .padding(.bottom, TTSpace.s2)
 
-            VStack(alignment: .leading, spacing: TTSpace.s3) {
-                point("tram.fill", Self.bold(String(localized: "loc.point.next")))
-                point("bell.fill", Self.bold(String(format: String(localized: "loc.point.tap"), destination)))
-                point("checkmark", Self.bold(String(localized: "loc.point.stops")))
-            }
-            .padding(.horizontal, TTSpace.s2)
-            .padding(.top, TTSpace.s1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text("loc.note")
-                .font(TTFont.footnote)
-                .foregroundStyle(TTColor.inkSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TTSpace.s2)
-
-            Button(action: onContinue) {
-                Text("loc.continue").frame(maxWidth: .infinity).frame(height: 52)
+            Button(action: onAction) {
+                Text(action).frame(maxWidth: .infinity).frame(height: 52)
             }
             .buttonStyle(.ttGlassPrimary)
-            .accessibilityIdentifier("onboard.intro.continue")
+            .accessibilityIdentifier(actionID)
 
-            Button(action: onNotNow) {
+            Button(action: onLater) {
                 Text("loc.later").foregroundStyle(TTColor.inkSecondary)
             }
             .buttonStyle(.ttText)
-            .accessibilityIdentifier("onboard.intro.later")
+            .accessibilityIdentifier(laterID)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, TTSpace.s5)
         .padding(.top, 30)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(TTColor.canvas)
-        .accessibilityIdentifier("sheet.onboardIntro")
         .presentationDetents([.height(Self.height)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(TTRadius.sheet)
         .presentationBackground(TTColor.canvas)
-    }
-
-    private func point(_ symbol: String, _ text: AttributedString) -> some View {
-        HStack(alignment: .top, spacing: TTSpace.s3) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(TTColor.accent)
-                .frame(width: 20, height: 20)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(TTFont.subhead)
-                .foregroundStyle(TTColor.ink)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// The copy's `**lead**` in semibold.
-    static func bold(_ markdown: String) -> AttributedString {
-        var text = (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
-        let leads = text.runs.filter { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }.map(\.range)
-        for range in leads {
-            text[range].font = TTFont.subhead.weight(.semibold)
-        }
-        return text
     }
 }
 

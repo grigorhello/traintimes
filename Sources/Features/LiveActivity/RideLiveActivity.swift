@@ -8,7 +8,6 @@ struct DepartureActivitySource {
     let route: Route
     /// Its clock: Mock time, or the demo departure's own.
     let now: Date
-    let hasPlatformSource: Bool
 
     /// The ride a hand-off would start on this train: the activity's identity.
     var ride: Ride { Ride(trip: live.key, from: route.from.id, to: route.to.id) }
@@ -286,8 +285,7 @@ final class RideLiveActivity: RideActivityFollowing {
         guard let source = departures?() else { return }
         let ride = source.ride
         let content = RideActivityAttributes.ContentState(
-            departure: source.live, origin: source.route.from.name, destination: source.route.to.name,
-            hasPlatformSource: source.hasPlatformSource, now: source.now, deviceNow: deviceNow, formatter: formatter()
+            departure: source.live, now: source.now, deviceNow: deviceNow, formatter: formatter()
         )
         let staleDate = Self.departureStaleDate(source.live, now: source.now, deviceNow: deviceNow)
         let mine = current.filter { $0.attributes.shows(ride) }
@@ -387,7 +385,7 @@ final class RideLiveActivity: RideActivityFollowing {
         let alert = alerts
             ? AlertConfiguration(
                 title: LocalizedStringResource(stringLiteral: content.title),
-                body: LocalizedStringResource(stringLiteral: content.detail),
+                body: "",
                 sound: .default
             )
             : nil

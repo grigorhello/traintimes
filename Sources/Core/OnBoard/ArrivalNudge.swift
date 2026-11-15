@@ -61,17 +61,16 @@ final class SystemRideNotifications: RideNotificationScheduling {
 /// The arriving nudge (TT-173, D66, Live-Spec "The nudge, honestly"): follows a ride engine's events.
 ///
 /// With the app open, `.phase(.arriving)` plays the taps, the rumble and the chime, and reaching your stop one tap
-/// (`ArrivalFeedback`). For the app closed or locked, two Time Sensitive notifications are scheduled when the ride starts,
-/// from the timetable: "Arriving at Clarkson in 1 min" a minute before the expected arrival, and "This is Clarkson" at it.
-/// They move with the estimate under the same identifiers, so a new one replaces the pending one, and stay where they
-/// are when location dies, so they still go off on the timetable. While the app is open iOS does not show them
+/// (`ArrivalFeedback`). For the app closed or locked, one Time Sensitive notification is scheduled when the ride starts,
+/// from the timetable: "Your stop is next" a minute before the expected arrival (TT-205, D93: one notification, no body,
+/// none at the stop). It moves with the estimate under the same identifier, so a new one replaces the pending one, and
+/// stays where it is when location dies, so it still goes off on the timetable. While the app is open iOS does not show it
 /// (`AppDelegate`), so the rider gets the nudge once either way.
 @MainActor
 final class ArrivalNudge {
-    /// The two notifications: a minute before your stop, and at it.
+    /// The one notification, a minute before your stop.
     enum Moment: String, CaseIterable, Sendable {
         case arriving
-        case here
     }
 
     /// A pending notification moves only when the estimate moved this much (ride seconds): a fix comes every second.
@@ -164,22 +163,20 @@ final class ArrivalNudge {
                 break
             case .riding, .atStation, .yourStopNext, .arriving:
                 sawRideBeforeYourStop = true
-                place(.arriving, at: state.expectedArrival.addingTimeInterval(-RideEngine.arrivingLead), destination: destination, now: now)
-                place(.here, at: state.expectedArrival, destination: destination, now: now)
+                place(.arriving, at: state.expectedArrival.addingTimeInterval(-RideEngine.arrivingLead), now: now)
             }
         case .phase(.arriving):
             feedback.arriving()
         case .phase(.atYourStop):
             if sawRideBeforeYourStop { feedback.atYourStop() }
             settle(now)
-            // There before "Arriving" went off: it would come late, so it goes (also an earlier launch's, for a ride
-            // restored here); and "This is …" comes now, not at the timetable's time.
+            // There before "Your stop is next" went off: it would come late, so it goes (also an earlier launch's, for a
+            // ride restored here).
             if !done.contains(.arriving) {
                 notifications.remove(ids: [id(.arriving)])
                 pending[.arriving] = nil
                 done.insert(.arriving)
             }
-            sendNow(.here, destination: destination, now: now)
         case .phase(.ended):
             cancel()
         case .phase:
@@ -188,7 +185,7 @@ final class ArrivalNudge {
     }
 
     /// Schedules a notification for `target`, or moves the pending one there when the estimate moved enough.
-    private func place(_ moment: Moment, at target: Date, destination: Station, now: Date) {
+    private func place(_ moment: Moment, at target: Date, now: Date) {
         guard !done.contains(moment) else { return }
         if let current = pending[moment] {
             guard abs(target.timeIntervalSince(current)) >= Self.moveThreshold,
@@ -200,34 +197,14 @@ final class ArrivalNudge {
             done.insert(moment)
             return
         }
-        add(moment, at: target, destination: destination, now: now)
+        add(moment, at: target, now: now)
     }
 
-    /// The pending notification goes off now, unless it is about to anyway.
-    private func sendNow(_ moment: Moment, destination: Station, now: Date) {
-        guard !done.contains(moment), let current = pending[moment] else { return }
-        if current.timeIntervalSince(now) / rate >= Self.firesSoon {
-            add(moment, at: now, destination: destination, now: now)
-        }
-        pending[moment] = nil
-        done.insert(moment)
-    }
-
-    private func add(_ moment: Moment, at target: Date, destination: Station, now: Date) {
-        let name = RideDetails.shortName(destination.name)
-        let notification = switch moment {
-        case .arriving:
-            RideNotification(
-                id: id(moment), title: String(format: String(localized: "notif.arriving.title"), name),
-                body: String(localized: "notif.arriving.body"), delay: max(1, target.timeIntervalSince(now) / rate)
-            )
-        case .here:
-            RideNotification(
-                id: id(moment), title: String(format: String(localized: "notif.here.title"), name),
-                body: String(localized: "notif.here.body"), delay: max(1, target.timeIntervalSince(now) / rate)
-            )
-        }
-        notifications.add(notification)
+    private func add(_ moment: Moment, at target: Date, now: Date) {
+        notifications.add(RideNotification(
+            id: id(moment), title: String(localized: "notif.arriving.title"), body: "",
+            delay: max(1, target.timeIntervalSince(now) / rate)
+        ))
         pending[moment] = target
     }
 

@@ -17,19 +17,13 @@ export const strings = {
   'notif.skip.body': 'Skips %@, as reported at %@. Open to see the next trains.',
   'notif.rule.title': 'Your usual train has changed',
   'notif.rule.body': 'Review your %@ weekday alert.',
-  // The before-departure Live Activity (TT-178, src/activity.ts).
-  'depart.live.title': 'Your %@ train is live',
-  'depart.checkBoard': 'Check the board',
-  'depart.in': 'departs',
-  'depart.delayed': 'Delayed %d min',
-  'depart.boarding': 'Boarding now',
+  // The before-departure Live Activity (TT-178, TT-205, src/activity.ts).
+  'depart.live.title': '%1$@ departs in %2$d min',
+  'depart.line': '%@ departs in',
+  'depart.boardingLine': '%@ boarding now',
   'depart.departed': 'Departed %@',
-  'depart.arrives': 'Arrives %@',
-  'status.on_time': 'On time',
-  'status.scheduled': 'Scheduled',
-  'onboard.detail': '%@ · %@',
-  'onboard.button': 'I’m on board',
-  'live.stopTime': '%1$@ %2$@',
+  'depart.platformLabel': 'Platform',
+  'onboard.late': '%d min late',
   'live.updated': 'Updated %@',
 } as const;
 

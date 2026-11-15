@@ -87,13 +87,16 @@ struct SettingsExternalArrow: View {
 }
 
 /// Plain text under or between cards, in footnote ink-secondary, 16 pt in from the page margin.
+/// A tap on it counts as interest, `note.<key>` (TT-209).
 struct SettingsNote: View {
-    let text: LocalizedStringKey
+    /// The `Localizable.strings` key.
+    let text: String
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(TTFont.footnote)
             .foregroundStyle(TTColor.inkSecondary)
+            .tracksInterest("note.\(text)")
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TTSpace.s4)
     }

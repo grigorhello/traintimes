@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The Testing page (TT-168, D57; TestFlight and Debug builds only): Demo trains as a glass switch with one line describing
-/// the chosen mode, Mock time as a switch that opens the date and time and the quick choices, and Reset, which turns
-/// everything off and goes back to the real time. `DemoTrains` and `MockTime` behave as before.
+/// the chosen mode, Mock time as a switch that opens the date and time and the quick choices, the Haptics page (TT-214),
+/// and Reset, which turns everything off and goes back to the real time. `DemoTrains` and `MockTime` behave as before.
 struct SettingsTestingPage: View {
     @Bindable var viewModel: SettingsViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,6 +20,7 @@ struct SettingsTestingPage: View {
                     header("settings.testing.time").settingsRise(order: 2)
                     mockTimeCard.settingsRise(order: 2)
                     SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
+                    hapticsCard.settingsRise(order: 3)
                 }
             }
         )
@@ -46,6 +47,20 @@ struct SettingsTestingPage: View {
             .allowsHitTesting(active)
             .accessibilityHidden(!active)
             .accessibilityIdentifier("settings.testing.reset")
+    }
+
+    /// Haptics (TT-214): the page where every feel can be tried on the phone.
+    private var hapticsCard: some View {
+        SettingsCard {
+            NavigationLink(value: SettingsPage.haptics) {
+                SettingsRow(title: "haptics.title") { SettingsChevron() }
+            }
+            .buttonStyle(SettingsRowButtonStyle())
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("settings.haptics")
+        }
+        .padding(.top, TTSpace.s3)
     }
 
     // MARK: Demo trains

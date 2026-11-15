@@ -68,6 +68,9 @@ enum TTMotion {
     /// The next card's time growing from 32 to 34 pt as it takes the lead (TT-203).
     static let leadTimeCurve = Curve(response: 0.45, damping: 0.72)
 
+    /// A held train card coming back from 0.98 once the finger lifts or the scroll takes it (TT-214, D95).
+    static let cardPressBackCurve = Curve(response: 0.32, damping: 0.78)
+
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }
     static var press: Animation { pressCurve.animation }
@@ -87,6 +90,9 @@ enum TTMotion {
     static func stopDelay(_ index: Int) -> Double { 0.024 * Double(min(max(index, 0), 8)) }
     /// The Trip details alert button starts 120 ms after the card and the first stop (TT-167).
     static let buttonDelay = 0.12
+    /// A train card sinking to 0.98 under the finger (TT-214).
+    static var cardPressDown: Animation { .easeOut(duration: 0.1) }
+    static var cardPressBack: Animation { cardPressBackCurve.animation }
     /// The bell's swell to 1.3 before `pop`; the glyph swaps at its top (TT-166).
     static var swell: Animation { .easeOut(duration: 0.1) }
     /// Status changes, and every transform-free stand-in under Reduce Motion.

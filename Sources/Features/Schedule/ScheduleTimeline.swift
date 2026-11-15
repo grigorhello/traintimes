@@ -331,7 +331,12 @@ struct DepartureCardView: View {
     @State private var anchor: CGFloat = 0
     /// The time's laid-out width, for the bolt's place while the time scales.
     @State private var timeWidth: CGFloat = 0
+    /// The card is held (TT-214).
+    @State private var isPressed = false
+    /// Where the time, status and platform sit on the card, for their interest taps (TT-209).
+    @State private var interestFrames: [String: CGRect] = [:]
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Top, trailing (the bell side), bottom and leading padding from the canvas.
     private static let padding = EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 10)
@@ -350,6 +355,32 @@ struct DepartureCardView: View {
     private var look: DeparturePlay.Card { pose ?? .rest(departed: card.isDeparted) }
 
     var body: some View {
+        // A button, so the card sinks while held and a scroll that starts on it does not press it (TT-214). No haptic:
+        // opening Trip details is navigation.
+        Button(action: onOpen) { cardFace }
+            .buttonStyle(CardPressStyle(isPressed: $isPressed))
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
+            // Interest taps (TT-209) on the button itself: a gesture on the time, status or platform inside it would take the
+            // tap from the button, so the card would neither open nor press.
+            .simultaneousGesture(SpatialTapGesture().onEnded { tap in
+                if let element = interestFrames.first(where: { $0.value.contains(tap.location) })?.key {
+                    InterestTracker.tap(element)
+                }
+            })
+            // The bell sits over the time row, outside the card's one element, so it is a separate button.
+            .overlay(alignment: .topTrailing) {
+                if !card.isCancelled {
+                    bellButton
+                        .departedLook(look.look)
+                        .padding(.top, Self.bellTop)
+                }
+            }
+            .cardPress(isPressed, reduceMotion: reduceMotion)
+    }
+
+    private var cardFace: some View {
         Card(padding: 0, flatness: look.look) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
@@ -368,7 +399,7 @@ struct DepartureCardView: View {
                 .departedLook(look.look)
                 HStack(spacing: TTSpace.s2) {
                     status
-                        .tracksInterest("schedule.card.status", then: onOpen)
+                        .cardInterest("schedule.card.status") { interestFrames[$0] = $1 }
                     Spacer(minLength: 0)
                     arrival
                         .departedLook(look.look)
@@ -384,18 +415,6 @@ struct DepartureCardView: View {
             report()
         }
         .contentShape(RoundedRectangle(cornerRadius: TTRadius.lg))
-        .onTapGesture(perform: onOpen)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
-        // The bell sits over the time row, outside the card's one element, so it is a separate button.
-        .overlay(alignment: .topTrailing) {
-            if !card.isCancelled {
-                bellButton
-                    .departedLook(look.look)
-                    .padding(.top, Self.bellTop)
-            }
-        }
     }
 
     /// The status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so it
@@ -425,7 +444,7 @@ struct DepartureCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { timeWidth = $0 }
                 .scaleEffect(look.timeScale, anchor: .leading)
-                .tracksInterest("schedule.card.time", then: onOpen)
+                .cardInterest("schedule.card.time") { interestFrames[$0] = $1 }
             if !card.isCancelled {
                 // The bolt keeps its place beside the time while the time changes size in a departure's play (D86); a
                 // padding, so at rest the layout is exactly as before.
@@ -458,7 +477,7 @@ struct DepartureCardView: View {
                 // 20 pt row into the gaps.
                 PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
                     .animation(.easeInOut(duration: 0.2), value: card.platformValue)
-                    .tracksInterest("schedule.card.platform", then: onOpen)
+                    .cardInterest("schedule.card.platform") { interestFrames[$0] = $1 }
                 // A departing lead keeps its "Departing" until the play fades it (D86).
                 if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
                     let opacity = card.relativeTime == nil ? look.leadOut : look.countdown
@@ -532,6 +551,13 @@ struct DepartureCardView: View {
 
 /// The card's own coordinate space, where its time line's centre is the layout anchor.
 private let cardSpace = "departureCard"
+
+private extension View {
+    /// Reports this element's frame on the card, where the card's tap counts it as interest (TT-209).
+    func cardInterest(_ element: String, _ report: @escaping (String, CGRect) -> Void) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .named(cardSpace)) } action: { report(element, $0) }
+    }
+}
 
 /// The rail's dashed part across a fold.
 private struct VerticalLine: Shape {

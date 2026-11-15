@@ -106,7 +106,8 @@ struct TripAlertBar: View {
             .ttGlass(tint: TTColor.accent, in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(PressScaleStyle())
+        // Warms the haptic engine on touch-down, so Rail joint's first beat is not late (TT-214).
+        .buttonStyle(WarmsHapticsPressStyle())
         .accessibilityLabel(Text(isOn ? "button.alert_on" : "button.alert_me"))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("trip.alert")

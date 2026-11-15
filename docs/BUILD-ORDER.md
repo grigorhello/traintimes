@@ -96,6 +96,7 @@ Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live
 | 71 | TT-194 · Remove the old Alert setup sheet, its view model, tests, snapshots and strings | [#130](https://github.com/grigorhello/traintimes/issues/130) | P1 | 1 | TT-190, TT-191, TT-192, TT-193 |
 | 72 | TT-195 · Mock live data in Settings › Testing, to test live states on a real iPhone before the Metrolinx key | [#136](https://github.com/grigorhello/traintimes/issues/136) | P1 | 1 | Nothing |
 | 73 | TT-196 · Smooth swap-to-X motion when a station field opens the picker | [#137](https://github.com/grigorhello/traintimes/issues/137) | P1 | 0.5 | Nothing (TT-161, TT-165 merged) |
+| 91 | TT-214 · Feel kit: Rail joint and the haptic set, a Haptics page in Testing, first on the bell, the switches and the train cards | [#177](https://github.com/grigorhello/traintimes/issues/177) | P1 | 1 | Nothing (Grigor approved the system 2026-11-15, D95) |
 
 ## TestFlight feedback tickets
 

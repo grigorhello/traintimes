@@ -3,6 +3,8 @@ import SwiftUI
 /// The pages Settings pushes (TT-168, D57).
 enum SettingsPage: Hashable {
     case notifications, about, testing
+    /// Settings › Testing › Haptics (TT-214).
+    case haptics
 }
 
 /// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in three cards (Support
@@ -30,6 +32,7 @@ struct SettingsView: View {
                     case .notifications: SettingsNotificationsPage(viewModel: viewModel, onShowAlerts: onShowAlerts)
                     case .about: SettingsAboutPage(viewModel: viewModel)
                     case .testing: SettingsTestingPage(viewModel: viewModel)
+                    case .haptics: SettingsHapticsPage()
                     }
                 }
         }

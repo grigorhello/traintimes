@@ -1,65 +1,35 @@
 import XCTest
 @testable import TrainTimes
 
-/// Train detection's strip and question as Schedule words them (TT-175, Live-Detect).
+/// Train detection's question as Schedule words it (TT-175; cut down by TT-205, D93: one line naming the rider's stop, Yes
+/// and No, no checking strip).
 final class DetectionDisplayTests: XCTestCase {
-    private let formatter = TimeFormatter(format: .twelveHour)
-
-    func testStripWhileMatching() throws {
-        let strip = try XCTUnwrap(DetectionStrip(DetectionFixtures.progress(stops: 0), formatter: formatter))
-        XCTAssertEqual(strip.title, "Moving along Lakeshore West")
-        XCTAssertEqual(strip.detail, "Matching your train…")
-        XCTAssertEqual(strip.trailing, "since Union")
+    func testTheQuestionNamesTheTrainsLastStop() throws {
+        let question = try XCTUnwrap(TrainQuestion(DetectionFixtures.question()))
+        XCTAssertEqual(question.title, "On the train to Clarkson?")
+        XCTAssertEqual(question.train, DetectionFixtures.train)
     }
 
-    func testStripCountsTheSharedStops() throws {
-        let one = try XCTUnwrap(DetectionStrip(DetectionFixtures.progress(stops: 1), formatter: formatter))
-        XCTAssertEqual(one.detail, "Looks like the 5:13 PM train")
-        XCTAssertEqual(one.trailing, "1 of 2 stops")
-        let three = try XCTUnwrap(DetectionStrip(DetectionFixtures.progress(stops: 3), formatter: formatter))
-        XCTAssertEqual(three.trailing, "2 of 2 stops")
+    func testTwoFittingTrainsAskAboutTheFirst() throws {
+        let question = try XCTUnwrap(TrainQuestion(DetectionFixtures.question(both: true)))
+        XCTAssertEqual(question.title, "On the train to Clarkson?")
+        XCTAssertEqual(question.train, DetectionFixtures.train, "Yes starts the matcher's first candidate")
     }
 
-    func testNoStripWithoutALine() {
-        let progress = TrainMatcher.Progress(line: nil, since: nil, train: nil, stops: 0)
-        XCTAssertNil(DetectionStrip(progress, formatter: formatter))
-    }
-
-    func testQuestionAboutOneTrain() {
-        let question = TrainQuestion(DetectionFixtures.question(), formatter: formatter)
-        XCTAssertEqual(question.title, "On the 5:13 PM train?")
-        XCTAssertEqual(question.why, "Your phone has moved with it since Union and stopped with it at Exhibition and Mimico.")
-        XCTAssertEqual(question.emphasized, ["Exhibition", "Mimico"])
-        XCTAssertEqual(question.answers.map(\.label), ["Yes, on board"])
-        XCTAssertEqual(question.answers.map(\.train), [DetectionFixtures.train])
-    }
-
-    func testQuestionAboutTwoTrainsOffersEachTime() {
-        let question = TrainQuestion(DetectionFixtures.question(both: true), formatter: formatter)
-        XCTAssertEqual(question.title, "On the 5:13 PM or 5:16 PM train?")
-        XCTAssertEqual(question.answers.map(\.label), ["5:13 PM", "5:16 PM"])
-        XCTAssertEqual(question.answers.map(\.train), [DetectionFixtures.train, DetectionFixtures.express])
-    }
-
-    func testTwentyFourHourTimes() {
-        let question = TrainQuestion(DetectionFixtures.question(), formatter: TimeFormatter(format: .twentyFourHour))
-        XCTAssertEqual(question.title, "On the 17:13 train?")
+    func testShortNamesDropGOAndStation() {
+        XCTAssertEqual(TrainQuestion.shortName("Union Station GO"), "Union")
+        XCTAssertEqual(TrainQuestion.shortName("Clarkson GO"), "Clarkson")
     }
 
     // MARK: What the strip under the day strip shows
 
-    func testRideStripContentFollowsTheRideAndDetection() {
+    func testRideStripContentFollowsTheRideAndTheQuestion() {
         let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
         let asking = TrainMatcher.State.asking(DetectionFixtures.question())
         XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle), .otherwise)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking), .checking)
+        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking), .otherwise, "no checking strip (D93)")
         XCTAssertEqual(RideStripContent(isRiding: false, detection: asking), .asking)
         // A ride wins over a question left up.
         XCTAssertEqual(RideStripContent(isRiding: true, detection: asking), .riding)
-    }
-
-    func testNoCheckingStripWithoutALine() {
-        let progress = TrainMatcher.Progress(line: nil, since: nil, train: nil, stops: 0)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: .checking(progress)), .otherwise)
     }
 }

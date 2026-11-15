@@ -152,6 +152,12 @@ final class RouteFormViewModel {
         stations = (try? await repository.stations()) ?? []
     }
 
+    /// Stations already chosen when the form opens: the first launch's Union, from its station step (TT-206).
+    func preset(from: Station?, to: Station?) {
+        self.from = from
+        self.to = to
+    }
+
     func open(_ field: Field) {
         pickingField = field
         query = ""
@@ -203,6 +209,7 @@ final class RouteFormViewModel {
 
     /// Swap is explicit, never automatic.
     func swap() {
+        Analytics.track(.routeSwapped)
         (from, to) = (to, from)
     }
 

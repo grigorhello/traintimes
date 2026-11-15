@@ -119,7 +119,7 @@ extension BackgroundDetection {
         return BackgroundDetection(
             location: SystemWakeLocation(),
             candidates: candidates,
-            notifier: SystemDetectionNotifier(formatter: { AppSettings().timeFormatter }),
+            notifier: SystemDetectionNotifier(),
             clock: clock,
             defaults: .standard,
             route: { UserDefaultsRouteStore().route },

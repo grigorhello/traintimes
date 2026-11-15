@@ -1,0 +1,165 @@
+import Foundation
+
+/// One product analytics event (TT-208, D92): a snake_case name and flat properties. Every event and property is listed
+/// in `docs/ANALYTICS.md`, which is what anyone reading the data (Claude included) reads first. Events are anonymous: no
+/// name, email, push token, installation id, location or free text ever goes in one.
+struct AnalyticsEvent: Equatable, Sendable {
+    let name: String
+    let properties: [String: AnalyticsValue]
+
+    init(_ name: String, _ properties: [String: AnalyticsValue] = [:]) {
+        self.name = name
+        self.properties = properties
+    }
+}
+
+enum AnalyticsValue: Equatable, Sendable {
+    case string(String)
+    case int(Int)
+    case bool(Bool)
+
+    /// The value as the SDK takes it.
+    var raw: Any {
+        switch self {
+        case .string(let value): value
+        case .int(let value): value
+        case .bool(let value): value
+        }
+    }
+}
+
+/// The screens `$screen` names; SwiftUI screens are named by us, never by the SDK's view-controller names.
+enum AnalyticsScreen: String, Sendable {
+    case schedule
+    /// The first launch (TT-206, D94): the welcome and its two steps.
+    case welcome
+    case routeForm = "route_form"
+    case alerts
+    case settings
+    case tripDetails = "trip_details"
+    case lineNotices = "line_notices"
+    case detectOffer = "detect_offer"
+}
+
+/// Where the analytics go: PostHog in TestFlight and App Store builds with a project token (`PostHogAnalytics`), nothing
+/// anywhere else. View models and rules call `Analytics.track`, so tests record the events with a fake.
+@MainActor
+protocol AnalyticsTracking: AnyObject {
+    func track(_ event: AnalyticsEvent)
+    func screen(_ screen: AnalyticsScreen)
+}
+
+/// The one tracker for the app. Silent until `AppDelegate` starts PostHog; tests swap in `RecordingAnalytics`.
+@MainActor
+enum Analytics {
+    static var tracker: (any AnalyticsTracking)?
+
+    static func track(_ event: AnalyticsEvent) {
+        tracker?.track(event)
+    }
+
+    static func screen(_ screen: AnalyticsScreen) {
+        tracker?.screen(screen)
+    }
+}
+
+// MARK: - The events (docs/ANALYTICS.md)
+
+/// How Trip details was opened.
+enum TripOpenSource: String, Sendable {
+    /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
+    /// Live Activity before departure; `detection` the background question's notification.
+    case schedule, notification, ride, departure, detection
+}
+
+/// How a ride started.
+enum RideStartSource: String, Sendable {
+    /// "I'm on board" in Trip details.
+    case onBoard = "on_board"
+    /// Yes on the train detection question on Schedule.
+    case detection
+    /// Start On board on the background question's notification (TT-176).
+    case notification
+}
+
+/// Where an alert was removed.
+enum AlertRemoveSource: String, Sendable {
+    case bell
+    case alertsTab = "alerts_tab"
+}
+
+extension AnalyticsEvent {
+    /// A route shown on Schedule: the first one (first use) or a change from the station picker or Recent.
+    static func routeSet(_ route: Route, isFirst: Bool) -> Self {
+        var properties: [String: AnalyticsValue] = [
+            "from": .string(route.from.id), "to": .string(route.to.id), "is_first": .bool(isFirst)
+        ]
+        if let line = route.line { properties["line"] = .string(line.id) }
+        return Self("route_set", properties)
+    }
+
+    static let routeSwapped = Self("route_swapped")
+
+    /// The Schedule tab tapped again: back to today at Now.
+    static let backToNow = Self("back_to_now")
+
+    /// A day picked on the day strip, counted from today (-1 is yesterday).
+    static func dayChanged(offset: Int) -> Self {
+        Self("day_changed", ["offset": .int(offset)])
+    }
+
+    static func tripOpened(source: TripOpenSource, isToday: Bool) -> Self {
+        Self("trip_opened", ["source": .string(source.rawValue), "is_today": .bool(isToday)])
+    }
+
+    /// An alert saved and kept: turned on or off, its days changed, or a new one.
+    static func alertSaved(_ rule: AlertRule, isNew: Bool) -> Self {
+        Self("alert_saved", [
+            "is_on": .bool(!rule.paused), "repeats": .bool(rule.kind == .repeating),
+            "days": .int(rule.weekdays.count), "is_new": .bool(isNew)
+        ])
+    }
+
+    static func alertRemoved(source: AlertRemoveSource) -> Self {
+        Self("alert_removed", ["source": .string(source.rawValue)])
+    }
+
+    /// The answer to the iOS notification prompt, sent only when the prompt was shown.
+    static func notificationPermission(_ permission: NotificationPermission) -> Self {
+        Self("notification_permission", ["result": .string(permission == .allowed ? "allowed" : "denied")])
+    }
+
+    /// A notification tapped: an alert (`alert`) or the train detection question (`detection`, with its action).
+    static func notificationOpened(kind: String, action: String = "open") -> Self {
+        Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
+    }
+
+    static func rideStarted(source: RideStartSource, demo: Bool) -> Self {
+        Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
+    }
+
+    static func rideEnded(_ reason: RideEndReason) -> Self {
+        let name = switch reason {
+        case .byRider: "by_rider"
+        case .arrived: "arrived"
+        case .leftTheLine: "left_the_line"
+        case .cancelled: "cancelled"
+        }
+        return Self("ride_ended", ["reason": .string(name)])
+    }
+
+    /// Yes or No on the train detection question on Schedule.
+    static func detectionAnswered(yes: Bool) -> Self {
+        Self("detection_answered", ["answer": .string(yes ? "yes" : "no")])
+    }
+
+    static let directionsOpened = Self("directions_opened")
+
+    static func feedbackSent(_ kind: FeedbackKind, withEmail: Bool) -> Self {
+        Self("feedback_sent", ["kind": .string(kind.rawValue), "with_email": .bool(withEmail)])
+    }
+
+    static func settingChanged(_ setting: String, value: String) -> Self {
+        Self("setting_changed", ["setting": .string(setting), "value": .string(value)])
+    }
+}

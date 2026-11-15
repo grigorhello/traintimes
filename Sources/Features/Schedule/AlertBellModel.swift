@@ -451,6 +451,7 @@ final class AlertBellModel {
             // Gone on device now; the bell and Undo answer while the server's delete is on its way, and Undo waits for it.
             offTask = rules.deleteInBackground(rule.id)
             haptics.play(.tap)
+            Analytics.track(.alertRemoved(source: .bell))
             show(.off, trip: trip, route: route, undo: rule)
         case .repeating:
             var off = rule

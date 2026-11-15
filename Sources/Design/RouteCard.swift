@@ -39,6 +39,9 @@ struct RouteCard: View {
     var canSwap = true
     let swapID: String
     let onSwap: () -> Void
+    /// Set on the first launch's station step (TT-206): the corner button is the X, which goes back, with the station list
+    /// hanging under the card while no row is a search field.
+    var onClose: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
@@ -67,7 +70,7 @@ struct RouteCard: View {
         TimelineView(.animation(paused: swap.start == nil && !morphRuns)) { context in
             card(pose: pose(at: context.date))
         }
-        .onChange(of: picking != nil) {
+        .onChange(of: showsClose) {
             morphs += 1
             let run = morphs
             morphRuns = true
@@ -80,7 +83,7 @@ struct RouteCard: View {
 
     private func card(pose: SwapMotion.Pose) -> some View {
         // While a station is being picked the suggestions hang right under the card, so it squares off its bottom corners.
-        Card(padding: 0, joinsBelow: picking != nil) {
+        Card(padding: 0, joinsBelow: showsClose) {
             HStack(spacing: TTSpace.s3) {
                 // The ring centred on the first row; the pin lands centred on the second.
                 RouteMarkers(dotLights: pose.dotLights, pinScale: pose.pinScale)
@@ -102,8 +105,11 @@ struct RouteCard: View {
             .padding(.trailing, TTSpace.s2)
         }
         // The corners and the button's glyph move together with the list opening or closing below (D54).
-        .animation(PickerMotion.animation(opening: picking != nil), value: picking != nil)
+        .animation(PickerMotion.animation(opening: showsClose), value: showsClose)
     }
+
+    /// The corner button is the X: while a station is picked, or on the first launch's station step.
+    private var showsClose: Bool { picking != nil || onClose != nil }
 
     // MARK: Swap button and X (TT-196)
 
@@ -112,17 +118,23 @@ struct RouteCard: View {
     /// buttons, the old one turning out and a new interactive one turning in, ran slow and broken on the phone: glass
     /// animates appearing and going away and eases its own content on a spring of its own (D59).
     private func cornerButton(pose: SwapMotion.Pose) -> some View {
-        let isEnabled = picking != nil || canSwap
-        let label: LocalizedStringKey = picking == nil ? "route.swap" : "button.cancel"
+        let isEnabled = showsClose || canSwap
+        let label: LocalizedStringKey = showsClose ? "button.cancel" : "route.swap"
         return Button {
-            if let picking { picking.onCancel() } else { tapSwap() }
+            if let picking {
+                picking.onCancel()
+            } else if let onClose {
+                onClose()
+            } else {
+                tapSwap()
+            }
         } label: {
             Color.clear
                 .frame(width: TTSize.targetMin, height: TTSize.targetMin)
                 .ttGlass(in: Circle(), interactive: false)
                 .overlay {
                     ZStack {
-                        if picking != nil {
+                        if showsClose {
                             cornerGlyph("xmark", tint: TTColor.ink, isEnabled: true)
                                 .transition(.pickerCancelButton)
                         } else {

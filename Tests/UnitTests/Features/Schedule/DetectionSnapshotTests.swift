@@ -3,35 +3,20 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Train detection on Schedule against the canvas's Live-Detect board (TT-175), light and dark: the checking strip while it
-/// matches and once the train shares a stop, and the question for one train and for two. Drawn under the top of the screen on
-/// the canvas ground, with the ripples still.
+/// Train detection's question on Schedule against board 9 of the Live view canvas (TT-175; one line, Yes and No since
+/// TT-205, D93), light and dark. Drawn under the top of the screen on the canvas ground, with the ripple still.
 final class DetectionSnapshotTests: XCTestCase {
-    @MainActor func testCheckingLight() { snap(checking, .light) }
-    @MainActor func testCheckingDark() { snap(checking, .dark) }
-    @MainActor func testQuestionLight() { snap(question(both: false), .light) }
-    @MainActor func testQuestionDark() { snap(question(both: false), .dark) }
-    @MainActor func testQuestionTwoTrainsLight() { snap(question(both: true), .light) }
-    @MainActor func testQuestionTwoTrainsDark() { snap(question(both: true), .dark) }
+    @MainActor func testQuestionLight() { snap(question, .light) }
+    @MainActor func testQuestionDark() { snap(question, .dark) }
 
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    /// "Matching your train…", then "Looks like the 5:13 PM train · 1 of 2 stops".
     @MainActor
-    private var checking: some View {
+    private var question: some View {
         screen {
-            ForEach([0, 1], id: \.self) { stops in
-                if let strip = DetectionStrip(DetectionFixtures.progress(stops: stops), formatter: self.formatter) {
-                    DetectionStripView(strip: strip)
-                }
+            if let question = TrainQuestion(DetectionFixtures.question()) {
+                TrainQuestionCard(question: question)
             }
-        }
-    }
-
-    @MainActor
-    private func question(both: Bool) -> some View {
-        screen {
-            TrainQuestionCard(question: TrainQuestion(DetectionFixtures.question(both: both), formatter: formatter))
         }
     }
 
@@ -63,7 +48,7 @@ final class DetectionSnapshotTests: XCTestCase {
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)
-            ),
+            ).comparedAsRecorded,
             file: #filePath,
             testName: testName,
             line: line

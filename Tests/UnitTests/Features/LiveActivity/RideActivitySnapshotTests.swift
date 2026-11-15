@@ -3,13 +3,14 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// The On board Live Activity against the canvas's Live-Lock and Live-Island boards (TT-174), on a light and a dark Lock
-/// Screen: the Lock Screen card riding (5:32 PM), arriving (5:42) and stale; the island compact, compact arriving, minimal,
-/// expanded, expanded arriving and expanded at your stop. The system draws the island's black shape and the Lock Screen's
-/// rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone (compact trailing about 52 pt, the
-/// expanded island at most 160 pt tall, 374 pt wide, its centre region 166 pt wide, as measured on the simulator), so
-/// content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made. Before
-/// departure (TT-178): the Lock Screen card pending, late, boarding, departed and stale; the island compact and expanded.
+/// The On board Live Activity's one card (TT-205, D93) against the Live view canvas's boards 3, 12, 13 and 15, on a light and
+/// a dark Lock Screen: the Lock Screen card riding (5:32 PM), your stop next (5:38), arriving (5:42) and stale; the island
+/// compact, compact arriving, minimal, expanded riding, arriving and at your stop. The system draws the island's black
+/// shape and the Lock Screen's rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone
+/// (compact trailing about 52 pt, the expanded island at most 160 pt tall and 374 pt wide, the camera's row about 40 pt),
+/// so content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made.
+/// Before departure (TT-178): the Lock Screen card pending, late, boarding, departed and stale; the island compact and
+/// expanded.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -49,8 +50,7 @@ final class RideActivitySnapshotTests: XCTestCase {
         let session = DemoDeparture.Session(day: day, clock: TestClock(now: time))
         let live = try XCTUnwrap(session.departure(at: time).flatMap { LiveDeparture($0, now: time) })
         let state = RideActivityAttributes.ContentState(
-            departure: live, origin: session.route.from.name, destination: session.route.to.name, hasPlatformSource: true,
-            now: time, deviceNow: Self.deviceNow, formatter: TimeFormatter(format: .twelveHour)
+            departure: live, now: time, deviceNow: Self.deviceNow, formatter: TimeFormatter(format: .twelveHour)
         )
         let attributes = RideActivityAttributes(ride: DemoRide.ride(on: day), plan: DemoRide.plan(on: day), line: DemoRide.line)
         return Moment(attributes: attributes, state: state)
@@ -61,9 +61,11 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor
     private func lockScreen() async throws -> some View {
         let riding = try await moment(DemoRideRig.time(17, 32))
+        let next = try await moment(DemoRideRig.time(17, 38))
         let arriving = try await moment(DemoRideRig.time(17, 42, 20))
         return VStack(spacing: 14) {
             lockCard(riding, isStale: false)
+            lockCard(next, isStale: false)
             lockCard(arriving, isStale: false)
             lockCard(riding, isStale: true)
             Spacer()
@@ -120,7 +122,7 @@ final class RideActivitySnapshotTests: XCTestCase {
                     .background(.black, in: Circle())
             }
             expanded(riding)
-            expandedAlert(arriving)
+            expanded(arriving)
             expanded(there)
             Spacer()
         }
@@ -139,9 +141,9 @@ final class RideActivitySnapshotTests: XCTestCase {
         return VStack(spacing: 18) {
             compact(pending)
             compact(late)
-            expandedDeparture(pending)
-            expandedDeparture(late)
-            expandedDeparture(boarding)
+            expanded(pending)
+            expanded(late)
+            expanded(boarding)
             Spacer()
         }
         .padding(.top, 11)
@@ -150,43 +152,15 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// The expanded island before departure as the widget fills it: tile, train and countdown, then the arrival and
-    /// "I’m on board".
-    @MainActor
-    private func expandedDeparture(_ moment: Moment) -> some View {
-        let style = RideActivityStyle.island(moment.state, isStale: false)
-        return VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                RideActivityTile(attributes: moment.attributes, size: .large, edge: style.tileEdge)
-                RideActivityDepartureTitle(attributes: moment.attributes, state: moment.state, style: style)
-                    .frame(width: 166, alignment: .leading)
-                    .padding(.top, 28)
-                Spacer(minLength: 0)
-                RideActivityDepartureCountdown(state: moment.state, style: style)
-            }
-            RideActivityDepartureBottom(state: moment.state, style: style)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .expandedIsland()
-    }
-
-    /// The compact island: the tile left of the camera, the countdown (on green while arriving) right of it.
+    /// The compact island: the tile left of the camera, the minutes right of it.
     @MainActor
     private func compact(_ moment: Moment) -> some View {
         let style = RideActivityStyle.island(moment.state, isStale: false)
         return HStack(spacing: 0) {
             RideActivityTile(attributes: moment.attributes, size: .compact)
             Spacer(minLength: 126)
-            Group {
-                if moment.state.isDeparture {
-                    RideActivityDepartureCompactTrailing(state: moment.state, style: style)
-                } else {
-                    RideActivityCompactTrailing(state: moment.state, style: style)
-                }
-            }
-            .frame(maxWidth: 52, alignment: .trailing)
+            RideActivityCompactTrailing(state: moment.state, style: style)
+                .frame(maxWidth: 52, alignment: .trailing)
             .clipped()
         }
         .padding(.horizontal, 8)
@@ -195,38 +169,14 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(.black, in: Capsule())
     }
 
-    /// The expanded island's regions as the widget fills them: tile, title and countdown around the camera, the bar under.
+    /// The expanded island as the widget fills it: the card in the bottom region, under the camera's row.
     @MainActor
     private func expanded(_ moment: Moment) -> some View {
-        let style = RideActivityStyle.island(moment.state, isStale: false)
-        return VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                RideActivityTile(attributes: moment.attributes, size: .large, edge: style.tileEdge)
-                // The centre region's width on the iPhone 17 Pro, under the camera between the two corners.
-                RideActivityTitle(state: moment.state, style: style)
-                    .frame(width: 166, alignment: .leading)
-                    .padding(.top, 28)
-                Spacer(minLength: 0)
-                RideActivityCountdownStack(state: moment.state, style: style)
-            }
-            RideActivityExpandedBottom(attributes: moment.attributes, state: moment.state, style: style)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .expandedIsland()
-    }
-
-    /// Arriving: the green card in the bottom region, under the camera.
-    @MainActor
-    private func expandedAlert(_ moment: Moment) -> some View {
-        RideActivityExpandedAlert(
-            attributes: moment.attributes, state: moment.state, style: .island(moment.state, isStale: false)
-        )
-        .padding(.horizontal, 10)
-        .padding(.top, 44)
-        .padding(.bottom, 10)
-        .expandedIsland()
+        RideActivityExpanded(attributes: moment.attributes, state: moment.state, style: .island(moment.state, isStale: false))
+            .padding(.horizontal, 14)
+            .padding(.top, 40)
+            .padding(.bottom, 10)
+            .expandedIsland()
     }
 
     /// A plain Lock Screen wallpaper, light or dark.

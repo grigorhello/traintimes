@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
-/// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
+/// prompt: the remembered route after the Bloom splash, or on first use the welcome, your line and your station with no
+/// tab bar (TT-206, D94). Recent routes are shared by Schedule, which
 /// records them and lists them in its station picker (D48, D54). Puts the one time formatter in the
 /// environment (TT-105); the app follows the iOS appearance (D84). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
@@ -10,8 +11,11 @@ struct RootView: View {
     @State private var schedule: ScheduleViewModel
     @State private var settings: AppSettings
     @State private var settingsModel: SettingsViewModel
-    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D54).
-    @State private var routeForm: RouteFormViewModel
+    /// The first launch (TT-206): the welcome and its two steps; after the first route, Schedule makes its own picker each
+    /// time a station is tapped (D54).
+    @State private var welcome: WelcomeViewModel
+    /// Bloom on a cold start with a saved route, folding back into Schedule (TT-206); shown once per launch.
+    @State private var showsSplash: Bool
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
     /// The alert rules (TT-141), shared by the bells, Trip details, the Alerts tab and the watched-trip strip.
@@ -68,9 +72,10 @@ struct RootView: View {
                 detection: detection
             )
         )
-        _routeForm = State(
-            initialValue: RouteFormViewModel(route: nil, repository: dependencies.stations, recents: schedule.recents)
+        _welcome = State(
+            initialValue: WelcomeViewModel(stations: dependencies.stations, clock: dependencies.clock, recents: schedule.recents)
         )
+        _showsSplash = State(initialValue: LaunchMotion.plays && LaunchMotion.exit(savedRoute: schedule.route) == .schedule)
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
         _alertsModel = State(
@@ -103,61 +108,40 @@ struct RootView: View {
 
     var body: some View {
         detectsTrains(tabs)
+            // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
+            .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
     }
 
+    /// The screen on top: the presented sheet, else the selected tab (the welcome or its route form until a route is saved).
+    private var analyticsScreen: AnalyticsScreen {
+        switch router.presentedSheet {
+        case .tripDetails: return .tripDetails
+        case .lineNotices: return .lineNotices
+        case .detectOffer: return .detectOffer
+        case nil: break
+        }
+        switch router.selectedTab {
+        case .schedule: return schedule.route == nil ? (welcome.step == .search ? .routeForm : .welcome) : .schedule
+        case .alerts: return .alerts
+        case .settings: return .settings
+        }
+    }
+
+    /// The welcome until the first route, then the tabs; the splash over both on a cold start with a saved route.
     private var tabs: some View {
-        TabView(selection: tabSelection) {
-            NavigationStack {
-                if schedule.route == nil {
-                    RouteFormView(viewModel: routeForm, onShowTrains: { show($0) })
-                } else {
-                    ScheduleView(
-                        viewModel: schedule,
-                        stations: stations,
-                        onOpenTrip: { openTrip($0) },
-                        onOpenLineNotice: { router.present(.lineNotices) },
-                        bells: bells,
-                        onBoard: onBoard,
-                        onOpenRide: { Task { await openRide() } },
-                        onOpenDeparture: { openDeparture($0) }
-                    )
-                }
+        ZStack {
+            if schedule.route == nil {
+                WelcomeFlowView(model: welcome, onRoute: { show($0) })
+                    .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+            } else {
+                tabView
+                    .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
-            .tabItem {
-                TabBarStyle.icon(
-                    "tram.fill", label: String(localized: "tab.schedule"), isSelected: router.selectedTab == .schedule,
-                    colorScheme: colorScheme
-                )
-                .accessibilityLabel(Text("tab.schedule"))
+        }
+        .overlay {
+            if showsSplash {
+                LaunchSplash { showsSplash = false }
             }
-            .tag(AppTab.schedule)
-
-            AlertsView(
-                viewModel: alertsModel,
-                bells: bells,
-                onSeeTrains: { router.showSchedule() },
-                onPickNewTrain: { pickNewTrain(replacing: $0) },
-                onOpenUpdate: { link in Task { await open(link) } }
-            )
-            .tabItem {
-                let isSelected = router.selectedTab == .alerts
-                TabBarStyle.icon(
-                    "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
-                    dot: alertsModel.tabDot(isSelected: isSelected, hasNewUpdate: router.showsAlertsDot), colorScheme: colorScheme
-                )
-                .accessibilityLabel(Text("tab.alerts"))
-            }
-            .tag(AppTab.alerts)
-
-            SettingsView(viewModel: settingsModel, onShowAlerts: { router.showAlerts() })
-                .tabItem {
-                    TabBarStyle.icon(
-                        "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,
-                        colorScheme: colorScheme
-                    )
-                    .accessibilityLabel(Text("tab.settings"))
-                }
-                .tag(AppTab.settings)
         }
         .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
@@ -260,6 +244,57 @@ struct RootView: View {
         }
     }
 
+    private var tabView: some View {
+        TabView(selection: tabSelection) {
+            NavigationStack {
+                ScheduleView(
+                    viewModel: schedule,
+                    stations: stations,
+                    onOpenTrip: { openTrip($0) },
+                    onOpenLineNotice: { router.present(.lineNotices) },
+                    bells: bells,
+                    onBoard: onBoard,
+                    onOpenRide: { Task { await openRide() } }
+                )
+            }
+            .tabItem {
+                TabBarStyle.icon(
+                    "tram.fill", label: String(localized: "tab.schedule"), isSelected: router.selectedTab == .schedule,
+                    colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.schedule"))
+            }
+            .tag(AppTab.schedule)
+
+            AlertsView(
+                viewModel: alertsModel,
+                bells: bells,
+                onSeeTrains: { router.showSchedule() },
+                onPickNewTrain: { pickNewTrain(replacing: $0) },
+                onOpenUpdate: { link in Task { await open(link) } }
+            )
+            .tabItem {
+                let isSelected = router.selectedTab == .alerts
+                TabBarStyle.icon(
+                    "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
+                    dot: alertsModel.tabDot(isSelected: isSelected, hasNewUpdate: router.showsAlertsDot), colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.alerts"))
+            }
+            .tag(AppTab.alerts)
+
+            SettingsView(viewModel: settingsModel, onShowAlerts: { router.showAlerts() })
+                .tabItem {
+                    TabBarStyle.icon(
+                        "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,
+                        colorScheme: colorScheme
+                    )
+                    .accessibilityLabel(Text("tab.settings"))
+                }
+                .tag(AppTab.settings)
+        }
+    }
+
     /// "Detect my train" (TT-176), apart from `tabs` so each chain type-checks in reasonable time. The first ride that
     /// reaches its stop makes the offer due; it shows over Schedule once nothing else is up, after a sheet that just closed
     /// has gone. Start On board, or a tap, on the background question is acted on once the app is active, so the ride's Live
@@ -290,6 +325,7 @@ struct RootView: View {
             get: { router.selectedTab },
             set: { tab in
                 if tab == .schedule, router.selectedTab == .schedule {
+                    Analytics.track(.backToNow)
                     Task { await schedule.backToNow() }
                 }
                 router.selectedTab = tab
@@ -317,8 +353,9 @@ struct RootView: View {
         }
     }
 
-    private func openTrip(_ key: TripKey, on route: Route? = nil) {
+    private func openTrip(_ key: TripKey, on route: Route? = nil, source: TripOpenSource = .schedule) {
         guard let route = route ?? schedule.route else { return }
+        Analytics.track(.tripOpened(source: source, isToday: key.serviceDay == ServiceDay(containing: clock.now)))
         // The sheet's own bell model on the same alert rules (TT-192): "Alert me" turns the alert on in place, and its
         // capsule shows in the sheet, never on Schedule under it.
         tripDetails = TripDetailsViewModel(
@@ -333,39 +370,34 @@ struct RootView: View {
         BuildChannel.showsTesting ? settings.demoTrains : .off
     }
 
-    /// The countdown strip (TT-177): the alerted train's Trip details, or the demo departure's on its own route.
-    private func openDeparture(_ key: TripKey) {
-        if let demo = onBoard.departureDemo, demo.key == key {
-            openTrip(key, on: demo.route)
-        } else {
-            openTrip(key)
-        }
-    }
-
     /// The Live Activity's train before it leaves (TT-178): the demo departure's while it plays, else Schedule's alerted train
     /// today, on the app's clock to the second.
     private func departureForActivity() -> DepartureActivitySource? {
         if let demo = onBoard.departureDemo {
             let now = demo.now
             guard let departure = demo.departure(at: now), let live = LiveDeparture(departure, now: now) else { return nil }
-            return DepartureActivitySource(live: live, route: demo.route, now: now, hasPlatformSource: true)
+            return DepartureActivitySource(live: live, route: demo.route, now: now)
         }
         let now = clock.now
         guard let route = schedule.route, let live = schedule.activityDeparture(at: now) else { return nil }
-        return DepartureActivitySource(live: live, route: route, now: now, hasPlatformSource: schedule.hasPlatformSource)
+        return DepartureActivitySource(live: live, route: route, now: now)
     }
 
     /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, in the sheet's own
     /// button window (from 20 min before departure, D63) and unless the first-ride sheet has to come first (the rider then
     /// taps "I’m on board" there).
     private func openDepartureFromActivity(boards: Bool) async {
-        guard let ride = liveActivity?.departureRide else { return }
-        let key = ride.tripKey
-        if let demo = onBoard.departureDemo, demo.key == key {
+        let key: TripKey
+        if let demo = onBoard.departureDemo {
+            // The demo departure's activity is the one showing (Schedule has no countdown strip since TT-205): its link
+            // opens the demo's train, in fixture runs too, where the app has no Live Activity of its own.
+            key = demo.key
             router.showSchedule()
-            openTrip(key, on: demo.route)
+            openTrip(key, on: demo.route, source: .departure)
         } else {
-            await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId))
+            guard let ride = liveActivity?.departureRide else { return }
+            key = ride.tripKey
+            await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId), source: .departure)
         }
         guard boards, let details = tripDetails, details.key == key else { return }
         await details.load()
@@ -412,10 +444,10 @@ struct RootView: View {
         let link = NotificationLink.trip(train.trip, originId: train.originId, destinationId: train.destinationId)
         guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
         if request.startsRide, onBoard.activeRide == nil {
-            _ = await onBoard.start(train.ride, on: route)
+            _ = await onBoard.start(train.ride, on: route, source: .notification)
         }
         router.showSchedule()
-        openTrip(train.trip, on: route)
+        openTrip(train.trip, on: route, source: .detection)
     }
 
     /// Demo trains › Ride is on, in a build that shows Settings › Testing.
@@ -434,12 +466,12 @@ struct RootView: View {
     /// The ride strip: Trip details for the ride's trip, in ride mode (TT-172).
     private func openRide() async {
         guard let ride = onBoard.activeRide, let route = await onBoard.rideRoute(stations: stations) else { return }
-        openTrip(ride.tripKey, on: route)
+        openTrip(ride.tripKey, on: route, source: .ride)
     }
 
     /// A notification tap: Trip details for its trip and service date, over the timeline of the alert's route and day, so
     /// closing the sheet shows the next trains; the Alerts tab for a past service date or a rule to review (rule 10).
-    private func open(_ link: NotificationLink) async {
+    private func open(_ link: NotificationLink, source: TripOpenSource = .notification) async {
         switch link.target(today: ServiceDay(containing: clock.now)) {
         case .alerts:
             router.showAlerts()
@@ -447,7 +479,7 @@ struct RootView: View {
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
             router.showSchedule()
             // The sheet first; the timeline behind it follows without holding it up.
-            openTrip(key, on: route)
+            openTrip(key, on: route, source: source)
             if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
             // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
             if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }

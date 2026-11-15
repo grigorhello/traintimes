@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Anonymous product analytics (TT-208, D92): PostHog in TestFlight and App Store builds with a token, else nothing.
+        Analytics.tracker = PostHogAnalytics.start()
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setNotificationCategories([DetectionNotice.notificationCategory])
         nudge.follow(ride)
@@ -63,6 +65,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             if action == DetectionNotice.notMeAction { DetectionStore.recordNotMe(train, in: .standard, at: Date()) }
             completionHandler()
             Task { @MainActor in
+                let name = switch action {
+                case DetectionNotice.startAction: "start"
+                case DetectionNotice.notMeAction: "not_me"
+                default: "open"
+                }
+                Analytics.track(.notificationOpened(kind: "detection", action: name))
                 switch action {
                 case DetectionNotice.startAction: self.router.open(train, startsRide: true)
                 case UNNotificationDefaultActionIdentifier: self.router.open(train, startsRide: false)
@@ -78,6 +86,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         completionHandler()
         Task { @MainActor in
             if let update { AlertUpdates.record(update, in: .standard) }
+            Analytics.track(.notificationOpened(kind: link == nil ? "other" : "alert"))
             if let link { self.router.open(link) }
         }
     }

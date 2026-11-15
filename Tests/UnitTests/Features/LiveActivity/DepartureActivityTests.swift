@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-178: the alerted train's countdown as its Live Activity shows it (*Live-Depart-Lock*, the island cells), through the
+/// TT-178, TT-205: the alerted train's countdown as its Live Activity's one card shows it (boards 3 and 13), through the
 /// demo departure's moments; the push payload the alert server sends; the activity's links; and the tokens the app reports.
 @MainActor
 final class DepartureActivityTests: XCTestCase {
@@ -9,14 +9,13 @@ final class DepartureActivityTests: XCTestCase {
     /// The device clock, which the countdown runs on: a day away from the demo's clock, to show the two are kept apart.
     private let deviceNow = DepartureRig.time(17, 1).addingTimeInterval(86_400)
 
-    private func content(at time: Date, hasPlatformSource: Bool = true) throws -> RideActivityAttributes.ContentState {
+    private func content(
+        at time: Date, formatter: TimeFormatter = TimeFormatter(format: .twelveHour)
+    ) throws -> RideActivityAttributes.ContentState {
         let session = DemoDeparture.Session(day: DepartureRig.day, clock: TestClock(now: time))
         let departure = try XCTUnwrap(session.departure(at: time))
         let live = try XCTUnwrap(LiveDeparture(departure, now: time))
-        return RideActivityAttributes.ContentState(
-            departure: live, origin: session.route.from.name, destination: session.route.to.name,
-            hasPlatformSource: hasPlatformSource, now: time, deviceNow: deviceNow, formatter: formatter
-        )
+        return RideActivityAttributes.ContentState(departure: live, now: time, deviceNow: deviceNow, formatter: formatter)
     }
 
     private func secondsLeft(_ content: RideActivityAttributes.ContentState) throws -> TimeInterval {
@@ -30,76 +29,55 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.phase, .countingDown)
         XCTAssertTrue(content.isDeparture)
         XCTAssertFalse(content.isAlert)
-        XCTAssertEqual(content.title, "5:13 PM to Clarkson")
-        XCTAssertEqual(content.detail, "Platform · On time")
-        XCTAssertEqual(content.platform, "Platform")
-        XCTAssertNil(content.platformNumber)
-        XCTAssertTrue(content.pill, "The pill follows Platform while it is worth waiting for")
+        XCTAssertFalse(content.isGreen)
+        XCTAssertEqual(content.title, "5:13 PM departs in")
+        XCTAssertEqual(content.label, "Platform")
+        XCTAssertNil(content.platformNumber, "The dash pill while it is not posted")
+        XCTAssertNil(content.value)
+        XCTAssertNil(content.delay)
         XCTAssertFalse(content.late)
+        XCTAssertFalse(content.isClose)
         XCTAssertEqual(try secondsLeft(content), 12 * 60, accuracy: 1, "On the device clock, to 5:13 on the demo's")
-        XCTAssertEqual(content.time, "departs")
         XCTAssertEqual(content.now, "")
-        XCTAssertEqual(content.departure, "Union 5:13 PM")
-        XCTAssertEqual(content.arrival, "Clarkson 5:43 PM")
-        XCTAssertEqual(content.arrives, "Arrives Clarkson 5:43 PM")
         XCTAssertEqual(content.position, 0)
-        XCTAssertEqual(content.button, "I’m on board")
         XCTAssertEqual(content.updated, "Updated 5:01 PM")
     }
 
-    func testWithoutAPlatformFeedItSaysCheckTheBoard() throws {
-        let content = try content(at: DepartureRig.time(17, 1), hasPlatformSource: false)
-        XCTAssertEqual(content.detail, "Check the board · On time", "What the alert server's activity says too (GO posts no platforms)")
-        XCTAssertEqual(content.platform, "Check the board")
-        XCTAssertFalse(content.pill)
-    }
-
-    func testThePostedPlatformReplacesThePill() throws {
+    func testThePostedPlatformGoesInThePill() throws {
         let content = try content(at: DepartureRig.time(17, 3, 30))
-        XCTAssertEqual(content.detail, "Platform 7 · On time")
-        XCTAssertEqual(content.platform, "Platform 7")
-        XCTAssertEqual(content.platformNumber, "7", "The number goes in the pill (TT-199)")
-        XCTAssertFalse(content.pill)
+        XCTAssertEqual(content.label, "Platform")
+        XCTAssertEqual(content.platformNumber, "7")
     }
 
-    func testALateTrainCountsDownToItsExpectedDepartureInAmber() throws {
+    func testALateTrainCountsDownToItsExpectedDepartureAndShowsThatTime() throws {
         let content = try content(at: DepartureRig.time(17, 5))
         XCTAssertEqual(content.phase, .countingDown)
-        XCTAssertEqual(content.title, "5:13 PM to Clarkson", "The scheduled time stays the train's name (D9)")
-        XCTAssertEqual(content.detail, "Platform 7 · Delayed 3 min")
+        XCTAssertEqual(content.title, "5:16 PM departs in", "The expected time, in amber")
+        XCTAssertEqual(content.delay, "3 min late")
         XCTAssertTrue(content.late)
         XCTAssertEqual(try secondsLeft(content), 11 * 60, accuracy: 1, "To 5:16")
-        XCTAssertEqual(content.departure, "Union 5:16 PM")
-        XCTAssertEqual(content.arrival, "Clarkson 5:46 PM")
     }
 
     func testBoardingNowInTheLastTwoMinutes() throws {
         let content = try content(at: DepartureRig.time(17, 14, 30))
         XCTAssertEqual(content.phase, .boarding)
-        XCTAssertEqual(content.detail, "Platform 7 · Boarding now")
-        XCTAssertFalse(content.late, "Boarding is green, not amber")
+        XCTAssertEqual(content.title, "5:16 PM boarding now")
+        XCTAssertTrue(content.isClose, "The number turns mint")
         XCTAssertEqual(try secondsLeft(content), 90, accuracy: 1)
     }
 
     func testDepartedDropsTheCountdown() throws {
         let content = try content(at: DepartureRig.time(17, 16, 30))
         XCTAssertEqual(content.phase, .departed)
-        XCTAssertEqual(content.detail, "Platform 7 · Departed 5:16 PM")
+        XCTAssertEqual(content.title, "Departed 5:16 PM")
         XCTAssertNil(content.countdownEnd)
-        XCTAssertEqual(content.time, "")
+        XCTAssertNil(content.delay)
         XCTAssertFalse(content.late)
     }
 
     func testTwentyFourHourTimes() throws {
-        let session = DemoDeparture.Session(day: DepartureRig.day, clock: TestClock(now: DepartureRig.time(17, 1)))
-        let time = DepartureRig.time(17, 1)
-        let live = try XCTUnwrap(session.departure(at: time).flatMap { LiveDeparture($0, now: time) })
-        let content = RideActivityAttributes.ContentState(
-            departure: live, origin: session.route.from.name, destination: session.route.to.name, hasPlatformSource: true,
-            now: time, deviceNow: deviceNow, formatter: TimeFormatter(format: .twentyFourHour)
-        )
-        XCTAssertEqual(content.title, "17:13 to Clarkson")
-        XCTAssertEqual(content.departure, "Union 17:13")
+        let content = try content(at: DepartureRig.time(17, 1), formatter: TimeFormatter(format: .twentyFourHour))
+        XCTAssertEqual(content.title, "17:13 departs in")
     }
 
     func testTheActivityEndsTwoMinutesAfterTheTrainLeftOnTheDeviceClock() throws {
@@ -139,20 +117,17 @@ final class DepartureActivityTests: XCTestCase {
     /// The `content-state` of the alert server's start (server/test/activity.test.ts, the 7:13 AM Oakville to Union train).
     func testTheAlertServersStateDecodes() throws {
         let json = """
-        {"phase":"countingDown","title":"7:13 AM to Union","detail":"Check the board · On time","now":"","time":"departs",
-         "departure":"Oakville 7:13 AM","arrival":"Union 7:47 AM","arrives":"Arrives Union 7:47 AM","position":0,
-         "button":"I’m on board","updated":"Updated 6:43 AM","platform":"Check the board","pill":false,"late":false,
-         "countdownEnd":1762427580}
+        {"phase":"countingDown","title":"7:13 AM departs in","now":"","label":"Platform","late":false,"position":0,
+         "isClose":false,"updated":"Updated 6:43 AM","countdownEnd":1762427580}
         """
         let state = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: Data(json.utf8))
         XCTAssertEqual(state.phase, .countingDown)
         XCTAssertTrue(state.isDeparture)
-        XCTAssertEqual(state.title, "7:13 AM to Union")
-        XCTAssertEqual(state.detail, "Check the board · On time")
+        XCTAssertEqual(state.title, "7:13 AM departs in")
         XCTAssertEqual(state.countdownEnd, Date(timeIntervalSince1970: 1_762_427_580))
-        XCTAssertEqual(state.arrives, "Arrives Union 7:47 AM")
-        XCTAssertEqual(state.platform, "Check the board")
-        XCTAssertFalse(state.pill)
+        XCTAssertEqual(state.label, "Platform")
+        XCTAssertNil(state.platformNumber, "The server knows no platforms: the dash")
+        XCTAssertNil(state.delay)
 
         let departed = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: Data(#"{"phase":"departed"}"#.utf8))
         XCTAssertEqual(departed.phase, .departed)

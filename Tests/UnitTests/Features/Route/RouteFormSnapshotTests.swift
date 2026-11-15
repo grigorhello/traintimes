@@ -25,25 +25,13 @@ final class RouteFormSnapshotTests: XCTestCase {
     @MainActor func testSchedulePickingLight() async throws { snap(try await schedulePicking(), .light) }
     @MainActor func testSchedulePickingDark() async throws { snap(try await schedulePicking(), .dark) }
 
-    /// No saved route and fresh settings, so nothing an earlier run stored leaks in.
+    /// "Search stations" on the first launch (TT-206): the route form with nothing chosen, as first use had it.
     @MainActor
     private func snapFirstUse(_ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
-        let root = RootView(
-            settings: AppSettings(defaults: .ephemeral()),
-            dependencies: .fixtures(bundle: Bundle(for: Self.self)),
-            routeStore: UserDefaultsRouteStore(defaults: .ephemeral()),
-            recents: RecentRoutes(defaults: .ephemeral())
-        )
-        assertSnapshot(
-            of: root,
-            as: .image(
-                drawHierarchyInKeyWindow: true,
-                perceptualPrecision: 0.98,
-                layout: .device(config: .iPhone17Pro),
-                traits: UITraitCollection(userInterfaceStyle: style)
-            ).comparedAsRecorded,
-            testName: testName,
-            line: line
+        let model = RouteFormViewModel(route: nil, repository: ScheduleDependencies.fixtures(bundle: Bundle(for: Self.self)).stations)
+        snap(
+            RouteFormView(viewModel: model, onShowTrains: { _ in }).environment(\.rendersGlass, false), style,
+            testName: testName, line: line
         )
     }
 

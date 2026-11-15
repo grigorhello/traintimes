@@ -1,8 +1,8 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-130, D49: the day strip only offers dates within the feed's validity window (Q6), and a first use with no timetable keeps
-/// "Loading timetable" instead of claiming there are no trains.
+/// TT-130, D49: the day strip only offers dates within the feed's validity window (Q6), and a first use with no timetable shows
+/// the failed card (TT-206) instead of claiming there are no trains.
 @MainActor
 final class ScheduleHorizonTests: XCTestCase {
     private struct WindowRepository: ScheduleRepository {
@@ -60,9 +60,33 @@ final class ScheduleHorizonTests: XCTestCase {
         XCTAssertEqual(model.days, [today])
     }
 
-    func testNoTimetableKeepsLoading() async {
-        let model = model(WindowRepository(hasTimetable: false))
+    /// TT-206: no timetable on device and none downloaded shows "Couldn’t load the timetable", never an empty timeline, and
+    /// the status row says nothing over it; Try again loads once more.
+    func testNoTimetableShowsTheFailedCardAndTryAgainLoads() async {
+        let repository = FlakyRepository()
+        let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: today.date(hour: 7, minute: 21)))
+        XCTAssertEqual(model.content, .loading, "Loading while the first download runs")
         await model.loadIfNeeded()
-        XCTAssertEqual(model.content, .loading)
+        XCTAssertEqual(model.content, .failed)
+        XCTAssertNil(model.statusRowMode(TimeFormatter(format: .twelveHour)))
+
+        repository.fails = false
+        await model.retry()
+        XCTAssertFalse(model.timetableFailed)
+        XCTAssertNotEqual(model.content, .failed)
+        XCTAssertNotEqual(model.content, .loading)
+    }
+
+    /// Fails until told otherwise. `@unchecked Sendable` is safe: the tests set `fails` only between awaited loads.
+    private final class FlakyRepository: ScheduleRepository, @unchecked Sendable {
+        var fails = true
+
+        func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
+            if fails { throw URLError(.notConnectedToInternet) }
+            return []
+        }
+
+        func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+        func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
     }
 }

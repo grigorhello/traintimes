@@ -54,6 +54,27 @@ final class TrainMatcherTests: XCTestCase {
         XCTAssertEqual(question(of: matcher)?.stops.map(\.id), ["EX", "MI"])
     }
 
+    /// TT-205 (D93): no question with less than 5 min left to the rider's stop. The same train ending at Long Branch
+    /// (11:38) is ready on the timetable only after about 11:35, too close, so it is never asked.
+    func testNoQuestionWithLessThanFiveMinutesToTheLastStop() throws {
+        let full = try candidate("A")
+        let track = try XCTUnwrap(full.plan.track)
+        let short = TrainCandidate(
+            trip: full.trip,
+            route: Route(from: base.stops[0].station, to: base.stops[3].station, line: line),
+            plan: RidePlan(
+                stops: Array(full.plan.stops.prefix(4)),
+                track: RidePlan.Track(shape: track.shape, stopDistances: Array(track.stopDistances.prefix(4)))
+            )
+        )
+        XCTAssertEqual(short.plan.stops.last?.station.id, "LO")
+        var matcher = TrainMatcher()
+        matcher.setCandidates([short])
+        let run = try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(base))
+        XCTAssertNil(run.asked)
+        XCTAssertNotNil(run.firstTime(sharing: 2), "it matched, it just was too close to ask")
+    }
+
     func testCheckingStripFollowsTheSharedStops() throws {
         let train = try candidate("A")
         var matcher = TrainMatcher()
@@ -99,14 +120,15 @@ final class TrainMatcherTests: XCTestCase {
     }
 
     func testOneSharedStopNeverAsksOnTheTimetable() throws {
-        // An express from Union to Exhibition, then Port Credit: one shared stop for 21 minutes.
+        // An express from Union to Exhibition, then Port Credit: one shared stop for 21 minutes, never asked. (Once it
+        // shares Port Credit too, Clarkson is under 5 min away, so TT-205's lead keeps it from asking then as well.)
         let express = try candidate("X", skipping: ["MI", "LO"])
         var matcher = TrainMatcher()
         matcher.setCandidates([express])
         let run = try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(express.plan))
 
-        XCTAssertGreaterThan(try XCTUnwrap(run.asked), OnBoardFixtures.time(11, 45))
-        XCTAssertEqual(question(of: matcher)?.stops.map(\.id), ["EX", "PO"])
+        XCTAssertNil(run.asked)
+        XCTAssertNotNil(run.firstTime(sharing: 1), "it shared Exhibition")
     }
 
     // MARK: The feed's one stop and 3 minutes

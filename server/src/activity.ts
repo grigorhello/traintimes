@@ -2,7 +2,8 @@
 // Island from 30 min before it leaves. The server starts it with a push-to-start (iOS 17.2+), updates it only when what it
 // shows changes, and ends it 2 min after the train left, unless the app's ride took it over (the same activity becomes the
 // ride). Every word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
-// looks the same. GO's feeds post no platforms (D35, D36), so the server's activity always says "Check the board".
+// looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes, "Platform" and the pill.
+// GO's feeds post no platforms (D35, D36), so the server's pill is always the dash.
 
 import { DELAY_MIN } from './alerts.ts';
 import { format, strings } from './copy.ts';
@@ -56,34 +57,23 @@ export interface Attributes {
   stopCount: number;
 }
 
-/** The app's `ContentState`, key for key; `countdownEnd` is seconds since 1970. */
+/** The app's `ContentState`, key for key; `countdownEnd` is seconds since 1970. No `platformNumber`: the dash. */
 export interface ContentState {
   phase: Phase;
   title: string;
-  detail: string;
   countdownEnd?: number;
   now: string;
-  time: string;
-  departure: string;
-  arrival: string;
-  arrives: string;
-  position: number;
-  button: string;
-  updated: string;
-  platform: string;
-  pill: boolean;
+  label: string;
+  delay?: string;
   late: boolean;
+  position: number;
+  isClose: boolean;
+  updated: string;
 }
 
 /** "Clarkson GO" reads "Clarkson" (the app's `RideDetails.shortName`). */
 export function shortName(name: string): string {
   return name.endsWith(' GO') ? name.slice(0, -3) : name;
-}
-
-/** "Union Station GO" reads "Union" on the activity's departure label (the app's `TrainQuestion.shortName`). */
-function shorterName(name: string): string {
-  const short = shortName(name);
-  return short.endsWith(' Station') ? short.slice(0, -8) : short;
 }
 
 function isRunning(status: LiveStatus | null): status is Extract<LiveStatus, { kind: 'running' }> {
@@ -108,42 +98,33 @@ export function phaseAt(departure: Departure, now: number): Phase | 'before' | '
   return until > -DEPARTED_MS ? 'departed' : 'over';
 }
 
-/** The activity at `now` in `phase`, as the app writes it (`ContentState(departure:…)`). */
+/**
+ * The activity at `now` in `phase`, as the app writes it (`ContentState(departure:…)`): the expected departure's clock time
+ * in the line and the countdown to it, "3 min late" beside it while late.
+ */
 export function contentState(departure: Departure, phase: Phase, now: number, timeFormat: TimeFormat): ContentState {
   const time = (ms: number) => formatTime(ms, timeFormat);
   const status = departure.status;
-  const running = isRunning(status);
   const leavesAt = leaves(departure);
-  const arrivesAt = departure.scheduledArrival + (running ? status.expected - departure.scheduled : 0);
-  const delay = running && status.delayMin >= DELAY_MIN ? status.delayMin : null;
-  const word =
+  const delay = isRunning(status) && status.delayMin >= DELAY_MIN ? status.delayMin : null;
+  const late = phase !== 'departed' && delay !== null;
+  const title =
     phase === 'boarding'
-      ? strings['depart.boarding']
+      ? format(strings['depart.boardingLine'], time(leavesAt))
       : phase === 'departed'
         ? format(strings['depart.departed'], time(leavesAt))
-        : delay !== null
-          ? format(strings['depart.delayed'], delay)
-          : running
-            ? strings['status.on_time']
-            : strings['status.scheduled'];
-  const platform = strings['depart.checkBoard'];
-  const arrival = format(strings['live.stopTime'], shortName(departure.destination), time(arrivesAt));
+        : format(strings['depart.line'], time(leavesAt));
   const state: ContentState = {
     phase,
-    title: format(strings['schedule.route_title'], time(departure.scheduled), shortName(departure.destination)),
-    detail: format(strings['onboard.detail'], platform, word),
+    title,
     now: '',
-    time: phase === 'departed' ? '' : strings['depart.in'],
-    departure: format(strings['live.stopTime'], shorterName(departure.origin), time(leavesAt)),
-    arrival,
-    arrives: format(strings['depart.arrives'], arrival),
+    label: strings['depart.platformLabel'],
+    late,
     position: 0,
-    button: strings['onboard.button'],
+    isClose: phase === 'boarding',
     updated: format(strings['live.updated'], time(now)),
-    platform,
-    pill: false,
-    late: phase === 'countingDown' && delay !== null,
   };
+  if (late) state.delay = format(strings['onboard.late'], delay);
   if (phase !== 'departed') state.countdownEnd = Math.round(leavesAt / 1000);
   return state;
 }
@@ -154,7 +135,7 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
  */
 export function signature(state: ContentState): string {
   const countdown = state.countdownEnd === undefined ? '' : Math.round(state.countdownEnd / 30);
-  return [state.phase, state.title, state.detail, state.departure, state.arrival, countdown].join('|');
+  return [state.phase, state.title, state.delay ?? '', countdown].join('|');
 }
 
 /** The activity becomes stale, and the app ends it, 2 min after the expected departure. */
@@ -166,9 +147,11 @@ const seconds = (ms: number) => Math.floor(ms / 1000);
 
 /**
  * `event: start`, sent once at T−30. It must carry an alert: iOS shows the expanded activity and plays the sound (iOS
- * 17.2+). "Your 5:13 PM train is live", the route under it.
+ * 17.2+). The card's line with its minutes, "7:13 AM departs in 30 min"; no body.
  */
 export function startPayload(departure: Departure, attributes: Attributes, state: ContentState, now: number, timeFormat: TimeFormat) {
+  const leavesAt = leaves(departure);
+  const minutes = Math.max(1, Math.floor((leavesAt - now) / MINUTE));
   return {
     aps: {
       timestamp: seconds(now),
@@ -178,8 +161,8 @@ export function startPayload(departure: Departure, attributes: Attributes, state
       'attributes-type': ATTRIBUTES_TYPE,
       attributes,
       alert: {
-        title: format(strings['depart.live.title'], formatTime(departure.scheduled, timeFormat)),
-        body: format(strings['schedule.route_title'], departure.origin, departure.destination),
+        title: format(strings['depart.live.title'], formatTime(leavesAt, timeFormat), minutes),
+        body: '',
         sound: 'default',
       },
     },

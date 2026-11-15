@@ -17,6 +17,17 @@ final class ScheduleStatesSnapshotTests: XCTestCase {
     @MainActor func testFutureDayDark() async throws { snap(try await .loadedFixture(dayIndex: 1), .dark) }
     @MainActor func testNoConnectionLight() async throws { snap(try await noConnection(), .light) }
     @MainActor func testNoConnectionDark() async throws { snap(try await noConnection(), .dark) }
+    /// TT-206 (board 6, could not load): no timetable on device and the download failed.
+    @MainActor func testFailedLight() async throws { snap(try await failed(), .light) }
+    @MainActor func testFailedDark() async throws { snap(try await failed(), .dark) }
+
+    @MainActor
+    private func failed() async throws -> ScheduleViewModel {
+        let fixtures = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let model = ScheduleViewModel(route: fixtures.route, repository: FailingScheduleRepository(), clock: FixedClock(now: fixtures.now))
+        await model.loadIfNeeded()
+        return model
+    }
 
     /// The repository never answers until released, so the first timetable is still loading when the snapshot draws.
     @MainActor
@@ -59,6 +70,13 @@ final class ScheduleStatesSnapshotTests: XCTestCase {
             line: line
         )
     }
+}
+
+/// Never has a timetable: the download failed.
+private struct FailingScheduleRepository: ScheduleRepository {
+    func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] { throw URLError(.notConnectedToInternet) }
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
 }
 
 /// Holds every timetable request until `release()`, so a screen stays in its loading state.

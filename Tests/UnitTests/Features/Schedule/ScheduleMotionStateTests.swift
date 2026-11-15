@@ -164,8 +164,9 @@ final class ScheduleMotionStateTests: XCTestCase {
         XCTAssertTrue(model.isPastDay)
     }
 
-    /// Trains that replace "Loading timetable" after a failed first load cascade, even from a refresh; the next refresh does not.
-    func testTrainsReplacingTheLoadingSkeletonCascade() async {
+    /// Trains that replace the failed first load's card (TT-206: "Couldn’t load the timetable") cascade, even from a refresh;
+    /// the next refresh does not.
+    func testTrainsReplacingTheFailedCardCascade() async {
         let repository = OfflineFirstRepository()
         let route = Route(
             from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station GO"),
@@ -173,8 +174,8 @@ final class ScheduleMotionStateTests: XCTestCase {
         )
         let model = ScheduleViewModel(route: route, repository: repository, clock: FixedClock(now: thursday.date(hour: 7, minute: 21)))
         await model.loadIfNeeded()
-        XCTAssertEqual(model.content, .loading)
-        XCTAssertEqual(model.entranceRequest, 0, "Nothing to cascade while the skeleton shows")
+        XCTAssertEqual(model.content, .failed)
+        XCTAssertEqual(model.entranceRequest, 0, "Nothing to cascade while the failed card shows")
         await repository.connect()
         await model.refresh()
         XCTAssertEqual(model.entranceRequest, 1)

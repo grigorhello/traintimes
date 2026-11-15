@@ -30,7 +30,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | Event | When | Properties |
 |---|---|---|
 | `Application Installed` / `Application Updated` / `Application Opened` / `Application Backgrounded` | SDK lifecycle | `version`, `build`, `from_background` (Opened) |
-| `$screen` | A screen comes on top | `$screen_name`: `schedule`, `route_form` (first use, no route yet), `alerts`, `settings`, `trip_details`, `line_notices`, `detect_offer` |
+| `$screen` | A screen comes on top | `$screen_name`: `schedule`, `welcome` (first launch: the welcome, your line, your station; TT-206), `route_form` (first launch's "Search stations"), `alerts`, `settings`, `trip_details`, `line_notices`, `detect_offer` |
 | `route_set` | A route shows on Schedule (first use, the station picker, a Recent row, a swap applied) | `from`, `to` (station ids), `line` (line id, when known), `is_first` (the first route on this install) |
 | `route_swapped` | The swap button | none |
 | `back_to_now` | The Schedule tab tapped again (back to today, at Now) | none |

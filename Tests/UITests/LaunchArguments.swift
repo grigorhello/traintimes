@@ -10,7 +10,7 @@ enum LaunchArguments {
     ]
     /// No recent routes, so the route sheet lists only what this run opens.
     static let noRecents = ["-route.recent", ""]
-    /// No saved route and no recent routes, as on a fresh install: the app lands on the route form.
+    /// No saved route and no recent routes, as on a fresh install: the app lands on the welcome (TT-206).
     static let freshInstall = ["-route.last", ""] + noRecents
     /// No dismissed line notices (TT-132), so the fixture's notice shows.
     static let noDismissedNotices = ["-notices.dismissed", ""]

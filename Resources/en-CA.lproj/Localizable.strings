@@ -124,6 +124,18 @@
 "status.offline" = "Offline";
 "tag.express" = "Express";
 
+/* First launch (TT-206) */
+"welcome.title" = "Welcome to\nTrain Times";
+"welcome.tagline" = "Your next GO train, at a glance.";
+"welcome.choose" = "Choose your line";
+"welcome.footnote" = "Independent app. No account, no ads.";
+"welcome.which_line" = "Which GO line\nis yours?";
+"welcome.your_station" = "Your station";
+"welcome.search" = "Search stations";
+"welcome.step" = "Step %d of 2";
+"timetable.failed.title" = "Couldn’t load the timetable";
+"timetable.failed.body" = "Check your connection and try again.";
+
 /* Route and stations */
 "route.choose" = "Choose a route";
 "route.swap" = "Swap direction";

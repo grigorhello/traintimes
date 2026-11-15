@@ -120,7 +120,6 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_LSApplicationCategoryType' => 'public.app-category.navigation',
     'INFOPLIST_KEY_UIApplicationSceneManifest_Generation' => 'YES',
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
-    'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
     # TT-171: asked only when a ride starts (On board; words from TT-205, D93); the background session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
@@ -133,6 +132,7 @@ app.build_configurations.each do |config|
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).
     # TT-171: UIBackgroundModes location keeps a ride's location going in the background (On board).
     # TT-174: NSSupportsLiveActivities for the ride's Live Activity, and the traintimes:// scheme its taps open.
+    # TT-206: UILaunchScreen, the still the Bloom splash starts from: the canvas colour and the mark (LaunchMark).
     'INFOPLIST_FILE' => 'Config/Info.plist',
     'DEVELOPMENT_ASSET_PATHS' => '"Preview Content"',
     'ENABLE_PREVIEWS' => 'YES',

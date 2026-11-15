@@ -93,6 +93,7 @@
 "depart.platformLabel" = "Platform";
 "depart.line" = "%@ departs in";
 "depart.boardingLine" = "%@ boarding now";
+"depart.atLine" = "Departs at";
 "depart.arrivesLabel" = "Arrives";
 "depart.departed" = "Departed %@";
 "depart.live.title" = "%1$@ departs in %2$d min";

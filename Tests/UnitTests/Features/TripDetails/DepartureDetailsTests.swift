@@ -183,19 +183,24 @@ final class DepartureDetailsTests: XCTestCase {
         return (await model("LW-0732-20261105"), await model("LW-0758-20261105"))
     }
 
-    func testOnlyTheAlertedTrainThatLeavesFirstShowsTheCard() async throws {
+    /// Every train has the hero (TT-207): the next one counts down; of the alerted trains in their window only the one that
+    /// leaves first counts down (TT-177), a later one says "Departs at".
+    func testOnlyTheAlertedTrainThatLeavesFirstCountsDown() async throws {
         let both = try await fixtureModels(alerted: ["LW-0732-20261105", "LW-0758-20261105"])
         XCTAssertEqual(both.first.departureHero(formatter)?.countdown, "3 min")
-        XCTAssertNil(both.second.departureHero(formatter), "the 7:32 AM train leaves first")
+        XCTAssertNil(both.second.departureHero(formatter)?.countdown, "the 7:32 AM train leaves first")
+        XCTAssertEqual(both.second.departureHero(formatter)?.line, "Departs at")
 
         let later = try await fixtureModels(alerted: ["LW-0758-20261105"])
-        XCTAssertNil(later.first.departureHero(formatter), "no alert on the 7:32 AM train")
+        XCTAssertEqual(later.first.departureHero(formatter)?.countdown, "3 min", "the next train counts down, alert or not")
         XCTAssertEqual(later.second.departureHero(formatter)?.countdown, "29 min")
     }
 
-    func testNoAlertsNoCard() async throws {
+    func testNoAlertsTheNextTrainStillCountsDown() async throws {
         let none = try await fixtureModels(alerted: [])
-        XCTAssertNil(none.first.departureHero(formatter))
-        XCTAssertFalse(none.first.followsClock)
+        XCTAssertEqual(none.first.departureHero(formatter)?.countdown, "3 min")
+        XCTAssertTrue(none.first.followsClock)
+        XCTAssertEqual(none.second.departureHero(formatter)?.number, "7:58 AM")
+        XCTAssertFalse(none.second.followsClock, "a clock time does not tick")
     }
 }

@@ -14,6 +14,8 @@ struct PlatformTag: View {
     var pulses = false
     /// The label over the pill, right-aligned (Trip details' hero card, TT-205); beside it otherwise.
     var isStacked = false
+    /// The Express bolt in the accent before the label (Trip details' hero card, TT-207).
+    var showsExpress = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,11 +29,18 @@ struct PlatformTag: View {
             ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 6))
             : AnyLayout(HStackLayout(spacing: size * 0.55))
         layout {
-            Text("schedule.platform_label")
-                .font(.system(size: size))
-                .foregroundStyle(TTColor.inkSecondary)
-                .lineLimit(1)
-                .fixedSize()
+            HStack(spacing: size * 0.3) {
+                if showsExpress {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: size * 0.82, weight: .semibold))
+                        .foregroundStyle(TTColor.accent)
+                }
+                Text("schedule.platform_label")
+                    .font(.system(size: size))
+                    .foregroundStyle(TTColor.inkSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
             PlatformBadge(number: number, size: pillSize ?? size, palette: palette)
                 .opacity(dimmed ? 0.4 : 1)
         }

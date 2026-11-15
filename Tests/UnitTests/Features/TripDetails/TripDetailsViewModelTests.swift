@@ -166,6 +166,64 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.alertButton, "Alert on")
     }
 
+    // MARK: Hero card for every train (TT-207, D96)
+
+    /// The next train counts down to its expected departure, with no late line while on time.
+    func testHeroOnTimeNextTrainCountsDown() async throws {
+        let model = try await TripDetailsViewModel.loadedFixture()
+        let hero = try XCTUnwrap(model.departureHero(formatter))
+        XCTAssertEqual(hero.line, "7:32 AM departs in")
+        XCTAssertEqual(hero.number, "11 min")
+        XCTAssertEqual(hero.countdown, "11 min")
+        XCTAssertNil(hero.late)
+        XCTAssertEqual(hero.platform, "2")
+        XCTAssertFalse(hero.isExpress)
+        XCTAssertTrue(model.followsClock)
+    }
+
+    /// Late: the countdown and the time are the expected ones, and the delay is said once.
+    func testHeroLateNextTrainSaysTheDelayOnce() async throws {
+        let model = try await TripDetailsViewModel.loadedFixture(.delayed)
+        let hero = try XCTUnwrap(model.departureHero(formatter))
+        XCTAssertEqual(hero.line, "7:41 AM departs in")
+        XCTAssertEqual(hero.number, "20 min")
+        XCTAssertEqual(hero.late, "9 min late")
+    }
+
+    /// A later train has no countdown: "Departs at" over its expected clock time, late or not.
+    func testHeroLaterTrainSaysDepartsAt() async throws {
+        let onTimeModel = try await TripDetailsViewModel.loadedFixture(tripId: "LW-0758-20261105")
+        let onTime = try XCTUnwrap(onTimeModel.departureHero(formatter))
+        XCTAssertEqual(onTime.line, "Departs at")
+        XCTAssertEqual(onTime.number, "7:58 AM")
+        XCTAssertNil(onTime.countdown)
+        XCTAssertNil(onTime.late)
+        XCTAssertTrue(onTime.isExpress)
+
+        let lateModel = try await TripDetailsViewModel.laterDelayedFixture()
+        let late = try XCTUnwrap(lateModel.departureHero(formatter))
+        XCTAssertEqual(late.line, "Departs at")
+        XCTAssertEqual(late.number, "8:07 AM")
+        XCTAssertEqual(late.late, "9 min late")
+    }
+
+    /// Timetable only: the same hero, no late line.
+    func testHeroTimetableOnly() async throws {
+        let model = try await TripDetailsViewModel.timetableOnlyFixture()
+        let hero = try XCTUnwrap(model.departureHero(formatter))
+        XCTAssertEqual(hero.line, "Departs at", "7:32 AM is the next train")
+        XCTAssertEqual(hero.number, "7:58 AM")
+        XCTAssertNil(hero.late)
+    }
+
+    /// No hero for a cancelled train or one that has left: the sheet shows the trip as before.
+    func testNoHeroWhenCancelledOrDeparted() async throws {
+        let cancelled = try await TripDetailsViewModel.loadedFixture(.cancelled)
+        XCTAssertNil(cancelled.departureHero(formatter))
+        let departed = try await TripDetailsViewModel.departedFixture()
+        XCTAssertNil(departed.departureHero(formatter))
+    }
+
     /// Timetable only: ink times, the Scheduled ring and the service day, "Platform —", the Express bolt on express trains.
     func testTimetableOnly() async throws {
         let model = try await TripDetailsViewModel.timetableOnlyFixture()

@@ -386,16 +386,28 @@ final class TripDetailsViewModel {
         return live?.key == key ? live : nil
     }
 
-    /// The hero card over the folded trip (TT-205, D93), while the train has not left and no ride shows: this train is the
-    /// alerted one in its window (TT-177), or "I’m on board" shows (any train, from 20 min before). One look either way.
+    /// The hero card over the folded trip (TT-205, D93) for every train that has not left and runs, while no ride shows
+    /// (TT-207, D96). It counts down on the next train, the alerted one in its window (TT-177) and while "I’m on board"
+    /// shows; any other train says "Departs at" and its expected time. Nil once the train has left, or when it is
+    /// cancelled or skips a stop: the sheet shows the trip as before.
     func departureHero(_ formatter: some TimeFormatting) -> DepartureHero? {
-        guard !isRiding, let departure, liveDeparture != nil || showsOnBoardButton,
-              let live = LiveDeparture(departure, now: now) else { return nil }
-        return DepartureHero(live, now: now, pillPulses: hasPlatformSource && (freshness?.isLive ?? false), formatter: formatter)
+        guard !isRiding, let departure else { return nil }
+        return DepartureHero(
+            departure, now: now, showsCountdown: showsCountdown,
+            pillPulses: hasPlatformSource && (freshness?.isLive ?? false), formatter: formatter
+        )
+    }
+
+    /// The hero counts down: the next usable train today, the alerted train in its window, or "I’m on board" shows.
+    var showsCountdown: Bool {
+        departure?.id == nextDepartureId || liveDeparture != nil || showsOnBoardButton
     }
 
     /// The sheet follows the clock each second: riding, or before departure (the hero's countdown).
-    var followsClock: Bool { isRiding || liveDeparture != nil || demoDeparture != nil || showsOnBoardButton }
+    var followsClock: Bool {
+        isRiding || liveDeparture != nil || demoDeparture != nil || showsOnBoardButton
+            || (departure.map { $0.id == nextDepartureId && $0.departureTime > now } ?? false)
+    }
 
     /// Each second while `followsClock`: the countdown, Boarding now and Departed follow the clock between loads.
     func tick() {

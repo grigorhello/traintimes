@@ -3,8 +3,8 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Trip details against design/frames/trip-details*.png (TT-163), light and dark: the 7:32 AM train delayed 9 min with an
-/// alert, the 7:58 AM express train on the timetable only, a cancelled train, a 12-stop trip scrolled to its end, and a train
+/// Trip details against design/frames/trip-details*.png (TT-163) and the Delay-A boards (TT-207), light and dark: the 7:32 AM
+/// train delayed 9 min with an alert, on time, a later delayed train, the 7:58 AM express train on the timetable only, a cancelled train, a 12-stop trip scrolled to its end, and a train
 /// after it has left, and the alert bar's day panel (TT-192). The sheet content is drawn on its own in the key window; the system draws the grabber.
 final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testDelayedLight() async throws { snap(try await .loadedFixture(.delayed, hasAlert: true), .light) }
@@ -13,8 +13,15 @@ final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testScheduledDark() async throws { snap(try await .timetableOnlyFixture(), .dark) }
     @MainActor func testCancelledLight() async throws { snap(try await .loadedFixture(.cancelled, hasAlert: true), .light) }
     @MainActor func testCancelledDark() async throws { snap(try await .loadedFixture(.cancelled, hasAlert: true), .dark) }
-    @MainActor func testEndLight() async throws { snap(try await .longTripFixture(), .light, startsAtEnd: true) }
-    @MainActor func testEndDark() async throws { snap(try await .longTripFixture(), .dark, startsAtEnd: true) }
+    /// TT-207 (*Delay-A*): every train that has not left shows the hero; the on-time next train counts down, a later train
+    /// (the 7:58 AM express, 9 min late) says "Departs at" with its expected time in delay-ink.
+    @MainActor func testOnTimeLight() async throws { snap(try await .loadedFixture(), .light) }
+    @MainActor func testOnTimeDark() async throws { snap(try await .loadedFixture(), .dark) }
+    @MainActor func testLaterDelayedLight() async throws { snap(try await .laterDelayedFixture(), .light) }
+    @MainActor func testLaterDelayedDark() async throws { snap(try await .laterDelayedFixture(), .dark) }
+    /// The long trip after it left (7:10 AM), so the whole stop list shows and scrolls to its end.
+    @MainActor func testEndLight() async throws { snap(try await .longTripFixture(hour: 7, minute: 10), .light, startsAtEnd: true) }
+    @MainActor func testEndDark() async throws { snap(try await .longTripFixture(hour: 7, minute: 10), .dark, startsAtEnd: true) }
     @MainActor func testDepartedLight() async throws { snap(try await .departedFixture(), .light) }
     @MainActor func testDepartedDark() async throws { snap(try await .departedFixture(), .dark) }
     /// TT-192 (*Alert-Trip-Days-Dark*): the alert on, Repeat tapped: the day panel above the bar, Mon to Fri lit. The

@@ -546,6 +546,8 @@ struct ScheduleView: View {
                 case .noConnection:
                     noConnection
                         .cascadeEntrance(cascade, order: 0, moves: false)
+                case .failed:
+                    timetableFailed
                 }
             }
         }
@@ -708,6 +710,21 @@ struct ScheduleView: View {
     }
 
     /// "No direct connection" with "Open GO trip planner" (`components.png`).
+    /// The first timetable could not be downloaded (TT-206): never an empty timeline.
+    private var timetableFailed: some View {
+        EmptyStateCard(
+            systemImage: "wifi.exclamationmark",
+            title: "timetable.failed.title",
+            message: "timetable.failed.body",
+            actionTitle: "button.try_again"
+        ) {
+            Task { await viewModel.retry() }
+        }
+        .padding(.horizontal, TTSpace.s5)
+        .padding(.top, TTSpace.s3)
+        .accessibilityIdentifier("schedule.failed")
+    }
+
     private var noConnection: some View {
         EmptyStateCard(
             systemImage: "exclamationmark.triangle",

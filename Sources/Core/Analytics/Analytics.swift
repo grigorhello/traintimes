@@ -31,6 +31,8 @@ enum AnalyticsValue: Equatable, Sendable {
 /// The screens `$screen` names; SwiftUI screens are named by us, never by the SDK's view-controller names.
 enum AnalyticsScreen: String, Sendable {
     case schedule
+    /// The first launch (TT-206, D94): the welcome and its two steps.
+    case welcome
     case routeForm = "route_form"
     case alerts
     case settings

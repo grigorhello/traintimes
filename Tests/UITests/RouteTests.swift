@@ -5,7 +5,7 @@ final class RouteTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Acceptance (TT-120, TT-121, TT-161): fresh install; tapping From makes the row the search field with the suggestions
+    /// Acceptance (TT-120, TT-121, TT-161; behind the welcome's "Search stations" since TT-206): fresh install; tapping From makes the row the search field with the suggestions
     /// under the card and no sheet, X cancels, typing "oak" and tapping Oakville GO moves on to To, Union Station GO enables
     /// Show trains, then the timeline with no prompt; a relaunch opens the remembered route.
     @MainActor
@@ -14,6 +14,11 @@ final class RouteTests: XCTestCase {
         app.launchArguments += LaunchArguments.freshInstall
         app.launch()
 
+        // The first launch's welcome, step 1, then "Search stations" (TT-206).
+        require(app.buttons["welcome.choose"], "welcome.choose", in: app)
+        app.buttons["welcome.choose"].tap()
+        require(app.buttons["welcome.search"], "welcome.search", in: app)
+        app.buttons["welcome.search"].tap()
         require(app.staticTexts["route.title"], "staticTexts[route.title]", in: app)
         XCTAssertFalse(app.alerts.firstMatch.exists)
         let showTrains = app.buttons["route.showTrains"]

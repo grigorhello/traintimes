@@ -104,6 +104,9 @@ final class ScheduleViewModel {
     /// The trips with an alert, for the watched-trip strip (TT-144).
     private let watchedTrips: any WatchedTripsProviding
     private var hasLoaded = false
+    /// The last load found no timetable on device and could not download one (TT-206): the failed card, not an endless
+    /// "Loading timetable". Live polls and Try again load again.
+    private(set) var timetableFailed = false
     private var isLoading = false
     /// The Today last acted on, so the day turning over at midnight is seen once (TT-159, D52).
     @ObservationIgnored private var knownToday: ServiceDay
@@ -173,11 +176,14 @@ final class ScheduleViewModel {
         case noTrains(title: String, message: String, showDay: String?)
         /// The stations share no line, so no direct train can run between them.
         case noConnection
+        /// No timetable on device and the download failed: "Couldn’t load the timetable" with Try again (TT-206).
+        case failed
     }
 
     var content: Content {
         guard let route else { return .loading }
         guard route.line != nil else { return .noConnection }
+        if freshness == nil, timetableFailed { return .failed }
         guard freshness != nil, !(awaitsNewTrains && newTrainsAreSlow) else { return .loading }
         guard departures.isEmpty else { return .timeline }
         return .noTrains(
@@ -331,7 +337,7 @@ final class ScheduleViewModel {
     /// The freshness line (D14), with times from the one formatter. "Loading timetable" until the first load.
     func freshnessMode(_ formatter: some TimeFormatting) -> FreshnessLine.Mode? {
         switch freshness {
-        case nil: route == nil ? nil : .loading
+        case nil: route == nil || timetableFailed ? nil : .loading
         case .live(let updatedAt): .live(updated: formatter.updated(at: updatedAt, now: clock.now))
         case .scheduledOnly: .scheduledOnly(day: isToday ? nil : selectedDay.shortLabel)
         case .stale(let lastReported): .stale(lastReported: formatter.time(lastReported))
@@ -417,6 +423,12 @@ final class ScheduleViewModel {
 
     /// Pull to refresh. Cards keep their trip key (D9), so they keep their identity, and the scroll position stays.
     func refresh() async {
+        await load()
+    }
+
+    /// Try again on the failed card: "Loading timetable" again while the download runs.
+    func retry() async {
+        timetableFailed = false
         await load()
     }
 
@@ -547,6 +559,7 @@ final class ScheduleViewModel {
             // No timetable on device yet and none could be downloaded (TT-130): "Loading timetable" stays until a refresh
             // gets one, rather than claiming there are no trains.
             guard day == selectedDay, route == self.route else { return }
+            timetableFailed = true
             loaded = nil
             departures = []
             freshness = nil
@@ -555,6 +568,7 @@ final class ScheduleViewModel {
             relayout()
             return
         }
+        if timetableFailed { timetableFailed = false }
         lastServiceDay = try? await repository.lastServiceDay()
         // Notices load alongside live status, so a dead connection still shows Offline after one 10 s timeout (D36).
         let source = repository

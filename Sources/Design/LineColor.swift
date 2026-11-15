@@ -17,6 +17,19 @@ enum GOLineColor {
         (hex[line.id] ?? line.colorHex).flatMap { Color(hex: $0) } ?? TTColor.inkSecondary
     }
 
+    /// The line's colour mixed toward white by `amount` (0 to 1, in sRGB like CSS `color-mix`): the first launch's 4 pt
+    /// lines and rails in dark mode take 42 % (TT-206).
+    static func color(for line: Line, towardWhite amount: Double) -> Color {
+        guard amount > 0, let hex = hex[line.id] ?? line.colorHex,
+              let value = UInt32(hex.hasPrefix("#") ? String(hex.dropFirst()) : hex, radix: 16)
+        else { return color(for: line) }
+        func mix(_ shift: UInt32) -> Double {
+            let channel = Double((value >> shift) & 0xFF) / 255
+            return channel + (1 - channel) * amount
+        }
+        return Color(red: mix(16), green: mix(8), blue: mix(0))
+    }
+
     /// GO's lines by the names the feed gives them, clockwise round Union as on GO's own map (TT-200, D83): the order of
     /// the picker's line sections.
     static let lines: [(id: String, name: String)] = [

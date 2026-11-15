@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
 /// tab while it shows scrolls the timeline back to Now (D49). Launch lands on Schedule with no
-/// prompt: the remembered route, or the route form on first use (TT-120). Recent routes are shared by Schedule, which
+/// prompt: the remembered route after the Bloom splash, or on first use the welcome, your line and your station with no
+/// tab bar (TT-206, D94). Recent routes are shared by Schedule, which
 /// records them and lists them in its station picker (D48, D54). Puts the one time formatter in the
 /// environment (TT-105); the app follows the iOS appearance (D84). Opens the trip or the Alerts tab for a tapped notification (TT-144).
 struct RootView: View {
@@ -10,8 +11,11 @@ struct RootView: View {
     @State private var schedule: ScheduleViewModel
     @State private var settings: AppSettings
     @State private var settingsModel: SettingsViewModel
-    /// The first-use form; after the first route, Schedule makes its own picker each time a station is tapped (D54).
-    @State private var routeForm: RouteFormViewModel
+    /// The first launch (TT-206): the welcome and its two steps; after the first route, Schedule makes its own picker each
+    /// time a station is tapped (D54).
+    @State private var welcome: WelcomeViewModel
+    /// Bloom on a cold start with a saved route, folding back into Schedule (TT-206); shown once per launch.
+    @State private var showsSplash: Bool
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
     /// The alert rules (TT-141), shared by the bells, Trip details, the Alerts tab and the watched-trip strip.
@@ -68,9 +72,10 @@ struct RootView: View {
                 detection: detection
             )
         )
-        _routeForm = State(
-            initialValue: RouteFormViewModel(route: nil, repository: dependencies.stations, recents: schedule.recents)
+        _welcome = State(
+            initialValue: WelcomeViewModel(stations: dependencies.stations, clock: dependencies.clock, recents: schedule.recents)
         )
+        _showsSplash = State(initialValue: LaunchMotion.plays && LaunchMotion.exit(savedRoute: schedule.route) == .schedule)
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
         _alertsModel = State(
@@ -107,7 +112,7 @@ struct RootView: View {
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
     }
 
-    /// The screen on top: the presented sheet, else the selected tab (the route form until a route is saved).
+    /// The screen on top: the presented sheet, else the selected tab (the welcome or its route form until a route is saved).
     private var analyticsScreen: AnalyticsScreen {
         switch router.presentedSheet {
         case .tripDetails: return .tripDetails
@@ -116,64 +121,27 @@ struct RootView: View {
         case nil: break
         }
         switch router.selectedTab {
-        case .schedule: return schedule.route == nil ? .routeForm : .schedule
+        case .schedule: return schedule.route == nil ? (welcome.step == .search ? .routeForm : .welcome) : .schedule
         case .alerts: return .alerts
         case .settings: return .settings
         }
     }
 
+    /// The welcome until the first route, then the tabs; the splash over both on a cold start with a saved route.
     private var tabs: some View {
-        TabView(selection: tabSelection) {
-            NavigationStack {
-                if schedule.route == nil {
-                    RouteFormView(viewModel: routeForm, onShowTrains: { show($0) })
-                } else {
-                    ScheduleView(
-                        viewModel: schedule,
-                        stations: stations,
-                        onOpenTrip: { openTrip($0) },
-                        onOpenLineNotice: { router.present(.lineNotices) },
-                        bells: bells,
-                        onBoard: onBoard,
-                        onOpenRide: { Task { await openRide() } }
-                    )
-                }
+        ZStack {
+            if schedule.route == nil {
+                WelcomeFlowView(model: welcome, onRoute: { show($0) })
+                    .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+            } else {
+                tabView
+                    .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
-            .tabItem {
-                TabBarStyle.icon(
-                    "tram.fill", label: String(localized: "tab.schedule"), isSelected: router.selectedTab == .schedule,
-                    colorScheme: colorScheme
-                )
-                .accessibilityLabel(Text("tab.schedule"))
+        }
+        .overlay {
+            if showsSplash {
+                LaunchSplash { showsSplash = false }
             }
-            .tag(AppTab.schedule)
-
-            AlertsView(
-                viewModel: alertsModel,
-                bells: bells,
-                onSeeTrains: { router.showSchedule() },
-                onPickNewTrain: { pickNewTrain(replacing: $0) },
-                onOpenUpdate: { link in Task { await open(link) } }
-            )
-            .tabItem {
-                let isSelected = router.selectedTab == .alerts
-                TabBarStyle.icon(
-                    "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
-                    dot: alertsModel.tabDot(isSelected: isSelected, hasNewUpdate: router.showsAlertsDot), colorScheme: colorScheme
-                )
-                .accessibilityLabel(Text("tab.alerts"))
-            }
-            .tag(AppTab.alerts)
-
-            SettingsView(viewModel: settingsModel, onShowAlerts: { router.showAlerts() })
-                .tabItem {
-                    TabBarStyle.icon(
-                        "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,
-                        colorScheme: colorScheme
-                    )
-                    .accessibilityLabel(Text("tab.settings"))
-                }
-                .tag(AppTab.settings)
         }
         .sheet(item: $router.presentedSheet) { sheet in
             switch sheet {
@@ -273,6 +241,57 @@ struct RootView: View {
             router.showsAlertsDot = false
             alertsModel.markReviewsSeen()
             Task { await refreshAlerts() }
+        }
+    }
+
+    private var tabView: some View {
+        TabView(selection: tabSelection) {
+            NavigationStack {
+                ScheduleView(
+                    viewModel: schedule,
+                    stations: stations,
+                    onOpenTrip: { openTrip($0) },
+                    onOpenLineNotice: { router.present(.lineNotices) },
+                    bells: bells,
+                    onBoard: onBoard,
+                    onOpenRide: { Task { await openRide() } }
+                )
+            }
+            .tabItem {
+                TabBarStyle.icon(
+                    "tram.fill", label: String(localized: "tab.schedule"), isSelected: router.selectedTab == .schedule,
+                    colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.schedule"))
+            }
+            .tag(AppTab.schedule)
+
+            AlertsView(
+                viewModel: alertsModel,
+                bells: bells,
+                onSeeTrains: { router.showSchedule() },
+                onPickNewTrain: { pickNewTrain(replacing: $0) },
+                onOpenUpdate: { link in Task { await open(link) } }
+            )
+            .tabItem {
+                let isSelected = router.selectedTab == .alerts
+                TabBarStyle.icon(
+                    "bell.fill", label: String(localized: "tab.alerts"), isSelected: isSelected,
+                    dot: alertsModel.tabDot(isSelected: isSelected, hasNewUpdate: router.showsAlertsDot), colorScheme: colorScheme
+                )
+                .accessibilityLabel(Text("tab.alerts"))
+            }
+            .tag(AppTab.alerts)
+
+            SettingsView(viewModel: settingsModel, onShowAlerts: { router.showAlerts() })
+                .tabItem {
+                    TabBarStyle.icon(
+                        "gearshape.fill", label: String(localized: "tab.settings"), isSelected: router.selectedTab == .settings,
+                        colorScheme: colorScheme
+                    )
+                    .accessibilityLabel(Text("tab.settings"))
+                }
+                .tag(AppTab.settings)
         }
     }
 

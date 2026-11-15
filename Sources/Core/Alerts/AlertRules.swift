@@ -151,7 +151,7 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         if await permissions.current() == .notAsked {
             _ = await permissions.request()
             await refreshPermission()
-            Analytics.track(.notificationPermission(permission))
+            if let permission { Analytics.track(.notificationPermission(permission)) }
             return
         }
         await refreshPermission()

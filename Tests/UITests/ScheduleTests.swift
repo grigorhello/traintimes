@@ -110,6 +110,34 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(card.exists)
     }
 
+    /// Interest taps (TT-209) change nothing: the line name opens nothing, a tap on a card's time still opens Trip details
+    /// (the card's own tap), and a stop row there leaves the sheet as it was.
+    @MainActor
+    func testInterestTapsChangeNothing() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.launch()
+
+        let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
+
+        app.descendants(matching: .any).matching(identifier: "schedule.line").firstMatch.tap()
+        XCTAssertFalse(sheet.waitForExistence(timeout: 2), "The line name opens nothing")
+        XCTAssertTrue(card.isHittable)
+
+        // The departure time sits at the card's top left.
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.2)).tap()
+        XCTAssertTrue(sheet.waitForExistence(timeout: 15), "The card still opens Trip details")
+
+        let stop = app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 15))
+        if !stop.isHittable { sheet.swipeUp() }
+        stop.tap()
+        XCTAssertTrue(sheet.exists)
+        XCTAssertTrue(app.buttons["trip.close"].isHittable, "Nothing covers the sheet")
+    }
+
     /// The Notice chip on the line row opens the notice sheet; dismissing the notice closes the sheet and hides the
     /// link (TT-132).
     @MainActor

@@ -390,6 +390,7 @@ struct DepartureCardView: View {
                 .departedLook(look.look)
                 HStack(spacing: TTSpace.s2) {
                     status
+                        .tracksInterest("schedule.card.status")
                     Spacer(minLength: 0)
                     arrival
                         .departedLook(look.look)
@@ -434,6 +435,7 @@ struct DepartureCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { timeWidth = $0 }
                 .scaleEffect(look.timeScale, anchor: .leading)
+                .tracksInterest("schedule.card.time")
             if !card.isCancelled {
                 // The bolt keeps its place beside the time while the time changes size in a departure's play (D86); a
                 // padding, so at rest the layout is exactly as before.
@@ -466,6 +468,7 @@ struct DepartureCardView: View {
                 // 20 pt row into the gaps.
                 PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
                     .animation(.easeInOut(duration: 0.2), value: card.platformValue)
+                    .tracksInterest("schedule.card.platform")
                 // A departing lead keeps its "Departing" until the play fades it (D86).
                 if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
                     let opacity = card.relativeTime == nil ? look.leadOut : look.countdown

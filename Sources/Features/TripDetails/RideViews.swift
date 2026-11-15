@@ -80,6 +80,7 @@ struct RideHero: View {
                 .frame(height: 68)
                 .padding(.leading, -2)
                 .contentTransition(.numericText(countsDown: true))
+                .tracksInterest("ride.minutes")
             if let late = ride.late {
                 Text(late)
                     .font(TTFont.headline)
@@ -167,6 +168,8 @@ struct RideStopList: View {
             }
         }
         .overlay(alignment: .topLeading) { train }
+        .contentShape(Rectangle())
+        .tracksInterest("ride.stops")
         .padding(.horizontal, TTSpace.s4)
         .padding(.vertical, TTSpace.s2)
         .ttSheetCard()

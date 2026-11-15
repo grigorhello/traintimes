@@ -87,10 +87,33 @@ extension TripDetailsViewModel {
         return model
     }
 
-    /// West Harbour to Union with 12 stops, 6:58 to 8:02 AM, timetable only, at 6:30 AM: the list is taller than the
-    /// sheet (the canvas's Trip-Details-End frame).
+    /// The 7:58 AM express train at 7:21 AM, 9 min late with fresh live data (expected 8:07 AM): a later train, which says
+    /// "Departs at" in the hero (TT-207, the canvas's Delay-A-Dark).
     @MainActor
-    static func longTripFixture(hasAlert: Bool = false) async throws -> TripDetailsViewModel {
+    static func laterDelayedFixture() async throws -> TripDetailsViewModel {
+        let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
+        let day = fixture.serviceDay
+        let key = TripKey(serviceDay: day, tripId: "LW-0758-20261105")
+        let update = LiveTripUpdate(
+            expectedDeparture: day.date(hour: 8, minute: 7),
+            expectedArrival: day.date(hour: 8, minute: 47),
+            delayMinutes: 9,
+            reportedAt: fixture.now
+        )
+        let repository = StubScheduleRepository(
+            tripList: try await fixture.trips(for: fixture.route, on: day),
+            live: LiveSnapshot(updatedAt: fixture.now, updates: [key.tripId: update]),
+            stopList: try await fixture.stops(for: key, on: fixture.route)
+        )
+        let model = TripDetailsViewModel(route: fixture.route, key: key, repository: repository, clock: FixedClock(now: fixture.now))
+        await model.load()
+        return model
+    }
+
+    /// West Harbour to Union with 12 stops, 6:58 to 8:02 AM, timetable only, at 6:30 AM by default: the list is taller than
+    /// the sheet (the canvas's Trip-Details-End frame). From 6:58 AM the train has left and the sheet shows the whole list.
+    @MainActor
+    static func longTripFixture(hasAlert: Bool = false, hour: Int = 6, minute: Int = 30) async throws -> TripDetailsViewModel {
         let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
         let day = fixture.serviceDay
         let departure = day.date(hour: 6, minute: 58)
@@ -111,7 +134,7 @@ extension TripDetailsViewModel {
         }
         let repository = StubScheduleRepository(tripList: [trip], live: .empty, stopList: stops)
         let model = TripDetailsViewModel(
-            route: fixture.route, key: trip.key, repository: repository, clock: FixedClock(now: day.date(hour: 6, minute: 30)),
+            route: fixture.route, key: trip.key, repository: repository, clock: FixedClock(now: day.date(hour: hour, minute: minute)),
             hasAlert: hasAlert
         )
         await model.load()

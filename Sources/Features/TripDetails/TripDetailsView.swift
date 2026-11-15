@@ -163,6 +163,7 @@ struct TripDetailsView: View {
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("trip.title")
+                    .tracksInterest("trip.line")
             }
             Spacer(minLength: 0)
             GlassIconButton(systemName: isRiding ? "chevron.down" : "xmark", label: "button.close", tint: TTColor.ink) {
@@ -190,7 +191,7 @@ struct TripDetailsView: View {
     // MARK: Before departure (TT-205, D93)
 
     /// Boards 2 and 4: the hero card, then the trip folded to its two stations with the stops between in one row; nothing
-    /// under it. One look whether the train has an alert or "I’m on board" shows.
+    /// under it. One look for every train that has not left (TT-207, D96: the Trip details canvas's Delay-A boards).
     private func departureContent(_ hero: DepartureHero, details: TripDetails) -> some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
             DepartureHeroCard(hero: hero)
@@ -263,7 +264,10 @@ struct TripDetailsView: View {
                                 .font(TTFont.subhead)
                                 .monospacedDigit()
                                 .strikethrough(stop.isSkipped)
-                                .foregroundStyle(stop.isSkipped ? TTColor.inkTertiary : TTColor.inkSecondary)
+                                .foregroundStyle(
+                                    stop.isSkipped ? TTColor.inkTertiary
+                                        : details.departure.isLate ? TTColor.delayInk : TTColor.inkSecondary
+                                )
                         }
                         .frame(height: Self.foldRow)
                         .accessibilityElement(children: .combine)
@@ -453,6 +457,7 @@ struct TripDetailsView: View {
         }
         .lineLimit(1)
         .fixedSize()
+        .tracksInterest("trip.time")
     }
 
     /// "Platform [2] · in 11 min · Express" on the left (the platform first, Grigor, TT-199), the trip length on the right.
@@ -490,6 +495,7 @@ struct TripDetailsView: View {
                 .lineLimit(1)
                 .fixedSize()
                 .layoutPriority(1)
+                .tracksInterest("trip.length")
         }
         .frame(height: Self.metaRow)
     }
@@ -567,6 +573,8 @@ struct TripDetailsView: View {
                 .foregroundStyle(isDimmed ? TTColor.inkTertiary : TTColor.ink)
         }
         .frame(height: Self.stopRow)
+        .contentShape(Rectangle())
+        .tracksInterest("trip.stop")
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("trip.stop.\(stop.id)")
     }

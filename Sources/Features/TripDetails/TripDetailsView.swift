@@ -163,6 +163,7 @@ struct TripDetailsView: View {
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("trip.title")
+                    .tracksInterest("trip.line")
             }
             Spacer(minLength: 0)
             GlassIconButton(systemName: isRiding ? "chevron.down" : "xmark", label: "button.close", tint: TTColor.ink) {
@@ -332,6 +333,7 @@ struct TripDetailsView: View {
         }
         .lineLimit(1)
         .fixedSize()
+        .tracksInterest("trip.time")
     }
 
     /// "Platform [2] · in 11 min · Express" on the left (the platform first, Grigor, TT-199), the trip length on the right.
@@ -369,6 +371,7 @@ struct TripDetailsView: View {
                 .lineLimit(1)
                 .fixedSize()
                 .layoutPriority(1)
+                .tracksInterest("trip.length")
         }
         .frame(height: Self.metaRow)
     }
@@ -447,6 +450,8 @@ struct TripDetailsView: View {
                 .foregroundStyle(isDimmed ? TTColor.inkTertiary : TTColor.ink)
         }
         .frame(height: Self.stopRow)
+        .contentShape(Rectangle())
+        .tracksInterest("trip.stop")
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("trip.stop.\(stop.id)")
     }

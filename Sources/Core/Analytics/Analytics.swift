@@ -51,12 +51,15 @@ protocol AnalyticsTracking: AnyObject {
 @MainActor
 enum Analytics {
     static var tracker: (any AnalyticsTracking)?
+    /// The screen on top, as last named by `screen(_:)`; interest taps say where they happened (TT-209).
+    private(set) static var currentScreen: AnalyticsScreen?
 
     static func track(_ event: AnalyticsEvent) {
         tracker?.track(event)
     }
 
     static func screen(_ screen: AnalyticsScreen) {
+        currentScreen = screen
         tracker?.screen(screen)
     }
 }
@@ -155,6 +158,11 @@ extension AnalyticsEvent {
 
     static func feedbackSent(_ kind: FeedbackKind, withEmail: Bool) -> Self {
         Self("feedback_sent", ["kind": .string(kind.rawValue), "with_email": .bool(withEmail)])
+    }
+
+    /// Taps on one information-only element (TT-209): `count` taps in a row, each within 2 s of the one before.
+    static func interestTapped(element: String, screen: String, count: Int) -> Self {
+        Self("interest_tapped", ["element": .string(element), "screen": .string(screen), "count": .int(count)])
     }
 
     static func settingChanged(_ setting: String, value: String) -> Self {

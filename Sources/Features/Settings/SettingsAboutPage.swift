@@ -44,6 +44,7 @@ struct SettingsAboutPage: View {
             Text("settings.tagline")
                 .font(TTFont.subhead)
                 .foregroundStyle(TTColor.inkSecondary)
+                .tracksInterest("about.tagline")
                 .settingsRise(order: 0)
             Text(verbatim: viewModel.versionLine)
                 .font(TTFont.footnote)
@@ -52,6 +53,7 @@ struct SettingsAboutPage: View {
                 .padding(.horizontal, 11)
                 .frame(height: 26)
                 .background(TTColor.surfaceRaised, in: Capsule())
+                .tracksInterest("about.version")
                 .padding(.top, TTSpace.s3)
                 .settingsRise(order: 1)
         }

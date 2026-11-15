@@ -46,6 +46,28 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
 | `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
+| `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |
+
+### Interest elements (`interest_tapped.element`)
+
+A tap on a card's time, status or platform also opens Trip details, as the card always did; the element says which part
+was tapped.
+
+| Element | What was tapped |
+|---|---|
+| `schedule.card.time` | A Schedule card's departure time |
+| `schedule.card.status` | A card's status line (On time, 5 min late, Departed, Cancelled) |
+| `schedule.card.platform` | A card's "Platform" and pill |
+| `schedule.freshness` | The freshness line under the day strip (Live, Offline, updated …) |
+| `schedule.line` | The line name over the route card |
+| `trip.line` | The line name in Trip details' header |
+| `trip.time` | A journey time in Trip details (departure or arrival) |
+| `trip.length` | The trip length ("42 min") in Trip details |
+| `trip.stop` | A stop row in Trip details |
+| `ride.minutes` | The ride screen's minutes to your stop |
+| `ride.stops` | The ride screen's stop rail |
+| `note.<key>` | A Settings note, by its string key: `note.settings.notifications.footnote`, `note.detect.setting.turnedOff`, `note.settings.no_account`, `note.settings.independent`, `note.settings.testing.footnote` |
+| `about.tagline`, `about.version` | The tagline and the version pill on About |
 
 Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and their rides say `demo: true`; filter
 `channel = appstore` for real riders.
@@ -62,5 +84,6 @@ Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and
 - Activation: of installs, how many reach `route_set` with `is_first`, then `trip_opened`, then `alert_saved`?
 - Retention: riders with `Application Opened` on day 1, 7 and 30 after `Application Installed`.
 - Which lines and stations (`route_set.line`, `from`, `to`) riders use most.
+- What riders want to know more about: `interest_tapped` by `element`, and rage taps (`count` 3 or more).
 - Where riders give up: `notification_permission` denied, `alert_removed` soon after `alert_saved`, `ride_ended` with
   `by_rider` before `arrived`.

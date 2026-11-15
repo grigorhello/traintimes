@@ -212,6 +212,7 @@ struct ScheduleView: View {
                 .animation(isPicking ? .easeOut(duration: 0.22) : .easeIn(duration: 0.20), value: isPicking)
             if let mode = viewModel.statusRowMode(formatter) {
                 FreshnessLine(mode: mode)
+                    .tracksInterest("schedule.freshness")
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, -TTSpace.s1)
             }
@@ -384,6 +385,7 @@ struct ScheduleView: View {
                     .layoutPriority(1)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("schedule.line")
+                    .tracksInterest("schedule.line")
                 Spacer(minLength: 0)
                 if !viewModel.lineNotices.isEmpty {
                     noticeChip

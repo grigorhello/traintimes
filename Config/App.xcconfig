@@ -2,5 +2,5 @@
 // GO's live feeds with its own (TT-179, D88, revising D36's key in the app).
 
 // PostHog project token for anonymous product analytics (TT-208, D92). Public by design (it can only send events), so it
-// lives here; empty sends nothing. Only Release builds (TestFlight, App Store) send, never Debug, previews or tests.
-POSTHOG_PROJECT_TOKEN =
+// lives here (project 737150, US Cloud); empty sends nothing. Only Release builds (TestFlight, App Store) send, never Debug, previews or tests.
+POSTHOG_PROJECT_TOKEN = phc_CwspZcrujNbhdBLiYwYmnbUycc9zepAD3gFNLBgr8XsU

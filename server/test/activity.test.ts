@@ -1,4 +1,4 @@
-// The before-departure Live Activity (TT-178, acceptance criterion 1): start, update and end payloads at the right times,
+// The before-departure Live Activity (TT-178, acceptance criterion 1; TT-205's one card): start, update and end payloads at the right times,
 // within the send budget, end to end through the API, the timetable and the minute cycle, on the TT-130 sample timetable.
 
 import assert from 'node:assert/strict';
@@ -85,23 +85,17 @@ describe('the activity, at the right times', () => {
       destinationName: 'Union Station',
       stopCount: 3,
     });
-    assert.deepEqual(start.alert, { title: 'Your 7:13 AM train is live', body: 'Oakville GO to Union Station GO', sound: 'default' });
+    assert.deepEqual(start.alert, { title: '7:13 AM departs in 30 min', body: '', sound: 'default' });
     assert.deepEqual(start['content-state'], {
       phase: 'countingDown',
-      title: '7:13 AM to Union Station',
-      detail: 'Check the board · Scheduled',
+      title: '7:13 AM departs in',
       countdownEnd: at('7:13') / 1000,
       now: '',
-      time: 'departs',
-      departure: 'Oakville 7:13 AM',
-      arrival: 'Union Station 7:47 AM',
-      arrives: 'Arrives Union Station 7:47 AM',
-      position: 0,
-      button: 'I’m on board',
-      updated: 'Updated 6:43 AM',
-      platform: 'Check the board',
-      pill: false,
+      label: 'Platform',
       late: false,
+      position: 0,
+      isClose: false,
+      updated: 'Updated 6:43 AM',
     });
     assert.equal(start['stale-date'], at('7:15') / 1000, 'Stale, and ended by the app, 2 min after it left');
     assert.equal(start.timestamp, at('6:43') / 1000);
@@ -116,24 +110,25 @@ describe('the activity, at the right times', () => {
     const [delayed] = await cycle('6:51:00', delayFeed('6:51', 4));
     assert.equal(delayed.event, 'update');
     assert.equal(apns.activityPushes.at(-1)!.token, ACTIVITY_TOKEN);
-    assert.equal(delayed['content-state'].detail, 'Check the board · Delayed 4 min');
+    assert.equal(delayed['content-state'].title, '7:17 AM departs in', 'The expected time');
+    assert.equal(delayed['content-state'].delay, '4 min late');
     assert.equal(delayed['content-state'].late, true);
     assert.equal(delayed['content-state'].countdownEnd, at('7:17') / 1000);
-    assert.equal(delayed['content-state'].departure, 'Oakville 7:17 AM');
-    assert.equal(delayed['content-state'].arrival, 'Union Station 7:51 AM');
     assert.equal(delayed['stale-date'], at('7:19') / 1000);
     assert.deepEqual(await cycle('6:52:00', delayFeed('6:52', 4)), [], 'The same look sends nothing');
 
     const [boarding] = await cycle('7:15:30', delayFeed('7:15', 4));
     assert.equal(boarding['content-state'].phase, 'boarding');
-    assert.equal(boarding['content-state'].detail, 'Check the board · Boarding now');
-    assert.equal(boarding['content-state'].late, false);
+    assert.equal(boarding['content-state'].title, '7:17 AM boarding now');
+    assert.equal(boarding['content-state'].isClose, true);
+    assert.equal(boarding['content-state'].delay, '4 min late');
 
     const [departed] = await cycle('7:17:30', delayFeed('7:17', 4));
     assert.equal(departed['content-state'].phase, 'departed');
-    assert.equal(departed['content-state'].detail, 'Check the board · Departed 7:17 AM');
+    assert.equal(departed['content-state'].title, 'Departed 7:17 AM');
     assert.equal(departed['content-state'].countdownEnd, undefined);
-    assert.equal(departed['content-state'].time, '');
+    assert.equal(departed['content-state'].delay, undefined);
+    assert.equal(departed['content-state'].late, false);
 
     assert.deepEqual(await cycle('7:18:30', delayFeed('7:18', 4)), []);
     const [end] = await cycle('7:19:00', delayFeed('7:19', 4));
@@ -206,8 +201,8 @@ describe('the activity, at the right times', () => {
   test('times in 24-hour format when the app uses it', async () => {
     await setUp(INSTALLATION, START_TOKEN, '24h');
     const [start] = await cycle('6:43:00');
-    assert.equal(start.alert.title, 'Your 07:13 train is live');
-    assert.equal(start['content-state'].title, '07:13 to Union Station');
+    assert.equal(start.alert.title, '07:13 departs in 30 min');
+    assert.equal(start['content-state'].title, '07:13 departs in');
   });
 });
 
@@ -231,7 +226,8 @@ describe('the rules', () => {
   test('on time with live data, a small lateness, and the update time does not count as a change', () => {
     const onTime = { ...train, status: { kind: 'running' as const, delayMin: 1, expected: at('7:14'), reportedAt: at('7:00') } };
     const state = contentState(onTime, 'countingDown', at('7:00'), '12h');
-    assert.equal(state.detail, 'Check the board · On time');
+    assert.equal(state.title, '7:14 AM departs in', 'The expected time, not late under 3 min');
+    assert.equal(state.delay, undefined);
     assert.equal(state.late, false);
     assert.equal(state.countdownEnd, at('7:14') / 1000);
     assert.equal(signature(state), signature(contentState(onTime, 'countingDown', at('7:01'), '12h')));

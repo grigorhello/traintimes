@@ -22,8 +22,6 @@ struct ScheduleView: View {
     var onBoard: OnBoard?
     /// A tap on the ride strip: Trip details in ride mode.
     var onOpenRide: () -> Void = {}
-    /// A tap on the countdown strip before departure (TT-177): its Trip details. Nil opens the trip on the route shown.
-    var onOpenDeparture: ((TripKey) -> Void)?
 
     /// The one formatter (D17), following the Time format setting (TT-105).
     @Environment(\.timeFormatter) private var formatter
@@ -53,8 +51,7 @@ struct ScheduleView: View {
         bells: AlertBellModel? = nil,
         picker: RouteFormViewModel? = nil,
         onBoard: OnBoard? = nil,
-        onOpenRide: @escaping () -> Void = {},
-        onOpenDeparture: ((TripKey) -> Void)? = nil
+        onOpenRide: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.stations = stations
@@ -63,7 +60,6 @@ struct ScheduleView: View {
         self.bells = bells
         self.onBoard = onBoard
         self.onOpenRide = onOpenRide
-        self.onOpenDeparture = onOpenDeparture
         _picker = State(initialValue: picker)
         // A screen made over trains that are already loaded shows them at rest: only a later request cascades.
         _motion = State(
@@ -78,8 +74,8 @@ struct ScheduleView: View {
     var body: some View {
         timeline
             .safeAreaInset(edge: .top, spacing: 0) { header }
-            // The timeline moves with the strip under the day strip instead of jumping (TT-175), the countdown's too (TT-177).
-            .rideStripMotion(onBoard, departs: viewModel.liveDeparture != nil || onBoard?.departureDemo != nil)
+            // The timeline moves with the strip under the day strip instead of jumping (TT-175).
+            .rideStripMotion(onBoard)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
             // A tap outside the day panel closes it, and still reaches what it lands on (TT-191).
@@ -217,12 +213,7 @@ struct ScheduleView: View {
             }
             // The ride strip takes the watched-trip strip's place while a ride runs (Live-Schedule). Its own view reads the
             // ride, so the ride's every-second changes redraw the strip alone.
-            RideStripSlot(
-                onBoard: onBoard, onOpen: onOpenRide, departure: viewModel.departureStrip(formatter),
-                onOpenDeparture: { key in
-                    if let onOpenDeparture { onOpenDeparture(key) } else { onOpenTrip(key) }
-                }
-            ) {
+            RideStripSlot(onBoard: onBoard, onOpen: onOpenRide) {
                 if let strip = viewModel.watchedStrip(formatter) {
                     WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
                         withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }

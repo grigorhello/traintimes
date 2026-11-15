@@ -9,15 +9,6 @@ struct RideDetails: Equatable {
         case riding, atStation, yourStopNext, arriving, atYourStop
     }
 
-    /// The departure card's status row (TT-177); the ride itself no longer says where its position comes from (D87).
-    enum Source: Equatable {
-        /// "Live · GO train data", with the rippling dot.
-        case live(String)
-        /// "Timetable", with the grey dot.
-        case timetable
-        case complete
-    }
-
     /// A row of the drawn rail.
     enum Row: Equatable, Identifiable {
         case stop(Stop)
@@ -189,37 +180,20 @@ extension RideDetails {
     }
 }
 
-/// The ride strip on Schedule (TT-172, *Live-Schedule*): "On board · 5:13 PM train", the next stop, the minutes to it, and
-/// your stop with its time. A tap opens Trip details in ride mode.
+/// The ride strip on Schedule (TT-172; one line since TT-205, D93, *Live-Schedule*): the ride screen's line and minutes. A
+/// tap opens Trip details in ride mode.
 struct RideStrip: Equatable {
-    /// "On board · 5:13 PM train".
-    let title: String
-    /// "Next stop Port Credit", or "This is your stop".
-    let next: String
-    /// "4 min" to the next stop, or "Now" at your stop.
+    /// "Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson": the ride screen's kicker.
+    let line: String
+    /// "11 min" to your stop, or "Now" at it.
     let countdown: String
-    /// "Clarkson".
-    let destination: String
-    /// Your stop's time.
-    let arrival: String
     /// The dot ripples while the phone or the feed places the train, grey on the timetable.
     let isLive: Bool
 
     init?(plan: RidePlan, state: RideState, now: Date, formatter: some TimeFormatting) {
-        guard let times = RideTimes(plan: plan, state: state) else { return nil }
-        let stops = plan.stops
-        let last = times.last
-        let isThere = state.phase == .atYourStop || state.phase == .ended
-        let next = min(times.passed + 1, last)
-        title = String(format: String(localized: "onboard.strip"), formatter.time(stops[0].departure))
-        self.next = isThere
-            ? String(localized: "onboard.thisIsYours")
-            : String(format: String(localized: "onboard.stripNext"), RideDetails.shortName(stops[next].station.name))
-        countdown = isThere
-            ? String(localized: "onboard.now")
-            : String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: next, from: now)))
-        destination = RideDetails.shortName(stops[last].station.name)
-        arrival = formatter.time(times.time(at: last))
+        guard let details = RideDetails(plan: plan, state: state, now: now, formatter: formatter) else { return nil }
+        line = details.kicker
+        countdown = details.countdown
         isLive = state.source != .timetable
     }
 }

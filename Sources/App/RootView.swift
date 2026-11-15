@@ -135,8 +135,7 @@ struct RootView: View {
                         onOpenLineNotice: { router.present(.lineNotices) },
                         bells: bells,
                         onBoard: onBoard,
-                        onOpenRide: { Task { await openRide() } },
-                        onOpenDeparture: { openDeparture($0) }
+                        onOpenRide: { Task { await openRide() } }
                     )
                 }
             }
@@ -352,38 +351,33 @@ struct RootView: View {
         BuildChannel.showsTesting ? settings.demoTrains : .off
     }
 
-    /// The countdown strip (TT-177): the alerted train's Trip details, or the demo departure's on its own route.
-    private func openDeparture(_ key: TripKey) {
-        if let demo = onBoard.departureDemo, demo.key == key {
-            openTrip(key, on: demo.route, source: .departure)
-        } else {
-            openTrip(key, source: .departure)
-        }
-    }
-
     /// The Live Activity's train before it leaves (TT-178): the demo departure's while it plays, else Schedule's alerted train
     /// today, on the app's clock to the second.
     private func departureForActivity() -> DepartureActivitySource? {
         if let demo = onBoard.departureDemo {
             let now = demo.now
             guard let departure = demo.departure(at: now), let live = LiveDeparture(departure, now: now) else { return nil }
-            return DepartureActivitySource(live: live, route: demo.route, now: now, hasPlatformSource: true)
+            return DepartureActivitySource(live: live, route: demo.route, now: now)
         }
         let now = clock.now
         guard let route = schedule.route, let live = schedule.activityDeparture(at: now) else { return nil }
-        return DepartureActivitySource(live: live, route: route, now: now, hasPlatformSource: schedule.hasPlatformSource)
+        return DepartureActivitySource(live: live, route: route, now: now)
     }
 
     /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, in the sheet's own
     /// button window (from 20 min before departure, D63) and unless the first-ride sheet has to come first (the rider then
     /// taps "I’m on board" there).
     private func openDepartureFromActivity(boards: Bool) async {
-        guard let ride = liveActivity?.departureRide else { return }
-        let key = ride.tripKey
-        if let demo = onBoard.departureDemo, demo.key == key {
+        let key: TripKey
+        if let demo = onBoard.departureDemo {
+            // The demo departure's activity is the one showing (Schedule has no countdown strip since TT-205): its link
+            // opens the demo's train, in fixture runs too, where the app has no Live Activity of its own.
+            key = demo.key
             router.showSchedule()
             openTrip(key, on: demo.route, source: .departure)
         } else {
+            guard let ride = liveActivity?.departureRide else { return }
+            key = ride.tripKey
             await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId), source: .departure)
         }
         guard boards, let details = tripDetails, details.key == key else { return }

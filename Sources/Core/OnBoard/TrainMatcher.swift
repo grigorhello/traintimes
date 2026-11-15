@@ -78,6 +78,8 @@ struct TrainMatcher {
     static let ignoreAfter: TimeInterval = 3 * 60
     /// The most trains one question offers.
     static let mostOffered = 2
+    /// No question with less than this left to the rider's stop (TT-205).
+    static let questionLead: TimeInterval = 5 * 60
     /// Trains this much later than the least late one that fits are not offered with it.
     static let closeDelays: TimeInterval = 5 * 60
     /// One shared stop and 3 min of moving together make the fourth check only when the train's next stop is this far
@@ -210,7 +212,7 @@ struct TrainMatcher {
             let offered: [TrainCandidate] = Array(likely.prefix(Self.mostOffered)).sorted { $0.departure < $1.departure }
             let readyTrips = Set(ready.map(\.trip))
             if offered.contains(where: { readyTrips.contains($0.trip) }),
-               let first = offered.first, let proof = evidence[first.trip] {
+               let first = offered.first, let proof = evidence[first.trip], leavesTimeToAsk(first, at: now) {
                 state = .asking(Question(
                     trains: offered,
                     since: proof.since.map { first.plan.stops[$0].station },
@@ -421,6 +423,13 @@ struct TrainMatcher {
         let otherDelay = other.delay ?? 0
         if delay != otherDelay { return delay < otherDelay }
         return train.departure < otherTrain.departure
+    }
+
+    /// The question is worth asking: 5 min or more remain to the rider's stop at the train's expected time (TT-205). Closer
+    /// than that, a ride would start only to end.
+    private func leavesTimeToAsk(_ train: TrainCandidate, at now: Date) -> Bool {
+        guard let stop = train.plan.stops.last else { return false }
+        return stop.arrival.addingTimeInterval(delay(of: train)).timeIntervalSince(now) >= Self.questionLead
     }
 
     /// How late the timetable takes the train to run, from the stops it shared with the phone; 0 on the feed.

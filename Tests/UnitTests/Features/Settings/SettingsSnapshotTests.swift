@@ -30,7 +30,7 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testNotificationsDetectOnLight() async {
         snapNotifications(.allowed, .light, await twoAlerts(), detection: BackgroundRig.on())
     }
-    /// Turned off by three Not me in a week: the line under the switch.
+    /// Turned off by three "No" in a week: the line under the switch.
     @MainActor func testNotificationsDetectTurnedOffDark() async {
         snapNotifications(.allowed, .dark, await twoAlerts(), detection: turnedOff())
     }
@@ -93,7 +93,7 @@ final class SettingsSnapshotTests: XCTestCase {
         snap(view, style, testName: testName, line: line)
     }
 
-    /// The switch off after three Not me in a week.
+    /// The switch off after three "No" in a week.
     @MainActor
     private func turnedOff() -> BackgroundRig {
         let defaults = UserDefaults.ephemeral()

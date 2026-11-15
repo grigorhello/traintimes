@@ -16,12 +16,14 @@ struct TripDetailsView: View {
     /// The permission sheet before the first ride's iOS prompt (TT-172).
     @State private var showsIntro = false
     @State private var tick = 0
-    /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey or departure card does
-    /// not show through for the length of the dismissal (TT-177).
+    /// The ride card as End ride or Done left it: it stays while the sheet closes, so the journey card or the hero does not
+    /// show through for the length of the dismissal (TT-177).
     @State private var closingRide: RideDetails?
-    /// The staged entrance has played: content that appears later (the departure card taking the journey card's place
-    /// once "Alert me" alerts a train in its window, TT-192) cross-fades in at rest instead of arriving again.
+    /// The staged entrance has played: content that appears later (the hero taking the journey card's place once "Alert me"
+    /// alerts a train in its window, TT-192) cross-fades in at rest instead of arriving again.
     @State private var entranceSettled = false
+    /// The folded row before departure is open: the stops between the two stations show (TT-205).
+    @State private var showsStopsBetween = false
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -35,6 +37,8 @@ struct TripDetailsView: View {
     private static let markerColumn: CGFloat = 20
     private static let railWidth: CGFloat = 2
     private static let stopDot: CGFloat = 8
+    /// The folded row and the stops it opens to, before departure (TT-205).
+    private static let foldRow: CGFloat = 36
     private static let dotHalo: CGFloat = 2
     private static let skippedGlyph: CGFloat = 14
     private static let alertHeight: CGFloat = 52
@@ -59,7 +63,7 @@ struct TripDetailsView: View {
         let _ = tick
         let ride = closingRide ?? viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
-        let departure = ride == nil ? viewModel.departureDetails(formatter) : nil
+        let hero = ride == nil ? viewModel.departureHero(formatter) : nil
         let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
         let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
         ZStack(alignment: .bottom) {
@@ -71,14 +75,14 @@ struct TripDetailsView: View {
                     Group {
                         if let ride {
                             RideContent(ride: ride, risesIn: !viewModel.ridesInPlace)
-                        } else if let departure, let details {
-                            departureContent(departure, details: details)
+                        } else if let hero, let details {
+                            departureContent(hero, details: details)
                         } else if let details {
-                            content(details, hint: showsOnBoard ? viewModel.onBoardHint : nil)
+                            content(details)
                         }
                     }
                     .environment(\.stagedEntranceSettled, entranceSettled)
-                    .animation(TTMotion.fade, value: departure == nil)
+                    .animation(TTMotion.fade, value: hero == nil)
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, TTSpace.s4)
                     .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
@@ -131,7 +135,6 @@ struct TripDetailsView: View {
         }
         .sheet(isPresented: $showsIntro) {
             RideIntroSheet(
-                destination: viewModel.destinationName,
                 onContinue: {
                     showsIntro = false
                     Task { await viewModel.startRide() }
@@ -175,10 +178,10 @@ struct TripDetailsView: View {
         .padding(.top, Self.headerTop)
     }
 
-    private func content(_ details: TripDetails, hint: String?) -> some View {
+    private func content(_ details: TripDetails) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             journey(details)
-            stops(details, hint: hint)
+            stops(details)
                 .padding(.top, TTSpace.s5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,22 +190,136 @@ struct TripDetailsView: View {
         .animation(TTMotion.fade, value: details)
     }
 
-    // MARK: Before departure (TT-177)
+    // MARK: Before departure (TT-205, D93)
 
-    /// *Live-Depart-Trip*: the departure card in the journey card's place; the stop list as it was, with the window's
-    /// footnote.
-    private func departureContent(_ departure: DepartureDetails, details: TripDetails) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            LiveDepartureCard(
-                departure: departure,
-                onDirections: viewModel.directionsStation != nil ? { viewModel.openDirections() } : nil
-            )
-            // The card arrives first, as the journey card does (TT-167, D65).
-            .stagedEntrance(rise: 12, on: TTMotion.card)
-            stops(details, hint: departure.footnote)
-                .padding(.top, TTSpace.s5)
+    /// Boards 2 and 4: the hero card, then the trip folded to its two stations with the stops between in one row; nothing
+    /// under it. One look whether the train has an alert or "I’m on board" shows.
+    private func departureContent(_ hero: DepartureHero, details: TripDetails) -> some View {
+        VStack(alignment: .leading, spacing: TTSpace.s3) {
+            DepartureHeroCard(hero: hero)
+                // The card arrives first, as the journey card does (TT-167, D65).
+                .stagedEntrance(rise: 12, on: TTMotion.card)
+            foldedTrip(details)
+                .stagedEntrance(rise: 12, on: TTMotion.card, delay: TTMotion.stopDelay(1))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The departure station with its time (and the Directions link under its name, D64), "4 stops" with a chevron that
+    /// opens the stops between, your stop with the pin and its time. Times in ink, the expected ones in delay-ink when late.
+    private func foldedTrip(_ details: TripDetails) -> some View {
+        let between = Array(details.stops.dropFirst().dropLast())
+        return VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: TTSpace.s3) {
+                Circle()
+                    .strokeBorder(TTColor.inkSecondary, lineWidth: RouteMarkers.Size.regular.ringStroke)
+                    .frame(width: RouteMarkers.Size.regular.ring, height: RouteMarkers.Size.regular.ring)
+                    .padding(.top, details.showsDirections ? Self.directionsRingTop : 0)
+                    .frame(width: Self.markerColumn, height: Self.stationRow, alignment: details.showsDirections ? .top : .center)
+                    .accessibilityHidden(true)
+                if details.showsDirections {
+                    directionsRow(details.origin, time: details.departure, struckTime: false)
+                } else {
+                    foldedStationRow(details.origin, time: details.departure)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(details.stops.first.map { "trip.stop.\($0.id)" } ?? "")
+            if !between.isEmpty {
+                Button {
+                    withAnimation(TTMotion.fade) { showsStopsBetween.toggle() }
+                } label: {
+                    HStack(spacing: TTSpace.s3) {
+                        foldDots
+                        Text(verbatim: between.count == 1
+                            ? String(localized: "trip.stops_one")
+                            : String(format: String(localized: "trip.stops_count"), between.count))
+                            .font(TTFont.subhead)
+                            .foregroundStyle(TTColor.inkSecondary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TTColor.inkTertiary)
+                            .rotationEffect(.degrees(showsStopsBetween ? 180 : 0))
+                            .accessibilityHidden(true)
+                    }
+                    .frame(height: Self.foldRow)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("trip.stopsBetween")
+                if showsStopsBetween {
+                    ForEach(between) { stop in
+                        HStack(spacing: TTSpace.s3) {
+                            Circle()
+                                .fill(TTColor.controlBorder)
+                                .frame(width: Self.stopDot, height: Self.stopDot)
+                                .frame(width: Self.markerColumn)
+                                .accessibilityHidden(true)
+                            Text(verbatim: stop.name)
+                                .font(TTFont.subhead)
+                                .foregroundStyle(stop.isSkipped ? TTColor.inkTertiary : TTColor.ink)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                            Spacer(minLength: TTSpace.s2)
+                            Text(stop.time)
+                                .font(TTFont.subhead)
+                                .monospacedDigit()
+                                .strikethrough(stop.isSkipped)
+                                .foregroundStyle(stop.isSkipped ? TTColor.inkTertiary : TTColor.inkSecondary)
+                        }
+                        .frame(height: Self.foldRow)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("trip.stop.\(stop.id)")
+                        .transition(.opacity)
+                    }
+                }
+            }
+            HStack(spacing: TTSpace.s3) {
+                RoutePin()
+                    .fill(TTColor.accent, style: FillStyle(eoFill: true))
+                    .frame(width: RouteMarkers.Size.regular.pin, height: RouteMarkers.Size.regular.pin)
+                    .frame(width: Self.markerColumn)
+                    .accessibilityHidden(true)
+                foldedStationRow(details.destination, time: details.arrival)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(details.stops.last.map { "trip.stop.\($0.id)" } ?? "")
+        }
+        .padding(.horizontal, TTSpace.s4)
+        .padding(.vertical, 2)
+        .ttSheetCard()
+    }
+
+    /// The three small dots of the folded row, under the ring.
+    private var foldDots: some View {
+        let size = RouteMarkers.Size.regular
+        return VStack(spacing: size.gap) {
+            ForEach(0..<size.dots, id: \.self) { _ in
+                Circle().fill(TTColor.inkTertiary).frame(width: size.dot, height: size.dot)
+            }
+        }
+        .frame(width: Self.markerColumn)
+        .accessibilityHidden(true)
+    }
+
+    /// A station and its time, both 17 pt semibold: the expected time only (the hero already says how late).
+    private func foldedStationRow(_ name: String, time: TripDetails.Time) -> some View {
+        HStack(spacing: TTSpace.s2) {
+            stationName(name)
+            Spacer(minLength: 0)
+            foldedTime(time)
+        }
+        .frame(height: Self.stationRow)
+    }
+
+    private func foldedTime(_ time: TripDetails.Time) -> some View {
+        Text(time.value)
+            .font(TTFont.headline)
+            .monospacedDigit()
+            .foregroundStyle(time.isLate ? TTColor.delayInk : TTColor.ink)
+            .lineLimit(1)
+            .fixedSize()
     }
 
     // MARK: Journey card
@@ -280,7 +397,8 @@ struct TripDetailsView: View {
 
     /// The departure row with the Directions link under the name (TT-188, D64): the name and the link are one button the
     /// full height of the row's left side, and the time lines up with the name.
-    private func directionsRow(_ name: String, time: TripDetails.Time) -> some View {
+    /// `struckTime` false: the folded trip's plain time (TT-205); true: the journey card's time with the struck scheduled one.
+    private func directionsRow(_ name: String, time: TripDetails.Time, struckTime: Bool = true) -> some View {
         HStack(alignment: .top, spacing: TTSpace.s2) {
             Button { viewModel.openDirections() } label: {
                 VStack(alignment: .leading, spacing: 0) {
@@ -300,8 +418,14 @@ struct TripDetailsView: View {
             }
             .buttonStyle(DimOnPressStyle())
             .accessibilityIdentifier("trip.directions")
-            timeStack(time, isStruck: false)
-                .padding(.top, Self.directionsTimeTop)
+            Group {
+                if struckTime {
+                    timeStack(time, isStruck: false)
+                } else {
+                    foldedTime(time)
+                }
+            }
+            .padding(.top, Self.directionsTimeTop)
         }
         .frame(height: Self.stationRow)
     }
@@ -382,8 +506,7 @@ struct TripDetailsView: View {
 
     // MARK: Stops
 
-    /// `hint` takes the footnote's place while "I'm on board" shows (TT-172).
-    private func stops(_ details: TripDetails, hint: String?) -> some View {
+    private func stops(_ details: TripDetails) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(details.stopCount).accessibilityAddTraits(.isHeader)
@@ -406,7 +529,7 @@ struct TripDetailsView: View {
             .ttSheetCard()
             .padding(.top, 6)
 
-            Text(hint ?? details.footnote)
+            Text(details.footnote)
                 .font(TTFont.footnote)
                 .monospacedDigit()
                 .foregroundStyle(TTColor.inkSecondary)

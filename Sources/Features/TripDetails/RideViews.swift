@@ -506,6 +506,8 @@ struct RideStopList: View {
                     Text(time)
                         .monospacedDigit()
                         .foregroundStyle(timeColour)
+                        // A passed stop's time goes at once, so it never slides over the next row's time as the list folds.
+                        .transition(Self.rowTransition)
                 }
             }
             // A passing stop's name and time fade to the passed style as its dot pops.

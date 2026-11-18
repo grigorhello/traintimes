@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The first seconds of a cold start, "Bloom" (TT-206, D94), and the welcome after it, by name: the numbers of
-/// `splash.css` and `first-d.css` on the Route and stations canvas, at the full pace for the first launches (TT-227). `o` is a line's distance from the centre line
-/// (Barrie 0, Kitchener and Richmond Hill 1, Milton and Stouffville 2, the Lakeshores 3). Reduce Motion turns every move
-/// into a 0.2 s cross-fade and drops the glint.
+/// `splash.css` and `first-d.css` on the Route and stations canvas, at the full pace for the first launches (TT-227).
+/// `o` is a line's distance from the centre line (Barrie 0, Kitchener and Richmond Hill 1, Milton and Stouffville 2, the
+/// Lakeshores 3). Reduce Motion turns every move into a 0.2 s cross-fade and drops the glint.
 enum LaunchMotion {
     /// The mark springing from 0.9 to 1 (spring 0.44, 0.62).
     static var mark: Animation { TTMotion.cascade.delay(timing.markDelay) }

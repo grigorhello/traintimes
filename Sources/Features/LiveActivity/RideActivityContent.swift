@@ -45,6 +45,10 @@ extension RideActivityAttributes.ContentState {
         self.phase = phase
         title = details.kicker
         countdownEnd = countdownTo.map { deviceNow.addingTimeInterval($0.timeIntervalSince(now)) }
+        // The ride screen's minutes, word for word (`RideDetails`): sent again as the engine's minute changes.
+        minutes = countdownTo.map { _ in
+            String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: last, from: now)))
+        }
         self.now = String(localized: "onboard.now")
         label = showsArrival ? String(localized: "depart.arrivesLabel") : ""
         value = showsArrival ? formatter.time(times.time(at: last)) : nil
@@ -61,8 +65,8 @@ extension RideActivityAttributes.ContentState {
     }
 
     /// The same activity as far as a rider can tell: the train within 2 % of the bar and the countdown within 15 s, the
-    /// rest the same (the update time aside). The app sends nothing new for such a change, only once a minute to keep it
-    /// fresh.
+    /// rest the same (the update time aside), the minutes included, so a new minute sends an update (TT-219). The app sends
+    /// nothing new for such a change, only once a minute to keep it fresh.
     func looksLike(_ other: Self) -> Bool {
         var mine = self, theirs = other
         guard abs(mine.position - theirs.position) < 0.02 else { return false }
@@ -103,6 +107,8 @@ extension RideActivityAttributes.ContentState {
         }
         let isLate = live.phase != .departed && live.delayMinutes != nil
         countdownEnd = live.phase == .departed ? nil : deviceNow.addingTimeInterval(live.leaves.timeIntervalSince(now))
+        // The departure hero's and the timeline's minutes ("in 12 min"); the alert server writes the same each minute.
+        minutes = live.phase == .departed ? nil : String(format: String(localized: "onboard.minutes"), live.minutes(at: now))
         self.now = ""
         label = String(localized: "depart.platformLabel")
         value = nil

@@ -8,9 +8,9 @@ final class WeatherTileModelTests: XCTestCase {
     private let oakville = Station(id: "OA", name: "Oakville GO", place: GeoPoint(latitude: 43.45, longitude: -79.68))
     private let union = Station(id: "UN", name: "Union Station GO", place: GeoPoint(latitude: 43.645, longitude: -79.38))
 
-    override func tearDown() {
+    override func tearDown() async throws {
         Analytics.tracker = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testKeepsTheForecastForAnHour() async throws {

@@ -111,8 +111,8 @@ add `channel = appstore` to see real riders only.
 | Rage taps by element | `1PEakxMp` | `interest_tapped` with `count` 3 or more, by `element` |
 | Offline views by kind | `crbax7Nq` | `offline_shown` per day by `kind` (`live`, `timetable`), last 30 days (TT-217) |
 
-`route_set` with `restored`
-is a route from before analytics, counted once at launch: it counts toward activation like a first route.
+`route_set` with `restored` is a route from before analytics, counted once at launch: it counts toward activation like a
+first route.
 
 ## Weekly review (TT-210)
 

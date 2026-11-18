@@ -119,7 +119,7 @@ async function bundleId(identifier, name) {
   return created.data
 }
 
-/// WeatherKit (TT-226, D100): the app's `com.apple.developer.weatherkit` entitlement needs the capability on its App ID
+/// WeatherKit (TT-226, D105): the app's `com.apple.developer.weatherkit` entitlement needs the capability on its App ID
 /// before the profile is made. The API documents no capability type for it, so this tries the portal's name and, if Apple
 /// refuses, says where to tick it; it never stops the build itself.
 async function ensureWeatherKit(bundle) {

@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The weather tile at the left of the day strip and its sheet (TT-226, D100): the From station's weather for the selected
+/// The weather tile at the left of the day strip and its sheet (TT-226, D105): the From station's weather for the selected
 /// day. One request per station brings every day, so picking a day never loads; a swap or a new route asks for the new From
 /// station. `ScheduleView` calls `refresh(for:)` when Schedule shows, on each return to the foreground and on a route change.
 @Observable @MainActor

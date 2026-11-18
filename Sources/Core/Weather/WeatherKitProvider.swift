@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 import WeatherKit
 
-/// Apple WeatherKit by the station's coordinates (TT-226, D100): no location permission, no key in the app, no server.
+/// Apple WeatherKit by the station's coordinates (TT-226, D105): no location permission, no key in the app, no server.
 /// The only file that imports WeatherKit. One request brings now, ten days and their hours, from the start of today in
 /// Toronto. Needs the WeatherKit capability on the App ID and `com.apple.developer.weatherkit` in the entitlements.
 struct WeatherKitProvider: WeatherProviding {

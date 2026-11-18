@@ -1,6 +1,6 @@
 import Foundation
 
-// The weather tile on Schedule (TT-226, D100): the From station's weather for the selected day, from Apple WeatherKit by
+// The weather tile on Schedule (TT-226, D105): the From station's weather for the selected day, from Apple WeatherKit by
 // the station's coordinates. These are the app's own types; only `WeatherKitProvider` imports WeatherKit.
 
 /// The sky with nothing falling from it.

@@ -33,6 +33,9 @@ struct ScheduleView: View {
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsScheduleMotion) private var playsMotion
+    @Environment(\.launchCovers) private var launchCovers
+    /// The Now pulse asked for while the launch's splash covered the timeline; it plays as the splash lifts (TT-227).
+    @State private var pulseWaits = false
     /// The early-stage Feedback pill at the end of the line row (TT-202, D85).
     @Environment(\.showsFeedbackPill) private var showsFeedbackPill
     /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
@@ -100,6 +103,15 @@ struct ScheduleView: View {
             .onChange(of: viewModel.entranceRequest) { startEntrance() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
             .onChange(of: viewModel.departureRequest) { startDeparture() }
+            // The launch's splash lifted (TT-227): the cascade and the Now pulse that waited under it play now.
+            .onChange(of: launchCovers) { _, covers in
+                guard !covers else { return }
+                if motion.cascadeSeen != viewModel.entranceRequest { startEntrance() }
+                if pulseWaits {
+                    pulseWaits = false
+                    startPulse()
+                }
+            }
             // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
             // play waits for its scroll to settle, so the first appearance asks for nothing.
             .onAppear { viewModel.timelineAppeared() }
@@ -150,6 +162,8 @@ struct ScheduleView: View {
             motion.cascadeSeen = request
             return
         }
+        // Under the launch's splash the cards wait at their first pose, unseen; the cascade starts as it lifts.
+        guard !launchCovers else { return }
         Task { @MainActor in
             // A newer request takes its own start.
             guard request == viewModel.entranceRequest else { return }
@@ -190,6 +204,10 @@ struct ScheduleView: View {
     /// Started on the next turn too, like the cascade, so its first frames are drawn. Under Reduce Motion it is a fade.
     private func startPulse() {
         guard playsMotion else { return }
+        guard !launchCovers else {
+            pulseWaits = true
+            return
+        }
         let pulse = viewModel.nowPulse
         let motion = motion
         Task { @MainActor in

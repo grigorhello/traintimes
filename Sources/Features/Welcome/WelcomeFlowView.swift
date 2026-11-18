@@ -88,14 +88,15 @@ struct WelcomeFlowView: View {
 
     // MARK: Splash and welcome
 
-    /// Bloom (about 1.3 s), then the picture glides down 64 pt as the mark eases to 76 pt and the splash's name fades; the
-    /// words rise 120 ms into the glide, then the button and the footnote. The glint starts once it has all settled.
+    /// Bloom (2.1 s on the first launches, 1.3 s after them, TT-227), then the picture glides down 64 pt as the mark eases
+    /// to 76 pt and the splash's name fades; the words rise 120 ms into the glide, then the button and the footnote. The glint starts once it has all settled.
     private func bloom() async {
         guard onSplash else { return }
         // One frame at the launch still's pose first, so the motion starts from it.
         try? await Task.sleep(for: .milliseconds(16))
         bloomed = true
         try? await Task.sleep(for: LaunchMotion.bloomDuration)
+        if playsLaunch { LaunchMotion.recordPlayed() }
         withAnimation(reduceMotion ? LaunchMotion.fade : LaunchMotion.glide) { onSplash = false }
         wordsIn = true
         try? await Task.sleep(for: .milliseconds(600))

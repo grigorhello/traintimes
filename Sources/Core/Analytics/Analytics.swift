@@ -118,6 +118,16 @@ extension AnalyticsEvent {
 
     static let routeSwapped = Self("route_swapped")
 
+    /// The weather sheet opened from the tile on Schedule (TT-226): the day (0 is Today) and the sheet's first line.
+    static func weatherOpened(dayOffset: Int, cue: WeatherCue) -> Self {
+        Self("weather_opened", ["day_offset": .int(dayOffset), "cue": .string(cue.rawValue)])
+    }
+
+    /// The weather tile turned grey, at most once per Schedule visit (TT-226).
+    static func weatherUnavailable(_ reason: WeatherUnavailable) -> Self {
+        Self("weather_unavailable", ["reason": .string(reason.rawValue)])
+    }
+
     /// What took Schedule back to today at Now.
     enum BackToNowSource: String, Sendable {
         /// The Schedule tab tapped again.

@@ -41,6 +41,10 @@ struct ScheduleView: View {
     @State private var dayTaps: [Int: Int] = [:]
     /// When each day tile last pressed, by tile id.
     @State private var dayPressedAt: [Int: Date] = [:]
+    /// The weather sheet, for the day selected when the tile was tapped (TT-226).
+    @State private var weatherSheet: WeatherSheetRequest?
+    /// Apple's Weather mark and legal link for the sheet, loaded once.
+    @State private var weatherCredit: WeatherCredit?
 
     /// `picker` opens Schedule with the picker already made, for previews and snapshots.
     init(
@@ -99,6 +103,23 @@ struct ScheduleView: View {
             // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
             // play waits for its scroll to settle, so the first appearance asks for nothing.
             .onAppear { viewModel.timelineAppeared() }
+            // The weather (TT-226): asked for when Schedule shows, on each return to the foreground and for a new From station.
+            .task(id: WeatherRefresh(station: viewModel.route?.from.id, isActive: scenePhase == .active)) {
+                guard scenePhase == .active else { return }
+                await viewModel.weather.refresh(for: viewModel.route?.from)
+            }
+            .onChange(of: weatherTile.unavailableReason, initial: true) { _, reason in
+                viewModel.weather.showedUnavailable(reason)
+            }
+            .onDisappear { viewModel.weather.visitStarted() }
+            .sheet(item: $weatherSheet) { request in
+                if let sheet = viewModel.weather.sheet(on: request.day, formatter: formatter) {
+                    WeatherSheetView(sheet: sheet, credit: weatherCredit)
+                        .task {
+                            if weatherCredit == nil { weatherCredit = await viewModel.weather.attribution() }
+                        }
+                }
+            }
             // Back after more than 10 min away, the timeline returns to Now on Today (TT-222).
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
@@ -420,13 +441,47 @@ struct ScheduleView: View {
         .accessibilityIdentifier("schedule.lineNotice")
     }
 
+    // MARK: Weather (TT-226)
+
+    private var weatherTile: WeatherTile { viewModel.weather.tile(on: viewModel.selectedDay) }
+
+    /// The tile pinned at the left of the day strip, its left edge on the route card's.
+    private var weatherTileView: some View {
+        WeatherTileView(tile: weatherTile, animates: playsMotion) {
+            let day = viewModel.selectedDay
+            guard let sheet = viewModel.weather.sheet(on: day, formatter: formatter) else { return }
+            viewModel.weather.opened(sheet, on: day)
+            weatherSheet = WeatherSheetRequest(day: day)
+        }
+        .padding(.leading, TTSpace.s5)
+    }
+
+    private struct WeatherSheetRequest: Identifiable {
+        let day: ServiceDay
+        var id: ServiceDay { day }
+    }
+
+    private struct WeatherRefresh: Equatable {
+        let station: String?
+        let isActive: Bool
+    }
+
     // MARK: Day strip
 
-    /// A swipeable row of 60 × 48 pt tiles: the previous 7 days, Today and every day of the schedule after it (D49, D53). It
-    /// opens with Today first, so the past week is a swipe to the right. It bleeds to both screen edges under a 16 pt fade,
-    /// so half of the sixth tile peeks, and snaps tile by tile. A tile's id is its place counted from Today: 0 is Today, -1
-    /// yesterday.
+    /// The weather tile, then the days scrolling beside it (TT-226).
     private var dayStrip: some View {
+        HStack(spacing: 0) {
+            weatherTileView
+            days
+        }
+    }
+
+    /// A swipeable row of 60 × 48 pt tiles: the previous 7 days, Today and every day of the schedule after it (D49, D53). It
+    /// opens with Today first, so the past week is a swipe to the right. Beside the weather tile (TT-226) the days rest 16 pt
+    /// from its right edge and fade out over the 12 pt before it, so yesterday still peeks there; four whole days show and
+    /// the strip bleeds to the right screen edge under a 16 pt fade. It snaps tile by tile. A tile's id is its place counted
+    /// from Today: 0 is Today, -1 yesterday.
+    private var days: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: TTSpace.s2) {
                 ForEach(stripTiles) { tile in
@@ -448,13 +503,14 @@ struct ScheduleView: View {
             // Room for the tile shadow inside the clipped strip.
             .padding(.vertical, Self.shadowRoom)
         }
-        .contentMargins(.horizontal, TTSpace.s5, for: .scrollContent)
+        .contentMargins(.leading, TTSpace.s4, for: .scrollContent)
+        .contentMargins(.trailing, TTSpace.s5, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: stripBinding)
         .mask {
             HStack(spacing: 0) {
                 LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: Self.edgeFade)
+                    .frame(width: Self.weatherFade)
                 Rectangle()
                 LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
                     .frame(width: Self.edgeFade)
@@ -504,8 +560,10 @@ struct ScheduleView: View {
     }
 
     private static let shadowRoom: CGFloat = 2
-    /// Tiles that show whole at the start of the strip.
-    private static let fullTiles = 5
+    /// Tiles that show whole at the start of the strip, beside the weather tile.
+    private static let fullTiles = 4
+    /// The days fade out over this much before the weather tile.
+    private static let weatherFade: CGFloat = 12
 
     /// The selected day's accent tile, one shape under the tiles (which leave the selected one see-through), so that it
     /// glides from the old day to the new one on `TTMotion.glide`, passing under the days between, as on the board. Placed by

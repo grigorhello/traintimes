@@ -86,6 +86,12 @@ final class SettingsViewModel {
         }
     }
 
+    /// Settings › Testing › Demo weather (TT-226).
+    var isDemoWeatherOn: Bool {
+        get { settings.demoWeather }
+        set { settings.demoWeather = newValue }
+    }
+
     // MARK: Notifications
 
     /// The dot beside the Notifications row; nil until the permission has been read.
@@ -200,7 +206,7 @@ final class SettingsViewModel {
 
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
-        demoTrains != .off || mockLive != .off || isMockTimeOn
+        demoTrains != .off || mockLive != .off || isMockTimeOn || isDemoWeatherOn
     }
 
     /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
@@ -219,6 +225,7 @@ final class SettingsViewModel {
             parts.append(String(format: String(localized: "settings.live_data.value"), word))
         }
         if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
+        if isDemoWeatherOn { parts.append(String(localized: "settings.demo_weather")) }
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
     }
 
@@ -227,6 +234,7 @@ final class SettingsViewModel {
         demoTrains = .off
         mockLive = .off
         settings.mockTime = nil
+        isDemoWeatherOn = false
     }
 
     // MARK: About

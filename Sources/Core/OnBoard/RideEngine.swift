@@ -232,10 +232,11 @@ final class RideEngine {
     private func end(_ reason: RideEndReason) {
         guard var ended = state, ended.phase != .ended else { return }
         stopTracking()
+        let atStop = ended.phase == .atYourStop
         ended.phase = .ended
         ended.endReason = reason
         state = ended
-        Analytics.track(.rideEnded(reason))
+        Analytics.track(.rideEnded(reason, atStop: atStop))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
         emit(.phase(.ended))

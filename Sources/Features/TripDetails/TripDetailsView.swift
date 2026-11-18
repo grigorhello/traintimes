@@ -8,6 +8,9 @@ struct TripDetailsView: View {
     let viewModel: TripDetailsViewModel
     /// Snapshots only: a long trip scrolled to its end, as the canvas's Trip-Details-End frame.
     var startsAtEnd = false
+    /// Closes the sheet where it is presented (RootView's router, TT-221), so Done and the chevron never depend on the
+    /// environment's dismiss alone; nil in previews and snapshots, where `dismiss` closes it.
+    var onClose: (() -> Void)?
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.dismiss) private var dismiss
@@ -167,7 +170,7 @@ struct TripDetailsView: View {
             }
             Spacer(minLength: 0)
             GlassIconButton(systemName: isRiding ? "chevron.down" : "xmark", label: "button.close", tint: TTColor.ink) {
-                dismiss()
+                close()
             }
                 .accessibilityIdentifier("trip.close")
         }
@@ -742,13 +745,23 @@ struct TripDetailsView: View {
         .padding(.bottom, Self.buttonBottom)
     }
 
+    /// The chevron or the close button, and End ride or Done after ending the ride.
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
+    }
+
     /// End ride as plain ink-secondary text, so a stray thumb on a moving train does not reach for it (TT-204 review); Done
-    /// at your stop, a filled accent capsule. Either one ends the ride and closes the sheet.
+    /// at your stop, a filled accent capsule. Either one ends the ride (Done after the ride ended on its own ends nothing)
+    /// and closes the sheet (TT-221: always).
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
             closingRide = ride
             viewModel.endRide()
-            dismiss()
+            close()
         } label: {
             let title = Text(ride.button)
                 .font(TTFont.headline)
@@ -756,7 +769,9 @@ struct TripDetailsView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.alertHeight)
             if ride.isComplete {
-                title.ttGlass(tint: TTColor.accent, in: Capsule())
+                // Still glass: the sheet is drawn again each second, and interactive glass tracks the touch on its own
+                // (D59, D76), so it may not hand the tap to the button (TT-221).
+                title.ttGlass(tint: TTColor.accent, in: Capsule(), interactive: false)
             } else {
                 title
             }

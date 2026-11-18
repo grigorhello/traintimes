@@ -198,8 +198,9 @@ extension View {
     }
 
     /// The same glass tinted with `tint` (TT-163: the floating alert button); the solid tint colour before iOS 26.
-    func ttGlass(tint: Color, in shape: some Shape) -> some View {
-        modifier(GlassBackground(tint: tint, shape: shape))
+    /// `interactive: false` for a button drawn again each second (the ride's Done, TT-221).
+    func ttGlass(tint: Color, in shape: some Shape, interactive: Bool = true) -> some View {
+        modifier(GlassBackground(tint: tint, shape: shape, interactive: interactive))
     }
 }
 

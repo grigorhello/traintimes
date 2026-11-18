@@ -73,7 +73,7 @@ struct RideHero: View {
                 .minimumScaleFactor(0.7)
                 .id(ride.kicker)
                 .transition(kickerRise)
-            // The arrival wish rolls in where the number was, on its 68 pt line (TT-223, D100).
+            // The arrival wish rolls in where the number was, on its 68 pt line (TT-223, D103).
             ZStack(alignment: .leading) {
                 if let wish = ride.wish {
                     ArrivalWishLine(wish: wish, wishes: wishes)
@@ -159,7 +159,7 @@ struct RideHero: View {
     }
 }
 
-/// The arrival wish (TT-223, D100): 32 pt bold in the accent, one line, down to 0.8 for a long one. A tap pops it once with a
+/// The arrival wish (TT-223, D103): 32 pt bold in the accent, one line, down to 0.8 for a long one. A tap pops it once with a
 /// Tick and does nothing else. Its analytics: shown while the app is active, closed by the first way it leaves the screen
 /// (Done and the sheet closing itself say so first; the app going away is `left_app`, anything else `dismissed`).
 private struct ArrivalWishLine: View {

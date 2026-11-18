@@ -52,7 +52,7 @@ final class RideEngineTests: XCTestCase {
     }
 
     /// Acceptance: a location track from Union to Clarkson drives the engine through every phase in order, with the right
-    /// next stop and stops left at each point; the ride ends by itself 2 min after your stop (D100).
+    /// next stop and stops left at each point; the ride ends by itself 2 min after your stop (D103).
     func testUnionToClarksonGoesThroughEveryPhaseInOrder() async throws {
         let rig = try rig(at: t(11, 10))
         let events = rig.engine.events()
@@ -327,7 +327,7 @@ final class RideEngineTests: XCTestCase {
         rig.clock.set(t(11, 53, 20))
         rig.location.send(atClarkson)
         let arrival = try XCTUnwrap(rig.engine.state?.expectedArrival)
-        // The ride ends 2 min after the timetable's 11:52 (D100), so standing there is checked before that.
+        // The ride ends 2 min after the timetable's 11:52 (D103), so standing there is checked before that.
         rig.clock.set(t(11, 53, 50))
         rig.location.send(atClarkson)
         XCTAssertEqual(rig.engine.state?.phase, .atYourStop)

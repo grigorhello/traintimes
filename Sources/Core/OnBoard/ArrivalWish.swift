@@ -1,6 +1,6 @@
 import Foundation
 
-/// The arrival wish (TT-223, D100, the Live view canvas's board 23, ending A): 5 s after the train reaches your stop, the
+/// The arrival wish (TT-223, D103, the Live view canvas's board 23, ending A): 5 s after the train reaches your stop, the
 /// ride screen's "Now" rolls into a short warm line picked at random from a pool for the time of day in Toronto, never the
 /// one shown last. Analytics compare the wishes (`arrival_wish_shown`, `arrival_wish_closed`).
 struct ArrivalWish: Equatable, Sendable {
@@ -74,7 +74,7 @@ struct ArrivalWish: Equatable, Sendable {
     }
 }
 
-/// The wish of the ride on screen, one per ride, and what its analytics need (TT-223, D100). One per app, owned by
+/// The wish of the ride on screen, one per ride, and what its analytics need (TT-223, D103). One per app, owned by
 /// `OnBoard`. The last wish shown is kept on device (`onboard.lastWish`), so the next ride, demo or real, gets another one,
 /// and a ride restored at launch keeps its wish.
 @MainActor

@@ -21,7 +21,7 @@ enum RideMotion {
     static var fold: Animation { foldCurve.animation }
     /// Your stop's tint and the card's tint cross-fading.
     static var tint: Animation { .easeOut(duration: 0.25) }
-    /// The arrival wish (TT-223, D100; board 23's `ra-out` and `.w`): "Now" rolls up and out in 300 ms, the wish rolls in
+    /// The arrival wish (TT-223, D103; board 23's `ra-out` and `.w`): "Now" rolls up and out in 300 ms, the wish rolls in
     /// from below in 380 ms, each a third of the 68 pt line away and blurred 4 pt while it moves.
     static var wishOut: Animation { .easeInOut(duration: 0.3) }
     static var wishIn: Animation { .timingCurve(0.2, 0.7, 0.2, 1, duration: 0.38) }

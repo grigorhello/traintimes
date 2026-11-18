@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// TT-223, D100: the arrival wish's pools by time of day in Toronto, the seeded pick that never repeats the last wish, one
+/// TT-223, D103: the arrival wish's pools by time of day in Toronto, the seeded pick that never repeats the last wish, one
 /// wish per ride, and its two events.
 @MainActor
 final class ArrivalWishTests: XCTestCase {

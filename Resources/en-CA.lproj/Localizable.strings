@@ -102,7 +102,7 @@
 "loc.allow" = "Allow location";
 "loc.later" = "Not now";
 
-/* The arrival wish in "Now"'s place, 5 s after your stop (TT-223, D100). Picked by time of day in Toronto. */
+/* The arrival wish in "Now"'s place, 5 s after your stop (TT-223, D103). Picked by time of day in Toronto. */
 "wish.goodDay" = "Have a good day";
 "wish.greatDay" = "Have a great day";
 "wish.goodOne" = "Make it a good one";

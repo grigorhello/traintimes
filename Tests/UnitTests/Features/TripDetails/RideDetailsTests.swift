@@ -116,7 +116,7 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertNil(later.rideDetails(formatter))
     }
 
-    // MARK: The arrival wish (TT-223, D100)
+    // MARK: The arrival wish (TT-223, D103)
 
     func testTheWishTakesNowsPlaceFiveSecondsAfterYourStop() async throws {
         // Reached at 5:43:05 on the demo's 6x clock: 5 s are 30 s on it.

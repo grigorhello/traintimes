@@ -251,7 +251,7 @@ final class RideLiveActivity: RideActivityFollowing {
     }
 
     /// The ride ended: its activity leaves the Lock Screen with it, also after an arrival, when the ride screen closes too
-    /// (TT-223, D100: 2 min after your stop).
+    /// (TT-223, D103: 2 min after your stop).
     private func endRide(
         engine: RideEngine, ride: Ride, plan: RidePlan, state: RideState, activities: [Activity<RideActivityAttributes>]
     ) async {

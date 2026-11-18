@@ -55,7 +55,7 @@ struct RideDetails: Equatable {
     let kicker: String
     /// The minutes to your stop, "11 min", or "Now" at it.
     let countdown: String
-    /// The arrival wish that takes "Now"'s place 5 s after the train reached your stop (TT-223, D100): it replaces the
+    /// The arrival wish that takes "Now"'s place 5 s after the train reached your stop (TT-223, D103): it replaces the
     /// number, it adds no line (D87).
     let wish: ArrivalWish?
     /// "5 min late" when the train is 1 min or more late; nil on time and at your stop.

@@ -42,7 +42,7 @@ final class OnBoard {
     private let makeDemoNudge: @MainActor () -> ArrivalNudge?
     /// The notification prompt through the alert rules (D41, D66), after a ride started.
     private let requestNotifications: @MainActor () async -> Void
-    /// The arrival wish of the ride on screen and its analytics (TT-223, D100).
+    /// The arrival wish of the ride on screen and its analytics (TT-223, D103).
     let wishes: ArrivalWishes
 
     init(
@@ -79,7 +79,7 @@ final class OnBoard {
     /// "I'm on board" can start a ride: the app has the GO feed's trips (fixture runs have none) and no demo plays.
     var canStart: Bool { (demo == nil || handOffEnded) && !playsDemo && app?.canStart == true }
 
-    /// The demo departure's ride ended on its own, 2 min after its last stop (TT-177, D100): it no longer stands in for the
+    /// The demo departure's ride ended on its own, 2 min after its last stop (TT-177, D103): it no longer stands in for the
     /// app's engine, so a real ride (train detection's Yes, "I’m on board") can start.
     private var handOffEnded: Bool { demoIsHandOff && activeRide == nil }
 
@@ -97,13 +97,13 @@ final class OnBoard {
         activeRide?.tripKey == key
     }
 
-    /// This trip's ride ended at your stop, 2 min after the train got there (D100).
+    /// This trip's ride ended at your stop, 2 min after the train got there (D103).
     func endedAtYourStop(_ key: TripKey) -> Bool {
         guard let engine, engine.ride?.tripKey == key, let state = engine.state else { return false }
         return state.phase == .ended && state.endReason == .arrived
     }
 
-    /// The arrival wish (TT-223, D100) in "Now"'s place: 5 s after the train reached your stop (5 s on the real clock, so
+    /// The arrival wish (TT-223, D103) in "Now"'s place: 5 s after the train reached your stop (5 s on the real clock, so
     /// 30 s on the demo ride's 6x one), while the ride is at your stop or ended there. One wish per ride.
     var arrivalWish: ArrivalWish? {
         guard let engine, let ride = engine.ride, let state = engine.state, let arrivedAt = engine.arrivedAt,

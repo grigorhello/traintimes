@@ -114,7 +114,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertTrue(content.isGreen)
         XCTAssertFalse(content.isAlert)
 
-        // The ride ends 2 min later (D100) and its activity ends with the last card.
+        // The ride ends 2 min later (D103) and its activity ends with the last card.
         rig.drive(to: t(17, 45, 10))
         XCTAssertEqual(rig.engine?.state?.phase, .ended)
         let ended = try self.content(rig)

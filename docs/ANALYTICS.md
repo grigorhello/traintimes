@@ -109,9 +109,10 @@ add `channel = appstore` to see real riders only.
 | Notification permission answers | `FS1vafrf` | `notification_permission` by `result` (allowed, denied), per week |
 | Interest taps by element | `tkrLa7Sg` | Riders with `interest_tapped` by `element`, last 7 days |
 | Rage taps by element | `1PEakxMp` | `interest_tapped` with `count` 3 or more, by `element` |
+| Offline views by kind | `crbax7Nq` | `offline_shown` per day by `kind` (`live`, `timetable`), last 30 days (TT-217) |
 
-Offline views (`offline_shown`, TT-217) are not on the dashboard yet; query them by `kind`. `route_set` with `restored`
-is a route from before analytics, counted once at launch: it counts toward activation like a first route.
+`route_set` with `restored` is a route from before analytics, counted once at launch: it counts toward activation like a
+first route.
 
 ## Weekly review (TT-210)
 

@@ -112,6 +112,7 @@ add `channel = appstore` to see real riders only.
 | Interest taps by element | `tkrLa7Sg` | Riders with `interest_tapped` by `element`, last 7 days |
 | Rage taps by element | `1PEakxMp` | `interest_tapped` with `count` 3 or more, by `element` |
 | Offline views by kind | `crbax7Nq` | `offline_shown` per day by `kind` (`live`, `timetable`), last 30 days (TT-217) |
+| Arrival wishes by wish | `0TxOyHVT` | SQL table, last 90 days, `demo` false: per `wish` times shown, median `seconds`, share kept 3 s or more or tapped, share of each `close`, taps per wish (TT-223) |
 
 `route_set` with `restored` is a route from before analytics, counted once at launch: it counts toward activation like a
 first route.

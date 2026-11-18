@@ -18,7 +18,8 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
 
     /// The feed's word on the route's trains that day. Its age is the producer's timestamp, never the time it was
     /// fetched, so a feed that stopped updating turns stale (D13). A failed fetch keeps the last good feed, as offline.
-    /// The origin's platforms come with it (TT-225), fetched alongside; a board that fails leaves the dash.
+    /// The origin's platforms come with it (TT-225), fetched alongside; a board that fails leaves the dash. The pill waits
+    /// (D55) only at a station whose board posts platforms.
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
         guard let live else { return .empty }
         let platforms = platforms, origin = route.from.id
@@ -30,7 +31,7 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
         }
         let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
         let updates = feed.tripUpdates(on: day)
-        var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline, hasPlatformSource: board != nil)
+        var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline, hasPlatformSource: board?.platforms.isEmpty == false)
         for call in try await store.timetable().directCalls(from: route.from.id, to: route.to.id, on: day) {
             snapshot.updates[call.tripId] = updates[call.tripId]?.live(on: call, feedTime: updatedAt)
             snapshot.platforms[call.tripId] = board?.platform(forTrip: call.tripId)

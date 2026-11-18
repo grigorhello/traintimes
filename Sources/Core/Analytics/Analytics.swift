@@ -172,7 +172,7 @@ extension AnalyticsEvent {
         Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
     }
 
-    /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 10 min after it), so Done does not
+    /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
     /// read as giving up (TT-221).
     static func rideEnded(_ reason: RideEndReason, atStop: Bool = false) -> Self {
         let name = switch reason {
@@ -182,6 +182,21 @@ extension AnalyticsEvent {
         case .cancelled: "cancelled"
         }
         return Self("ride_ended", ["reason": .string(name), "at_stop": .bool(atStop)])
+    }
+
+    /// The arrival wish on screen with the app active, once per ride (TT-223, D103).
+    static func arrivalWishShown(_ wish: ArrivalWish, demo: Bool) -> Self {
+        Self("arrival_wish_shown", ["wish": .string(wish.id), "period": .string(wish.period.rawValue), "demo": .bool(demo)])
+    }
+
+    /// The first way the arrival wish left the screen, once per ride: `seconds` on screen (120 at most) and `taps` on it.
+    static func arrivalWishClosed(
+        _ wish: ArrivalWish, close: ArrivalWish.Close, seconds: Int, taps: Int, demo: Bool
+    ) -> Self {
+        Self("arrival_wish_closed", [
+            "wish": .string(wish.id), "close": .string(close.rawValue), "seconds": .int(seconds), "taps": .int(taps),
+            "demo": .bool(demo),
+        ])
     }
 
     /// Yes or No on the train detection question on Schedule.

@@ -59,7 +59,7 @@ struct RootView: View {
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules
+            recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules, routeCount: RouteCount()
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)

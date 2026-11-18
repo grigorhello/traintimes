@@ -98,6 +98,8 @@ final class ScheduleViewModel {
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
     private let routeStore: (any RouteStoring)?
+    /// Counts each route shown for analytics and marks the install as counted (TT-217).
+    private let routeCount: RouteCount
     /// Each route shown is recorded first (D48); the station picker lists the others under Recent (D54).
     let recents: RecentRoutes
     private let dismissedNotices: DismissedNotices
@@ -119,9 +121,10 @@ final class ScheduleViewModel {
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
         recents: RecentRoutes = RecentRoutes(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
-        watchedTrips: any WatchedTripsProviding = NoWatchedTrips()
+        watchedTrips: any WatchedTripsProviding = NoWatchedTrips(), routeCount: RouteCount = RouteCount(defaults: nil)
     ) {
         self.route = route
+        self.routeCount = routeCount
         self.repository = repository
         self.clock = clock
         self.routeStore = routeStore
@@ -518,7 +521,7 @@ final class ScheduleViewModel {
 
     /// The route from the route form (TT-120), saved on device so the next launch opens it.
     func show(_ route: Route) async {
-        Analytics.track(.routeSet(route, isFirst: self.route == nil))
+        routeCount.set(route, isFirst: self.route == nil)
         self.route = route
         routeStore?.save(route)
         recents.record(route)
@@ -559,6 +562,7 @@ final class ScheduleViewModel {
             // No timetable on device yet and none could be downloaded (TT-130): "Loading timetable" stays until a refresh
             // gets one, rather than claiming there are no trains.
             guard day == selectedDay, route == self.route else { return }
+            if !timetableFailed { Analytics.track(.offlineShown(.timetable)) }
             timetableFailed = true
             loaded = nil
             departures = []
@@ -604,10 +608,17 @@ final class ScheduleViewModel {
         let freshness = isToday ? Freshness(loaded.live, now: now) : .scheduledOnly
         let departures = Departure.resolve(loaded.trips, live: isToday ? loaded.live : .empty, freshness: freshness, isToday: isToday)
         if departures != self.departures { self.departures = departures }
-        if freshness != self.freshness { self.freshness = freshness }
+        if freshness != self.freshness {
+            if case .offline = freshness, !Self.isOffline(self.freshness) { Analytics.track(.offlineShown(.live)) }
+            self.freshness = freshness
+        }
         let hasPlatformSource = isToday && loaded.live.hasPlatformSource
         if hasPlatformSource != self.hasPlatformSource { self.hasPlatformSource = hasPlatformSource }
         relayout(playsDepartures: playsDepartures)
+    }
+
+    private static func isOffline(_ freshness: Freshness?) -> Bool {
+        if case .offline? = freshness { true } else { false }
     }
 
     private func setTodayNotices(_ notices: [LineNotice], line: Line?) {

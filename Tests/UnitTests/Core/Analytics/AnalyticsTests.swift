@@ -59,4 +59,69 @@ final class AnalyticsTests: XCTestCase {
         await model.send()
         XCTAssertEqual(recorder.events, [AnalyticsEvent("feedback_sent", ["kind": .string("question"), "with_email": .bool(true)])])
     }
+
+    // MARK: - TT-217: a saved route counted at launch, offline views
+
+    private let oakville = Route(
+        from: Station(id: "OA", name: "Oakville GO"), to: Station(id: "UN", name: "Union Station"),
+        line: Line(id: "LW", name: "Lakeshore West", colorHex: nil)
+    )
+
+    func testASavedRouteIsCountedOnceAtLaunch() {
+        let recorder = RecordingAnalytics.install()
+        let count = RouteCount(defaults: .ephemeral())
+        count.launched(with: oakville)
+        count.launched(with: oakville)
+        XCTAssertEqual(recorder.events, [.routeSet(oakville, isFirst: true, restored: true)])
+        XCTAssertEqual(recorder.events.first?.properties["restored"], .bool(true))
+        XCTAssertNil(AnalyticsEvent.routeSet(oakville, isFirst: false).properties["restored"], "Only the launch count says restored")
+    }
+
+    func testNoRouteAtLaunchSendsNothing() {
+        let recorder = RecordingAnalytics.install()
+        RouteCount(defaults: .ephemeral()).launched(with: nil)
+        XCTAssertEqual(recorder.events, [])
+    }
+
+    func testARunWithoutAnalyticsLeavesTheRouteUncounted() {
+        let defaults = UserDefaults.ephemeral()
+        RouteCount(defaults: defaults).launched(with: oakville)
+        XCTAssertFalse(defaults.bool(forKey: RouteCount.key), "A Debug run never marks the install")
+        let recorder = RecordingAnalytics.install()
+        RouteCount(defaults: defaults).launched(with: oakville)
+        XCTAssertEqual(recorder.names, ["route_set"])
+    }
+
+    func testARouteSetInTheAppIsNotCountedAgainAtLaunch() async {
+        let recorder = RecordingAnalytics.install()
+        let defaults = UserDefaults.ephemeral()
+        let model = ScheduleViewModel(
+            route: nil, repository: OfflineTimetable(), clock: FixedClock(now: .now), routeCount: RouteCount(defaults: defaults)
+        )
+        await model.show(oakville)
+        RouteCount(defaults: defaults).launched(with: oakville)
+        XCTAssertEqual(recorder.events, [.routeSet(oakville, isFirst: true)])
+    }
+
+    func testOfflineScheduleIsTrackedOncePerTurn() async throws {
+        let recorder = RecordingAnalytics.install()
+        let model = try await ScheduleViewModel.loadedFixture(.offline)
+        await model.retry()
+        XCTAssertEqual(recorder.events, [.offlineShown(.live)], "A refresh that stays offline sends nothing more")
+    }
+
+    func testATimetableThatCannotDownloadIsTracked() async {
+        let model = ScheduleViewModel(route: oakville, repository: OfflineTimetable(), clock: FixedClock(now: .now))
+        let recorder = RecordingAnalytics.install()
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.content, .failed)
+        XCTAssertEqual(recorder.events, [AnalyticsEvent("offline_shown", ["kind": .string("timetable")])])
+    }
+
+    /// No timetable on device and none can be downloaded.
+    private struct OfflineTimetable: ScheduleRepository {
+        func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] { throw URLError(.notConnectedToInternet) }
+        func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { .empty }
+        func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
+    }
 }

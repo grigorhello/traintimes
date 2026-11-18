@@ -30,6 +30,8 @@ final class AnalyticsTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider).properties["reason"], .string("by_rider"))
         XCTAssertEqual(AnalyticsEvent.rideEnded(.leftTheLine).properties["reason"], .string("left_the_line"))
         XCTAssertEqual(AnalyticsEvent.rideEnded(.arrived).properties["reason"], .string("arrived"))
+        XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider).properties["at_stop"], .bool(false))
+        XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider, atStop: true).properties["at_stop"], .bool(true))
     }
 
     func testDayOffsetCountsFromToday() {

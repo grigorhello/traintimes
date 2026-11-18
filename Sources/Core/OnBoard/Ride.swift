@@ -76,6 +76,8 @@ struct LocationFix: Sendable, Equatable {
     let horizontalAccuracy: Double
     /// The phone has stopped moving, so iOS pauses its updates until it moves again: the last fix still holds.
     var isStationary = false
+    /// Seconds since iOS measured it: iOS can hand a fix over late, after a pause in the background (TT-220).
+    var age: TimeInterval = 0
 }
 
 /// The phone's location during a ride (TT-171): When In Use permission, asked only when a ride starts, and updates with

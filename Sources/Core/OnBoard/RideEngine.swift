@@ -88,6 +88,9 @@ final class RideEngine {
     static let offLineDuration: TimeInterval = 3 * 60
     /// A fix less precise than this does not place the train (Precise Location off gives 1 to 20 km).
     static let worstAccuracy = 200.0
+    /// A placement this far behind the furthest one measured is an old fix or a lagging train feed: it does not move the
+    /// train back (TT-220). Closer, it is noise, or the feed's front car against the phone's, and counts as that point.
+    static let behindTolerance = 500.0
     static let storageKey = "onboard.ride"
 
     private(set) var ride: Ride?
@@ -112,6 +115,9 @@ final class RideEngine {
     /// feed placed the train, so a noisy fix never moves it back; a measured position does take back the timetable's guess.
     @ObservationIgnored private var rank = 0
     @ObservationIgnored private var measuredRank = 0
+    /// The furthest along the track the phone or the feed placed the train. Ranks alone let a placement behind it reset
+    /// the delay on a long stretch, such as Clarkson to Union with no stop between (TT-220).
+    @ObservationIgnored private var measuredAlong = -Double.infinity
     /// The last phase sent as `.phase`.
     @ObservationIgnored private var announcedPhase: RidePhase?
     @ObservationIgnored private var loop: Task<Void, Never>?
@@ -216,6 +222,7 @@ final class RideEngine {
         offLineSince = nil
         rank = 0
         measuredRank = 0
+        measuredAlong = -.infinity
         announcedPhase = nil
         // Without a track a fix cannot place the train, so the phone is not used.
         self.tracksLocation = tracksLocation && plan.track != nil
@@ -232,10 +239,11 @@ final class RideEngine {
     private func end(_ reason: RideEndReason) {
         guard var ended = state, ended.phase != .ended else { return }
         stopTracking()
+        let atStop = ended.phase == .atYourStop
         ended.phase = .ended
         ended.endReason = reason
         state = ended
-        Analytics.track(.rideEnded(reason))
+        Analytics.track(.rideEnded(reason, atStop: atStop))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
         emit(.phase(.ended))
@@ -265,10 +273,10 @@ final class RideEngine {
 
     // MARK: Inputs
 
-    /// A fix from the phone. A fix more than 1 km off the line does not place the train and starts the off-the-line
-    /// count, from the scheduled departure on.
+    /// A fix from the phone, placed at the time iOS measured it. A fix more than 1 km off the line does not place the train
+    /// and starts the off-the-line count, from the scheduled departure on. A fix older than 60 s says nothing about now.
     func receive(_ fix: LocationFix) {
-        guard let plan, let track = plan.track, state?.phase != .ended,
+        guard let plan, let track = plan.track, state?.phase != .ended, fix.age < Self.fixTimeout,
               fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= Self.worstAccuracy else { return }
         let now = clock.now
         let projection = track.shape.project(fix.coordinate)
@@ -276,7 +284,7 @@ final class RideEngine {
             if now >= plan.stops[0].departure { offLineSince = offLineSince ?? now }
         } else {
             offLineSince = nil
-            self.fix = MeasuredPosition(along: projection.along, at: now, isStationary: fix.isStationary)
+            self.fix = MeasuredPosition(along: projection.along, at: now.addingTimeInterval(-fix.age), isStationary: fix.isStationary)
         }
         update()
     }
@@ -312,14 +320,19 @@ final class RideEngine {
         let isProvisional = source == .phone && measured == nil
         let shown: Int
         if let measured, let track = plan.track {
-            let placed = Self.rank(along: measured.along, stops: track.stopDistances)
+            // Never behind the furthest point measured: a placement well behind it is old and is left out, a little
+            // behind counts as that point (TT-220).
+            let isBehind = measured.along < measuredAlong - Self.behindTolerance
+            let along = max(measured.along, measuredAlong)
+            let placed = Self.rank(along: along, stops: track.stopDistances)
             // Once the train was measured at your stop the offset stays what it was on arrival: standing there is not
             // running late (TT-172, the card's "On time · Ride complete").
-            if placed >= measuredRank, saved.arrivedAt == nil || saved.arrivalGuessed == true {
+            if !isBehind, placed >= measuredRank, saved.arrivedAt == nil || saved.arrivalGuessed == true {
                 measuredRank = placed
+                measuredAlong = along
                 // A stationary fix stands for now, since iOS sends nothing more while the train does not move.
                 let time = measured.isStationary ? now : measured.at
-                saved.offset = Self.offset(rank: placed, along: measured.along, at: time, now: now, plan: plan)
+                saved.offset = Self.offset(rank: placed, along: along, at: time, now: now, plan: plan)
                 // Measured at your stop: an arrival the timetable placed is now the train's, and the offset stays.
                 if placed >= 2 * last, saved.arrivalGuessed == true { saved.arrivalGuessed = nil }
             }
@@ -329,7 +342,7 @@ final class RideEngine {
                 saved.arrivedAt = nil
                 saved.arrivalGuessed = nil
             }
-            saved.lastUpdate = measured.at
+            if !isBehind { saved.lastUpdate = measured.at }
             shown = rank
         } else {
             let offset = status.delay ?? saved.offset ?? 0
@@ -412,16 +425,23 @@ final class RideEngine {
 
     /// The phone while it has a fix less than 60 s old (or a stationary one, which iOS does not repeat), and for the first
     /// 60 s of the ride while the first fix comes; then the train feed while its position is fresh; then the timetable.
+    /// A held stationary fix gives way to the feed once the feed places the train further on: iOS can take a smooth train
+    /// for a phone at rest and send nothing while it runs (TT-220).
     private func source(at now: Date) -> RidePositionSource {
+        let freshFeed = feedPosition.flatMap { now.timeIntervalSince($0.at) < Self.feedTimeout ? $0 : nil }
         if tracksLocation {
             if let fix {
                 let age = now.timeIntervalSince(fix.at)
-                if age < Self.fixTimeout || (fix.isStationary && age < Self.stationaryTimeout) { return .phone }
+                if age < Self.fixTimeout { return .phone }
+                if fix.isStationary, age < Self.stationaryTimeout {
+                    if let freshFeed, freshFeed.along > fix.along + Self.behindTolerance { return .trainFeed }
+                    return .phone
+                }
             } else if now.timeIntervalSince(locationStartedAt) < Self.fixTimeout {
                 return .phone
             }
         }
-        if let feedPosition, now.timeIntervalSince(feedPosition.at) < Self.feedTimeout { return .trainFeed }
+        if freshFeed != nil { return .trainFeed }
         return .timetable
     }
 

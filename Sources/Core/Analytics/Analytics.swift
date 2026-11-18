@@ -166,14 +166,16 @@ extension AnalyticsEvent {
         Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
     }
 
-    static func rideEnded(_ reason: RideEndReason) -> Self {
+    /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 10 min after it), so Done does not
+    /// read as giving up (TT-221).
+    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
         case .arrived: "arrived"
         case .leftTheLine: "left_the_line"
         case .cancelled: "cancelled"
         }
-        return Self("ride_ended", ["reason": .string(name)])
+        return Self("ride_ended", ["reason": .string(name), "at_stop": .bool(atStop)])
     }
 
     /// Yes or No on the train detection question on Schedule.

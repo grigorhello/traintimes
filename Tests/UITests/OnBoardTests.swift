@@ -2,16 +2,16 @@ import XCTest
 
 /// TT-172, TT-175: Demo trains › Ride first asks on Schedule "On the train to Clarkson?" (about 25 s after launch), and its
 /// Yes starts the ride from Union to Clarkson and opens Trip details in ride mode. Closing the sheet keeps the ride and the
-/// strip opens it again; End ride ends it and the strip goes. TT-177: Demo trains › Departure counts down to the same
-/// train; the Live Activity's link opens its hero card (TT-205: Schedule has no countdown strip), and "I’m on board" turns
-/// it into the ride.
+/// strip opens it again; Done at your stop closes it and the strip goes (TT-221). TT-177: Demo trains › Departure counts
+/// down to the same train; the Live Activity's link opens its hero card (TT-205: Schedule has no countdown strip), and
+/// "I’m on board" turns it into the ride.
 final class OnBoardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
     @MainActor
-    func testDemoQuestionYesStartsTheRideAndEndRideEndsIt() {
+    func testDemoQuestionYesStartsTheRideAndDoneAtYourStopClosesIt() {
         let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "ride"]
         app.launch()
@@ -34,9 +34,15 @@ final class OnBoardTests: XCTestCase {
         strip.tap()
         XCTAssertTrue(card.waitForExistence(timeout: 15))
 
-        app.buttons["trip.endRide"].tap()
-        XCTAssertTrue(card.waitForNonExistence(timeout: 15))
-        XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "End ride ends the ride, and the strip goes")
+        // TT-221: at Clarkson the button is Done (the demo reaches it about 3 min after the Yes, at 6×), and Done closes the
+        // sheet and ends the ride. The departure test below covers End ride.
+        let done = app.buttons["trip.endRide"]
+        let isDone = NSPredicate(format: "label == %@", "Done")
+        let reachesStop = XCTWaiter().wait(for: [expectation(for: isDone, evaluatedWith: done)], timeout: 300)
+        XCTAssertEqual(reachesStop, .completed, done.label)
+        done.tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 15), "Done closes the ride screen")
+        XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "Done ends the ride, and the strip goes")
     }
 
     @MainActor

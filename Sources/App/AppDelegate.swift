@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         // Anonymous product analytics (TT-208, D92): PostHog in TestFlight and App Store builds with a token, else nothing.
         Analytics.tracker = PostHogAnalytics.start()
+        // A route saved before this install sent analytics counts once, so the install shows as activated (TT-217).
+        RouteCount().launched(with: UserDefaultsRouteStore().route)
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setNotificationCategories([DetectionNotice.notificationCategory])
         nudge.follow(ride)

@@ -32,7 +32,9 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 |---|---|---|
 | `Application Installed` / `Application Updated` / `Application Opened` / `Application Backgrounded` | SDK lifecycle | `version`, `build`, `from_background` (Opened) |
 | `$screen` | A screen comes on top | `$screen_name`: `schedule`, `welcome` (first launch: the welcome, your line, your station; TT-206), `route_form` (first launch's "Search stations"), `alerts`, `settings`, `trip_details`, `line_notices`, `detect_offer` |
-| `route_set` | A route shows on Schedule (first use, the station picker, a Recent row, a swap applied) | `from`, `to` (station ids), `line` (line id, when known), `is_first` (the first route on this install) |
+| `route_set` | A route shows on Schedule (first use, the station picker, a Recent row, a swap applied) | `from`, `to` (station ids), `line` (line id, when known), `is_first` (the first route on this install); `restored` (true only on the launch count below) |
+| `route_set` at launch (TT-217) | Once per install: a route saved on device before this install sent any `route_set` (an install from before analytics) is counted at the first launch with analytics, so it shows as activated. Any `route_set` from the app marks the install, so neither sends twice | as above, with `is_first: true` and `restored: true` |
+| `offline_shown` | Schedule turns to Offline (TT-217): once each time it turns into that state, never on each poll; a Try again that fails again counts again | `kind`: `live` (live status unreachable, the timetable shows marked Offline), `timetable` (the first timetable could not download: "Couldn’t load the timetable") |
 | `route_swapped` | The swap button | none |
 | `back_to_now` | The Schedule tab tapped again (back to today, at Now) | none |
 | `day_changed` | Another day picked on the day strip | `offset` (days from today, -1 is yesterday) |
@@ -108,7 +110,8 @@ add `channel = appstore` to see real riders only.
 | Interest taps by element | `tkrLa7Sg` | Riders with `interest_tapped` by `element`, last 7 days |
 | Rage taps by element | `1PEakxMp` | `interest_tapped` with `count` 3 or more, by `element` |
 
-Offline views have no event yet, so the dashboard cannot show them.
+Offline views (`offline_shown`, TT-217) are not on the dashboard yet; query them by `kind`. `route_set` with `restored`
+is a route from before analytics, counted once at launch: it counts toward activation like a first route.
 
 ## Weekly review (TT-210)
 

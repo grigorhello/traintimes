@@ -92,13 +92,28 @@ enum AlertRemoveSource: String, Sendable {
 }
 
 extension AnalyticsEvent {
-    /// A route shown on Schedule: the first one (first use) or a change from the station picker or Recent.
-    static func routeSet(_ route: Route, isFirst: Bool) -> Self {
+    /// A route shown on Schedule: the first one (first use) or a change from the station picker or Recent. `restored` is
+    /// the route saved before this install sent any route, counted once at launch (TT-217, `RouteCount`).
+    static func routeSet(_ route: Route, isFirst: Bool, restored: Bool = false) -> Self {
         var properties: [String: AnalyticsValue] = [
             "from": .string(route.from.id), "to": .string(route.to.id), "is_first": .bool(isFirst)
         ]
         if let line = route.line { properties["line"] = .string(line.id) }
+        if restored { properties["restored"] = .bool(true) }
         return Self("route_set", properties)
+    }
+
+    /// What Schedule could not reach (TT-217).
+    enum OfflineKind: String, Sendable {
+        /// Live status: the timetable shows, marked Offline.
+        case live
+        /// The first timetable could not download: "Couldn’t load the timetable".
+        case timetable
+    }
+
+    /// Schedule turned Offline, once per turn into that state, never on each poll (TT-217).
+    static func offlineShown(_ kind: OfflineKind) -> Self {
+        Self("offline_shown", ["kind": .string(kind.rawValue)])
     }
 
     static let routeSwapped = Self("route_swapped")

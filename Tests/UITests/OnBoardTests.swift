@@ -40,6 +40,11 @@ final class OnBoardTests: XCTestCase {
         let isDone = NSPredicate(format: "label == %@", "Done")
         let reachesStop = XCTWaiter().wait(for: [expectation(for: isDone, evaluatedWith: done)], timeout: 300)
         XCTAssertEqual(reachesStop, .completed, done.label)
+        // TT-223: 5 s later "Now" rolls into the arrival wish (the ride ends by itself 20 s after Clarkson at 6×).
+        let wished = NSPredicate(format: "NOT (label CONTAINS %@)", "Now")
+        let rollsIn = XCTWaiter().wait(for: [expectation(for: wished, evaluatedWith: card)], timeout: 12)
+        XCTAssertEqual(rollsIn, .completed, card.label)
+        XCTAssertFalse(card.label.contains("wish."), "The wish's words, not its key: \(card.label)")
         done.tap()
         XCTAssertTrue(card.waitForNonExistence(timeout: 15), "Done closes the ride screen")
         XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "Done ends the ride, and the strip goes")

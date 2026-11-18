@@ -16,6 +16,9 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testArrivingDark() async throws { snap(await ride(at: DemoRideRig.time(17, 42, 20)), .dark) }
     @MainActor func testStoppedLight() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .light) }
     @MainActor func testStoppedDark() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .dark) }
+    /// TT-223, D103: 5 s after Clarkson (30 s on the demo's clock) "Now" has rolled into the wish, "Enjoy your evening".
+    @MainActor func testWishLight() async throws { snap(await wish(), .light) }
+    @MainActor func testWishDark() async throws { snap(await wish(), .dark) }
     /// TT-204: 5 min late, "5 min late" under the minutes and the times ahead in the delay ink.
     @MainActor func testLateLight() { snap(late, .light) }
     @MainActor func testLateDark() { snap(late, .dark) }
@@ -32,6 +35,13 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor
     private func ride(at time: Date) async -> some View {
         let rig = await DemoRideRig.started(at: time)
+        return TripDetailsView(viewModel: rig.tripDetails())
+    }
+
+    @MainActor
+    private func wish() async -> some View {
+        let rig = await DemoRideRig.started(at: DemoRideRig.time(17, 43, 30))
+        rig.drive(to: DemoRideRig.time(17, 44, 10))
         return TripDetailsView(viewModel: rig.tripDetails())
     }
 

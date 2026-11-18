@@ -5,9 +5,9 @@ import XCTest
 /// shorter time keeps the day and the scroll (TT-222).
 @MainActor
 final class ScheduleReturnToNowTests: XCTestCase {
-    override func tearDown() {
+    override func tearDown() async throws {
         Analytics.tracker = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func loadedModel() async throws -> (ScheduleViewModel, TestClock) {

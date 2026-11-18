@@ -38,6 +38,7 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertFalse(content.late)
         XCTAssertFalse(content.isClose)
         XCTAssertEqual(try secondsLeft(content), 12 * 60, accuracy: 1, "On the device clock, to 5:13 on the demo's")
+        XCTAssertEqual(content.minutes, "12 min", "Whole minutes, no seconds (TT-219)")
         XCTAssertEqual(content.now, "")
         XCTAssertEqual(content.position, 0)
         XCTAssertEqual(content.updated, "Updated 5:01 PM")
@@ -56,6 +57,7 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.delay, "3 min late")
         XCTAssertTrue(content.late)
         XCTAssertEqual(try secondsLeft(content), 11 * 60, accuracy: 1, "To 5:16")
+        XCTAssertEqual(content.minutes, "11 min")
     }
 
     func testBoardingNowInTheLastTwoMinutes() throws {
@@ -64,6 +66,7 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.title, "5:16 PM boarding now")
         XCTAssertTrue(content.isClose, "The number turns mint")
         XCTAssertEqual(try secondsLeft(content), 90, accuracy: 1)
+        XCTAssertEqual(content.minutes, "1 min")
     }
 
     func testDepartedDropsTheCountdown() throws {
@@ -71,6 +74,7 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.phase, .departed)
         XCTAssertEqual(content.title, "Departed 5:16 PM")
         XCTAssertNil(content.countdownEnd)
+        XCTAssertNil(content.minutes)
         XCTAssertNil(content.delay)
         XCTAssertFalse(content.late)
     }
@@ -92,10 +96,15 @@ final class DepartureActivityTests: XCTestCase {
         let departure = try content(at: DepartureRig.time(17, 5))
         XCTAssertTrue(RideLiveActivity.needsUpdate(from: departure, to: departure, sentAt: nil, now: deviceNow))
         XCTAssertFalse(RideLiveActivity.needsUpdate(from: departure, to: departure, sentAt: deviceNow, now: deviceNow))
-        let later = try content(at: DepartureRig.time(17, 5, 5))
+        let shown = try content(at: DepartureRig.time(17, 5, 10))
+        let later = try content(at: DepartureRig.time(17, 5, 15))
         XCTAssertFalse(
-            RideLiveActivity.needsUpdate(from: departure, to: later, sentAt: deviceNow, now: deviceNow.addingTimeInterval(5)),
-            "The same countdown 5 s on sends nothing"
+            RideLiveActivity.needsUpdate(from: shown, to: later, sentAt: deviceNow, now: deviceNow.addingTimeInterval(5)),
+            "The same minute 5 s on sends nothing"
+        )
+        XCTAssertTrue(
+            RideLiveActivity.needsUpdate(from: departure, to: shown, sentAt: deviceNow, now: deviceNow.addingTimeInterval(10)),
+            "A new minute, 11 min to 10 min, is sent (TT-219)"
         )
         let boarding = try content(at: DepartureRig.time(17, 14))
         XCTAssertTrue(RideLiveActivity.needsUpdate(from: departure, to: boarding, sentAt: deviceNow, now: deviceNow))
@@ -118,13 +127,14 @@ final class DepartureActivityTests: XCTestCase {
     func testTheAlertServersStateDecodes() throws {
         let json = """
         {"phase":"countingDown","title":"7:13 AM departs in","now":"","label":"Platform","late":false,"position":0,
-         "isClose":false,"updated":"Updated 6:43 AM","countdownEnd":1762427580}
+         "isClose":false,"updated":"Updated 6:43 AM","countdownEnd":1762427580,"minutes":"30 min"}
         """
         let state = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: Data(json.utf8))
         XCTAssertEqual(state.phase, .countingDown)
         XCTAssertTrue(state.isDeparture)
         XCTAssertEqual(state.title, "7:13 AM departs in")
         XCTAssertEqual(state.countdownEnd, Date(timeIntervalSince1970: 1_762_427_580))
+        XCTAssertEqual(state.minutes, "30 min")
         XCTAssertEqual(state.label, "Platform")
         XCTAssertNil(state.platformNumber, "The server knows no platforms: the dash")
         XCTAssertNil(state.delay)

@@ -34,6 +34,12 @@ final class AnalyticsTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider, atStop: true).properties["at_stop"], .bool(true))
     }
 
+    func testLaunchSplashEnded() {
+        let event = AnalyticsEvent.launchSplashEnded(scheduleReady: true, full: false)
+        XCTAssertEqual(event.name, "launch_splash_ended")
+        XCTAssertEqual(event.properties, ["schedule_ready": .bool(true), "full": .bool(false)])
+    }
+
     func testDayOffsetCountsFromToday() {
         let today = ServiceDay(year: 2026, month: 11, day: 1)
         XCTAssertEqual(today.days(to: today), 0)

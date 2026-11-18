@@ -96,7 +96,7 @@ enum HapticMoment: String, CaseIterable, Sendable {
         switch self {
         case .swap: .milliseconds(310)
         case .firstTrains: .milliseconds(260)
-        // The first tiles pop 600 ms into Bloom.
+        // Bloom's quick pace; the welcome plays it at `LaunchMotion.timing.tileStart` (D102).
         case .tiles: .milliseconds(600)
         default: .zero
         }

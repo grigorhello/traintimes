@@ -39,6 +39,9 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         /// The big number runs on the device to this time (timer text, no updates needed): the expected departure, or the
         /// expected arrival at your stop. Nil shows `now` instead.
         var countdownEnd: Date?
+        /// The big number in whole minutes, "15 min" (TT-219, D97): the app and the alert server send it again when the
+        /// minute changes. Nil (a push from an older alert server) shows timer text to `countdownEnd` instead.
+        var minutes: String?
         /// "Now" at your stop; empty once the train has left before a ride.
         var now: String
         /// The label at the right: "Platform" before departure, "Arrives" during the ride; empty when the card shows
@@ -84,7 +87,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
-        case phase, title, countdownEnd, now, label, value, delay, platformNumber, late, position, isClose, updated
+        case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -98,6 +101,7 @@ extension RideActivityAttributes.ContentState {
         phase = try container.decode(Phase.self, forKey: .phase)
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         countdownEnd = try container.decodeIfPresent(Double.self, forKey: .countdownEnd).map(Date.init(timeIntervalSince1970:))
+        minutes = try container.decodeIfPresent(String.self, forKey: .minutes)
         now = try container.decodeIfPresent(String.self, forKey: .now) ?? ""
         label = try container.decodeIfPresent(String.self, forKey: .label)
             ?? container.decodeIfPresent(String.self, forKey: .platform) ?? ""
@@ -115,6 +119,7 @@ extension RideActivityAttributes.ContentState {
         try container.encode(phase, forKey: .phase)
         try container.encode(title, forKey: .title)
         try container.encodeIfPresent(countdownEnd?.timeIntervalSince1970, forKey: .countdownEnd)
+        try container.encodeIfPresent(minutes, forKey: .minutes)
         try container.encode(now, forKey: .now)
         try container.encode(label, forKey: .label)
         try container.encodeIfPresent(value, forKey: .value)

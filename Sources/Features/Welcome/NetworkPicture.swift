@@ -245,6 +245,8 @@ private struct Glint: View {
 struct LaunchSplash: View {
     /// The splash's last frame, still (snapshots).
     var atRest = false
+    /// The mark begins to fade and Schedule shows through, so its entrance plays now (TT-227).
+    var onFold: () -> Void = {}
     var onFinish: () -> Void = {}
 
     @State private var bloomed = false
@@ -267,9 +269,14 @@ struct LaunchSplash: View {
             try? await Task.sleep(for: .milliseconds(16))
             bloomed = true
             try? await Task.sleep(for: LaunchMotion.bloomDuration)
+            LaunchMotion.recordPlayed()
             folded = true
             gone = true
-            try? await Task.sleep(for: LaunchMotion.foldDuration)
+            // Schedule's entrance starts as the mark begins to fade, when the cards can first be seen.
+            let fadeStart = Duration.seconds(LaunchMotion.timing.markFadeDelay)
+            try? await Task.sleep(for: fadeStart)
+            onFold()
+            try? await Task.sleep(for: LaunchMotion.foldDuration - fadeStart)
             onFinish()
         }
     }

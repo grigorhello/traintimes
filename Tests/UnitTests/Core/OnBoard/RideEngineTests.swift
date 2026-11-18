@@ -187,6 +187,63 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(state.minutesToYourStop, 2)
     }
 
+    /// TT-220: a fix counts from when iOS measured it, and one older than 60 s does not place the train at all.
+    func testAFixCountsFromWhenItWasMeasured() async throws {
+        let rig = try rig(at: t(11, 30))
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 30))
+        let onTime = try XCTUnwrap(rig.engine.state?.expectedArrival)
+
+        rig.clock.set(t(11, 30, 30))
+        var late = try OnBoardFixtures.fix(along: OnBoardFixtures.along(at: t(11, 30), plan: rig.plan), plan: rig.plan)
+        late.age = 30
+        rig.location.send(late)
+        XCTAssertEqual(rig.engine.state?.expectedArrival, onTime, "Handed over 30 s late, it is not 30 s of delay")
+
+        var old = try OnBoardFixtures.fix(along: OnBoardFixtures.along(at: t(11, 30, 20), plan: rig.plan), plan: rig.plan)
+        old.age = 10 * 60
+        rig.location.send(old)
+        XCTAssertEqual(rig.engine.state?.lastUpdate, t(11, 30), "A fix 10 min old says nothing about now")
+    }
+
+    /// TT-220, Clarkson to Union with no stop between: a placement well behind the furthest one does not reset the delay,
+    /// though it is still on the same stretch.
+    func testAPlacementBehindOnTheSameStretchIsLeftOut() async throws {
+        let rig = try rig(at: t(11, 46))
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 50))
+        let onTime = try XCTUnwrap(rig.engine.state?.expectedArrival)
+
+        rig.clock.set(t(11, 50, 5))
+        let behind = try OnBoardFixtures.fix(along: OnBoardFixtures.along(at: t(11, 47), plan: rig.plan), plan: rig.plan)
+        rig.location.send(behind)
+        let state = try XCTUnwrap(rig.engine.state)
+        XCTAssertEqual(state.expectedArrival, onTime, "Not 3 min late: the train was already 3 km further on")
+        XCTAssertEqual(state.phase, .yourStopNext)
+    }
+
+    /// TT-220: iOS can take a smooth train for a phone at rest and send nothing more; GO's train feed placing it further on
+    /// wins over the held stationary fix.
+    func testTheTrainFeedOverrulesAHeldStationaryFixFurtherOn() async throws {
+        let trains = FakeTrainPositions()
+        let rig = try rig(at: t(11, 46), trains: trains)
+        await rig.engine.start(ride)
+        rig.clock.set(t(11, 47))
+        let held = try OnBoardFixtures.fix(
+            along: OnBoardFixtures.along(at: t(11, 47), plan: rig.plan), plan: rig.plan, stationary: true
+        )
+        rig.location.send(held)
+
+        rig.clock.set(t(11, 50))
+        let along = try OnBoardFixtures.along(at: t(11, 50), plan: rig.plan)
+        let place = try OnBoardFixtures.fix(along: along, plan: rig.plan).coordinate
+        await trains.set(TrainPosition(coordinate: place, reportedAt: t(11, 50)))
+        await rig.engine.refresh()
+        let state = try XCTUnwrap(rig.engine.state)
+        XCTAssertEqual(state.source, .trainFeed)
+        XCTAssertEqual(state.expectedArrival.timeIntervalSince(t(11, 52)), 0, accuracy: 30, "On time, not 3 min late")
+    }
+
     /// The live status is read before the first update, so a ride starts with the feed's delay.
     func testARideStartsWithTheFeedsDelay() async throws {
         let rig = try rig(at: t(11, 10), answer: false)

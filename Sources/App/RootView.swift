@@ -168,8 +168,13 @@ struct RootView: View {
             router.pendingLink = nil
             Task { await open(link) }
         }
-        // The first route saved on device, with a light haptic (TT-120).
-        .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
+        // The first route saved on device: Rail joint as the first trains land, 260 ms in (TT-215, D100); the station tap
+        // that set it is silent.
+        .onChange(of: schedule.route) { old, new in
+            if old == nil, new != nil { TTHaptics.shared.play(.firstTrains) }
+        }
+        // Schedule leaves the open trip's feels to its sheet (TT-215).
+        .onChange(of: openTripKey, initial: true) { _, key in schedule.openTrip = key }
         .environment(\.timeFormatter, settings.timeFormatter)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
@@ -325,12 +330,20 @@ struct RootView: View {
             }
     }
 
+    /// The trip whose Trip details is open.
+    private var openTripKey: TripKey? {
+        router.presentedSheet == .tripDetails ? tripDetails?.key : nil
+    }
+
     /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now
     /// button. SwiftUI calls the setter on every tap of a tab, also the selected one.
     private var tabSelection: Binding<AppTab> {
         Binding(
             get: { router.selectedTab },
             set: { tab in
+                // A tab tap, and Schedule tapped again to go back to Now, tick (Grigor, 2026-11-18; TT-215, D100). Another
+                // tab tapped again changes nothing and stays silent.
+                if tab != router.selectedTab || tab == .schedule { TTHaptics.shared.play(.tab) }
                 if tab == .schedule, router.selectedTab == .schedule {
                     Analytics.track(.backToNow(.tab))
                     Task { await schedule.backToNow() }

@@ -76,7 +76,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 switch action {
                 case DetectionNotice.startAction: self.router.open(train, startsRide: true)
                 case UNNotificationDefaultActionIdentifier: self.router.open(train, startsRide: false)
-                case DetectionNotice.notMeAction: self.detection?.refresh()
+                case DetectionNotice.notMeAction:
+                    // Tap, felt only with the app open (TT-215, D100).
+                    TTHaptics.shared.play(.undo)
+                    self.detection?.refresh()
                 default: break
                 }
             }

@@ -26,7 +26,14 @@ final class FeedbackViewModel {
     private let sender: any FeedbackSending
     private let context: FeedbackContext
 
-    init(kind: FeedbackKind = .feedback, sender: any FeedbackSending, context: FeedbackContext = .current) {
+    /// Done when it arrived, Fail when it could not send (TT-215, D100).
+    private let haptics: any HapticPlaying
+
+    init(
+        kind: FeedbackKind = .feedback, sender: any FeedbackSending, context: FeedbackContext = .current,
+        haptics: any HapticPlaying = TTHaptics.shared
+    ) {
+        self.haptics = haptics
         self.kind = kind
         self.sender = sender
         self.context = context
@@ -65,9 +72,11 @@ final class FeedbackViewModel {
         do {
             try await sender.send(outgoing)
             phase = .sent
+            haptics.play(.confirmed)
             Analytics.track(.feedbackSent(outgoing.kind, withEmail: outgoing.email != nil))
         } catch {
             phase = .failed
+            haptics.play(.fail)
         }
     }
 }

@@ -13,10 +13,11 @@ The product promise is unchanged: know when your train leaves, whether it is del
 | Direct GO trains between two stations, scheduled departures and arrivals, a date choice of up to 42 days | Login, payment, subscription, advertising, sponsor placement |
 | Saved last route and the last three routes opened (Recent), kept on device (D48) | AI chat, live train maps, ticketing, refunds |
 | Live status: on time, delayed, cancelled, scheduled only, stale, offline | Bus planning, UP Express, transfer routing, crowd reports |
-| Published platform, or a dash pill until GO posts it (D82) | Calendar access, GPS tracking, widgets, Apple Watch app |
+| Published platform, or a dash pill until GO posts it (D82) | Calendar access, GPS tracking, Apple Watch app |
 | Trip details with stop list and arrival basis | Delay threshold settings or any advanced alert options |
 | One-off and repeating weekday alerts, anonymous, server monitored, delivered by APNs | Any claim of real-time, instant or guaranteed delivery |
 | Light and dark appearance, Dynamic Type, VoiceOver, 12/24-hour time |  |
+| Home Screen widgets Next train and Departures, and Lock Screen Next train (D101, TT-181 to TT-185) |  |
 
 All station names, times, platforms, train numbers and stop lists shown on the canvas are illustrative fixtures. Fixtures stay isolated from production data and are never shown as live service.
 
@@ -293,7 +294,7 @@ The app uses the system font, SF Symbols and the tokens in the [GO Train App des
 
 **Motion.** Transitions 0.2 to 0.3 s ease-out; sheets use native presentation; buttons scale to 0.97 on press; a held train card sinks to 0.98 and springs back, and a scroll that starts on it does not press it (D95). The Now line moves once a minute with no animation, and plays once when the timeline shows (D80). With Reduce Motion on, cross-fades replace movement and skeleton rows do not pulse. No countdowns, pulsing dots or flashing.
 
-**Haptics (D95).** A haptic answers the rider's finger, or a train the rider watches; never navigation, scrolling or ambient updates. One per gesture, timed from the tap, only with the app open. The signature, Rail joint (two beats 100 ms apart, light then heavy and dull), means only "you're set": turning an alert on with the bell or Alert me plays it as the bell fills; a save not back in 150 ms plays a soft tap first and Rail joint when it lands. Turning an alert off plays a soft Tap, a refused bell the warning with its shake, a failed save the error. Every glass switch clicks once as its thumb arrives, the same both ways; system switches keep iOS's own. Settings › Testing › Haptics plays every feel (TestFlight and Xcode builds).
+**Haptics (D95).** A haptic answers the rider's finger, or a train the rider watches; never navigation, scrolling or ambient updates. One per gesture, timed from the tap, only with the app open. The signature, Rail joint (two beats 100 ms apart, light then heavy and dull), means only "you're set": turning an alert on with the bell or Alert me plays it as the bell fills; a save not back in 150 ms plays a soft tap first and Rail joint when it lands. Turning an alert off plays a soft Tap, a refused bell the warning with its shake, a failed save the error. Every glass switch clicks once as its thumb arrives, the same both ways; system switches keep iOS's own. **The rest of the map (D100):** a tab bar tap ticks, the Schedule tab tapped again too; a day tile and a line on the welcome tick; Swap taps as the names land; Remove alert drops; Undo, Try again, No and End ride tap; feedback sent and notifications turned on play Done, failures Fail; a train you watch turning late or cancelled warns once; I'm on board, Yes, Boarding now for a watched train and your first trains play Rail joint; the welcome's tiles give one light tap. Settings › Testing › Haptics plays every feel and every moment (TestFlight and Xcode builds).
 
 **Other settings honoured.** Increase Contrast (control-border and hairline darken one step), Bold Text, Smart Invert excluded for the app icon, light and dark appearance following System by default.
 

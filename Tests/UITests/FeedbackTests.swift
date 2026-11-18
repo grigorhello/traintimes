@@ -32,6 +32,22 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(pill.waitForExistence(timeout: 15))
     }
 
+    /// The Feedback button asks after 4 s of a still Schedule (TT-228, D106), forced by the launch argument; a tap opens the
+    /// sheet as always.
+    @MainActor
+    func testButtonAsksAndOpensTheSheet() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts + ["-settings.feedbackNudge", "now"]
+        app.launch()
+
+        let pill = app.buttons["schedule.feedback"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 15))
+        // 4 s of stillness, then about 2.5 s of asking: tap while it plays.
+        Thread.sleep(forTimeInterval: 5)
+        pill.tap()
+        XCTAssertTrue(app.buttons["feedback.send"].waitForExistence(timeout: 15))
+    }
+
     @MainActor
     func testAskAQuestionFromSettings() {
         let app = XCUIApplication.onFixtures()

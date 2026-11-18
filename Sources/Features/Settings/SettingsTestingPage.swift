@@ -6,6 +6,9 @@ import SwiftUI
 struct SettingsTestingPage: View {
     @Bindable var viewModel: SettingsViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.feedbackNudge) private var feedbackNudge
+    /// "Play on Schedule" was tapped: the Feedback button asks on the next still Schedule (TT-228).
+    @State private var nudgeQueued = false
 
     var body: some View {
         SettingsPageScaffold(
@@ -21,6 +24,7 @@ struct SettingsTestingPage: View {
                     mockTimeCard.settingsRise(order: 2)
                     SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
                     hapticsCard.settingsRise(order: 3)
+                    feedbackNudgeCard.settingsRise(order: 3)
                 }
             }
         )
@@ -59,6 +63,28 @@ struct SettingsTestingPage: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("settings.haptics")
+        }
+        .padding(.top, TTSpace.s3)
+    }
+
+    /// Feedback animation (TT-228, D106): clears the nudge's counters and lets Schedule's Feedback button ask 4 s after the
+    /// next time Schedule is still, without the two-day wait.
+    private var feedbackNudgeCard: some View {
+        SettingsCard {
+            Button {
+                feedbackNudge?.playOnNextStill()
+                nudgeQueued = true
+            } label: {
+                SettingsRow(title: "settings.feedback_nudge") {
+                    Text(nudgeQueued ? LocalizedStringKey("settings.feedback_nudge.queued") : "settings.feedback_nudge.play")
+                        .font(TTFont.body)
+                        .foregroundStyle(nudgeQueued ? TTColor.inkSecondary : TTColor.accent)
+                }
+            }
+            .buttonStyle(SettingsRowButtonStyle())
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("settings.feedbackNudge")
         }
         .padding(.top, TTSpace.s3)
     }

@@ -38,6 +38,12 @@ struct ScheduleView: View {
     @State private var pulseWaits = false
     /// The early-stage Feedback pill at the end of the line row (TT-202, D85).
     @Environment(\.showsFeedbackPill) private var showsFeedbackPill
+    /// The app's feedback nudge (TT-228, D106) and whether a sheet or another tab covers Schedule (from `RootView`).
+    @Environment(\.feedbackNudge) private var feedbackNudge
+    @Environment(\.scheduleCovered) private var scheduleCovered
+    /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
+    @State private var nudgeWaiting = false
+    @State private var nudgeTouches = 0
     /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
     @State private var motion: ScheduleMotionClock
     /// Taps on each day tile, by tile id: each one replays that tile's press.
@@ -97,6 +103,8 @@ struct ScheduleView: View {
                 await viewModel.pollLiveStatus()
             }
             .onChange(of: viewModel.entranceRequest) { startEntrance() }
+            // The Feedback button asks after 4 s of a still Schedule (TT-228); anything that breaks the stillness cancels it.
+            .task(id: nudgeStillness) { await waitToAskForFeedback() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
             .onChange(of: viewModel.departureRequest) { startDeparture() }
             // The launch's splash lifted (TT-227): the cascade and the Now pulse that waited under it play now.
@@ -114,11 +122,49 @@ struct ScheduleView: View {
             // Back after more than 10 min away, the timeline returns to Now on Today (TT-222).
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
-                case .background: viewModel.wentToBackground()
-                case .active: Task { await viewModel.cameToForeground() }
+                case .background:
+                    viewModel.wentToBackground()
+                    feedbackNudge?.wentToBackground()
+                case .active:
+                    feedbackNudge?.cameToForeground()
+                    Task { await viewModel.cameToForeground() }
                 default: break
                 }
             }
+    }
+
+    // MARK: Feedback nudge (TT-228, D106)
+
+    /// What the Feedback button's wait needs from Schedule: its trains on screen and nothing over or in front of them.
+    private var nudgeStillness: FeedbackNudge.Stillness {
+        let isLoaded = switch viewModel.content {
+        case .timeline, .noTrains: true
+        case .loading, .noConnection, .failed: false
+        }
+        let rideStrip = RideStripContent(isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle)
+        return FeedbackNudge.Stillness(
+            isActive: scenePhase == .active,
+            isLoaded: isLoaded,
+            launchCovers: launchCovers,
+            isCovered: scheduleCovered,
+            isPicking: isPicking,
+            hasCapsule: bells?.capsule != nil,
+            hasRideStrip: rideStrip != .otherwise,
+            touches: nudgeTouches + dayTaps.values.reduce(0, +)
+        )
+    }
+
+    /// Waits 4 s on a still Schedule, then the button asks. A change to the stillness cancels the task, and with it this app
+    /// open's one try (`FeedbackNudge.stillnessBegan()`). Nothing plays where Schedule's motion is off (snapshots).
+    private func waitToAskForFeedback() async {
+        guard showsFeedbackPill, playsMotion, nudgeStillness.isStill, let nudge = feedbackNudge, nudge.stillnessBegan() else {
+            return
+        }
+        nudgeWaiting = true
+        defer { nudgeWaiting = false }
+        try? await Task.sleep(for: FeedbackNudge.stillness)
+        guard !Task.isCancelled else { return }
+        nudge.play()
     }
 
     // MARK: Motion (TT-164, D61)
@@ -589,6 +635,8 @@ struct ScheduleView: View {
         }
         .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
             if !riderScrolled { riderScrolled = true }
+            // A scroll cancels the Feedback button's wait (TT-228).
+            if nudgeWaiting { nudgeTouches += 1 }
             // A scroll closes the day panel (TT-191).
             if isPanelOpen { bells?.closePanel() }
         })

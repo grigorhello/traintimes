@@ -18,6 +18,12 @@ final class FeedbackSnapshotTests: XCTestCase {
     /// With the Notice chip, the pill is icon only.
     @MainActor func testSchedulePillWithNoticeDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark) }
 
+    /// The button as it asks (TT-228, D106), frozen about 1000 ms in: solid fill, the question bubble, tilted and grown.
+    @MainActor func testPillAsksLight() async throws { try await snapSchedule(.loadedFixture(), .light, asks: true) }
+    @MainActor func testPillAsksDark() async throws { try await snapSchedule(.loadedFixture(), .dark, asks: true) }
+    @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }
+    @MainActor func testRoundButtonAsksDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark, asks: true) }
+
     // MARK: Helpers
 
     @MainActor
@@ -64,9 +70,12 @@ final class FeedbackSnapshotTests: XCTestCase {
     }
 
     @MainActor
-    private func snapSchedule(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+    private func snapSchedule(
+        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, testName: String = #function, line: UInt = #line
+    ) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
             .environment(\.showsFeedbackPill, true)
+            .environment(\.feedbackNudgeFrozen, asks)
         layOutOnce(view)
         assertSnapshot(
             of: view,

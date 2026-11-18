@@ -210,6 +210,18 @@ extension AnalyticsEvent {
         Self("feedback_sent", ["kind": .string(kind.rawValue), "with_email": .bool(withEmail)])
     }
 
+    /// Schedule's Feedback button started asking (TT-228): `count` is which showing this is, 1 to 5.
+    static func feedbackNudgeShown(count: Int) -> Self {
+        Self("feedback_nudge_shown", ["count": .int(count)])
+    }
+
+    /// The feedback sheet opened (TT-228): `after_nudge` within 60 s of the button asking; `nudges_seen` 0 to 5.
+    static func feedbackOpened(source: FeedbackOpenSource, afterNudge: Bool, nudgesSeen: Int) -> Self {
+        Self("feedback_opened", [
+            "source": .string(source.rawValue), "after_nudge": .bool(afterNudge), "nudges_seen": .int(nudgesSeen)
+        ])
+    }
+
     /// Taps on one information-only element (TT-209): `count` taps in a row, each within 2 s of the one before.
     static func interestTapped(element: String, screen: String, count: Int) -> Self {
         Self("interest_tapped", ["element": .string(element), "screen": .string(screen), "count": .int(count)])

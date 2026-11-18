@@ -62,6 +62,8 @@ export interface ContentState {
   phase: Phase;
   title: string;
   countdownEnd?: number;
+  /** The big number in whole minutes, "12 min" (TT-219): sent again each minute, since iOS has no live "12 min" text. */
+  minutes?: string;
   now: string;
   label: string;
   delay?: string;
@@ -125,17 +127,26 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
     updated: format(strings['live.updated'], time(now)),
   };
   if (late) state.delay = format(strings['onboard.late'], delay);
-  if (phase !== 'departed') state.countdownEnd = Math.round(leavesAt / 1000);
+  if (phase !== 'departed') {
+    state.countdownEnd = Math.round(leavesAt / 1000);
+    state.minutes = format(strings['onboard.minutes'], minutesUntil(leavesAt, now));
+  }
   return state;
 }
 
+/** Whole minutes until the train leaves, as the app counts them (`LiveDeparture.minutes(at:)`), and 1 at least. */
+export function minutesUntil(leavesAt: number, now: number): number {
+  return Math.max(1, Math.floor((leavesAt - now) / MINUTE));
+}
+
 /**
- * What a rider sees, the update time aside: an update is sent only when this changes. The countdown counts to the half
- * minute, so an expected time that moves by a few seconds sends nothing (the app allows 15 s).
+ * What a rider sees, the update time aside: an update is sent only when this changes, so once a minute for the minutes
+ * (TT-219). The countdown counts to the half minute, so an expected time that moves by a few seconds sends nothing more
+ * (the app allows 15 s).
  */
 export function signature(state: ContentState): string {
   const countdown = state.countdownEnd === undefined ? '' : Math.round(state.countdownEnd / 30);
-  return [state.phase, state.title, state.delay ?? '', countdown].join('|');
+  return [state.phase, state.title, state.delay ?? '', countdown, state.minutes ?? ''].join('|');
 }
 
 /** The activity becomes stale, and the app ends it, 2 min after the expected departure. */
@@ -151,7 +162,7 @@ const seconds = (ms: number) => Math.floor(ms / 1000);
  */
 export function startPayload(departure: Departure, attributes: Attributes, state: ContentState, now: number, timeFormat: TimeFormat) {
   const leavesAt = leaves(departure);
-  const minutes = Math.max(1, Math.floor((leavesAt - now) / MINUTE));
+  const minutes = minutesUntil(leavesAt, now);
   return {
     aps: {
       timestamp: seconds(now),
@@ -169,7 +180,7 @@ export function startPayload(departure: Departure, attributes: Attributes, state
   };
 }
 
-/** `event: update`: the platform, the delay or the phase changed. */
+/** `event: update`: the minutes, the delay or the phase changed. */
 export function updatePayload(departure: Departure, state: ContentState, now: number) {
   return { aps: { timestamp: seconds(now), event: 'update', 'content-state': state, 'stale-date': seconds(staleDate(departure)) } };
 }

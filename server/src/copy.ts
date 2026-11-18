@@ -23,6 +23,7 @@ export const strings = {
   'depart.boardingLine': '%@ boarding now',
   'depart.departed': 'Departed %@',
   'depart.platformLabel': 'Platform',
+  'onboard.minutes': '%d min',
   'onboard.late': '%d min late',
   'live.updated': 'Updated %@',
 } as const;

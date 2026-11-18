@@ -90,6 +90,7 @@ describe('the activity, at the right times', () => {
       phase: 'countingDown',
       title: '7:13 AM departs in',
       countdownEnd: at('7:13') / 1000,
+      minutes: '30 min',
       now: '',
       label: 'Platform',
       late: false,
@@ -114,7 +115,12 @@ describe('the activity, at the right times', () => {
     assert.equal(delayed['content-state'].delay, '4 min late');
     assert.equal(delayed['content-state'].late, true);
     assert.equal(delayed['content-state'].countdownEnd, at('7:17') / 1000);
+    assert.equal(delayed['content-state'].minutes, '26 min');
     assert.equal(delayed['stale-date'], at('7:19') / 1000);
+    // Whole minutes, no seconds (TT-219): each new minute sends an update, the same look nothing.
+    const [minute] = await cycle('6:52:00', delayFeed('6:52', 4));
+    assert.equal(minute.event, 'update');
+    assert.equal(minute['content-state'].minutes, '25 min');
     assert.deepEqual(await cycle('6:52:00', delayFeed('6:52', 4)), [], 'The same look sends nothing');
 
     const [boarding] = await cycle('7:15:30', delayFeed('7:15', 4));
@@ -122,11 +128,13 @@ describe('the activity, at the right times', () => {
     assert.equal(boarding['content-state'].title, '7:17 AM boarding now');
     assert.equal(boarding['content-state'].isClose, true);
     assert.equal(boarding['content-state'].delay, '4 min late');
+    assert.equal(boarding['content-state'].minutes, '1 min');
 
     const [departed] = await cycle('7:17:30', delayFeed('7:17', 4));
     assert.equal(departed['content-state'].phase, 'departed');
     assert.equal(departed['content-state'].title, 'Departed 7:17 AM');
     assert.equal(departed['content-state'].countdownEnd, undefined);
+    assert.equal(departed['content-state'].minutes, undefined);
     assert.equal(departed['content-state'].delay, undefined);
     assert.equal(departed['content-state'].late, false);
 
@@ -155,6 +163,9 @@ describe('the activity, at the right times', () => {
     await report({ token: ACTIVITY_TOKEN });
     const [first] = await cycle('6:44:00');
     assert.equal(first.event, 'update', 'Its first look from the server');
+    assert.equal(first['content-state'].minutes, '29 min');
+    const [next] = await cycle('6:45:00');
+    assert.equal(next['content-state'].minutes, '28 min', 'The next minute');
     assert.deepEqual(await cycle('6:45:00'), []);
   });
 
@@ -223,14 +234,16 @@ describe('the rules', () => {
     assert.equal(phaseAt({ ...train, status: { kind: 'skipped', stop: 'destination', reportedAt: at('7:00') } }, at('7:00')), 'over');
   });
 
-  test('on time with live data, a small lateness, and the update time does not count as a change', () => {
+  test('on time with live data, a small lateness, the minutes, and the update time does not count as a change', () => {
     const onTime = { ...train, status: { kind: 'running' as const, delayMin: 1, expected: at('7:14'), reportedAt: at('7:00') } };
     const state = contentState(onTime, 'countingDown', at('7:00'), '12h');
     assert.equal(state.title, '7:14 AM departs in', 'The expected time, not late under 3 min');
     assert.equal(state.delay, undefined);
     assert.equal(state.late, false);
     assert.equal(state.countdownEnd, at('7:14') / 1000);
-    assert.equal(signature(state), signature(contentState(onTime, 'countingDown', at('7:01'), '12h')));
+    assert.equal(state.minutes, '14 min');
+    assert.equal(signature(state), signature({ ...state, updated: 'Updated 7:01 AM' }));
+    assert.notEqual(signature(state), signature(contentState(onTime, 'countingDown', at('7:01'), '12h')), 'A new minute');
     // The expected time moving by a few seconds sends nothing; by a minute it does.
     const seconds = (ms: number) => ({ ...onTime, status: { ...onTime.status, expected: at('7:14') + ms } });
     assert.equal(signature(state), signature(contentState(seconds(8_000), 'countingDown', at('7:00'), '12h')));

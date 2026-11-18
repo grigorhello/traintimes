@@ -117,33 +117,53 @@ struct RideActivityTile: View {
     }
 }
 
-/// The big number as timer text, which runs on the device with no updates ("11:59": iOS 17 has no live minutes-only format,
-/// D74), in a fixed width so what stands beside it does not shift as the digits change; "Now" at your stop.
+/// The big number: whole minutes, "15 min" (TT-219, D97: no seconds), text the app and the alert server update when the
+/// minute changes, since iOS has no live "15 min" format; "Now" at your stop. A push from an older alert server, with no
+/// minutes, still shows timer text running to `countdownEnd` ("11:59"), in a fixed width so what stands beside it does not
+/// shift as the digits change.
 struct RideActivityCountdown: View {
     let state: RideActivityAttributes.ContentState
     let color: Color
     let fontSize: CGFloat
-    /// Wide enough for "29:59": a narrower frame cuts "12:00" to "12:…".
+    /// The timer's width, wide enough for "29:59": a narrower frame cuts "12:00" to "12:…".
     let width: CGFloat
+    /// The minutes' width: nil sizes them to their words (the card), a number fits them in it (the compact island).
+    var minutesWidth: CGFloat? = nil
     var alignment: Alignment = .leading
     @Environment(\.rideActivityPausedAt) private var pausedAt
 
     var body: some View {
-        Group {
-            if let end = state.countdownEnd {
-                let start = min(end, pausedAt ?? Date())
-                Text(timerInterval: start...end, pauseTime: pausedAt, countsDown: true, showsHours: false)
-            } else {
-                Text(state.now)
+        if let minutes = state.minutes {
+            Text(minutes)
+                .modifier(Styled(countdown: self))
+                .minimumScaleFactor(0.6)
+                .frame(width: minutesWidth, alignment: alignment)
+        } else {
+            Group {
+                if let end = state.countdownEnd {
+                    let start = min(end, pausedAt ?? Date())
+                    Text(timerInterval: start...end, pauseTime: pausedAt, countsDown: true, showsHours: false)
+                } else {
+                    Text(state.now)
+                }
             }
+            .modifier(Styled(countdown: self))
+            .frame(width: width, alignment: alignment)
         }
-        .font(.system(size: fontSize, weight: fontSize > 20 ? .bold : .semibold))
-        .tracking(fontSize > 20 ? -1 : -0.2)
-        .monospacedDigit()
-        .lineLimit(1)
-        .multilineTextAlignment(alignment == .leading ? .leading : .trailing)
-        .foregroundStyle(color)
-        .frame(width: width, alignment: alignment)
+    }
+
+    private struct Styled: ViewModifier {
+        let countdown: RideActivityCountdown
+
+        func body(content: Content) -> some View {
+            content
+                .font(.system(size: countdown.fontSize, weight: countdown.fontSize > 20 ? .bold : .semibold))
+                .tracking(countdown.fontSize > 20 ? -1 : -0.2)
+                .monospacedDigit()
+                .lineLimit(1)
+                .multilineTextAlignment(countdown.alignment == .leading ? .leading : .trailing)
+                .foregroundStyle(countdown.color)
+        }
     }
 }
 
@@ -380,7 +400,7 @@ struct RideActivityCompactTrailing: View {
 
     var body: some View {
         if state.phase != .departed {
-            RideActivityCountdown(state: state, color: style.number, fontSize: 15, width: 48, alignment: .trailing)
+            RideActivityCountdown(state: state, color: style.number, fontSize: 15, width: 48, minutesWidth: 48, alignment: .trailing)
         }
     }
 }

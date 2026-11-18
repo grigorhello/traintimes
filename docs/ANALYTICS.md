@@ -44,7 +44,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `notification_permission` | The rider answered the iOS notification prompt | `result`: `allowed`, `denied` |
 | `notification_opened` | A notification tapped | `kind`: `alert`, `detection`, `other` (ride notifications); `action`: `open`, `start`, `not_me` |
 | `ride_started` | A ride started | `source`: `on_board` ("I'm on board"), `detection` (Yes on Schedule's question), `notification` (Start On board on the background question); `demo` |
-| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled` |
+| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled`; `at_stop` (the train was at your stop: Done there, or the end 10 min after it, TT-221) |
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
@@ -89,7 +89,7 @@ Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and
 - Which lines and stations (`route_set.line`, `from`, `to`) riders use most.
 - What riders want to know more about: `interest_tapped` by `element`, and rage taps (`count` 3 or more).
 - Where riders give up: `notification_permission` denied, `alert_removed` soon after `alert_saved`, `ride_ended` with
-  `by_rider` before `arrived`.
+  `by_rider` and `at_stop` false (Done at your stop is `at_stop` true).
 
 ## Dashboard: Train Times · Health (TT-210)
 

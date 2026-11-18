@@ -13,10 +13,11 @@ The product promise is unchanged: know when your train leaves, whether it is del
 | Direct GO trains between two stations, scheduled departures and arrivals, a date choice of up to 42 days | Login, payment, subscription, advertising, sponsor placement |
 | Saved last route and the last three routes opened (Recent), kept on device (D48) | AI chat, live train maps, ticketing, refunds |
 | Live status: on time, delayed, cancelled, scheduled only, stale, offline | Bus planning, UP Express, transfer routing, crowd reports |
-| Published platform, or a dash pill until GO posts it (D82) | Calendar access, GPS tracking, widgets, Apple Watch app |
+| Published platform, or a dash pill until GO posts it (D82) | Calendar access, GPS tracking, Apple Watch app |
 | Trip details with stop list and arrival basis | Delay threshold settings or any advanced alert options |
 | One-off and repeating weekday alerts, anonymous, server monitored, delivered by APNs | Any claim of real-time, instant or guaranteed delivery |
 | Light and dark appearance, Dynamic Type, VoiceOver, 12/24-hour time |  |
+| Home Screen widgets Next train and Departures, and Lock Screen Next train (D101, TT-181 to TT-185) |  |
 
 All station names, times, platforms, train numbers and stop lists shown on the canvas are illustrative fixtures. Fixtures stay isolated from production data and are never shown as live service.
 

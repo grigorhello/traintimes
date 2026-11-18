@@ -57,11 +57,16 @@ struct Departure: Hashable, Sendable, Identifiable {
     var departureTime: Date { expectedDeparture ?? trip.scheduledDeparture }
 
     /// Resolves every trip's status and sorts by expected departure, else scheduled. Offline, a cached platform may
-    /// have changed since, so every card reads "Platform pending" (TT-115).
+    /// have changed since, so every card reads "Platform pending" (TT-115); otherwise today's trains take the platform
+    /// GO posts (TT-225).
     static func resolve(_ trips: [Trip], live: LiveSnapshot, freshness: Freshness, isToday: Bool) -> [Departure] {
         trips.map { scheduled in
             var trip = scheduled
-            if case .offline = freshness { trip.platform = .pending }
+            if case .offline = freshness {
+                trip.platform = .pending
+            } else if isToday, let platform = live.platforms[trip.key.tripId] {
+                trip.platform = .published(platform)
+            }
             let update = live.updates[trip.key.tripId]
             let status = TrainStatus.resolve(for: trip, update: update, freshness: freshness, isToday: isToday)
             let hasEstimate = switch status {

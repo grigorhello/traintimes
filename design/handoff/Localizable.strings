@@ -383,3 +383,9 @@
 "settings.mock_time.early" = "Early morning";
 "settings.mock_time.late" = "Late evening";
 "settings.mock_time.day_change" = "Midnight";
+
+/* Home Screen widgets (TT-181; TT-183 replaces the placeholder and keeps these keys) */
+"widget.next.name" = "Next train";
+"widget.next.description" = "Your next train and how long until it leaves.";
+"widget.not_loaded.title" = "Open Train Times once";
+"widget.not_loaded.body" = "to load the timetable.";

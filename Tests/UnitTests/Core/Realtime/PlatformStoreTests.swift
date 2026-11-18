@@ -49,11 +49,12 @@ final class PlatformStoreTests: XCTestCase {
         _ = await store.board(at: "OA")
         XCTAssertEqual(calls.stops, ["OA"])
         clock.advance(seconds: 21)
-        XCTAssertEqual(await store.board(at: "OA")?.platforms["1108"], "3")
+        let board = await store.board(at: "OA")
+        XCTAssertEqual(board?.platforms["1108"], "3")
         XCTAssertEqual(calls.stops, ["OA", "OA"])
     }
 
-    private func departures(platforms: PlatformStore, isToday: Bool = true) async throws -> (LiveSnapshot, [String: Departure]) {
+    private func resolved(platforms: PlatformStore, isToday: Bool = true) async throws -> (LiveSnapshot, [String: Departure]) {
         let clock = FixedClock(now: monday.date(hour: 7, minute: 0).addingTimeInterval(30))
         let repository = try GTFSScheduleRepository.replaying(
             FeedReplay("tripupdates-0700"), platforms: platforms, clock: clock, directory: directory
@@ -66,7 +67,7 @@ final class PlatformStoreTests: XCTestCase {
 
     func testTodaysCardsShowThePostedPlatform() async throws {
         let data = oakville
-        let (live, departures) = try await departures(platforms: PlatformStore { _ in data })
+        let (live, departures) = try await resolved(platforms: PlatformStore { _ in data })
         XCTAssertTrue(live.hasPlatformSource)
         XCTAssertEqual(departures["LW-1108"]?.trip.platform, .published("3"))
         XCTAssertEqual(departures["LW-1256"]?.trip.platform, .published("9 & 10"))
@@ -74,14 +75,14 @@ final class PlatformStoreTests: XCTestCase {
     }
 
     func testAFailedBoardLeavesTheDashAndNoSource() async throws {
-        let (live, departures) = try await departures(platforms: PlatformStore { _ in throw URLError(.badServerResponse) })
+        let (live, departures) = try await resolved(platforms: PlatformStore { _ in throw URLError(.badServerResponse) })
         XCTAssertFalse(live.hasPlatformSource)
         XCTAssertEqual(departures["LW-1108"]?.trip.platform, .pending)
     }
 
     func testAnotherDayKeepsTheDash() async throws {
         let data = oakville
-        let (_, departures) = try await departures(platforms: PlatformStore { _ in data }, isToday: false)
+        let (_, departures) = try await resolved(platforms: PlatformStore { _ in data }, isToday: false)
         XCTAssertEqual(departures["LW-1108"]?.trip.platform, .pending)
     }
 

@@ -73,6 +73,9 @@ enum RideMotion {
     static let softRailOpacity = 0.34
     static var softRail: Animation { .easeOut(duration: 0.6) }
     static let pinClearance: CGFloat = 24
+    /// The furthest the clock places the train on a stretch (`RideTimes.fraction`), where the last stretch's 24 pt gap is
+    /// reached.
+    static let lastStretchEnd: CGFloat = 0.92
 
     /// At your stop, 450 ms after the event: the train slides into the pin, the check pops in (380 ms) and draws (320 ms,
     /// 120 ms later), one ring (1 to 1.6, 0.5 to 0, 700 ms), one sheen across the hero card (a band 45 % of its width, 900 ms),

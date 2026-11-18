@@ -314,8 +314,8 @@ struct RideRail {
     }
 
     /// The train's centre down the rail: on its stop's dot, or that far towards the next drawn stop, whatever lies folded
-    /// between them (one stretch, crossed at the same pace). On the last stretch it stays 24 pt short of your pin's centre
-    /// until it stands there; nil (at your stop) is on the pin.
+    /// between them (one stretch, crossed at the same pace). On the last stretch the stretch ends 24 pt short of your pin's
+    /// centre, so the train keeps moving all the way and never covers the pin; nil (at your stop) is on the pin.
     func trainY(_ position: Double?) -> CGFloat {
         let last = max(0, stopCount - 1)
         guard let position else { return centre(ofStop: last) ?? Self.row / 2 }
@@ -324,9 +324,10 @@ struct RideRail {
         let next = (index + 1...max(index + 1, last)).first { centre(ofStop: $0) != nil } ?? index
         let to = centre(ofStop: min(next, last)) ?? from
         let fraction = CGFloat(position - Double(index))
-        let y = from + (to - from) * fraction
-        guard fraction > 0, next >= last else { return y }
-        return min(y, max(from, to - RideMotion.pinClearance))
+        guard fraction > 0, next >= last else { return from + (to - from) * fraction }
+        // The clock's fraction stops at 0.92 (`RideTimes.fraction`): that is where the shortened stretch ends.
+        let end = max(from, to - RideMotion.pinClearance)
+        return from + (end - from) * min(fraction / RideMotion.lastStretchEnd, 1)
     }
 
     /// The next drawn stop's centre ahead of the train, where the glint runs to.
@@ -370,8 +371,8 @@ struct RideStopList: View {
         VStack(spacing: 0) {
             ForEach(Array(zip(ride.rows.indices, ride.rows)), id: \.1.id) { index, row in
                 switch row {
-                case .stop(let stop): stopRow(stop)
-                case .fold: foldRow(top: geometry.tops[index], trainY: trainY, position: position)
+                case .stop(let stop): stopRow(stop).transition(Self.rowTransition)
+                case .fold: foldRow(top: geometry.tops[index], trainY: trainY, position: position).transition(Self.rowTransition)
                 }
             }
         }
@@ -395,6 +396,9 @@ struct RideStopList: View {
     }
 
     private var animates: Bool { playsMotion && !reduceMotion }
+
+    /// A row folding away or unfolding fades quickly, so the rows sliding past it never show through it.
+    private static let rowTransition = AnyTransition.opacity.animation(.easeOut(duration: 0.15))
 
     /// Creeping by the clock on a stretch, the glide onto a stop's dot, the slide into your pin after 450 ms.
     private func trainAnimation(_ position: Double?) -> Animation? {

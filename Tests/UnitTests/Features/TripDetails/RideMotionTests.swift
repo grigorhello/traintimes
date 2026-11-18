@@ -41,8 +41,9 @@ final class RideMotionTests: XCTestCase {
         let ride = try details(rig)
         let rail = RideRail(rows: ride.rows, stopCount: ride.stops.count)
         let pin = try XCTUnwrap(rail.centre(ofStop: 5))
-        XCTAssertEqual(rail.trainY(4.2), 151 + 50 * 0.2, accuracy: 0.001, "Short of the cap: by the clock")
-        XCTAssertEqual(rail.trainY(4.92), pin - 24, "Held 24 pt short of the pin's centre")
+        XCTAssertEqual(rail.trainY(4.46), 151 + 26 * 0.5, accuracy: 0.001, "Half way along the shortened stretch")
+        XCTAssertEqual(rail.trainY(4.92), pin - 24, accuracy: 0.001, "At the clock's furthest: 24 pt short of the pin's centre")
+        XCTAssertLessThan(rail.trainY(4.8), pin - 24, "Still moving before that")
         XCTAssertEqual(rail.trainY(4), 151, "At Port Credit: on its dot")
     }
 

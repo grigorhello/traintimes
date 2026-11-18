@@ -161,7 +161,8 @@ extension RideDetails {
         }
 
         self.stops = built
-        rows = Self.rows(built, passed: passed)
+        // At your stop the stop before it stays drawn: no row moves while the train slides into your pin (TT-224).
+        rows = Self.rows(built, passed: isComplete ? max(0, last - 1) : passed)
         trainPosition = switch moment {
         case .atYourStop: nil
         case .atStation: Double(passed)

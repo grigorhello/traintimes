@@ -98,6 +98,7 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertEqual(ride.countdown, "Now")
         XCTAssertNil(ride.late)
         XCTAssertNil(ride.trainPosition, "The tick takes the train's place")
+        XCTAssertEqual(ride.rows.map(\.id), ["UN", "fold.UN", "PO", "CL"], "Port Credit stays drawn: no row moves at arrival")
         XCTAssertNil(ride.loop)
         XCTAssertFalse(ride.softensLastStretch)
         XCTAssertEqual(ride.railFill, 5)

@@ -692,13 +692,9 @@ private struct PinAnswer: View {
 
 /// The check at your stop: a 20 pt accent disc with its tick stroked on as `drawn` goes from 0 to 1 (the board's SVG check,
 /// `M7.4 12.4 l3.1 3.1 6.1-6.4` in its 20 pt circle).
-private struct ArrivedCheck: View, Animatable {
+private struct ArrivedCheck: View {
+    /// The trimmed tick animates on its own (a trimmed shape is animatable), so this view needs no `Animatable`.
     var drawn: Double
-
-    var animatableData: Double {
-        get { drawn }
-        set { drawn = newValue }
-    }
 
     var body: some View {
         ZStack {

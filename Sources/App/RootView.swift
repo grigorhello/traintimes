@@ -325,13 +325,13 @@ struct RootView: View {
             }
     }
 
-    /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now
-    /// button. SwiftUI calls the setter on every tap of a tab, also the selected one.
     /// The trip whose Trip details is open.
     private var openTripKey: TripKey? {
         router.presentedSheet == .tripDetails ? tripDetails?.key : nil
     }
 
+    /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now
+    /// button. SwiftUI calls the setter on every tap of a tab, also the selected one.
     private var tabSelection: Binding<AppTab> {
         Binding(
             get: { router.selectedTab },

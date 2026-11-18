@@ -1,7 +1,8 @@
 import Foundation
 
-/// The Time format setting (Settings, TT-105). Raw values are what the setting stores on device.
-enum TimeFormat: String, CaseIterable, Sendable {
+/// The Time format setting (Settings, TT-105). Raw values are what the setting stores on device and in the widget file
+/// (TT-182).
+enum TimeFormat: String, CaseIterable, Sendable, Codable {
     case device
     case twelveHour
     case twentyFourHour

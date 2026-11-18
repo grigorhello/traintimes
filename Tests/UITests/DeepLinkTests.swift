@@ -42,6 +42,45 @@ final class DeepLinkTests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch.exists)
     }
 
+    /// A widget's train (TT-182, D107) opens its Trip details from a closed app.
+    @MainActor
+    func testWidgetTripLinkOpensTheTripFromAColdStart() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.terminate()
+        app.open(URL(string: "traintimes://trip?tripId=LW-0758-20261105&serviceDate=20261105&originId=OA&destinationId=UN&source=widget")!)
+        Self.allowOpeningTheLink()
+
+        let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["trip.title"].waitForExistence(timeout: 15))
+        XCTAssertEqual(sheet.label, "7:58 AM train")
+    }
+
+    /// A widget's header (TT-182, D107) opens Schedule on its route while the app runs.
+    @MainActor
+    func testWidgetRouteLinkOpensScheduleOnThatRoute() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+        app.launch()
+        let from = app.buttons["schedule.from"]
+        XCTAssertTrue(from.waitForExistence(timeout: 15))
+        XCTAssertTrue((from.value as? String)?.hasPrefix("Oakville") == true)
+
+        app.open(URL(string: "traintimes://route?originId=UN&destinationId=OA")!)
+        Self.allowOpeningTheLink()
+        // The fixture stations' names: "Union Station GO", "Oakville GO".
+        let union = NSPredicate(format: "value BEGINSWITH %@", "Union")
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: union, object: from)], timeout: 15), .completed)
+        XCTAssertTrue((app.buttons["schedule.to"].value as? String)?.hasPrefix("Oakville") == true)
+    }
+
+    /// iOS may ask first whether to open the link in the app.
+    private static func allowOpeningTheLink() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.buttons["Open"].waitForExistence(timeout: 3) { springboard.buttons["Open"].tap() }
+    }
+
     /// What `server/src/monitor.ts` puts beside `aps` for the 7:58 AM train, Oakville to Union.
     private static func payload(serviceDate: String) -> String {
         #"{"tripId":"LW-0758-20261105","serviceDate":"\#(serviceDate)","originId":"OA","destinationId":"UN"}"#

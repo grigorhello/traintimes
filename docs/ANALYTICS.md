@@ -39,7 +39,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `route_swapped` | The swap button | none |
 | `back_to_now` | Back to today, at Now: the Schedule tab tapped again, or the app back after more than 10 min away (TT-222) | `source`: `tab`, `reopen` |
 | `day_changed` | Another day picked on the day strip | `offset` (days from today, -1 is yesterday) |
-| `trip_opened` | Trip details opens | `source`: `schedule` (a card), `notification` (an alert), `ride` (the ride strip), `departure` (the countdown strip or the Live Activity before departure), `detection` (the background question); `is_today` |
+| `trip_opened` | Trip details opens | `source`: `schedule` (a card), `notification` (an alert), `ride` (the ride strip), `departure` (the countdown strip or the Live Activity before departure), `detection` (the background question), `link` (a `traintimes://trip` link: a widget's train, TT-182); `is_today` |
 | `alert_saved` | An alert saved and kept (bell, "Alert me", Repeat days, the Alerts tab switch or days) | `is_on`, `repeats`, `days` (weekdays picked), `is_new` |
 | `alert_removed` | An alert removed by the rider | `source`: `bell` (a one-day alert turned off), `alerts_tab` (Remove alert) |
 | `notification_permission` | The rider answered the iOS notification prompt | `result`: `allowed`, `denied` |

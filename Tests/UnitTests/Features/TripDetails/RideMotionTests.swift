@@ -6,11 +6,6 @@ import XCTest
 final class RideMotionTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    override func tearDown() {
-        Analytics.tracker = nil
-        super.tearDown()
-    }
-
     private func details(_ rig: DemoRideRig) throws -> RideDetails {
         try XCTUnwrap(rig.onBoard.details(for: rig.key, formatter: formatter))
     }
@@ -163,6 +158,7 @@ final class RideMotionTests: XCTestCase {
 
     func testRideEndedCarriesWatchedSecondsAndOpens() async throws {
         let recorder = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
         let rig = await DemoRideRig.started()
         let (screen, _) = screen()
         let start = Date(timeIntervalSinceNow: -100)

@@ -349,20 +349,28 @@ struct WeatherSheet: Equatable, Sendable {
         _ kind: PrecipitationKind, on day: ServiceDay, in forecast: WeatherForecast, today: ServiceDay, now: Date,
         formatter: any TimeFormatting
     ) -> String {
-        let prefix = kind == .snow ? "snow" : "rain"
+        let snows = kind == .snow
         let hours = WeatherRules.hours(of: day, in: forecast, today: today, now: now)
         let wet = hours.enumerated().map { index, hour in
             hour.precipitationChance >= WeatherRules.precipitationChance
                 || (index == 0 && day == today && forecast.now.precipitation != .dry)
         }
-        guard let first = wet.firstIndex(of: true) else { return String(localized: String.LocalizationValue("weather.sky.\(prefix)")) }
+        guard let first = wet.firstIndex(of: true) else {
+            return snows ? String(localized: "weather.sky.snow") : String(localized: "weather.sky.rain")
+        }
         if first > 0 {
-            return String(format: String(localized: String.LocalizationValue("weather.line.\(prefix)_from")), formatter.hourTime(hours[first].date))
+            return String(
+                format: snows ? String(localized: "weather.line.snow_from") : String(localized: "weather.line.rain_from"),
+                formatter.hourTime(hours[first].date)
+            )
         }
         guard let dry = wet.firstIndex(of: false) else {
-            return String(localized: String.LocalizationValue("weather.line.\(prefix)_all_day"))
+            return snows ? String(localized: "weather.line.snow_all_day") : String(localized: "weather.line.rain_all_day")
         }
-        return String(format: String(localized: String.LocalizationValue("weather.line.\(prefix)_until")), formatter.hourTime(hours[dry].date))
+        return String(
+            format: snows ? String(localized: "weather.line.snow_until") : String(localized: "weather.line.rain_until"),
+            formatter.hourTime(hours[dry].date)
+        )
     }
 
     static func skyWord(_ sky: WeatherSky) -> String {

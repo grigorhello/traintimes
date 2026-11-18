@@ -43,6 +43,9 @@ final class OnBoard {
     /// The notification prompt through the alert rules (D41, D66), after a ride started.
     private let requestNotifications: @MainActor () async -> Void
 
+    /// The detection question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
+    private let haptics: any HapticPlaying
+
     init(
         app: RideEngine?,
         detector: TrainDetector? = nil,
@@ -55,8 +58,10 @@ final class OnBoard {
         },
         nudge: ArrivalNudge? = nil,
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
-        requestNotifications: @escaping @MainActor () async -> Void = {}
+        requestNotifications: @escaping @MainActor () async -> Void = {},
+        haptics: any HapticPlaying = TTHaptics.shared
     ) {
+        self.haptics = haptics
         self.app = app
         self.detector = detector
         self.liveActivity = liveActivity
@@ -262,6 +267,7 @@ final class OnBoard {
     func accept(_ train: TrainCandidate) async -> Bool {
         // A second tap while the first starts the ride does nothing.
         guard !isAccepting else { return false }
+        haptics.play(.onBoard)
         isAccepting = true
         defer { isAccepting = false }
         if let question = demoDetector {
@@ -286,6 +292,7 @@ final class OnBoard {
 
     /// No on the question: its trains are not asked about again today.
     func decline() {
+        haptics.play(.undo)
         Analytics.track(.detectionAnswered(yes: false))
         (demoDetector ?? detector)?.decline()
     }

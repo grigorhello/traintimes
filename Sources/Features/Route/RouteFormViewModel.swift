@@ -54,7 +54,14 @@ final class RouteFormViewModel {
 
     /// `route` is the route on screen when the picker opens from the Schedule route card; nil on first use. `recents` are
     /// the routes opened last: the Recent group, and their stations make up Your stations.
-    init(route: Route?, repository: any StationRepository, recents: RecentRoutes = RecentRoutes(defaults: nil)) {
+    /// Swap's Tap (TT-215, D100).
+    private let haptics: any HapticPlaying
+
+    init(
+        route: Route?, repository: any StationRepository, recents: RecentRoutes = RecentRoutes(defaults: nil),
+        haptics: any HapticPlaying = TTHaptics.shared
+    ) {
+        self.haptics = haptics
         from = route?.from
         to = route?.to
         current = route
@@ -210,6 +217,7 @@ final class RouteFormViewModel {
     /// Swap is explicit, never automatic.
     func swap() {
         Analytics.track(.routeSwapped)
+        haptics.play(.swap)
         (from, to) = (to, from)
     }
 

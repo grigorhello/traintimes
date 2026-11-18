@@ -95,6 +95,8 @@ struct WelcomeFlowView: View {
         // One frame at the launch still's pose first, so the motion starts from it.
         try? await Task.sleep(for: .milliseconds(16))
         bloomed = true
+        // One light transient as the first tiles pop (TT-215, D100); nothing on later launches with a route.
+        if playsLaunch, !reduceMotion { TTHaptics.shared.play(.tiles) }
         try? await Task.sleep(for: LaunchMotion.bloomDuration)
         withAnimation(reduceMotion ? LaunchMotion.fade : LaunchMotion.glide) { onSplash = false }
         wordsIn = true

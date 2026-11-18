@@ -188,7 +188,7 @@ struct ScheduleView: View {
             dayPressedAt[tile.id] = Date()
             dayTaps[tile.id, default: 0] += 1
         }
-        Task { await viewModel.select(tile.day) }
+        Task { await viewModel.dayTapped(tile.day) }
     }
 
     // MARK: Header

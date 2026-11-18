@@ -48,6 +48,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled`; `at_stop` (the train was at your stop: Done there, or the end 2 min after it, TT-221, D103) |
 | `arrival_wish_shown` | The arrival wish took "Now"'s place on the ride screen with the app active, once per ride (TT-223, D103) | `wish` (its id: `goodDay`, `greatDay`, `goodOne`, `enjoyDay`, `goodAfternoon`, `enjoyAfternoon`, `haveGoodOne`, `takeCare`, `enjoyEvening`, `goodEvening`, `restWell`, `goodNight`, `homeSafe`, `sleepWell`, `enjoyWeekend`, `happyFriday`), `period` (`morning`, `midday`, `evening`, `night`), `demo` |
 | `arrival_wish_closed` | The first way the arrival wish left the screen, once per ride | `wish`, `close` (`done` Done tapped, `dismissed` chevron or swipe, `left_app` the app went to the background, `auto` the screen closed itself 2 min after your stop), `seconds` (whole seconds on screen, 120 at most), `taps` (taps on the wish), `demo` |
+| `arrival_wish_lock_screen` | The arrival wish went onto the Live Activity at your stop (Lock Screen and expanded island), once per ride (TT-229, D108); `arrival_wish_shown` stays the ride screen's | `wish`, `period`, `demo` |
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |

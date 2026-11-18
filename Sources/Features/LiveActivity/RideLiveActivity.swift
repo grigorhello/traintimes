@@ -79,6 +79,10 @@ final class RideLiveActivity: RideActivityFollowing {
     private var followedTokens: Set<String> = []
     /// The push-to-start token, hex; nil before iOS 17.2 or until iOS issues it.
     private var startToken: String?
+    /// The ride's arrival wish, the one the ride screen shows (TT-229, D108): `OnBoard`, from `RootView`.
+    private weak var wishes: (any ArrivalWishSource)?
+    /// At your stop with no wish yet: a pass a second later, since no ride event comes when the wish is due.
+    private var wishWait: Task<Void, Never>?
 
     init(
         app: RideEngine?,
@@ -116,8 +120,12 @@ final class RideLiveActivity: RideActivityFollowing {
     }
 
     /// `RootView`: the live departure and the alert rules, which take the tokens to the server.
-    func connect(reporter: any LiveActivityReporting, departures: @escaping @MainActor () -> DepartureActivitySource?) {
+    func connect(
+        reporter: any LiveActivityReporting, wishes: (any ArrivalWishSource)? = nil,
+        departures: @escaping @MainActor () -> DepartureActivitySource?
+    ) {
         self.reporter = reporter
+        self.wishes = wishes
         self.departures = departures
         if let startToken {
             Task { await self.reporter?.reportStartToken(startToken) }
@@ -211,7 +219,7 @@ final class RideLiveActivity: RideActivityFollowing {
         }
         let deviceNow = Date()
         guard let content = RideActivityAttributes.ContentState(
-            plan: plan, state: state, now: engine.now, deviceNow: deviceNow, formatter: formatter()
+            plan: plan, state: state, now: engine.now, deviceNow: deviceNow, formatter: formatter(), wish: dueWish(at: state)
         ) else { return }
         let current = activities.first(where: fits)
         let staleDate = deviceNow.addingTimeInterval(Self.staleAfter)
@@ -222,6 +230,7 @@ final class RideLiveActivity: RideActivityFollowing {
             let alerts = Self.alerts(from: shown, to: content) && alertedRide != ride
             if alerts { alertedRide = ride }
             await Self.update(current.id, content: content, staleDate: staleDate, alerts: alerts)
+            if content.wish != nil { wishes?.wishReachedLockScreen() }
             if shown.isDeparture {
                 // The hand-off: the same activity now shows the ride, and the server leaves it to the app. Ended later,
                 // the ride does not bring the countdown back.
@@ -244,6 +253,7 @@ final class RideLiveActivity: RideActivityFollowing {
                 sentAt = deviceNow
                 startedRide = ride
                 if content.isAlert { alertedRide = ride }
+                if content.wish != nil { wishes?.wishReachedLockScreen() }
             } catch {
                 // Live Activities are off for the app, or it went to the background: the next pass in front tries again.
             }
@@ -261,11 +271,33 @@ final class RideLiveActivity: RideActivityFollowing {
         let deviceNow = Date()
         guard let current = activities.first(where: { !$0.content.state.isDeparture && $0.attributes.shows(ride) }),
               let content = RideActivityAttributes.ContentState(
-                  plan: plan, state: state, now: engine.now, deviceNow: deviceNow, formatter: formatter()
+                  plan: plan, state: state, now: engine.now, deviceNow: deviceNow, formatter: formatter(), wish: dueWish(at: state)
               )
         else { return }
         sentAt = nil
         await Self.end(current.id, content: content, dismissal: nil)
+    }
+
+    /// The arrival wish at your stop once it is due (TT-229, D108); until then a pass each second looks again, as nothing
+    /// else changes at your stop. The ride ends 2 min after your stop, which ends the wait.
+    private func dueWish(at state: RideState) -> ArrivalWish? {
+        guard let wishes else { return nil }
+        switch state.phase {
+        case .atYourStop:
+            if let wish = wishes.arrivalWish { return wish }
+            if wishWait == nil {
+                wishWait = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(1))
+                    self?.wishWait = nil
+                    self?.sync()
+                }
+            }
+            return nil
+        case .ended:
+            return wishes.arrivalWish
+        case .riding, .atStation, .yourStopNext, .arriving:
+            return nil
+        }
     }
 
     /// No ride runs: the alerted train's countdown (TT-178). Whoever started it, it ends 2 min after the train left (its

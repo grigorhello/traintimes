@@ -189,6 +189,11 @@ extension AnalyticsEvent {
         Self("arrival_wish_shown", ["wish": .string(wish.id), "period": .string(wish.period.rawValue), "demo": .bool(demo)])
     }
 
+    /// The arrival wish went onto the Live Activity at your stop, once per ride (TT-229, D108).
+    static func arrivalWishLockScreen(_ wish: ArrivalWish, demo: Bool) -> Self {
+        Self("arrival_wish_lock_screen", ["wish": .string(wish.id), "period": .string(wish.period.rawValue), "demo": .bool(demo)])
+    }
+
     /// The first way the arrival wish left the screen, once per ride: `seconds` on screen (120 at most) and `taps` on it.
     static func arrivalWishClosed(
         _ wish: ArrivalWish, close: ArrivalWish.Close, seconds: Int, taps: Int, demo: Bool

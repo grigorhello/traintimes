@@ -21,6 +21,9 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testDepartureLockScreenDark() throws { snap(try departureLockScreen(), .dark) }
     @MainActor func testDepartureIslandLight() throws { snap(try departureIsland(), .light) }
     @MainActor func testDepartureIslandDark() throws { snap(try departureIsland(), .dark) }
+    // The arrival wish (TT-229, D108, board 23 on the Live Activity).
+    @MainActor func testArrivalWishLight() async throws { snap(try await arrivalWish(), .light) }
+    @MainActor func testArrivalWishDark() async throws { snap(try await arrivalWish(), .dark) }
 
     private struct Moment {
         let attributes: RideActivityAttributes
@@ -92,6 +95,31 @@ final class RideActivitySnapshotTests: XCTestCase {
             Spacer()
         }
         .padding(.top, 120)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    /// At your stop: "Now", then the wish in its place, and the longest wishes; the compact island keeps "Now", the expanded
+    /// island shows the wish.
+    @MainActor
+    private func arrivalWish() async throws -> some View {
+        let there = try await moment(DemoRideRig.time(17, 43, 5))
+        func with(_ id: String) -> Moment {
+            var state = there.state
+            state.wish = ArrivalWish(id: id, period: .evening).text
+            return Moment(attributes: there.attributes, state: state)
+        }
+        return VStack(spacing: 14) {
+            lockCard(there, isStale: false)
+            lockCard(with("enjoyEvening"), isStale: false)
+            lockCard(with("goodEvening"), isStale: false)
+            lockCard(with("enjoyAfternoon"), isStale: false)
+            compact(with("enjoyEvening"))
+            expanded(with("enjoyEvening"))
+            Spacer()
+        }
+        .padding(.top, 60)
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Wallpaper())

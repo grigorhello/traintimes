@@ -340,7 +340,7 @@ struct RootView: View {
                 // tab tapped again changes nothing and stays silent.
                 if tab != router.selectedTab || tab == .schedule { TTHaptics.shared.play(.tab) }
                 if tab == .schedule, router.selectedTab == .schedule {
-                    Analytics.track(.backToNow)
+                    Analytics.track(.backToNow(.tab))
                     Task { await schedule.backToNow() }
                 }
                 router.selectedTab = tab

@@ -15,6 +15,8 @@ final class ScheduleViewModel {
     static let pastDayCount = 7
     /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
     static let livePollInterval: Duration = .seconds(30)
+    /// Away from the app longer than this, Schedule comes back at Now on Today, as the Schedule tab does (TT-222).
+    static let returnToNowAfter: TimeInterval = 10 * 60
     /// The watched-trip strip stays this long after the train's arrival (TT-144).
     static let watchedStripAfterArrival: TimeInterval = 10 * 60
 
@@ -110,6 +112,8 @@ final class ScheduleViewModel {
     /// "Loading timetable". Live polls and Try again load again.
     private(set) var timetableFailed = false
     private var isLoading = false
+    /// When the app last went to the background, for the return to Now after a long time away (TT-222).
+    @ObservationIgnored private var wentToBackgroundAt: Date?
     /// The Today last acted on, so the day turning over at midnight is seen once (TT-159, D52).
     @ObservationIgnored private var knownToday: ServiceDay
     /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
@@ -496,6 +500,22 @@ final class ScheduleViewModel {
         }
         requestScroll(jumping: jumping)
         nowPulse += 1
+    }
+
+    /// The app went to the background: the moment is kept for `cameToForeground()` (TT-222).
+    func wentToBackground() {
+        wentToBackgroundAt = clock.now
+    }
+
+    /// Back in the foreground. After more than 10 min away the timeline goes back to Now on Today, exactly as the
+    /// Schedule tab tapped again does (TT-222); a shorter time keeps the day and the scroll, and Now plays where it is
+    /// (D80).
+    func cameToForeground() async {
+        let away = wentToBackgroundAt.map { clock.now.timeIntervalSince($0) } ?? 0
+        wentToBackgroundAt = nil
+        guard hasLoaded, away > Self.returnToNowAfter else { return timelineAppeared() }
+        Analytics.track(.backToNow(.reopen))
+        await backToNow()
     }
 
     /// The timeline shows again (back to the Schedule tab, back to the foreground): Now plays where it is, without scrolling,

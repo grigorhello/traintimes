@@ -44,7 +44,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `notification_permission` | The rider answered the iOS notification prompt | `result`: `allowed`, `denied` |
 | `notification_opened` | A notification tapped | `kind`: `alert`, `detection`, `other` (ride notifications); `action`: `open`, `start`, `not_me` |
 | `ride_started` | A ride started | `source`: `on_board` ("I'm on board"), `detection` (Yes on Schedule's question), `notification` (Start On board on the background question); `demo` |
-| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled` |
+| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled`; `at_stop` (the train was at your stop: Done there, or the end 10 min after it, TT-221) |
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
@@ -89,7 +89,7 @@ Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and
 - Which lines and stations (`route_set.line`, `from`, `to`) riders use most.
 - What riders want to know more about: `interest_tapped` by `element`, and rage taps (`count` 3 or more).
 - Where riders give up: `notification_permission` denied, `alert_removed` soon after `alert_saved`, `ride_ended` with
-  `by_rider` before `arrived`.
+  `by_rider` and `at_stop` false (Done at your stop is `at_stop` true).
 
 ## Dashboard: Train Times · Health (TT-210)
 
@@ -114,11 +114,24 @@ add `channel = appstore` to see real riders only.
 `route_set` with `restored` is a route from before analytics, counted once at launch: it counts toward activation like a
 first route.
 
-## Weekly review (TT-210)
+## Morning check (TT-210)
 
-A scheduled task wakes the TT-210 project thread every Monday at 8:13 AM Toronto time. It reads every insight above for
-the last 7 days against the 7 before, with this dictionary, and posts in that thread: the headline numbers (riders, routes
-set, activation, day 1/7/30 retention), then up to three findings, each with the number behind it and a proposed ticket
-(title and one line), or "nothing to act on". It files nothing itself. Until a Release build with analytics is in riders'
-hands the project has no events, and the review says so in one line.
+A scheduled task wakes the TT-210 project thread every day at 8:13 AM Toronto time. It reads yesterday (the Toronto
+calendar day) with this dictionary, mostly through `execute-sql` on `events`, and looks for behaviour nobody expected:
 
+1. **Taps that do nothing:** `interest_tapped` with `count` 3 or more, or one install tapping the same `element` 3 or more
+   times in the day.
+2. **Flows left halfway:** `welcome` or `route_form` shown with no `route_set` after it; a bell turned on and off again on
+   the same train within a minute, or an `alert_saved` removed within 2 minutes; `notification_permission` denied.
+3. **Odd endings:** `ride_ended` as `left_the_line` or `cancelled`, or `by_rider` within 5 minutes of `ride_started`; a
+   ride with no `ride_ended` within 3 hours; `detection_answered` no.
+4. **Offline:** `offline_shown` by `kind`; any `timetable` is worth a line.
+5. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
+   carry (`$screen` without `$screen_name`, `route_set` without `from`/`to`); an event seen every day that stopped.
+
+Rides with `demo: true` are left out. It posts in that thread: one line of totals (installs, opens), then up to three
+findings, each with the number behind it, how many installs it comes from and a proposed ticket (title and one line), or
+"Nothing unusual yesterday". A finding already posted in the last 7 days comes back only if it grew. On Mondays it adds the
+week: riders, routes set, activation and day 1/7/30 retention against the week before. With fewer than 20 installs a
+finding is one person's behaviour, so it names it as such and gives no rates. It files and fixes nothing: Grigor says yes
+to a proposal and a ticket thread takes it.

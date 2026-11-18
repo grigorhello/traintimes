@@ -148,7 +148,7 @@ struct RootView: View {
             case .tripDetails:
                 if let tripDetails {
                     // A new trip while the sheet is up (a notification tap) gets a fresh view, so it loads (TT-144).
-                    TripDetailsView(viewModel: tripDetails)
+                    TripDetailsView(viewModel: tripDetails, onClose: { router.dismissSheet() })
                         .id(ObjectIdentifier(tripDetails))
                 }
             case .lineNotices:
@@ -187,6 +187,7 @@ struct RootView: View {
         // bell that was tapped turns on (TT-190).
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            closeEndedRide()
             // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
             liveActivity?.sceneDidBecomeActive()
             // Schedule's detection takes over from a background check, and a Not me tapped meanwhile counts (TT-176).
@@ -303,6 +304,7 @@ struct RootView: View {
         content
             .onChange(of: onBoard.engine?.state?.phase) { _, phase in
                 if phase == .atYourStop { backgroundDetection?.rideReachedYourStop() }
+                if phase == .ended { closeEndedRide() }
             }
             .task(id: offersDetection) {
                 guard offersDetection else { return }
@@ -363,6 +365,14 @@ struct RootView: View {
             bells: bells.sibling()
         )
         router.present(.tripDetails)
+    }
+
+    /// The ride Trip details follows ended on its own at your stop (10 min after it), also while the app was away: the
+    /// sheet closes, so no ride screen is left for a ride that is over (TT-221, D98).
+    private func closeEndedRide() {
+        guard router.presentedSheet == .tripDetails, let details = tripDetails, details.isRiding,
+              onBoard.endedAtYourStop(details.key) else { return }
+        router.dismissSheet()
     }
 
     /// Demo trains, in a build that shows Settings › Testing (an App Store build ignores a stored value).

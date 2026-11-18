@@ -325,7 +325,7 @@ struct RootView: View {
             get: { router.selectedTab },
             set: { tab in
                 if tab == .schedule, router.selectedTab == .schedule {
-                    Analytics.track(.backToNow)
+                    Analytics.track(.backToNow(.tab))
                     Task { await schedule.backToNow() }
                 }
                 router.selectedTab = tab

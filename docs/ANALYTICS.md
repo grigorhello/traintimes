@@ -36,7 +36,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `route_set` at launch (TT-217) | Once per install: a route saved on device before this install sent any `route_set` (an install from before analytics) is counted at the first launch with analytics, so it shows as activated. Any `route_set` from the app marks the install, so neither sends twice | as above, with `is_first: true` and `restored: true` |
 | `offline_shown` | Schedule turns to Offline (TT-217): once each time it turns into that state, never on each poll; a Try again that fails again counts again | `kind`: `live` (live status unreachable, the timetable shows marked Offline), `timetable` (the first timetable could not download: "Couldn’t load the timetable") |
 | `route_swapped` | The swap button | none |
-| `back_to_now` | The Schedule tab tapped again (back to today, at Now) | none |
+| `back_to_now` | Back to today, at Now: the Schedule tab tapped again, or the app back after more than 10 min away (TT-222) | `source`: `tab`, `reopen` |
 | `day_changed` | Another day picked on the day strip | `offset` (days from today, -1 is yesterday) |
 | `trip_opened` | Trip details opens | `source`: `schedule` (a card), `notification` (an alert), `ride` (the ride strip), `departure` (the countdown strip or the Live Activity before departure), `detection` (the background question); `is_today` |
 | `alert_saved` | An alert saved and kept (bell, "Alert me", Repeat days, the Alerts tab switch or days) | `is_on`, `repeats`, `days` (weekdays picked), `is_new` |

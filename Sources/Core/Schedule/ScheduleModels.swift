@@ -87,11 +87,13 @@ struct LiveSnapshot: Hashable, Sendable {
     /// is no live data.
     var updatedAt: Date?
     var isOffline = false
-    /// The feed publishes platforms for this route's origin, so a train with none yet is waiting for one (TT-162). False
-    /// for GO's real feeds (D35, D36): neither carries platforms.
+    /// The feed publishes platforms for this route's origin, so a train with none yet is waiting for one (TT-162). For
+    /// GO, true while its departures board for the origin answers (TT-225): its timetable and live feeds carry none.
     var hasPlatformSource = false
     /// Keyed by feed trip id.
     var updates: [String: LiveTripUpdate] = [:]
+    /// The platform GO posts at the route's origin, keyed by feed trip id (TT-225).
+    var platforms: [String: String] = [:]
 
     static let empty = LiveSnapshot(updatedAt: nil)
 }

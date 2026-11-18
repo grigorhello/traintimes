@@ -76,6 +76,7 @@ final class DeepLinkTests: XCTestCase {
     }
 
     /// iOS may ask first whether to open the link in the app.
+    @MainActor
     private static func allowOpeningTheLink() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         if springboard.buttons["Open"].waitForExistence(timeout: 3) { springboard.buttons["Open"].tap() }

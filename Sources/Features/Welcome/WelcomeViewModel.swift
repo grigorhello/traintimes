@@ -30,7 +30,14 @@ final class WelcomeViewModel {
     private let clock: any AppClock
     private let recents: RecentRoutes
 
-    init(stations: any StationRepository, clock: any AppClock, recents: RecentRoutes = RecentRoutes(defaults: nil)) {
+    /// A line pick's Tick (TT-215, D100); the station tap that sets the route is silent, Rail joint follows the trains.
+    private let haptics: any HapticPlaying
+
+    init(
+        stations: any StationRepository, clock: any AppClock, recents: RecentRoutes = RecentRoutes(defaults: nil),
+        haptics: any HapticPlaying = TTHaptics.shared
+    ) {
+        self.haptics = haptics
         self.stations = stations
         self.clock = clock
         self.recents = recents
@@ -73,6 +80,7 @@ final class WelcomeViewModel {
     /// A line row, or its tile on the welcome's picture.
     func pick(lineId: String, fromMap: Bool = false) {
         guard GONetwork.line(lineId) != nil else { return }
+        haptics.play(.day)
         step = .station(lineId: lineId, fromMap: fromMap)
     }
 

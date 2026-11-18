@@ -108,12 +108,17 @@ final class TripDetailsViewModel {
     /// The sheet follows a ride: it opened on this trip's running ride, or "I'm on board" started one here. Only then
     /// does a ride that ended at your stop stay on screen as Ride complete.
     private var followsRide: Bool
+    /// "I'm on board"'s Rail joint, End ride's Tap, and this train turning late (Warning) or boarding (Rail joint) while
+    /// the sheet is open (TT-215, D100): an open sheet watches its train.
+    private let haptics: any HapticPlaying
+    @ObservationIgnored private var watchedFeels = WatchedTrainFeels()
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
         onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, bells: AlertBellModel? = nil,
-        maps: any MapsOpening = SystemMapsOpener()
+        maps: any MapsOpening = SystemMapsOpener(), haptics: any HapticPlaying = TTHaptics.shared
     ) {
+        self.haptics = haptics
         self.route = route
         self.key = key
         self.repository = repository
@@ -352,6 +357,9 @@ final class TripDetailsViewModel {
     @discardableResult
     func startRide() async -> Bool {
         guard let onBoard else { return false }
+        // Rail joint at the tap; when iOS will ask for location first, once the ride has started.
+        let asks = needsLocationIntro
+        if !asks { haptics.play(.onBoard) }
         // Set before the ride starts: the sheet shows the ride as soon as it runs, which can be before the start returns.
         ridesInPlace = liveDeparture != nil
         let started: Bool
@@ -361,6 +369,7 @@ final class TripDetailsViewModel {
             started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
         }
         if started { followsRide = true } else { ridesInPlace = false }
+        if started, asks { haptics.play(.onBoard) }
         return started
     }
 
@@ -416,6 +425,7 @@ final class TripDetailsViewModel {
 
     /// End ride, or Done at your stop.
     func endRide() {
+        if onBoard?.isRunning(key) == true { haptics.play(.undo) }
         onBoard?.end()
     }
 
@@ -458,6 +468,7 @@ final class TripDetailsViewModel {
             freshness = Freshness(live, now: current)
             hasPlatformSource = live.hasPlatformSource
             nextDepartureId = key
+            playWatchedFeels()
             return
         }
         let current = clock.now
@@ -470,5 +481,12 @@ final class TripDetailsViewModel {
         self.freshness = freshness
         self.departures = departures
         hasPlatformSource = isToday && live.hasPlatformSource
+        playWatchedFeels()
+    }
+
+    /// This train turning late or cancelled plays Warning, reaching Boarding now Rail joint, once each, not while riding.
+    private func playWatchedFeels() {
+        guard !isRiding, let departure else { return }
+        if let moment = watchedFeels.moment(for: [departure], now: now, isWatched: { _ in true }) { haptics.play(moment) }
     }
 }

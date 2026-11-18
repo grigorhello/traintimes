@@ -184,8 +184,11 @@ struct DemoRideRig {
 
     /// The demo started at 5:32 PM and moved on to `moment`, with the arriving nudge `makeNudge` gives (none by default).
     static func started(
-        at moment: Date = DemoRideRig.time(17, 32), makeNudge: @escaping @MainActor () -> ArrivalNudge? = { nil }
+        at moment: Date = DemoRideRig.time(17, 32), makeNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
+        wishes: ArrivalWishes? = nil
     ) async -> DemoRideRig {
+        // The first wish of the pool, so the at-your-stop snapshots stay the same (TT-223).
+        let wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
         let start = DemoRideRig.time(17, 32)
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
@@ -194,7 +197,8 @@ struct DemoRideRig {
             app: nil,
             makeDemo: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
             makeDemoDetector: nil,
-            makeDemoNudge: makeNudge
+            makeDemoNudge: makeNudge,
+            wishes: wishes
         )
         await onBoard.setDemo(true)
         let rig = DemoRideRig(clock: clock, onBoard: onBoard)

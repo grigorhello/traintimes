@@ -98,7 +98,8 @@ struct RootView: View {
             initialValue: OnBoard(
                 app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
                 nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
-                requestNotifications: { await rules.requestPermission() }
+                requestNotifications: { await rules.requestPermission() },
+                wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared)
             )
         )
         self.liveActivity = liveActivity
@@ -371,11 +372,12 @@ struct RootView: View {
         router.present(.tripDetails)
     }
 
-    /// The ride Trip details follows ended on its own at your stop (10 min after it), also while the app was away: the
-    /// sheet closes, so no ride screen is left for a ride that is over (TT-221, D98).
+    /// The ride Trip details follows ended on its own at your stop (2 min after it, D103), also while the app was away: the
+    /// sheet closes, so no ride screen is left for a ride that is over (TT-221, D98). The arrival wish left by `auto`.
     private func closeEndedRide() {
         guard router.presentedSheet == .tripDetails, let details = tripDetails, details.isRiding,
               onBoard.endedAtYourStop(details.key) else { return }
+        onBoard.wishes.closed(.auto)
         router.dismissSheet()
     }
 

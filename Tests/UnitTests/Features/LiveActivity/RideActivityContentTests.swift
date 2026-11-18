@@ -114,8 +114,8 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertTrue(content.isGreen)
         XCTAssertFalse(content.isAlert)
 
-        // The ride ends 10 min later and its activity keeps the last card.
-        rig.drive(to: t(17, 53, 10))
+        // The ride ends 2 min later (D103) and its activity ends with the last card.
+        rig.drive(to: t(17, 45, 10))
         XCTAssertEqual(rig.engine?.state?.phase, .ended)
         let ended = try self.content(rig)
         XCTAssertEqual(ended.phase, .atYourStop)
@@ -211,22 +211,6 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertTrue(RideLiveActivity.alerts(from: before, to: arriving))
         XCTAssertFalse(RideLiveActivity.alerts(from: arriving, to: still))
         XCTAssertFalse(RideLiveActivity.alerts(from: before, to: before))
-    }
-
-    func testTheActivityLeavesFifteenMinutesAfterYourStopOrAtOnceOnEndRide() {
-        var state = RideState(
-            phase: .ended, currentStop: nil, nextStop: nil, stopsLeft: 0, minutesToYourStop: 0,
-            expectedArrival: t(17, 43), source: .phone, lastUpdate: t(17, 53), endReason: .arrived
-        )
-        // The engine ends the ride at 5:53:10; the activity stays until 5:58, 290 s on the device clock.
-        let leaves = RideLiveActivity.dismissal(for: state, engineNow: t(17, 53, 10), deviceNow: deviceNow)
-        XCTAssertEqual(leaves, deviceNow.addingTimeInterval(290))
-        XCTAssertNil(RideLiveActivity.dismissal(for: state, engineNow: t(17, 59), deviceNow: deviceNow), "Already past: at once")
-
-        for reason in [RideEndReason.byRider, .cancelled, .leftTheLine] {
-            state.endReason = reason
-            XCTAssertNil(RideLiveActivity.dismissal(for: state, engineNow: t(17, 40), deviceNow: deviceNow), "\(reason)")
-        }
     }
 
     // MARK: Links

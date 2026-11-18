@@ -102,6 +102,24 @@
 "loc.allow" = "Allow location";
 "loc.later" = "Not now";
 
+/* The arrival wish in "Now"'s place, 5 s after your stop (TT-223, D100). Picked by time of day in Toronto. */
+"wish.goodDay" = "Have a good day";
+"wish.greatDay" = "Have a great day";
+"wish.goodOne" = "Make it a good one";
+"wish.enjoyDay" = "Enjoy your day";
+"wish.goodAfternoon" = "Good afternoon";
+"wish.enjoyAfternoon" = "Enjoy the afternoon";
+"wish.haveGoodOne" = "Have a good one";
+"wish.takeCare" = "Take care";
+"wish.enjoyEvening" = "Enjoy your evening";
+"wish.goodEvening" = "Have a good evening";
+"wish.restWell" = "Rest well";
+"wish.goodNight" = "Good night";
+"wish.homeSafe" = "Get home safe";
+"wish.sleepWell" = "Sleep well";
+"wish.enjoyWeekend" = "Enjoy your weekend";
+"wish.happyFriday" = "Happy Friday";
+
 /* Train detection (TT-175, D68): the checking strip and the question on Schedule. %@ is a line, a station, or a time from the one formatter. */
 "detect.question" = "On the train to %@?";
 "detect.yes" = "Yes";

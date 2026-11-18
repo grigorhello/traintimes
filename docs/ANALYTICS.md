@@ -44,7 +44,9 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `notification_permission` | The rider answered the iOS notification prompt | `result`: `allowed`, `denied` |
 | `notification_opened` | A notification tapped | `kind`: `alert`, `detection`, `other` (ride notifications); `action`: `open`, `start`, `not_me` |
 | `ride_started` | A ride started | `source`: `on_board` ("I'm on board"), `detection` (Yes on Schedule's question), `notification` (Start On board on the background question); `demo` |
-| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled`; `at_stop` (the train was at your stop: Done there, or the end 10 min after it, TT-221) |
+| `ride_ended` | A ride ended | `reason`: `by_rider`, `arrived`, `left_the_line`, `cancelled`; `at_stop` (the train was at your stop: Done there, or the end 2 min after it, TT-221, D100) |
+| `arrival_wish_shown` | The arrival wish took "Now"'s place on the ride screen with the app active, once per ride (TT-223, D100) | `wish` (its id: `goodDay`, `greatDay`, `goodOne`, `enjoyDay`, `goodAfternoon`, `enjoyAfternoon`, `haveGoodOne`, `takeCare`, `enjoyEvening`, `goodEvening`, `restWell`, `goodNight`, `homeSafe`, `sleepWell`, `enjoyWeekend`, `happyFriday`), `period` (`morning`, `midday`, `evening`, `night`), `demo` |
+| `arrival_wish_closed` | The first way the arrival wish left the screen, once per ride | `wish`, `close` (`done` Done tapped, `dismissed` chevron or swipe, `left_app` the app went to the background, `auto` the screen closed itself 2 min after your stop), `seconds` (whole seconds on screen, 120 at most), `taps` (taps on the wish), `demo` |
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
@@ -126,7 +128,10 @@ calendar day) with this dictionary, mostly through `execute-sql` on `events`, an
 3. **Odd endings:** `ride_ended` as `left_the_line` or `cancelled`, or `by_rider` within 5 minutes of `ride_started`; a
    ride with no `ride_ended` within 3 hours; `detection_answered` no.
 4. **Offline:** `offline_shown` by `kind`; any `timetable` is worth a line.
-5. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
+5. **Arrival wishes (TT-223):** the leading wish, the one with the highest share of `arrival_wish_closed` with `taps` 1 or
+   more or `seconds` 3 or more (`demo` false), among wishes shown 30 times or more, counted over all time, not only yesterday; "not enough data yet" until one has.
+   One line, not a finding, unless a wish is clearly ahead or behind.
+6. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
    carry (`$screen` without `$screen_name`, `route_set` without `from`/`to`); an event seen every day that stopped.
 
 Rides with `demo: true` are left out. It posts in that thread: one line of totals (installs, opens), then up to three

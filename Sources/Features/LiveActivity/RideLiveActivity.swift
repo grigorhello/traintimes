@@ -32,9 +32,6 @@ final class RideLiveActivity: RideActivityFollowing {
     /// An update at least this often, so a running app keeps it fresh; under a minute, so the engine's minute tick on the
     /// timetable always sends one.
     static let refreshAfter: TimeInterval = 45
-    /// The ended activity stays on the Lock Screen until this long after the train reached your stop (the engine ends the
-    /// ride 10 min after it).
-    static let lingersAfterArrival: TimeInterval = 15 * 60
     /// While the app is in front, the departure is looked at this often: its phases follow the clock, not the engine.
     static let departureTick: Duration = .seconds(2)
     /// With a push-to-start token the server starts the activity at T−30; the app in front waits this long for it, so the
@@ -253,7 +250,8 @@ final class RideLiveActivity: RideActivityFollowing {
         }
     }
 
-    /// The ride ended: its activity ends with it, staying on the Lock Screen a while after an arrival.
+    /// The ride ended: its activity leaves the Lock Screen with it, also after an arrival, when the ride screen closes too
+    /// (TT-223, D100: 2 min after your stop).
     private func endRide(
         engine: RideEngine, ride: Ride, plan: RidePlan, state: RideState, activities: [Activity<RideActivityAttributes>]
     ) async {
@@ -267,7 +265,7 @@ final class RideLiveActivity: RideActivityFollowing {
               )
         else { return }
         sentAt = nil
-        await Self.end(current.id, content: content, dismissal: Self.dismissal(for: state, engineNow: engine.now, deviceNow: deviceNow))
+        await Self.end(current.id, content: content, dismissal: nil)
     }
 
     /// No ride runs: the alerted train's countdown (TT-178). Whoever started it, it ends 2 min after the train left (its
@@ -443,15 +441,6 @@ final class RideLiveActivity: RideActivityFollowing {
     /// The one alert of a ride: the train is now about a minute from your stop.
     static func alerts(from shown: RideActivityAttributes.ContentState, to next: RideActivityAttributes.ContentState) -> Bool {
         next.phase == .arriving && shown.phase != .arriving
-    }
-
-    /// When an ended ride's activity leaves the Lock Screen, on the device clock: 15 min after the train reached your stop
-    /// for a ride that ended there; nil (at once) for End ride, a cancelled trip, leaving the line, or when that time has
-    /// passed.
-    static func dismissal(for state: RideState, engineNow: Date, deviceNow: Date) -> Date? {
-        guard state.endReason == .arrived else { return nil }
-        let leaves = deviceNow.addingTimeInterval(state.expectedArrival.addingTimeInterval(lingersAfterArrival).timeIntervalSince(engineNow))
-        return leaves > deviceNow ? leaves : nil
     }
 
     /// A departure's activity goes stale, and ends, 2 min after the train left, on the device clock (the server sets the

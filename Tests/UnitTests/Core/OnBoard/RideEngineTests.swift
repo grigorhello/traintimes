@@ -52,7 +52,7 @@ final class RideEngineTests: XCTestCase {
     }
 
     /// Acceptance: a location track from Union to Clarkson drives the engine through every phase in order, with the right
-    /// next stop and stops left at each point; the ride ends by itself 10 min after your stop.
+    /// next stop and stops left at each point; the ride ends by itself 2 min after your stop (D100).
     func testUnionToClarksonGoesThroughEveryPhaseInOrder() async throws {
         let rig = try rig(at: t(11, 10))
         let events = rig.engine.events()
@@ -72,12 +72,12 @@ final class RideEngineTests: XCTestCase {
             t(11, 48): (.yourStopNext, nil, "CL", 1),
             t(11, 51, 10): (.arriving, nil, "CL", 1),
             t(11, 52): (.atYourStop, "CL", nil, 0),
-            t(12, 1): (.atYourStop, "CL", nil, 0),
-            t(12, 3): (.ended, "CL", nil, 0),
+            t(11, 53): (.atYourStop, "CL", nil, 0),
+            t(11, 54, 30): (.ended, "CL", nil, 0),
         ]
         var phases: [RidePhase] = []
         var time = t(11, 10)
-        while time <= t(12, 5) {
+        while time <= t(11, 56) {
             try drive(rig, to: time)
             rig.engine.update()
             let state = try XCTUnwrap(rig.engine.state)
@@ -302,10 +302,10 @@ final class RideEngineTests: XCTestCase {
         rig.clock.set(t(11, 55))
         rig.location.send(atClarkson)
         XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
-        rig.clock.set(t(12, 4))
+        rig.clock.set(t(11, 56))
         rig.location.send(atClarkson)
-        XCTAssertEqual(rig.engine.state?.phase, .atYourStop, "The timetable's 11:52 would have ended it at 12:02")
-        rig.clock.set(t(12, 5))
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop, "The timetable's 11:52 would have ended it at 11:54")
+        rig.clock.set(t(11, 57))
         rig.engine.update()
         XCTAssertEqual(rig.engine.state?.phase, .ended)
         XCTAssertEqual(rig.engine.state?.endReason, .arrived)
@@ -324,10 +324,11 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
 
         let atClarkson = try OnBoardFixtures.fix(along: distances[5], plan: rig.plan)
-        rig.clock.set(t(11, 54))
+        rig.clock.set(t(11, 53, 20))
         rig.location.send(atClarkson)
         let arrival = try XCTUnwrap(rig.engine.state?.expectedArrival)
-        rig.clock.set(t(12, 0))
+        // The ride ends 2 min after the timetable's 11:52 (D100), so standing there is checked before that.
+        rig.clock.set(t(11, 53, 50))
         rig.location.send(atClarkson)
         XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
         XCTAssertEqual(rig.engine.state?.expectedArrival, arrival, "Standing at Clarkson is not running later")

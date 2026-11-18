@@ -95,15 +95,17 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, nil, "5:43 PM"])
 
         // Standing at your stop is not running late.
-        rig.drive(to: t(17, 50))
+        rig.drive(to: t(17, 44, 50))
         XCTAssertNil(try details(rig).late)
     }
 
-    func testTheRideEndsTenMinutesAfterYourStopAndStaysCompleteInTheOpenSheetOnly() async throws {
+    func testTheRideEndsTwoMinutesAfterYourStopAndStaysCompleteInTheOpenSheetOnly() async throws {
         let rig = await DemoRideRig.started(at: t(17, 43, 5))
         XCTAssertNotNil(rig.onBoard.activeRide)
         let open = rig.tripDetails()
-        rig.drive(to: t(17, 53, 10))
+        rig.drive(to: t(17, 44, 50))
+        XCTAssertEqual(rig.engine?.state?.phase, .atYourStop, "Still at your stop under 2 min after it")
+        rig.drive(to: t(17, 45, 10))
         XCTAssertEqual(rig.engine?.state?.phase, .ended)
         XCTAssertNil(rig.onBoard.activeRide, "The strip goes")
         XCTAssertTrue(open.isRiding, "The open sheet still says Ride complete")
@@ -112,6 +114,55 @@ final class RideDetailsTests: XCTestCase {
         let later = rig.tripDetails()
         XCTAssertFalse(later.isRiding, "Opened again later, the sheet shows the trip")
         XCTAssertNil(later.rideDetails(formatter))
+    }
+
+    // MARK: The arrival wish (TT-223, D100)
+
+    func testTheWishTakesNowsPlaceFiveSecondsAfterYourStop() async throws {
+        // Reached at 5:43:05 on the demo's 6x clock: 5 s are 30 s on it.
+        let rig = await DemoRideRig.started(at: t(17, 43, 5))
+        XCTAssertNil(try details(rig).wish)
+        rig.drive(to: t(17, 43, 34))
+        XCTAssertNil(try details(rig).wish, "Not yet")
+        rig.drive(to: t(17, 43, 36))
+        let ride = try details(rig)
+        XCTAssertEqual(ride.wish, ArrivalWish(id: "enjoyEvening", period: .evening), "Friday 5:43 PM: the evening pool")
+        XCTAssertEqual(ride.kicker, "This is Clarkson", "The kicker stays")
+        XCTAssertEqual(rig.onBoard.strip(formatter: formatter)?.countdown, "Now", "Schedule's strip keeps Now")
+
+        // Opened later in the ride, the wish is already there, the same one; it stays while the sheet closes itself.
+        let later = rig.tripDetails()
+        rig.drive(to: t(17, 44, 30))
+        XCTAssertEqual(later.rideDetails(formatter)?.wish?.id, "enjoyEvening")
+        rig.drive(to: t(17, 45, 10))
+        XCTAssertEqual(rig.engine?.state?.phase, .ended)
+        XCTAssertEqual(later.rideDetails(formatter)?.wish?.id, "enjoyEvening")
+    }
+
+    func testTwoRidesInARowNeverShowTheSameWish() async throws {
+        let wishes = ArrivalWishes(defaults: .ephemeral(), haptics: FakeHaptics(), index: { _ in 0 })
+        let first = await DemoRideRig.started(at: t(17, 43, 30), wishes: wishes)
+        first.drive(to: t(17, 44, 10))
+        XCTAssertEqual(try details(first).wish?.id, "enjoyEvening")
+        let second = await DemoRideRig.started(at: t(17, 43, 30), wishes: wishes)
+        second.drive(to: t(17, 44, 10))
+        XCTAssertEqual(try details(second).wish?.id, "goodEvening")
+    }
+
+    func testTheWishSendsItsEventsWithDemo() async throws {
+        let analytics = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
+        let rig = await DemoRideRig.started(at: t(17, 43, 30))
+        rig.drive(to: t(17, 44, 10))
+        XCTAssertNotNil(try details(rig).wish)
+        rig.onBoard.wishes.shown()
+        rig.onBoard.wishes.closed(.done)
+        let shown = try XCTUnwrap(analytics.events.first { $0.name == "arrival_wish_shown" })
+        XCTAssertEqual(shown.properties["demo"], .bool(true))
+        XCTAssertEqual(shown.properties["wish"], .string("enjoyEvening"))
+        let closed = try XCTUnwrap(analytics.events.first { $0.name == "arrival_wish_closed" })
+        XCTAssertEqual(closed.properties["close"], .string("done"))
+        XCTAssertEqual(closed.properties["taps"], .int(0))
     }
 
     // MARK: Live data, the timetable, a late train

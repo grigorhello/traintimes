@@ -77,7 +77,7 @@ struct TripDetailsView: View {
                 ScrollView {
                     Group {
                         if let ride {
-                            RideContent(ride: ride, risesIn: !viewModel.ridesInPlace)
+                            RideContent(ride: ride, risesIn: !viewModel.ridesInPlace, wishes: viewModel.onBoard?.wishes)
                         } else if let hero, let details {
                             departureContent(hero, details: details)
                         } else if let details {
@@ -759,6 +759,8 @@ struct TripDetailsView: View {
     /// and closes the sheet (TT-221: always).
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
+            // Done says how the arrival wish left before the sheet's closing does (TT-223).
+            if ride.wish != nil { viewModel.onBoard?.wishes.closed(.done) }
             closingRide = ride
             viewModel.endRide()
             close()

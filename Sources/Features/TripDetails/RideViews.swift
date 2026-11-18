@@ -7,13 +7,15 @@ struct RideContent: View {
     /// False when the ride takes the departure card's place (TT-177, D69): the rows are there in the same update, with
     /// no rise, so the sheet never shows empty between the two.
     var risesIn = true
+    /// The arrival wish's analytics and Tick (TT-223); nil in previews.
+    var wishes: ArrivalWishes?
 
     @Environment(\.playsRideMotion) private var playsMotion
     @State private var hasRisen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
-            RideHero(ride: ride)
+            RideHero(ride: ride, wishes: wishes)
                 .modifier(RideRise(order: 0, hasRisen: settled))
             RideStopList(ride: ride)
                 .modifier(RideRise(order: 1, hasRisen: settled))
@@ -53,6 +55,7 @@ private struct RideRise: ViewModifier {
 /// 10 pt as it fades in; the number changes in place.
 struct RideHero: View {
     let ride: RideDetails
+    var wishes: ArrivalWishes?
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -70,17 +73,28 @@ struct RideHero: View {
                 .minimumScaleFactor(0.7)
                 .id(ride.kicker)
                 .transition(kickerRise)
-            Text(ride.countdown)
-                .font(TTFont.rideMinutes)
-                .tracking(-2)
-                .monospacedDigit()
-                .foregroundStyle(ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(height: 68)
-                .padding(.leading, -2)
-                .contentTransition(.numericText(countsDown: true))
-                .tracksInterest("ride.minutes")
+            // The arrival wish rolls in where the number was, on its 68 pt line (TT-223, D100).
+            ZStack(alignment: .leading) {
+                if let wish = ride.wish {
+                    ArrivalWishLine(wish: wish, wishes: wishes)
+                        .transition(wishTransition(insertion: true))
+                } else {
+                    Text(ride.countdown)
+                        .font(TTFont.rideMinutes)
+                        .tracking(-2)
+                        .monospacedDigit()
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.leading, -2)
+                        .contentTransition(.numericText(countsDown: true))
+                        .tracksInterest("ride.minutes")
+                        .transition(wishTransition(insertion: false))
+                }
+            }
+            .frame(height: 68)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(playsMotion && !reduceMotion ? RideMotion.wishIn : nil, value: ride.wish)
             if let late = ride.late {
                 Text(late)
                     .font(TTFont.headline)
@@ -117,6 +131,19 @@ struct RideHero: View {
         .accessibilityIdentifier("trip.ride")
     }
 
+    /// "Now" rolls up and out, the wish rolls in from below; a cross-fade with Reduce Motion, nothing in snapshots.
+    private func wishTransition(insertion: Bool) -> AnyTransition {
+        guard playsMotion else { return .identity }
+        guard !reduceMotion else { return .opacity.animation(TTMotion.fade) }
+        let roll = AnyTransition.modifier(
+            active: WishRoll(offset: insertion ? RideMotion.wishTravel : -RideMotion.wishTravel, blur: RideMotion.wishBlur, opacity: 0),
+            identity: WishRoll(offset: 0, blur: 0, opacity: 1)
+        )
+        return insertion
+            ? .asymmetric(insertion: roll.animation(RideMotion.wishIn), removal: .opacity)
+            : .asymmetric(insertion: .opacity, removal: roll.animation(RideMotion.wishOut))
+    }
+
     /// Arriving and at your stop each press the card in once; not with Reduce Motion.
     private var pressTrigger: RideDetails.Moment? { ride.isTinted && !reduceMotion ? ride.moment : nil }
 
@@ -129,6 +156,62 @@ struct RideHero: View {
     /// The new kicker rises 10 pt as it fades in.
     private var kickerRise: AnyTransition {
         reduceMotion ? .opacity : .asymmetric(insertion: .offset(y: 10).combined(with: .opacity), removal: .opacity)
+    }
+}
+
+/// The arrival wish (TT-223, D100): 32 pt bold in the accent, one line, down to 0.8 for a long one. A tap pops it once with a
+/// Tick and does nothing else. Its analytics: shown while the app is active, closed by the first way it leaves the screen
+/// (Done and the sheet closing itself say so first; the app going away is `left_app`, anything else `dismissed`).
+private struct ArrivalWishLine: View {
+    let wish: ArrivalWish
+    let wishes: ArrivalWishes?
+
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var taps = 0
+
+    var body: some View {
+        Text(verbatim: wish.text)
+            .font(TTFont.rideWish)
+            .tracking(-0.9)
+            .foregroundStyle(TTColor.accent)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.leading, 2)
+            .keyframeAnimator(initialValue: 1.0, trigger: taps) { content, scale in
+                content.scaleEffect(scale, anchor: .leading)
+            } keyframes: { _ in
+                KeyframeTrack(\.self) {
+                    LinearKeyframe(1.0, duration: 0.01)
+                    LinearKeyframe(1.08, duration: 0.09)
+                    SpringKeyframe(
+                        1.0, duration: 0.5, spring: Spring(response: TTMotion.popCurve.response, dampingRatio: TTMotion.popCurve.damping)
+                    )
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !reduceMotion { taps += 1 }
+                wishes?.tapped()
+            }
+            .accessibilityIdentifier("trip.ride.wish")
+            .onAppear { if scenePhase == .active { wishes?.shown() } }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { wishes?.shown() }
+                if phase == .background { wishes?.closed(.leftApp) }
+            }
+            .onDisappear { wishes?.closed(.dismissed) }
+    }
+}
+
+/// A line rolling in or out of the hero's number line: moved, blurred and faded.
+private struct WishRoll: ViewModifier {
+    let offset: CGFloat
+    let blur: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content.offset(y: offset).blur(radius: blur).opacity(opacity)
     }
 }
 

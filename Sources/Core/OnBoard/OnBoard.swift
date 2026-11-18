@@ -42,6 +42,8 @@ final class OnBoard {
     private let makeDemoNudge: @MainActor () -> ArrivalNudge?
     /// The notification prompt through the alert rules (D41, D66), after a ride started.
     private let requestNotifications: @MainActor () async -> Void
+    /// The arrival wish of the ride on screen and its analytics (TT-223, D100).
+    let wishes: ArrivalWishes
 
     init(
         app: RideEngine?,
@@ -55,7 +57,8 @@ final class OnBoard {
         },
         nudge: ArrivalNudge? = nil,
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
-        requestNotifications: @escaping @MainActor () async -> Void = {}
+        requestNotifications: @escaping @MainActor () async -> Void = {},
+        wishes: ArrivalWishes? = nil
     ) {
         self.app = app
         self.detector = detector
@@ -67,6 +70,7 @@ final class OnBoard {
         self.nudge = nudge
         self.makeDemoNudge = makeDemoNudge
         self.requestNotifications = requestNotifications
+        self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: TTHaptics.shared)
     }
 
     /// The demo's engine while it plays, else the app's.
@@ -75,7 +79,7 @@ final class OnBoard {
     /// "I'm on board" can start a ride: the app has the GO feed's trips (fixture runs have none) and no demo plays.
     var canStart: Bool { (demo == nil || handOffEnded) && !playsDemo && app?.canStart == true }
 
-    /// The demo departure's ride ended on its own, 10 min after its last stop (TT-177): it no longer stands in for the
+    /// The demo departure's ride ended on its own, 2 min after its last stop (TT-177, D100): it no longer stands in for the
     /// app's engine, so a real ride (train detection's Yes, "I’m on board") can start.
     private var handOffEnded: Bool { demoIsHandOff && activeRide == nil }
 
@@ -93,10 +97,24 @@ final class OnBoard {
         activeRide?.tripKey == key
     }
 
-    /// This trip's ride ended at your stop, 10 min after the train got there.
+    /// This trip's ride ended at your stop, 2 min after the train got there (D100).
     func endedAtYourStop(_ key: TripKey) -> Bool {
         guard let engine, engine.ride?.tripKey == key, let state = engine.state else { return false }
         return state.phase == .ended && state.endReason == .arrived
+    }
+
+    /// The arrival wish (TT-223, D100) in "Now"'s place: 5 s after the train reached your stop (5 s on the real clock, so
+    /// 30 s on the demo ride's 6x one), while the ride is at your stop or ended there. One wish per ride.
+    var arrivalWish: ArrivalWish? {
+        guard let engine, let ride = engine.ride, let state = engine.state, let arrivedAt = engine.arrivedAt,
+              let startedAt = engine.startedAt,
+              state.phase == .atYourStop || (state.phase == .ended && state.endReason == .arrived) else { return nil }
+        let isDemo = demo != nil
+        guard engine.now.timeIntervalSince(arrivedAt) >= ArrivalWishes.delay * (isDemo ? DemoRide.speed : 1) else { return nil }
+        // Demo rides all start at 5:32 PM on the same trip: the engine, new for each, tells them apart.
+        let engineID = isDemo ? "|\(ObjectIdentifier(engine).hashValue)" : ""
+        let id = "\(ride.tripId)|\(ride.serviceDate)|\(startedAt.timeIntervalSince1970)\(engineID)"
+        return wishes.wish(for: id, arrivedAt: arrivedAt, demo: isDemo)
     }
 
     /// "I'm on board" (or the question's Yes): starts the ride on the app's engine, where location is asked, then asks for

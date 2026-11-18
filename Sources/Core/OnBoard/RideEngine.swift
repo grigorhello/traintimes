@@ -27,7 +27,7 @@ enum RidePositionSource: String, Sendable {
 enum RideEndReason: String, Sendable {
     /// End ride.
     case byRider
-    /// 10 min after your stop.
+    /// 2 min after your stop (TT-223, D100; 10 min before).
     case arrived
     /// 1 km off the line for 3 min.
     case leftTheLine
@@ -69,7 +69,7 @@ enum RideEvent: Equatable, Sendable {
 /// Position, phone first: GPS about once a second, each fix placed along the trip's track. After 60 s with no fix, the
 /// train feed's position (TT-179), then the timetable corrected by the last measured offset or the feed's delay. Phases
 /// follow the position: at a station within 200 m of it, your stop next once the last station before it is behind, and
-/// arriving once your stop is a minute away. The ride ends with End ride, by itself 10 min after your stop, 1 km off the
+/// arriving once your stop is a minute away. The ride ends with End ride, by itself 2 min after your stop (D100), 1 km off the
 /// line for 3 min, or when the trip is cancelled. It is saved on device and restored at launch, where the background
 /// location session is created again; location is used only during a ride and never leaves the phone.
 @Observable @MainActor
@@ -83,7 +83,8 @@ final class RideEngine {
     /// The timetable has no dwell times, so a train placed by it is at a station this long either side of its time.
     static let timetableDwell: TimeInterval = 30
     static let arrivingLead: TimeInterval = 60
-    static let endAfterArrival: TimeInterval = 10 * 60
+    /// The ride ends this long after your stop, and the ride screen closes itself (TT-223, D100; 10 min before).
+    static let endAfterArrival: TimeInterval = 2 * 60
     static let offLineDistance = 1000.0
     static let offLineDuration: TimeInterval = 3 * 60
     /// A fix less precise than this does not place the train (Precise Location off gives 1 to 20 km).
@@ -96,6 +97,10 @@ final class RideEngine {
     private(set) var ride: Ride?
     private(set) var plan: RidePlan?
     private(set) var state: RideState?
+    /// When this ride started, and when the train reached your stop; both stay after the ride ends, until the next one
+    /// starts, so the arrival wish (TT-223) keeps its ride and its time while the sheet closes.
+    @ObservationIgnored private(set) var startedAt: Date?
+    @ObservationIgnored private(set) var arrivedAt: Date?
 
     private let data: (any RideDataProviding)?
     private let location: any LocationProviding
@@ -182,7 +187,7 @@ final class RideEngine {
         let status = await data.rideStatus(for: saved.ride)
         // End ride while the plan and status loaded (TT-174) removed the saved ride.
         guard ride == nil, SavedRide.read(from: defaults, key: Self.storageKey) != nil else { return }
-        // A ride 10 min past your stop is over: it ends at once on the timetable, and location does not start again.
+        // A ride 2 min past your stop is over: it ends at once on the timetable, and location does not start again.
         let offset = status.delay ?? saved.offset ?? 0
         let arrival = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
         let isOver = clock.now.timeIntervalSince(arrival) >= Self.endAfterArrival
@@ -217,6 +222,8 @@ final class RideEngine {
         self.saved = saved
         self.status = status
         state = nil
+        startedAt = saved.startedAt
+        arrivedAt = saved.arrivedAt
         fix = nil
         feedPosition = nil
         offLineSince = nil
@@ -401,6 +408,7 @@ final class RideEngine {
             lastUpdate: saved.lastUpdate
         )
 
+        arrivedAt = saved.arrivedAt
         let ending: RideEndReason? = if status.isCancelled {
             .cancelled
         } else if let offLineSince, now.timeIntervalSince(offLineSince) >= Self.offLineDuration {

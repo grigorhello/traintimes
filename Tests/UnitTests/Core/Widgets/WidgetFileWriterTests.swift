@@ -2,49 +2,54 @@ import XCTest
 @testable import TrainTimes
 
 /// The widget file (TT-182, D107): what the app writes for the widgets, and when the widgets reload. Wed Nov 11, 8:00 AM.
-@MainActor
 final class WidgetFileWriterTests: XCTestCase {
     private let wed = ServiceDay(year: 2026, month: 11, day: 11)
     private let oakville = Station(id: "OA", name: "Oakville")
     private let union = Station(id: "UN", name: "Union")
     private let burlington = Station(id: "BU", name: "Burlington")
     private let line = Line(id: "LW", name: "Lakeshore West", colorHex: "#8B1A31")
-    private var fileURL: URL!
-    private var reloads = 0
+    private let fileURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        .appending(path: WidgetFile.fileName)
 
-    override func setUp() async throws {
-        fileURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).appending(path: WidgetFile.fileName)
-        reloads = 0
-    }
-
-    override func tearDown() async throws {
+    override func tearDown() {
         try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
+        super.tearDown()
     }
 
+    @MainActor
+    private final class Reloads {
+        var count = 0
+    }
+
+    @MainActor
     private struct Rig {
         let writer: WidgetFileWriter
+        let reloads: Reloads
         let routeStore: UserDefaultsRouteStore
         let rules: AlertRules
         let settings: AppSettings
         let recents: RecentRoutes
     }
 
+    @MainActor
     private func rig(lastDay: ServiceDay? = nil, widgetRoutes: [Route] = [], at time: (Int, Int) = (8, 0)) -> Rig {
         let routeStore = UserDefaultsRouteStore(defaults: .ephemeral())
         let rules = AlertFixtures.rules(FakeAlertServer())
         let settings = AppSettings(defaults: .ephemeral())
         let recents = RecentRoutes(defaults: .ephemeral())
         let timetable = FakeTimetable(lastDay: lastDay, stationList: [burlington, oakville, union])
+        let reloads = Reloads()
         let writer = WidgetFileWriter(
             repository: timetable, stations: timetable, clock: FixedClock(now: wed.date(hour: time.0, minute: time.1)),
             fileURL: fileURL, widgetRoutes: FakeWidgetRoutes(list: widgetRoutes), routeStore: routeStore, rules: rules,
-            settings: settings, recents: recents, reload: { [weak self] in self?.reloads += 1 }
+            settings: settings, recents: recents, reload: { reloads.count += 1 }
         )
-        return Rig(writer: writer, routeStore: routeStore, rules: rules, settings: settings, recents: recents)
+        return Rig(writer: writer, reloads: reloads, routeStore: routeStore, rules: rules, settings: settings, recents: recents)
     }
 
     private var written: WidgetFile? { WidgetFile.read(from: fileURL) }
 
+    @MainActor
     func testAfterLaunchTheFileHoldsTheOpenAndWidgetRoutesBothWaysFor14Days() async throws {
         let open = Route(from: oakville, to: union, line: line)
         // The open route turned around is the same pair of stations, so it is kept once.
@@ -55,7 +60,7 @@ final class WidgetFileWriterTests: XCTestCase {
 
         let wrote = await rig.writer.write()
         XCTAssertTrue(wrote)
-        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(rig.reloads.count, 1)
         let file = try XCTUnwrap(written)
         XCTAssertEqual(file.version, WidgetFile.currentVersion)
         XCTAssertEqual(file.firstDay, wed)
@@ -78,6 +83,7 @@ final class WidgetFileWriterTests: XCTestCase {
     }
 
     /// Written after 12 PM, the open route is stored the other way round: its morning way.
+    @MainActor
     func testTheOpenRouteIsStoredInItsMorningWay() async throws {
         let rig = rig(at: (17, 0))
         rig.routeStore.save(Route(from: union, to: oakville, line: line))
@@ -85,6 +91,7 @@ final class WidgetFileWriterTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(written).openRoute, WidgetFile.RouteKey(fromId: "OA", toId: "UN"))
     }
 
+    @MainActor
     func testTheFeedsEndStopsTheFile() async throws {
         let rig = rig(lastDay: wed.adding(days: 4))
         rig.routeStore.save(Route(from: oakville, to: union, line: line))
@@ -94,6 +101,7 @@ final class WidgetFileWriterTests: XCTestCase {
         XCTAssertEqual(Set(file.routes[0].outbound.map(\.serviceDay)).count, 5)
     }
 
+    @MainActor
     func testAlertedTrainsAndUsualTimes() async throws {
         let rig = rig()
         let open = Route(from: oakville, to: union, line: line)
@@ -120,15 +128,16 @@ final class WidgetFileWriterTests: XCTestCase {
 
     /// The widgets reload only when the bytes change: a route, alert or Time format change does, backgrounding with nothing
     /// changed does not.
+    @MainActor
     func testOnlyAChangeReloadsTheWidgets() async throws {
         let rig = rig()
         rig.routeStore.save(Route(from: oakville, to: union, line: line))
         await rig.writer.write()
-        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(rig.reloads.count, 1)
 
         let unchanged = await rig.writer.write()
         XCTAssertFalse(unchanged)
-        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(rig.reloads.count, 1)
 
         rig.settings.timeFormat = .twelveHour
         let format = await rig.writer.write()
@@ -141,9 +150,10 @@ final class WidgetFileWriterTests: XCTestCase {
         )
         let alert = await rig.writer.write()
         XCTAssertTrue(alert)
-        XCTAssertEqual(reloads, 4)
+        XCTAssertEqual(rig.reloads.count, 4)
     }
 
+    @MainActor
     func testAScheduleThatCannotBeReadKeepsTheLastFile() async throws {
         let rig = rig()
         rig.routeStore.save(Route(from: oakville, to: union, line: line))
@@ -160,6 +170,7 @@ final class WidgetFileWriterTests: XCTestCase {
 
     /// Settings › Testing never reaches the widget file: its schedule is the one `withTesting()` wraps, and fixture runs
     /// have none.
+    @MainActor
     func testDemoTrainsAndMockTimeNeverReachTheFile() throws {
         let timetable = FakeTimetable(lastDay: nil, stationList: [])
         let dependencies = ScheduleDependencies(
@@ -171,6 +182,7 @@ final class WidgetFileWriterTests: XCTestCase {
         XCTAssertNil(ScheduleDependencies.app(environment: ["TT_FIXTURES": "1"]).widgetData)
     }
 
+    @MainActor
     private func trip(_ id: String, day: ServiceDay, hour: Int, minute: Int = 0) -> Trip {
         let departure = day.date(hour: hour, minute: minute)
         return Trip(

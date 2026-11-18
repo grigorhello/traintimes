@@ -2,12 +2,13 @@ import Foundation
 
 /// The schedule from GO Transit's published GTFS feed (TT-130, D35), with live status from its GTFS-realtime
 /// TripUpdates feed (TT-131, D36) and line notices from its Alerts feed (TT-132, D37). With no live feeds (an app built
-/// without the Metrolinx key) every trip is Scheduled and there are no notices. Neither feed carries platforms, so every
-/// card reads "Platform pending".
+/// without the Metrolinx key) every trip is Scheduled and there are no notices. Neither feed carries platforms; those come
+/// from GO's departures board for the route's origin (TT-225).
 struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
     let store: GTFSFeedStore
     var live: GTFSRealtimeStore?
     var alerts: GTFSRealtimeStore?
+    var platforms: PlatformStore?
     /// Decides which notices are active.
     var clock: any AppClock = SystemClock()
 
@@ -17,17 +18,23 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
 
     /// The feed's word on the route's trains that day. Its age is the producer's timestamp, never the time it was
     /// fetched, so a feed that stopped updating turns stale (D13). A failed fetch keeps the last good feed, as offline.
+    /// The origin's platforms come with it (TT-225), fetched alongside; a board that fails leaves the dash. The pill waits
+    /// (D55) only at a station whose board posts platforms.
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
         guard let live else { return .empty }
+        let platforms = platforms, origin = route.from.id
+        async let fetchedBoard = platforms?.board(at: origin)
         let result = await live.latest()
+        let board = await fetchedBoard
         guard let feed = result.feed, let fetchedAt = result.fetchedAt else {
             return LiveSnapshot(updatedAt: nil, isOffline: result.isOffline)
         }
         let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
         let updates = feed.tripUpdates(on: day)
-        var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline)
+        var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline, hasPlatformSource: board?.platforms.isEmpty == false)
         for call in try await store.timetable().directCalls(from: route.from.id, to: route.to.id, on: day) {
             snapshot.updates[call.tripId] = updates[call.tripId]?.live(on: call, feedTime: updatedAt)
+            snapshot.platforms[call.tripId] = board?.platform(forTrip: call.tripId)
         }
         return snapshot
     }

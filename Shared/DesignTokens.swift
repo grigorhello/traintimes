@@ -83,6 +83,7 @@ enum TTFont {
     static let recentRoute = Font.system(size: 15, weight: .semibold)                         // origin and destination in the picker's Recent rows (D54)
     static let rideMinutes = Font.system(size: 64, weight: .bold)                             // the minutes to your stop on the ride screen (TT-204, D87)
     static let rideKicker = Font.system(size: 26, weight: .semibold)                          // "Clarkson in" over them
+    static let rideWish = Font.system(size: 32, weight: .bold)                                // the arrival wish in "Now"'s place (TT-223, D103)
     static let question   = Font.system(size: 20, weight: .bold)                              // "On the train to Clarkson?" (TT-175, TT-205)
     static let stripMinutes = Font.system(size: 22, weight: .bold)                            // the minutes on Schedule's ride strip (TT-205)
     static let departLine = Font.system(size: 22, weight: .semibold)                          // "5:13 PM departs in" over the minutes (TT-205)

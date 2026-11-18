@@ -98,6 +98,20 @@ Grigor approved the design on 2026-11-11 (canvas row "Live mode (Nov 10)", *Live
 | 73 | TT-196 · Smooth swap-to-X motion when a station field opens the picker | [#137](https://github.com/grigorhello/traintimes/issues/137) | P1 | 0.5 | Nothing (TT-161, TT-165 merged) |
 | 91 | TT-214 · Feel kit: Rail joint and the haptic set, a Haptics page in Testing, first on the bell, the switches and the train cards | [#177](https://github.com/grigorhello/traintimes/issues/177) | P1 | 1 | Nothing (Grigor approved the system 2026-11-15, D95) |
 
+## Widgets (in v1 since D101)
+
+Home Screen and Lock Screen widgets, approved 2026-11-11, moved into v1 on 2026-11-18 (D101). One after the other: each builds on the one before.
+
+| # | Ticket | Issue | Priority | Size | Blocked by |
+|---|---|---|---|---|---|
+| 58 | TT-181 · Widgets foundation: App Group, placeholder Next train, docs (the extension and signing came with TT-174) | [#108](https://github.com/grigorhello/traintimes/issues/108) | P1 | 1 | TT-174 (#98), merged |
+| 59 | TT-182 · Widget data: snapshot file, entry builder and traintimes:// links | [#109](https://github.com/grigorhello/traintimes/issues/109) | P1 | 3 | TT-181 merged (Grigor's App Group step only for TestFlight) |
+| 60 | TT-183 · Next train and Departures widgets on the Home Screen and in StandBy | [#110](https://github.com/grigorhello/traintimes/issues/110) | P1 | 3.5 | TT-182 (#109) |
+| 61 | TT-184 · Lock Screen widgets: rectangular, circular and inline Next train | [#111](https://github.com/grigorhello/traintimes/issues/111) | P1 | 1.5 | TT-183 (#110) |
+| 62 | TT-185 · Widget device check on the iPhone 17 Pro simulator | [#112](https://github.com/grigorhello/traintimes/issues/112) | P1 | 1 | TT-183, TT-184 |
+| 63 | TT-186 · Widget control (Control Center, Lock Screen, Action button) | [#113](https://github.com/grigorhello/traintimes/issues/113) | P2 | – | Backlog, v2 |
+| 64 | TT-187 · Live status in widgets and iOS 26 widget push | [#114](https://github.com/grigorhello/traintimes/issues/114) | P2 | – | Backlog |
+
 ## TestFlight feedback tickets
 
 Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub issue and a Notion card (Order after 31) for visibility, and ships in a new TestFlight build.

@@ -52,13 +52,14 @@ extension GTFSScheduleRepository {
     /// The TT-130 feed sample with live status, and line notices (TT-132), from replays, all on the test's clock. A nil
     /// replay is a feed the app does not read, as without the Metrolinx key.
     static func replaying(
-        _ replay: FeedReplay?, alerts: FeedReplay? = nil, clock: any AppClock, directory: URL
+        _ replay: FeedReplay?, alerts: FeedReplay? = nil, platforms: PlatformStore? = nil, clock: any AppClock, directory: URL
     ) throws -> GTFSScheduleRepository {
         let zip = try GTFSTimetableTests.sampleZip()
         return GTFSScheduleRepository(
             store: GTFSFeedStore(directory: directory, clock: clock, download: { zip }),
             live: replay.map { replay in GTFSRealtimeStore(clock: clock, download: { try await replay.download() }) },
             alerts: alerts.map { alerts in GTFSRealtimeStore(clock: clock, download: { try await alerts.download() }) },
+            platforms: platforms,
             clock: clock
         )
     }

@@ -25,7 +25,11 @@ struct ArrivalWish: Equatable, Sendable {
     let period: Period
 
     /// "Have a good day".
-    var text: String { String(localized: String.LocalizationValue("wish.\(id)")) }
+    var text: String {
+        // The key built as a plain String first: an interpolated LocalizationValue would look up "wish.%@".
+        let key = "wish." + id
+        return String(localized: String.LocalizationValue(key))
+    }
 
     /// Morning 3 AM to 11 AM, midday to 4 PM, evening to 9 PM, night to 3 AM, in Toronto.
     static func period(at date: Date) -> Period {

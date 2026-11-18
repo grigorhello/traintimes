@@ -199,6 +199,12 @@ extension AnalyticsEvent {
         ])
     }
 
+    /// Train detection asked "On the train to Clarkson?" (TT-230): on Schedule (`app`) or as the background notification
+    /// (`background`); `evidence` is `stops` (shared stops) or `moving` (moved together on a stretch with no stop between).
+    static func detectionAsked(where place: String, evidence: String) -> Self {
+        Self("detection_asked", ["where": .string(place), "evidence": .string(evidence)])
+    }
+
     /// Yes or No on the train detection question on Schedule.
     static func detectionAnswered(yes: Bool) -> Self {
         Self("detection_answered", ["answer": .string(yes ? "yes" : "no")])

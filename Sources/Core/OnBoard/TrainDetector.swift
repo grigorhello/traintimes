@@ -30,6 +30,8 @@ final class TrainDetector {
     private let feedInterval: TimeInterval
     /// The demo stops once it asks, so its question waits for the rider.
     private let watchesWhileAsking: Bool
+    /// `detection_asked`'s `where` (TT-230): `app` or `background`; nil (the demo, tests) sends nothing.
+    private let askedWhere: String?
     @ObservationIgnored private var route: Route?
     @ObservationIgnored private var isWatching = false
     @ObservationIgnored private var feed: [TripKey: TrainPosition] = [:]
@@ -50,7 +52,8 @@ final class TrainDetector {
         defaults: UserDefaults?,
         tickInterval: Duration? = .seconds(1),
         feedInterval: TimeInterval = 15,
-        watchesWhileAsking: Bool = true
+        watchesWhileAsking: Bool = true,
+        askedWhere: String? = nil
     ) {
         self.candidates = candidates
         self.location = location
@@ -60,6 +63,7 @@ final class TrainDetector {
         self.tickInterval = tickInterval
         self.feedInterval = feedInterval
         self.watchesWhileAsking = watchesWhileAsking
+        self.askedWhere = askedWhere
         saved = Self.silencedToday(in: defaults, now: clock.now)
         matcher = TrainMatcher(silenced: saved)
     }
@@ -186,7 +190,12 @@ final class TrainDetector {
 
     /// The matcher's state to the screen, and its No's (a No, or a question left unanswered) to `defaults` for the day.
     private func publish() {
-        if matcher.state != state { state = matcher.state }
+        if matcher.state != state {
+            if case .asking(let question) = matcher.state, !isAsking, let askedWhere {
+                Analytics.track(.detectionAsked(where: askedWhere, evidence: question.evidence.rawValue))
+            }
+            state = matcher.state
+        }
         guard matcher.silenced != saved else { return }
         saved = matcher.silenced
         defaults?.set(saved.map { "\($0.serviceDay.dateKey)/\($0.tripId)" }, forKey: Self.silencedKey)

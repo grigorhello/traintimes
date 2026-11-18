@@ -45,7 +45,9 @@ extension RidePlan {
 ///    their speeds within 20 %. The timetable gives no speed (it averages each stretch), so for it the phone's alone counts.
 /// 3. **Stopped together**: both stand within 80 m of a station's platform at the same time (the platform taken as 150 m
 ///    either side of the station's place), after the phone has moved with the train.
-/// 4. **Twice**: two shared stops, or one plus 3 min of moving together.
+/// 4. **Twice**: two shared stops, or one plus 3 min of moving together. On a stretch with no stop between the phone's and
+///    the rider's (an express, Union to Clarkson nonstop, TT-230) no stop can be shared, so 3 min of moving together counts
+///    instead, and the train whose timetable puts it where the phone is (the least late) is the one asked about.
 ///
 /// Confidence: with the feed, the question comes as soon as the four hold; on the timetable alone, after one more shared
 /// stop or 3 more minutes of moving together. One stop alone never asks. The question comes while the phone and the train
@@ -103,6 +105,11 @@ struct TrainMatcher {
     /// The question: one or two trains, the station the phone moved with the first from and the stations it stopped with
     /// it at.
     struct Question: Equatable {
+        /// What made the matcher sure: shared stops, or moving together on a stretch with no stop between (TT-230).
+        enum Evidence: String, Equatable {
+            case stops, moving
+        }
+
         let trains: [TrainCandidate]
         let since: Station?
         /// The first two shared stops, in order; one when the feed's train held the fourth check on 3 min of moving
@@ -114,6 +121,7 @@ struct TrainMatcher {
         /// Every train that fitted when it was asked: a No or an ignored question silences them all, so the matcher does not
         /// ask again about the next guess from the same evidence.
         let fitting: [TripKey]
+        var evidence: Evidence = .stops
     }
 
     enum State: Equatable {
@@ -219,7 +227,8 @@ struct TrainMatcher {
                     stops: proof.sharedStops.prefix(2).map { first.plan.stops[$0].station },
                     askedAt: now,
                     lastStop: proof.sharedStops.last ?? 0,
-                    fitting: fitting.map(\.trip)
+                    fitting: fitting.map(\.trip),
+                    evidence: proof.sharedStops.isEmpty ? .moving : .stops
                 ))
                 return
             }
@@ -274,6 +283,7 @@ struct TrainMatcher {
                 proof.since = track.stopDistances.lastIndex { $0 <= here.along + Self.platformHalfLength } ?? 0
             }
             if !proof.sharedStops.isEmpty { proof.togetherSinceStop += dt }
+            proof.togetherMoving += dt
             if proof.completeAt != nil { proof.togetherSinceComplete += dt }
             proof.stopArrival = nil
         }
@@ -297,12 +307,21 @@ struct TrainMatcher {
             }
         }
 
-        // 4 · Twice, and the confidence rule. One stop and 3 min together count only on the feed, where stops are far apart.
+        // On a stretch with no stop between (TT-230) no stop can be shared: how late the timetable's train would be to stand
+        // where the phone is tells the trains apart.
+        let isNonstop = proof.since.map { $0 + 2 == plan.stops.count } ?? false
+        if isNonstop, train.source == .timetable, let since = proof.since {
+            proof.movingDelay = impliedDelay(plan: plan, track: track, from: since, along: here.along, now: now)
+        }
+
+        // 4 · Twice, and the confidence rule. One stop and 3 min together count only on the feed, where stops are far apart;
+        // with no stop between, 3 min together alone.
         let isFarApart = proof.sharedStops.first.map { stop in
             stop + 1 < plan.stops.count && plan.stops[stop + 1].arrival.timeIntervalSince(plan.stops[stop].departure) >= Self.farApart
         } ?? false
         let twice = proof.sharedStops.count >= 2
             || (train.source == .trainFeed && proof.sharedStops.count == 1 && isFarApart && proof.togetherSinceStop >= Self.togetherTime)
+            || (isNonstop && proof.sharedStops.isEmpty && proof.togetherMoving >= Self.togetherTime)
         if twice, proof.completeAt == nil {
             proof.completeAt = proof.sharedStops.count
             proof.togetherSinceComplete = 0
@@ -313,6 +332,20 @@ struct TrainMatcher {
             proof.completeAt.map { proof.sharedStops.count > $0 || proof.togetherSinceComplete >= Self.togetherTime } ?? false
         }
         return CheckResult(isReady: confident && sameWay, fits: twice)
+    }
+
+    /// How late the timetable's train runs if it is at `along` now, between stop `from` and the next: 0 when it would be
+    /// early, at most 15 min.
+    private func impliedDelay(plan: RidePlan, track: RidePlan.Track, from: Int, along: Double, now: Date) -> TimeInterval {
+        let distances = track.stopDistances
+        guard from + 1 < plan.stops.count, from + 1 < distances.count else { return 0 }
+        let leaves = plan.stops[from].departure
+        let span = plan.stops[from + 1].arrival.timeIntervalSince(leaves)
+        let length = distances[from + 1] - distances[from]
+        guard span > 0, length > 0 else { return 0 }
+        let fraction = min(max((along - distances[from]) / length, 0), 1)
+        let scheduled = leaves.addingTimeInterval(span * fraction)
+        return min(max(now.timeIntervalSince(scheduled), 0), Self.latestDelay)
     }
 
     /// Where the train is along its track: a point from a fresh feed position, else the stretch the timetable allows.
@@ -432,9 +465,11 @@ struct TrainMatcher {
         return stop.arrival.addingTimeInterval(delay(of: train)).timeIntervalSince(now) >= Self.questionLead
     }
 
-    /// How late the timetable takes the train to run, from the stops it shared with the phone; 0 on the feed.
+    /// How late the timetable takes the train to run, from the stops it shared with the phone, or with none shared on a
+    /// stretch with no stop between, from where the phone is; 0 on the feed.
     private func delay(of candidate: TrainCandidate) -> TimeInterval {
-        evidence[candidate.trip]?.delay ?? 0
+        guard let proof = evidence[candidate.trip] else { return 0 }
+        return proof.delay ?? proof.movingDelay ?? 0
     }
 
     private func movesForward(_ candidate: TrainCandidate, phone: PhoneMotion) -> Bool {
@@ -515,6 +550,10 @@ private struct Evidence {
     /// When the phone and the train began standing at the latest shared stop.
     var stopArrival: Date?
     var togetherSinceStop: TimeInterval = 0
+    /// Seconds of moving together in all (TT-230: a stretch with no stop between counts on it).
+    var togetherMoving: TimeInterval = 0
+    /// How late the timetable's train would be to be where the phone is, on a stretch with no stop between (TT-230).
+    var movingDelay: TimeInterval?
     /// Shared stops when the fourth check first held, for the timetable's confidence rule.
     var completeAt: Int?
     var togetherSinceComplete: TimeInterval = 0

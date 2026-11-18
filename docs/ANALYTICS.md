@@ -114,11 +114,24 @@ add `channel = appstore` to see real riders only.
 `route_set` with `restored` is a route from before analytics, counted once at launch: it counts toward activation like a
 first route.
 
-## Weekly review (TT-210)
+## Morning check (TT-210)
 
-A scheduled task wakes the TT-210 project thread every Monday at 8:13 AM Toronto time. It reads every insight above for
-the last 7 days against the 7 before, with this dictionary, and posts in that thread: the headline numbers (riders, routes
-set, activation, day 1/7/30 retention), then up to three findings, each with the number behind it and a proposed ticket
-(title and one line), or "nothing to act on". It files nothing itself. Until a Release build with analytics is in riders'
-hands the project has no events, and the review says so in one line.
+A scheduled task wakes the TT-210 project thread every day at 8:13 AM Toronto time. It reads yesterday (the Toronto
+calendar day) with this dictionary, mostly through `execute-sql` on `events`, and looks for behaviour nobody expected:
 
+1. **Taps that do nothing:** `interest_tapped` with `count` 3 or more, or one install tapping the same `element` 3 or more
+   times in the day.
+2. **Flows left halfway:** `welcome` or `route_form` shown with no `route_set` after it; a bell turned on and off again on
+   the same train within a minute, or an `alert_saved` removed within 2 minutes; `notification_permission` denied.
+3. **Odd endings:** `ride_ended` as `left_the_line` or `cancelled`, or `by_rider` within 5 minutes of `ride_started`; a
+   ride with no `ride_ended` within 3 hours; `detection_answered` no.
+4. **Offline:** `offline_shown` by `kind`; any `timetable` is worth a line.
+5. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
+   carry (`$screen` without `$screen_name`, `route_set` without `from`/`to`); an event seen every day that stopped.
+
+Rides with `demo: true` are left out. It posts in that thread: one line of totals (installs, opens), then up to three
+findings, each with the number behind it, how many installs it comes from and a proposed ticket (title and one line), or
+"Nothing unusual yesterday". A finding already posted in the last 7 days comes back only if it grew. On Mondays it adds the
+week: riders, routes set, activation and day 1/7/30 retention against the week before. With fewer than 20 installs a
+finding is one person's behaviour, so it names it as such and gives no rates. It files and fixes nothing: Grigor says yes
+to a proposal and a ticket thread takes it.

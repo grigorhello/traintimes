@@ -140,6 +140,7 @@ app.build_configurations.each do |config|
     # TT-174: the TestFlight archive names each target's profile (scripts/testflight.sh); empty everywhere else.
     'PROVISIONING_PROFILE_SPECIFIER' => '$(TT_APP_PROFILE)',
     # TT-142: push notifications (aps-environment) so the app gets an APNs device token for alerts.
+    # TT-181 (D101): the App Group shared with the widget extension.
     'CODE_SIGN_ENTITLEMENTS' => 'Config/TrainTimes.entitlements',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks'],
     'SWIFT_EMIT_LOC_STRINGS' => 'YES'
@@ -152,7 +153,8 @@ end
 # The widget extension (TT-174, D67): the ride's Live Activity on the Lock Screen and in the Dynamic Island, and later the
 # widgets (TT-181 onward). Embedded in the app; its version follows the app's, as App Store Connect requires.
 widgets = project.new_target(:app_extension, 'TrainTimesWidgets', :ios, DEPLOYMENT_TARGET, nil, :swift)
-widgets.file_system_synchronized_groups << widgets_dir << shared
+# TT-181: Resources/ too, for the token colours and the widget strings.
+widgets.file_system_synchronized_groups << widgets_dir << shared << resources
 widgets.build_configurations.each do |config|
   s = config.build_settings
   s.delete('INFOPLIST_FILE')
@@ -168,6 +170,8 @@ widgets.build_configurations.each do |config|
     'TARGETED_DEVICE_FAMILY' => '1',
     'CODE_SIGN_STYLE' => 'Automatic',
     'PROVISIONING_PROFILE_SPECIFIER' => '$(TT_WIDGETS_PROFILE)',
+    # TT-181 (D101): the App Group the app shares its widget file through.
+    'CODE_SIGN_ENTITLEMENTS' => 'Config/TrainTimesWidgets.entitlements',
     'SKIP_INSTALL' => 'YES',
     'APPLICATION_EXTENSION_API_ONLY' => 'YES',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks'],

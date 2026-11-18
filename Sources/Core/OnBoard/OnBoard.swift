@@ -44,6 +44,8 @@ final class OnBoard {
     private let requestNotifications: @MainActor () async -> Void
     /// The arrival wish of the ride on screen and its analytics (TT-223, D103).
     let wishes: ArrivalWishes
+    /// The ride screen's Tick and Tap and its watch time (TT-224, D106).
+    let screen: RideScreen
 
     init(
         app: RideEngine?,
@@ -58,7 +60,8 @@ final class OnBoard {
         nudge: ArrivalNudge? = nil,
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
         requestNotifications: @escaping @MainActor () async -> Void = {},
-        wishes: ArrivalWishes? = nil
+        wishes: ArrivalWishes? = nil,
+        screen: RideScreen? = nil
     ) {
         self.app = app
         self.detector = detector
@@ -71,6 +74,7 @@ final class OnBoard {
         self.makeDemoNudge = makeDemoNudge
         self.requestNotifications = requestNotifications
         self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: TTHaptics.shared)
+        self.screen = screen ?? RideScreen(haptics: TTHaptics.shared)
     }
 
     /// The demo's engine while it plays, else the app's.

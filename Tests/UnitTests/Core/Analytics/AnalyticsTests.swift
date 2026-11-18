@@ -32,6 +32,8 @@ final class AnalyticsTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.rideEnded(.arrived).properties["reason"], .string("arrived"))
         XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider).properties["at_stop"], .bool(false))
         XCTAssertEqual(AnalyticsEvent.rideEnded(.byRider, atStop: true).properties["at_stop"], .bool(true))
+        XCTAssertEqual(AnalyticsEvent.rideEnded(.arrived, watchedSeconds: 95, opens: 2).properties["watched_seconds"], .int(95))
+        XCTAssertEqual(AnalyticsEvent.rideEnded(.arrived, watchedSeconds: 95, opens: 2).properties["opens"], .int(2))
     }
 
     func testLaunchSplashEnded() {

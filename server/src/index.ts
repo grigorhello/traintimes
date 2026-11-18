@@ -1,6 +1,6 @@
 // Train Times alert server (TT-140, D38): a Cloudflare Worker with a D1 database, on the Workers Free plan (D43).
-// - fetch: the app's API (src/api.ts), feedback (src/feedback.ts), GO's live feeds relayed to the app (src/relay.ts) and the
-//   daily timetable upload from GitHub Actions (src/upload.ts).
+// - fetch: the app's API (src/api.ts), feedback (src/feedback.ts), GO's live feeds and platforms relayed to the app
+//   (src/relay.ts, src/platforms.ts) and the daily timetable upload from GitHub Actions (src/upload.ts).
 // - every minute: the monitoring cycle (src/monitor.ts).
 // - daily: retention.
 
@@ -9,6 +9,7 @@ import { handleFeedback } from './feedback.ts';
 import { ApnsClient } from './apns.ts';
 import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed } from './realtime.ts';
+import { downloadNextService, handlePlatforms, PlatformRelay } from './platforms.ts';
 import { downloadFeed, FeedRelay, handleLive } from './relay.ts';
 import { GITHUB_JWKS_URL, handleTimetableUpload, type JWKS } from './upload.ts';
 
@@ -54,6 +55,18 @@ function feedRelay(env: Env): FeedRelay {
   return relay;
 }
 
+let platforms: PlatformRelay | null = null;
+
+/** One platform relay per isolate (TT-225), like the feeds. */
+function platformRelay(env: Env): PlatformRelay {
+  platforms ??= new PlatformRelay({
+    download: (stop) => downloadNextService(fetch, env.GO_FEEDS_URL, env.METROLINX_API_KEY, stop),
+    cache: caches.default,
+    now: Date.now,
+  });
+  return platforms;
+}
+
 async function githubKeys(): Promise<JWKS> {
   const response = await fetch(GITHUB_JWKS_URL);
   if (!response.ok) throw new Error(`GitHub JWKS ${response.status}`);
@@ -66,6 +79,8 @@ export default {
       const pathname = new URL(request.url).pathname;
       const live = await handleLive(request, feedRelay(env));
       if (live) return live;
+      const platformBoard = await handlePlatforms(request, platformRelay(env));
+      if (platformBoard) return platformBoard;
       if (pathname === '/v1/feedback') return await handleFeedback(request, env.DB, Date.now());
       if (pathname.startsWith('/v1/timetables/')) {
         return await handleTimetableUpload(request, env.DB, Date.now(), env.TIMETABLE_WORKFLOW, githubKeys);

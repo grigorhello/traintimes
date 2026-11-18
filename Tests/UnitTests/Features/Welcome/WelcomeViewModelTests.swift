@@ -130,6 +130,23 @@ final class WelcomeViewModelTests: XCTestCase {
         XCTAssertFalse(LaunchMotion.plays, "Never in the unit test host")
     }
 
+    /// The first 8 splashes play at the full pace, then quick (TT-227); only a splash that played counts.
+    func testSplashPace() {
+        XCTAssertEqual(LaunchMotion.paceAfter(played: 0), .full)
+        XCTAssertEqual(LaunchMotion.paceAfter(played: 7), .full)
+        XCTAssertEqual(LaunchMotion.paceAfter(played: 8), .quick)
+        XCTAssertEqual(LaunchMotion.pace, .quick, "No splash in the unit test host, so nothing is counted")
+
+        let defaults = UserDefaults.ephemeral()
+        for _ in 0..<10 { LaunchMotion.recordPlayed(defaults: defaults) }
+        XCTAssertEqual(defaults.integer(forKey: LaunchMotion.countKey), LaunchMotion.fullLaunches, "Stops counting at 8")
+
+        // The full pace is a little longer: about 2.6 s from the launch still to Schedule, against 1.8 s.
+        let full = LaunchMotion.Timing.full, quick = LaunchMotion.Timing.quick
+        XCTAssertEqual(full.bloom + full.foldTotal, .milliseconds(2620))
+        XCTAssertEqual(quick.bloom + quick.foldTotal, .milliseconds(1760))
+    }
+
     /// The bundled lines run from Union outward in the order GO's trains call: Lakeshore West and Kitchener against the
     /// sample feed, with the same ids and names, and every rail station of the feed is on one of the seven lines.
     func testBundledLinesMatchTheFeed() throws {

@@ -16,6 +16,8 @@ struct RootView: View {
     @State private var welcome: WelcomeViewModel
     /// Bloom on a cold start with a saved route, folding back into Schedule (TT-206); shown once per launch.
     @State private var showsSplash: Bool
+    /// The splash still covers Schedule, until its mark begins to fade (TT-227).
+    @State private var splashCovers: Bool
     /// The trip the details sheet shows, set each time a card is tapped (TT-118).
     @State private var tripDetails: TripDetailsViewModel?
     /// The alert rules (TT-141), shared by the bells, Trip details, the Alerts tab and the watched-trip strip.
@@ -76,6 +78,7 @@ struct RootView: View {
             initialValue: WelcomeViewModel(stations: dependencies.stations, clock: dependencies.clock, recents: schedule.recents)
         )
         _showsSplash = State(initialValue: LaunchMotion.plays && LaunchMotion.exit(savedRoute: schedule.route) == .schedule)
+        _splashCovers = State(initialValue: LaunchMotion.plays && LaunchMotion.exit(savedRoute: schedule.route) == .schedule)
         _alerts = State(initialValue: bells.rules)
         _bells = State(initialValue: bells)
         _alertsModel = State(
@@ -135,12 +138,13 @@ struct RootView: View {
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             } else {
                 tabView
+                    .environment(\.launchCovers, splashCovers)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
         }
         .overlay {
             if showsSplash {
-                LaunchSplash { showsSplash = false }
+                LaunchSplash(onFold: { splashLifts() }, onFinish: { showsSplash = false })
             }
         }
         .sheet(item: $router.presentedSheet) { sheet in
@@ -494,6 +498,13 @@ struct RootView: View {
             // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
             if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }
         }
+    }
+
+    /// The splash's mark begins to fade over Schedule (TT-227): Schedule's entrance plays, and whether its trains were
+    /// already there is counted.
+    private func splashLifts() {
+        splashCovers = false
+        Analytics.track(.launchSplashEnded(scheduleReady: schedule.content != .loading, full: LaunchMotion.pace == .full))
     }
 
     /// "Show trains" on first use.

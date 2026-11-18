@@ -5,16 +5,9 @@ import XCTest
 /// wish per ride, and its two events.
 @MainActor
 final class ArrivalWishTests: XCTestCase {
-    private var analytics: RecordingAnalytics!
-
-    override func setUp() {
-        super.setUp()
-        analytics = RecordingAnalytics.install()
-    }
-
-    override func tearDown() {
+    override func tearDown() async throws {
         Analytics.tracker = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     /// Wednesday Nov 25, 2026 at that time in Toronto, or another day of that week.
@@ -72,6 +65,7 @@ final class ArrivalWishTests: XCTestCase {
     }
 
     func testShownAndClosedAreSentOncePerRide() {
+        let analytics = RecordingAnalytics.install()
         let haptics = FakeHaptics()
         let wishes = ArrivalWishes(defaults: nil, haptics: haptics, index: { _ in 1 })
         let wish = wishes.wish(for: "a", arrivedAt: at(18), demo: true)
@@ -98,6 +92,7 @@ final class ArrivalWishTests: XCTestCase {
     }
 
     func testSecondsStopAtTwoMinutes() {
+        let analytics = RecordingAnalytics.install()
         let wishes = ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
         _ = wishes.wish(for: "a", arrivedAt: at(7), demo: false)
         wishes.shown(now: at(7))

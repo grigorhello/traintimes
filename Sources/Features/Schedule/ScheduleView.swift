@@ -99,8 +99,13 @@ struct ScheduleView: View {
             // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
             // play waits for its scroll to settle, so the first appearance asks for nothing.
             .onAppear { viewModel.timelineAppeared() }
+            // Back after more than 10 min away, the timeline returns to Now on Today (TT-222).
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { viewModel.timelineAppeared() }
+                switch phase {
+                case .background: viewModel.wentToBackground()
+                case .active: Task { await viewModel.cameToForeground() }
+                default: break
+                }
             }
     }
 

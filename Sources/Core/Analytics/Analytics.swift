@@ -118,8 +118,18 @@ extension AnalyticsEvent {
 
     static let routeSwapped = Self("route_swapped")
 
-    /// The Schedule tab tapped again: back to today at Now.
-    static let backToNow = Self("back_to_now")
+    /// What took Schedule back to today at Now.
+    enum BackToNowSource: String, Sendable {
+        /// The Schedule tab tapped again.
+        case tab
+        /// The app back in the foreground after more than 10 min away (TT-222).
+        case reopen
+    }
+
+    /// Back to today at Now.
+    static func backToNow(_ source: BackToNowSource) -> Self {
+        Self("back_to_now", ["source": .string(source.rawValue)])
+    }
 
     /// A day picked on the day strip, counted from today (-1 is yesterday).
     static func dayChanged(offset: Int) -> Self {

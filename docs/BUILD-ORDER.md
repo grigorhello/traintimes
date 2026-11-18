@@ -133,4 +133,5 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 45 | TT-168 · Settings redesign: five-row main view, glass switches, Notifications, About and Testing pages | [#85](https://github.com/grigorhello/traintimes/issues/85) | P1 | 8 | Grigor, 2026-11-10, D57 |
 | 46 | TT-169 · Notifications-off warning: red dot on the Alerts tab and a fix card in Alerts | [#86](https://github.com/grigorhello/traintimes/issues/86) | P1 | 3 | Grigor, 2026-11-10, D58 |
 | 83 | TT-206 · First launch: the Bloom splash, a welcome with the network picture, then your line and your station | [#165](https://github.com/grigorhello/traintimes/issues/165) | P1 | 5 | Grigor, 2026-11-15, D94 |
+| 94 | TT-219 · Live view: whole minutes, no seconds ("15 min") | [#188](https://github.com/grigorhello/traintimes/issues/188) | P1 | 1 | Grigor, 2026-11-18, D97 |
 | 96 | TT-221 · Ride screen: Done always closes it, and it closes itself when the ride ends at your stop | [#191](https://github.com/grigorhello/traintimes/issues/191) | P1 | 1 | Grigor, 2026-11-18, D98 |

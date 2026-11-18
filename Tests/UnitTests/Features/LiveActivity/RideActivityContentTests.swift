@@ -52,6 +52,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(content.phase, .riding)
         XCTAssertEqual(content.title, "Clarkson in")
         XCTAssertEqual(try secondsLeft(content), 11 * 60, accuracy: 5, "On the device clock, to 5:43 on the engine's: your stop")
+        XCTAssertEqual(content.minutes, "11 min", "Whole minutes, the ride screen's words (TT-219)")
         XCTAssertEqual(content.label, "Arrives")
         XCTAssertEqual(content.value, "5:43 PM")
         XCTAssertNil(content.delay)
@@ -96,6 +97,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(content.label, "")
         XCTAssertNil(content.value)
         XCTAssertEqual(try secondsLeft(content), 40, accuracy: 5)
+        XCTAssertEqual(content.minutes, "1 min", "Never under a minute")
         XCTAssertGreaterThan(content.position, 4)
         XCTAssertLessThan(content.position, 5)
     }
@@ -106,6 +108,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(content.phase, .atYourStop)
         XCTAssertEqual(content.title, "This is Clarkson")
         XCTAssertNil(content.countdownEnd)
+        XCTAssertNil(content.minutes)
         XCTAssertEqual(content.now, "Now")
         XCTAssertEqual(content.position, 5, "The train on the pin")
         XCTAssertTrue(content.isGreen)
@@ -141,6 +144,7 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(state.phase, .countingDown)
         XCTAssertEqual(state.title, "5:13 PM to Clarkson")
         XCTAssertEqual(state.countdownEnd, Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertNil(state.minutes, "No minutes: the card falls back to timer text")
         XCTAssertEqual(state.label, "Check the board")
         XCTAssertNil(state.platformNumber)
 
@@ -187,6 +191,10 @@ final class RideActivityContentTests: XCTestCase {
         var later = shown
         later.countdownEnd = shown.countdownEnd?.addingTimeInterval(60)
         XCTAssertFalse(shown.looksLike(later), "A train a minute late moves the countdown")
+
+        var nextMinute = shown
+        nextMinute.minutes = "10 min"
+        XCTAssertFalse(shown.looksLike(nextMinute), "A new minute is sent (TT-219)")
 
         var renamed = shown
         renamed.title = "Clarkson is next"

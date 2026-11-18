@@ -52,7 +52,8 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
                     let fix = LocationFix(
                         coordinate: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
                         horizontalAccuracy: location.horizontalAccuracy,
-                        isStationary: isStationary
+                        isStationary: isStationary,
+                        age: max(0, Date().timeIntervalSince(location.timestamp))
                     )
                     await onFix(fix)
                 }

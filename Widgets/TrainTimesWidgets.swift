@@ -2,12 +2,13 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// The widget extension (TT-174): the On board Live Activity for now; the Home and Lock Screen widgets (TT-181 onward) join
-/// this bundle.
+/// The widget extension (TT-174, TT-181): the On board Live Activity and the Home Screen widgets (TT-183 onward replace the
+/// Next train placeholder).
 @main
 struct TrainTimesWidgets: WidgetBundle {
     var body: some Widget {
         RideActivityWidget()
+        NextTrainWidget()
     }
 }
 

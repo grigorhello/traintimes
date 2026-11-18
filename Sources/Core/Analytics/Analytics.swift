@@ -118,6 +118,12 @@ extension AnalyticsEvent {
 
     static let routeSwapped = Self("route_swapped")
 
+    /// The saved route's launch splash lifting over Schedule (TT-227): `schedule_ready` is false while Schedule still showed
+    /// "Loading timetable"; `full` is the slower first-launches pace.
+    static func launchSplashEnded(scheduleReady: Bool, full: Bool) -> Self {
+        Self("launch_splash_ended", ["schedule_ready": .bool(scheduleReady), "full": .bool(full)])
+    }
+
     /// What took Schedule back to today at Now.
     enum BackToNowSource: String, Sendable {
         /// The Schedule tab tapped again.

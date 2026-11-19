@@ -30,7 +30,7 @@ struct WidgetCountdown: View {
     let departure: Date
     @Environment(\.widgetCountdownFixedAt) private var fixedAt
 
-    static var isAvailable: Bool {
+    nonisolated static var isAvailable: Bool {
         if #available(iOS 18, *) { true } else { false }
     }
 
@@ -53,7 +53,7 @@ struct WidgetCountdown: View {
     }
 
     /// The same words at a fixed moment: whole minutes left, rounded down like iOS's.
-    static func minutes(from now: Date, to departure: Date) -> String {
+    nonisolated static func minutes(from now: Date, to departure: Date) -> String {
         String(format: String(localized: "widget.minutes"), max(0, Int(departure.timeIntervalSince(now) / 60)))
     }
 }

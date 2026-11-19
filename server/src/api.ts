@@ -4,7 +4,7 @@
 //   PUT    /v1/installations/:installation                 { deviceToken, timeFormat, environment, startToken? }
 //   DELETE /v1/installations/:installation
 //   PUT    /v1/installations/:installation/activities      { tripId, serviceDate, originId, destinationId, token?,
-//                                                           handedOff?, asked? }
+//                                                           handedOff?, asked?, removed? }
 //   GET    /v1/installations/:installation/rules
 //   PUT    /v1/installations/:installation/rules/:rule     { kind, tripId, serviceDate, line, scheduledDeparture,
 //                                                           origin: { id, name }, destination: { id, name },
@@ -105,6 +105,19 @@ function releaseActivities(db: D1Database, installation: string, originId: strin
     .run();
 }
 
+/**
+ * A rule was saved switched on (TT-240, D118): the installation's cards between its stations that the app ended because
+ * their alert was gone are forgotten, so a train the rule watches again (Undo, the bell again) gets a fresh card at the
+ * next cycle.
+ */
+function forgetRemovedActivities(db: D1Database, installation: string, originId: string, destinationId: string) {
+  const stations = `|${originId}|${destinationId}`;
+  return db
+    .prepare(`DELETE FROM activities WHERE installation_id = ? AND state = 'removed' AND substr(key, -length(?)) = ?`)
+    .bind(installation, stations, stations)
+    .run();
+}
+
 /** Deletes an installation and everything keyed to it. */
 export function deleteInstallation(db: D1Database, installation: string) {
   return db.batch([
@@ -167,21 +180,40 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       // The app was in front as the train left (TT-231): the question comes with no alert and no notification.
       const asked = input.asked === undefined ? false : input.asked;
       if (typeof asked !== 'boolean') throw new BadRequest('asked');
+      // The app ended the card because its alert was removed or switched off (TT-240, D118).
+      const removed = input.removed === undefined ? false : input.removed;
+      if (typeof removed !== 'boolean') throw new BadRequest('removed');
       if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
+      const key = `${serviceDate}|${tripId}|${originId}|${destinationId}`;
+      if (removed) {
+        // The row stays, with no token: no cycle updates, ends or starts a card for the train while the rule's own DELETE
+        // or paused save is still on its way. A rule saved switched on between its stations forgets the row, and the next
+        // cycle starts a fresh card. A card the ride took over, or whose question went as a notification, stays as it is.
+        await db
+          .prepare(
+            `UPDATE activities SET state = 'removed', token = NULL, version = version + 1
+             WHERE installation_id = ? AND key = ? AND state IN ('started', 'asked', 'ended')`,
+          )
+          .bind(installation, key)
+          .run();
+        return noContent();
+      }
       const state = handedOff ? 'handedOff' : asked ? 'asked' : 'started';
       // An ended card stays ended, unless the app reports another token for the train: a new card is up (the alert was
-      // switched on again inside its window, TT-240), and it gets the server's updates like the first.
+      // switched on again inside its window, TT-240), and it gets the server's updates like the first. A removed card
+      // takes what the app reports now: the app started the card again.
       await db
         .prepare(
           `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (installation_id, key) DO UPDATE SET token = COALESCE(excluded.token, activities.token),
              state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff'
+               WHEN activities.state = 'removed' THEN excluded.state
                WHEN excluded.state = 'asked' AND activities.state = 'started' THEN 'asked'
                WHEN activities.state = 'ended' AND excluded.token IS NOT NULL AND excluded.token IS NOT activities.token THEN 'started'
                ELSE activities.state END,
              version = activities.version + 1`,
         )
-        .bind(installation, `${serviceDate}|${tripId}|${originId}|${destinationId}`, serviceDate, token?.toLowerCase() ?? null, state)
+        .bind(installation, key, serviceDate, token?.toLowerCase() ?? null, state)
         .run();
       return noContent();
     }
@@ -264,6 +296,7 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
           )
           .run();
         if (paused) await releaseActivities(db, installation, origin.id, destination.id);
+        else await forgetRemovedActivities(db, installation, origin.id, destination.id);
         const row = await db
           .prepare('SELECT * FROM rules WHERE installation_id = ? AND id = ?')
           .bind(installation, rule)

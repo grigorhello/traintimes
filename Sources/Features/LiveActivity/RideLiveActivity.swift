@@ -325,19 +325,26 @@ final class RideLiveActivity: RideActivityFollowing {
         let deviceNow = Date()
         let source = departures?()
         var current: [Activity<RideActivityAttributes>] = []
+        var removed: [RideActivityAttributes] = []
         for activity in activities {
             let card = Ride(activity.attributes)
             if let stale = activity.content.staleDate, stale <= deviceNow {
                 await Self.end(activity.id, content: nil, dismissal: nil)
             } else if !Self.keepsDeparture(card, source: source?.ride, hasAlert: reporter?.hasAlert(for: card)) {
-                // Its alert is gone (TT-240, D118): nothing would update the card again, so it leaves now. Nothing is told
-                // to the server (a hand-off report would silence it for this train after an Undo), which ends what it
-                // still holds for the card in its next minute. Forgotten here, so Undo or a new bell tap starts it again.
+                // Its alert is gone (TT-240, D118): nothing would update the card again, so it leaves now. Forgotten here,
+                // so Undo or a new bell tap starts it again when it is the source's train.
                 departureStarted.remove(card)
                 await Self.end(activity.id, content: nil, dismissal: nil)
+                removed.append(activity.attributes)
             } else {
                 current.append(activity)
             }
+        }
+        // The server is told the card was removed (never handed off, which would silence it for the train after an Undo):
+        // it follows the card no more, and starts a fresh one when the alert is switched on again, whatever Schedule shows.
+        // Told once: if it fails, the server's sweep ends what it still holds for the card in its next minute.
+        for attributes in removed {
+            await report(LiveActivityReport(attributes, removed: true))
         }
         guard let source else { return }
         let ride = source.ride
@@ -570,10 +577,10 @@ final class RideLiveActivity: RideActivityFollowing {
 
 extension LiveActivityReport {
     /// The activity's train, as the server keys its watch.
-    init(_ attributes: RideActivityAttributes, token: String? = nil, handedOff: Bool = false) {
+    init(_ attributes: RideActivityAttributes, token: String? = nil, handedOff: Bool = false, removed: Bool = false) {
         self.init(
             tripId: attributes.tripId, serviceDate: String(attributes.serviceDate), originId: attributes.originId,
-            destinationId: attributes.destinationId, token: token, handedOff: handedOff
+            destinationId: attributes.destinationId, token: token, handedOff: handedOff, removed: removed
         )
     }
 }

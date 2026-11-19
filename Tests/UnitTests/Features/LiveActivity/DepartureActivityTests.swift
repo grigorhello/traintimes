@@ -425,4 +425,22 @@ final class DepartureActivityTests: XCTestCase {
         let failed = await rules.report(handOff)
         XCTAssertFalse(failed, "An unreachable server: the hand-off is sent again")
     }
+
+    func testARemovedCardIsReportedWithNoAlertLeft() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let removed = LiveActivityReport(tripId: "LW-1256", serviceDate: "20261105", originId: "OA", destinationId: "UN", removed: true)
+        let sent = await rules.report(removed)
+        XCTAssertTrue(sent)
+        let reports = await server.activityReports
+        XCTAssertEqual(reports, [removed], "The server follows the ended card no more, and starts a fresh one after Undo")
+        let registrations = await server.registrations
+        XCTAssertEqual(registrations, [], "Nothing is registered for it")
+
+        let token = LiveActivityReport(tripId: "LW-1256", serviceDate: "20261105", originId: "OA", destinationId: "UN", token: "ab")
+        let needless = await rules.report(token)
+        XCTAssertTrue(needless)
+        let still = await server.activityReports
+        XCTAssertEqual(still, [removed], "Anything else needs no server with no alert left")
+    }
 }

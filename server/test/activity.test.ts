@@ -435,6 +435,64 @@ describe('a card whose alert is gone (TT-240)', () => {
     assert.equal(update.event, 'update');
     assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
   });
+
+  // The app ends the card at the tap and says so (`removed`): the server must neither follow the ended card nor start
+  // another while the rule's own DELETE or paused save is on its way, and must start a fresh one when the rule comes back.
+  const activity = () => db.prepare('SELECT token, state FROM activities').first();
+
+  test('the app ended the card: nothing follows it, before or after the rule’s DELETE arrives', async () => {
+    await cardUp();
+    assert.equal((await report({ removed: true })).status, 204);
+    assert.deepEqual(await activity(), { token: null, state: 'removed' });
+    assert.deepEqual(await cycle('6:45:00'), [], 'The rule is still on here: no update to the ended card, no new card');
+    await deleteRule();
+    assert.deepEqual(await cycle('6:46:00'), [], 'And no end: the app ended it');
+    assert.equal(apns.pushes.length, 0, 'No notification');
+  });
+
+  test('Undo after the app ended the card: a fresh card starts at the next cycle and is followed', async () => {
+    await cardUp();
+    await report({ removed: true });
+    await deleteRule();
+    assert.equal((await saveRule()).status, 200, 'Undo');
+    assert.equal(await rows(), 0, 'The removed card is forgotten');
+    const [start] = await cycle('6:45:00');
+    assert.equal(start.event, 'start');
+    assert.equal(apns.activityPushes.at(-1)!.token, START_TOKEN);
+    await report({ token: OTHER_TOKEN });
+    const [update] = await cycle('6:46:00');
+    assert.equal(update.event, 'update');
+    assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
+  });
+
+  test('switched off and on again in the Alerts tab: the same fresh card', async () => {
+    await cardUp();
+    await report({ removed: true });
+    assert.equal((await saveRule({ paused: true })).status, 200);
+    assert.deepEqual(await cycle('6:45:00'), []);
+    assert.deepEqual(await activity(), { token: null, state: 'removed' }, 'A paused save keeps it');
+    await saveRule();
+    assert.equal((await cycle('6:46:00'))[0].event, 'start');
+  });
+
+  test('a card the app starts again itself takes the removed row back', async () => {
+    await cardUp();
+    await report({ removed: true });
+    await report({});
+    await report({ token: OTHER_TOKEN });
+    assert.deepEqual(await activity(), { token: OTHER_TOKEN, state: 'started' });
+    const [update] = await cycle('6:45:00');
+    assert.equal(update.event, 'update', 'Its own card: no second start');
+    assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
+  });
+
+  test('a removed report leaves a card the ride took over as it is', async () => {
+    await cardUp();
+    await report({ handedOff: true });
+    await report({ removed: true });
+    assert.deepEqual(await activity(), { token: ACTIVITY_TOKEN, state: 'handedOff' });
+    assert.equal((await report({ removed: 'yes' })).status, 400);
+  });
 });
 
 describe('the rules', () => {

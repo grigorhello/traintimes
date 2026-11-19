@@ -90,8 +90,11 @@ interface ActivityRow {
   installation_id: string;
   key: string;
   token: string | null;
-  /** `asked`: the app was in front as the train left, so the question comes silently (TT-231); `notified`: it went as a notification. */
-  state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified';
+  /**
+   * `asked`: the app was in front as the train left, so the question comes silently (TT-231); `notified`: it went as a
+   * notification; `removed`: the app ended the card because its alert was gone (TT-240), so nothing follows it.
+   */
+  state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified' | 'removed';
   shown: string | null;
   version: number;
 }

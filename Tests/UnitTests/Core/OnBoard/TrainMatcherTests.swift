@@ -131,6 +131,64 @@ final class TrainMatcherTests: XCTestCase {
         XCTAssertNotNil(run.firstTime(sharing: 1), "it shared Exhibition")
     }
 
+    // MARK: No stop between (TT-230)
+
+    /// The 11:17 AM train run as an express with no stop between Union and Clarkson.
+    private func nonstop(_ id: String, shift: TimeInterval = 0) throws -> TrainCandidate {
+        try candidate(id, shift: shift, skipping: ["EX", "MI", "LO", "PO"])
+    }
+
+    func testNonstopExpressAsksAfterMovingTogetherOnTheTimetable() throws {
+        let express = try nonstop("N")
+        var matcher = TrainMatcher()
+        matcher.setCandidates([express])
+        let run = try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(express.plan))
+
+        let asked = try XCTUnwrap(run.asked)
+        let question = try XCTUnwrap(question(of: matcher))
+        XCTAssertEqual(question.trains.map(\.trip), [express.trip])
+        XCTAssertEqual(question.evidence, .moving)
+        XCTAssertEqual(question.since?.id, "UN")
+        XCTAssertTrue(question.stops.isEmpty)
+        // 3 min together, then 3 more for the timetable's confidence.
+        XCTAssertGreaterThan(asked, OnBoardFixtures.time(11, 22, 30))
+        XCTAssertLessThan(asked, OnBoardFixtures.time(11, 25))
+    }
+
+    func testNonstopExpressAsksAfterThreeMinutesOnTheFeed() throws {
+        let express = try nonstop("N")
+        var matcher = TrainMatcher()
+        matcher.setCandidates([express])
+        let run = try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(express.plan), feedOf: [express])
+
+        let asked = try XCTUnwrap(run.asked)
+        XCTAssertEqual(question(of: matcher)?.evidence, .moving)
+        XCTAssertGreaterThan(asked, OnBoardFixtures.time(11, 19, 30))
+        XCTAssertLessThan(asked, OnBoardFixtures.time(11, 22))
+    }
+
+    /// Two nonstop expresses 9 min apart (the 4:20 and the 4:29): the timetable fits both, and the one standing where the
+    /// phone is, not late, is the one asked about.
+    func testNonstopExpressesAreToldApartByWhereThePhoneIs() throws {
+        let earlier = try nonstop("N-9", shift: -540)
+        let express = try nonstop("N")
+        var matcher = TrainMatcher()
+        matcher.setCandidates([earlier, express])
+        try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(express.plan))
+
+        XCTAssertEqual(question(of: matcher)?.trains.map(\.trip), [express.trip])
+    }
+
+    func testTrainsWithStopsBetweenStillNeedSharedStops() throws {
+        let train = try candidate("A")
+        var matcher = TrainMatcher()
+        matcher.setCandidates([train])
+        try self.run(&matcher, from: OnBoardFixtures.time(11, 17), phone: riding(train.plan))
+
+        XCTAssertEqual(question(of: matcher)?.evidence, .stops)
+        XCTAssertEqual(question(of: matcher)?.stops.map(\.id), ["EX", "MI"])
+    }
+
     // MARK: The feed's one stop and 3 minutes
 
     func testFeedAsksAfterOneStopAndThreeMinutesWhenStopsAreFarApart() throws {

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds the app and runs the unit, snapshot and UI tests on an iOS simulator (TT-101).
-# Used by CI and runnable on any Mac with Xcode 16 or later: scripts/ci-test.sh
-# Set SIMULATOR_NAME to pick a device (default: "iPhone 17 Pro" if installed, else the iPhone on the newest iOS runtime).
+# Used by CI and runnable on any Mac with Xcode 26 or later: scripts/ci-test.sh
+# The tests run on an "iPhone 17 Pro" simulator (D23; SIMULATOR_NAME picks another device) on the newest iOS runtime
+# installed, or on the iOS version in SIMULATOR_OS (for example 26.5). When that runtime has no such device, one is
+# created: GitHub's Xcode 27 image ships none (TT-241).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,25 +14,38 @@ if grep -rnE 'DateFormatter|\.formatted\(' Sources Shared Widgets --include='*.s
 fi
 
 PREFERRED="${SIMULATOR_NAME:-iPhone 17 Pro}"
-UDID=$(xcrun simctl list devices available -j | python3 -c '
-import json, re, sys
-preferred = sys.argv[1]
-devices = json.load(sys.stdin)["devices"]
-candidates = []
-for runtime, entries in devices.items():
-    match = re.search(r"iOS-(\d+)-(\d+)", runtime)
-    if not match:
-        continue
-    version = (int(match.group(1)), int(match.group(2)))
-    for d in entries:
-        if d["name"].startswith("iPhone"):
-            candidates.append((d["name"] == preferred, version, d["name"], d["udid"]))
-if not candidates:
-    sys.exit("No iPhone simulator available")
-candidates.sort(reverse=True)
-print(candidates[0][3])
-print("Simulator:", candidates[0][2], "iOS %d.%d" % candidates[0][1], file=sys.stderr)
-' "$PREFERRED")
+# Not inside $(...) or <(...): macOS bash 3.2 misreads a heredoc there that holds a quote.
+mkdir -p build
+python3 - "$PREFERRED" "${SIMULATOR_OS:-}" > build/simulator.txt <<'PY'
+import json, subprocess, sys
+preferred, wanted = sys.argv[1], sys.argv[2]
+def simctl(*args):
+    return json.loads(subprocess.check_output(["xcrun", "simctl", "list", "-j", *args]))
+def key(runtime):
+    return tuple(int(part) for part in runtime["version"].split("."))
+runtimes = [r for r in simctl("runtimes", "available")["runtimes"] if r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")]
+if wanted:
+    runtimes = [r for r in runtimes if r["version"] == wanted or r["version"].startswith(wanted + ".")]
+if not runtimes:
+    sys.exit("No iOS %s simulator runtime installed" % wanted)
+# Some runtimes serve one new device only (iOS-27-2-iPhone19-4 in Xcode 27.2): take the newest that runs this device.
+fits = [r for r in runtimes if any(t["name"] == preferred for t in r.get("supportedDeviceTypes", []))]
+if not fits:
+    names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if t["name"].startswith("iPhone")})
+    sys.exit("No iOS %s runtime runs %s. Its iPhones: %s" % (wanted or "simulator", preferred, ", ".join(names)))
+runtime = max(fits, key=key)
+devices = [d for d in simctl("devices", "available")["devices"].get(runtime["identifier"], []) if d["name"] == preferred]
+if devices:
+    udid = devices[0]["udid"]
+else:
+    kind = next(t["identifier"] for t in runtime["supportedDeviceTypes"] if t["name"] == preferred)
+    udid = subprocess.check_output(["xcrun", "simctl", "create", preferred, kind, runtime["identifier"]], text=True).strip()
+    print("Created", preferred, "on iOS", runtime["version"], file=sys.stderr)
+print("Simulator:", preferred, "iOS", runtime["version"], file=sys.stderr)
+print(udid, runtime["version"])
+PY
+read -r UDID IOS_VERSION < build/simulator.txt
+[[ -n "${GITHUB_ENV:-}" ]] && echo "SIMULATOR_RUNTIME=iOS $IOS_VERSION" >> "$GITHUB_ENV"
 
 xcodebuild -version
 RESULT=build/TestResults.xcresult

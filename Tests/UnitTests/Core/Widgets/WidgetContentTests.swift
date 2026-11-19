@@ -260,7 +260,7 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47, second: 30), to: departure), "11 min")
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 48), to: departure), "10 min")
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(4, 51), to: departure), "187 min")
-        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 59), to: departure), "1 min")
+        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 57), to: departure), "1 min")
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 59), to: WidgetFixtures.at(7, 58)), "0 min")
     }
 

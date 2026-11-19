@@ -312,6 +312,9 @@ struct DeparturesWidgetView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, -1)
                 }
+                // The accent group is named on the link, not on its text: inside a link's label the mark did nothing,
+                // and the countdown stayed white on a tinted Home Screen (TT-185).
+                .widgetAccentable()
                 if !train.later.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("widget.next")
@@ -340,12 +343,10 @@ struct DeparturesWidgetView: View {
         if train.isLeavingNow {
             Text("widget.now")
                 .foregroundStyle(TTColor.accent)
-                .widgetAccentable()
         } else {
             Text(verbatim: train.countdown)
                 .foregroundStyle(TTColor.accent)
                 .contentTransition(.numericText())
-                .widgetAccentable()
         }
     }
 

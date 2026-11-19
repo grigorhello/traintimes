@@ -741,7 +741,7 @@ final class ScheduleViewModel {
     /// `boarding_shown` for every train on Today's timeline that is Boarding by the rule (TT-233, D114), each time the
     /// trains or the clock are refreshed; `BoardingShown` sends it once per train per day.
     private func countBoarding() {
-        guard isToday, let route else { return }
+        guard isToday, route != nil else { return }
         for departure in departures where departure.isBoarding(at: now) {
             boardingShown.shown(departure, surface: .schedule, now: now)
         }

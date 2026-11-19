@@ -187,12 +187,10 @@ extension AnalyticsEvent {
         Self("departure_question_answered", ["answer": .string(yes ? "yes" : "no"), "surface": .string(surface.rawValue)])
     }
 
-    /// A train first shows Boarding (TT-233, D114), once per train per day (`BoardingShown`): the origin station's id, the
-    /// whole minutes before its scheduled time (negative once past it) and where the rider saw it.
-    static func boardingShown(station: String, minutesBefore: Int, surface: BoardingShown.Surface) -> Self {
-        Self("boarding_shown", [
-            "station": .string(station), "minutes_before": .int(minutesBefore), "surface": .string(surface.rawValue),
-        ])
+    /// A train first shows Boarding (TT-233, D114), once per train per day (`BoardingShown`): the whole minutes before its
+    /// scheduled time (negative once past it) and where the rider saw it. No station (TT-234, D116).
+    static func boardingShown(minutesBefore: Int, surface: BoardingShown.Surface) -> Self {
+        Self("boarding_shown", ["minutes_before": .int(minutesBefore), "surface": .string(surface.rawValue)])
     }
 
     /// Schedule's next train turned Departed while the rider watched (TT-233, D114): what said so (its position moved off,

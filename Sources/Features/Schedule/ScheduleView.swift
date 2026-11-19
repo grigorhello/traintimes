@@ -41,6 +41,10 @@ struct ScheduleView: View {
     /// The app's feedback nudge (TT-228, D112) and whether a sheet or another tab covers Schedule (from `RootView`).
     @Environment(\.feedbackNudge) private var feedbackNudge
     @Environment(\.scheduleCovered) private var scheduleCovered
+    /// Automatic direction's look (TT-234, D116), from `RootView`, and whether the Feedback sheet is up, which it counts
+    /// as something over Schedule.
+    @Environment(\.directionLook) private var direction
+    @State private var feedbackOpen = false
     /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
     @State private var nudgeWaiting = false
     @State private var nudgeTouches = 0
@@ -95,6 +99,15 @@ struct ScheduleView: View {
             .simultaneousGesture(TapGesture().onEnded { bells?.closePanel() }, including: isPanelOpen ? .all : .subviews)
             .overlay { pickerLayer.animation(PickerMotion.animation(opening: isPicking), value: isPicking) }
             .overlay(alignment: .bottom) { capsuleLayer }
+            // Automatic direction (TT-234, D116): the look follows what is over Schedule, and a tap on Schedule while it
+            // runs means the rider is reading, so its answer asks instead of turning the route.
+            .simultaneousGesture(
+                TapGesture().onEnded { direction?.touched() }, including: direction?.isLooking == true ? .all : .subviews
+            )
+            .onChange(of: directionScene(isActive: scenePhase == .active), initial: true) { _, scene in
+                direction?.update(scene)
+            }
+            .onChange(of: viewModel.isToday) { direction?.update(directionScene(isActive: scenePhase == .active)) }
             // The selection haptic when a day tile lights (TT-191). The bell's own feels play from `AlertBellModel` (TT-214).
             .sensoryFeedback(.selection, trigger: bells?.dayOnCount ?? 0)
             .onDisappear { bells?.closePanel() }
@@ -146,12 +159,64 @@ struct ScheduleView: View {
                 case .background:
                     viewModel.wentToBackground()
                     feedbackNudge?.wentToBackground()
+                    direction?.wentToBackground()
                 case .active:
                     feedbackNudge?.cameToForeground()
-                    Task { await viewModel.cameToForeground() }
+                    // The look decides first, 1 s at most, so there is one arrival and one Now play (TT-234, D116).
+                    let scene = directionScene(isActive: true)
+                    let look = direction
+                    Task {
+                        await viewModel.cameToForeground(looking: look.map { look in { await look.cameBack(scene) } })
+                    }
                 default: break
                 }
             }
+    }
+
+    // MARK: Automatic direction (TT-234, D116)
+
+    /// What the look needs from Schedule: whether it is in front with nothing over it. The station picker, the weather
+    /// sheet, the Feedback sheet, the train question and the ride strip count as something over it, as does a bell's capsule.
+    private func directionScene(isActive: Bool) -> DirectionLook.Scene {
+        DirectionLook.Scene(
+            isActive: isActive,
+            isInFront: !scheduleCovered,
+            isBusy: isPicking || weatherSheet != nil || feedbackOpen || RideStripContent(onBoard) != .otherwise,
+            hasBellCapsule: bells?.capsule != nil,
+            launchCovers: launchCovers
+        )
+    }
+
+    /// What Schedule's glass capsule shows: a bell's capsule, or Automatic direction's while no bell's is up.
+    private var stageCapsule: StageCapsule? {
+        if let capsule = bells?.capsule { return .bell(capsule) }
+        return direction?.capsule.shown.map(StageCapsule.direction)
+    }
+
+    /// "Now from Union" with Undo, "Trains from Union?" with Switch, or the line after Undo. At most `maxWidth` wide: only
+    /// the station's name is cut. A finger on it holds it.
+    private func directionCapsule(_ capsule: DirectionCapsule, look: DirectionLook, maxWidth: CGFloat) -> some View {
+        let line = capsule.line
+        return AlertCapsuleView(
+            glyph: .location,
+            words: capsule.words,
+            nameLine: AlertCapsuleView.NameLine(before: line.before, name: line.name, after: line.after),
+            action: capsule.actionKey.map { key in
+                AlertCapsuleView.Action(title: LocalizedStringKey(key)) {
+                    Task {
+                        if case .turned = capsule.kind { await look.undo() } else { await look.switchRoute() }
+                    }
+                }
+            },
+            id: "direction.capsule",
+            actionID: "direction.capsule.action"
+        )
+        .frame(maxWidth: maxWidth)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in look.capsule.hold(true) }
+                .onEnded { _ in look.capsule.hold(false) }
+        )
     }
 
     // MARK: Feedback nudge (TT-228, D112)
@@ -169,9 +234,10 @@ struct ScheduleView: View {
             launchCovers: launchCovers,
             isCovered: scheduleCovered || weatherSheet != nil,
             isPicking: isPicking,
-            hasCapsule: bells?.capsule != nil,
+            // Automatic direction's capsule counts too, and a turn starts the wait again (TT-234).
+            hasCapsule: bells?.capsule != nil || direction?.capsule.shown != nil,
             hasRideStrip: rideStrip != .otherwise,
-            touches: nudgeTouches + dayTaps.values.reduce(0, +)
+            touches: nudgeTouches + dayTaps.values.reduce(0, +) + viewModel.turns
         )
     }
 
@@ -278,6 +344,7 @@ struct ScheduleView: View {
             dayPressedAt[tile.id] = Date()
             dayTaps[tile.id, default: 0] += 1
         }
+        direction?.touched()
         Task { await viewModel.dayTapped(tile.day) }
     }
 
@@ -338,10 +405,10 @@ struct ScheduleView: View {
                 toID: "schedule.to",
                 onTap: { openPicker($0) },
                 picking: picking,
-                swapID: "schedule.swap"
-            ) {
-                Task { await viewModel.swap() }
-            }
+                swapID: "schedule.swap",
+                onSwap: { Task { await viewModel.swap() } },
+                turns: viewModel.turns
+            )
         }
     }
 
@@ -469,7 +536,7 @@ struct ScheduleView: View {
                     noticeChip
                 }
                 if showsFeedbackPill {
-                    ScheduleFeedbackEntry(compact: !viewModel.lineNotices.isEmpty)
+                    ScheduleFeedbackEntry(compact: !viewModel.lineNotices.isEmpty, onSheet: { feedbackOpen = $0 })
                 }
             }
             .frame(height: LineTile.size)
@@ -693,6 +760,7 @@ struct ScheduleView: View {
         }
         .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
             if !riderScrolled { riderScrolled = true }
+            direction?.touched()
             // A scroll cancels the Feedback button's wait (TT-228).
             if nudgeWaiting { nudgeTouches += 1 }
             // A scroll closes the day panel (TT-191).
@@ -746,15 +814,24 @@ struct ScheduleView: View {
     /// The glass capsule 12 pt above the tab bar (TT-191, D71): "Alert on · 7:32 AM" with Repeat, which grows it into the
     /// day panel; "Alert off · 7:32 AM" with Undo; "Couldn't …" with Try again; "Tap the bell on a train" after the Alerts
     /// tab's "Add alert". The timeline fades under it. One at a time (`GlassCapsuleStage`).
+    ///
+    /// Automatic direction's capsule (TT-234, D116) shows in the same place while no bell's capsule is up: it fades in
+    /// and out where it stands, with no veil.
     @ViewBuilder private var capsuleLayer: some View {
-        if let bells {
+        if bells != nil || direction != nil {
             GeometryReader { proxy in
                 ZStack(alignment: .bottom) {
-                    CapsuleVeil(isShown: bells.capsule != nil, isTall: bells.capsule?.isPanelOpen ?? false)
+                    CapsuleVeil(isShown: bells?.capsule != nil, isTall: bells?.capsule?.isPanelOpen ?? false)
                         // From the screen's bottom edge, under the tab bar.
                         .offset(y: proxy.safeAreaInsets.bottom)
-                    GlassCapsuleStage(item: bells.capsule, isPanel: { $0.isPanelOpen }) { capsule in
-                        alertCapsule(capsule, bells: bells, panelWidth: proxy.size.width - 2 * TTSpace.s5)
+                    GlassCapsuleStage(item: stageCapsule, isPanel: { $0.isPanelOpen }, fades: { $0.isDirection }) { capsule in
+                        let width = proxy.size.width - 2 * TTSpace.s5
+                        switch capsule {
+                        case .bell(let capsule):
+                            if let bells { alertCapsule(capsule, bells: bells, panelWidth: width) }
+                        case .direction(let capsule):
+                            if let direction { directionCapsule(capsule, look: direction, maxWidth: width) }
+                        }
                     }
                     .padding(.bottom, TTSpace.s3)
                 }
@@ -881,5 +958,31 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+/// What Schedule's glass capsule shows (TT-234, D116): a bell's capsule, or Automatic direction's while no bell's is up.
+private enum StageCapsule: Identifiable, Equatable {
+    case bell(AlertBellModel.Capsule)
+    case direction(DirectionCapsule)
+
+    enum ID: Hashable {
+        case bell(Int)
+        case direction(Int)
+    }
+
+    var id: ID {
+        switch self {
+        case .bell(let capsule): .bell(capsule.id)
+        case .direction(let capsule): .direction(capsule.id)
+        }
+    }
+
+    var isPanelOpen: Bool {
+        if case .bell(let capsule) = self { capsule.isPanelOpen } else { false }
+    }
+
+    var isDirection: Bool {
+        if case .direction = self { true } else { false }
     }
 }

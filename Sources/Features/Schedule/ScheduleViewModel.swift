@@ -135,6 +135,11 @@ final class ScheduleViewModel {
     @ObservationIgnored private var watchedFeels = WatchedTrainFeels()
     /// The train whose Trip details is open, set by RootView: the sheet plays its feels, so Schedule leaves it out.
     @ObservationIgnored var openTrip: TripKey?
+    /// Told each route the rider's choice puts on Schedule (TT-234, D116): Automatic direction's look, set by RootView.
+    @ObservationIgnored weak var choices: (any RouteChoiceFollowing)?
+    /// Counts the turns made without the swap button (`turn()`): the route card cross-fades its names on it, and the
+    /// Feedback button's wait starts again.
+    private(set) var turns = 0
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
@@ -549,12 +554,30 @@ final class ScheduleViewModel {
     /// Back in the foreground. After more than 10 min away the timeline goes back to Now on Today, exactly as the
     /// Schedule tab tapped again does (TT-222); a shorter time keeps the day and the scroll, and Now plays where it is
     /// (D80).
-    func cameToForeground() async {
+    ///
+    /// `look` is Automatic direction's look (TT-234, D116), awaited first, 1 s at most, so there is one arrival and one
+    /// Now play: after a long time away Today is put back before it, so the look runs on Today (the other day's cards
+    /// hide meanwhile). When it turned the route (true), the turn's own load, jump to Now and Now play are the arrival.
+    func cameToForeground(looking look: (@MainActor () async -> Bool)? = nil) async {
         let away = wentToBackgroundAt.map { clock.now.timeIntervalSince($0) } ?? 0
         wentToBackgroundAt = nil
-        guard hasLoaded, away > Self.returnToNowAfter else { return timelineAppeared() }
-        Analytics.track(.backToNow(.reopen))
-        await backToNow()
+        let returns = hasLoaded && away > Self.returnToNowAfter
+        var jumping = false
+        if returns {
+            Analytics.track(.backToNow(.reopen))
+            knownToday = today
+            jumping = !isToday
+            if jumping {
+                selectedDay = today
+                daySelection += 1
+                if look != nil { awaitsNewTrains = true }
+            }
+        }
+        if let look, await look() { return }
+        guard returns else { return timelineAppeared() }
+        if jumping { await loadNewTrains() }
+        requestScroll(jumping: jumping)
+        nowPulse += 1
     }
 
     /// The timeline shows again (back to the Schedule tab, back to the foreground): Now plays where it is, without scrolling,
@@ -580,24 +603,48 @@ final class ScheduleViewModel {
         await dayTapped(nextDayWithTrains)
     }
 
-    /// Swap is explicit, never automatic. The new direction is remembered.
+    /// The swap button: the rider's own choice, which Automatic direction keeps (TT-234, D116). The new direction is
+    /// remembered.
     func swap() async {
         guard let route else { return }
         haptics.play(.swap)
+        Analytics.track(.routeSwapped)
         let swapped = Route(from: route.to, to: route.from, line: route.line)
         self.route = swapped
         routeStore?.save(swapped)
         recents.record(swapped)
+        choices?.chose(swapped, by: .byHand)
         await loadNewTrains()
         requestScroll(jumping: true)
     }
 
-    /// The route from the route form (TT-120), saved on device so the next launch opens it.
-    func show(_ route: Route) async {
+    /// The route turns round without the swap button (TT-234, D116): by itself when the app opens at the other station,
+    /// by the capsule's Undo or by its Switch. Silent: no haptic and no event (the caller plays Undo's and Switch's own
+    /// feel), and never through `swap()` or `show(_:chosen:)`. The route is saved and recorded in Recent as a swap is, the
+    /// trains change as on any new route, and the timeline jumps to Now with one Now play. Before the first load (a cold
+    /// start under the splash) the route alone changes, and the normal load reads it.
+    func turn() async {
+        guard let route else { return }
+        let turned = Route(from: route.to, to: route.from, line: route.line)
+        self.route = turned
+        turns += 1
+        routeStore?.save(turned)
+        recents.record(turned)
+        guard hasLoaded else { return }
+        await loadNewTrains()
+        requestScroll(jumping: true)
+        // The launch's own play waits for its scroll to settle.
+        if isToday, !pulsesOnSettle { nowPulse += 1 }
+    }
+
+    /// A route to show, saved on device so the next launch opens it (TT-120), with who chose it (TT-234, D116): by hand
+    /// (the station picker, a Recent row, the welcome), one train's link, or a widget's route link.
+    func show(_ route: Route, chosen choice: RouteChoice = .byHand) async {
         routeCount.set(route, isFirst: self.route == nil)
         self.route = route
         routeStore?.save(route)
         recents.record(route)
+        choices?.chose(route, by: choice)
         // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
         guard hasLoaded else { return }
         await loadNewTrains()
@@ -697,7 +744,7 @@ final class ScheduleViewModel {
     private func countBoarding() {
         guard isToday, let route else { return }
         for departure in departures where departure.isBoarding(at: now) {
-            boardingShown.shown(departure, station: route.from.id, surface: .schedule, now: now)
+            boardingShown.shown(departure, surface: .schedule, now: now)
         }
     }
 
@@ -796,3 +843,5 @@ final class ScheduleViewModel {
     /// A train the clock says left longer ago than this is drawn at rest: the app was away when it left.
     static let departurePlayWindow: TimeInterval = 60
 }
+
+extension ScheduleViewModel: RouteTurning {}

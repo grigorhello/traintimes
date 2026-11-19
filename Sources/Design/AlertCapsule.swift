@@ -12,6 +12,8 @@ enum CapsuleGlyph: Equatable {
     case failed
     /// The tick in accent: notifications are on again (D58).
     case confirmed
+    /// The location arrow in accent: Automatic direction's capsules (TT-234, D116).
+    case location
 
     var systemName: String {
         switch self {
@@ -20,12 +22,13 @@ enum CapsuleGlyph: Equatable {
         case .notificationsOff: "bell.slash.fill"
         case .failed: "exclamationmark.circle.fill"
         case .confirmed: "checkmark.circle.fill"
+        case .location: "location.fill"
         }
     }
 
     var tint: Color {
         switch self {
-        case .bellOn, .confirmed: TTColor.accent
+        case .bellOn, .confirmed, .location: TTColor.accent
         case .bellOff: TTColor.inkSecondary
         case .notificationsOff, .failed: TTColor.cancelInk
         }
@@ -55,8 +58,19 @@ struct AlertCapsuleView: View {
         let onDone: () -> Void
     }
 
+    /// A line whose station name alone gives way when the capsule would be wider than its room (TT-234, D116): the words
+    /// before and after it, and the action, always show.
+    struct NameLine: Equatable {
+        let before: String
+        let name: String
+        let after: String
+    }
+
     let glyph: CapsuleGlyph
     let words: String
+    /// Set, it is drawn in `words`' place; `words` stays the line VoiceOver reads. The caller caps the capsule's width
+    /// (`.frame(maxWidth:)`), and only the name is cut to fit.
+    var nameLine: NameLine?
     var action: Action?
     var panel: Panel?
     /// The day panel's width: the tab bar's, the screen less 20 pt on each side.
@@ -65,6 +79,9 @@ struct AlertCapsuleView: View {
     /// never changes and the shape grows in place (on the simulator a capsule whose size changed jumped to the panel's
     /// top-left corner at once, its place laid out outside this view's animation, and only then grew).
     var reservesPanelSpace = false
+    /// The capsule's identifier and its action's, for UI tests (the open panel is always `alert.panel`).
+    var id = "alert.capsule"
+    var actionID = "alert.capsule.action"
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Whether the panel was already open before this update: its line cross-fades only when the days change in an open
@@ -104,7 +121,7 @@ struct AlertCapsuleView: View {
             // The shape and the glyph, which have no timing of their own; every fade below is scoped to its opacity.
             .animation(reduceMotion ? TTMotion.fade : TTMotion.morph, value: isOpen)
             .accessibilityElement(children: .contain)
-            .accessibilityIdentifier(isOpen ? "alert.panel" : "alert.capsule")
+            .accessibilityIdentifier(isOpen ? "alert.panel" : id)
             .onAppear { wasOpen = isOpen }
             .onChange(of: isOpen) { _, isOpen in wasOpen = isOpen }
     }
@@ -117,9 +134,11 @@ struct AlertCapsuleView: View {
                 .frame(width: Self.glyphSize, height: Self.glyphSize)
                 .padding(.trailing, TTSpace.s2)
                 .accessibilityHidden(true)
-            line(words)
-                .animation(isOpen ? Self.leave : Self.arrive) { $0.opacity(isOpen ? 0 : 1) }
-                .accessibilityHidden(isOpen)
+            Group {
+                if let nameLine { cutLine(nameLine) } else { line(words) }
+            }
+            .animation(isOpen ? Self.leave : Self.arrive) { $0.opacity(isOpen ? 0 : 1) }
+            .accessibilityHidden(isOpen)
             if let action {
                 pill(action)
                     .padding(.leading, TTSpace.s3)
@@ -141,6 +160,22 @@ struct AlertCapsuleView: View {
             .foregroundStyle(TTColor.ink)
             .lineLimit(1)
             .fixedSize()
+    }
+
+    /// A line with a station name in it: the name is the one part that may be cut short, with an ellipsis.
+    private func cutLine(_ parts: NameLine) -> some View {
+        HStack(spacing: 0) {
+            line(parts.before)
+            Text(verbatim: parts.name)
+                .font(Self.font)
+                .tracking(-0.2)
+                .foregroundStyle(TTColor.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            line(parts.after)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: words))
     }
 
     /// The panel at its full size: the line after the glyph, the tick at the top right and the tiles under them.
@@ -180,7 +215,7 @@ struct AlertCapsuleView: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressScaleStyle())
-        .accessibilityIdentifier("alert.capsule.action")
+        .accessibilityIdentifier(actionID)
     }
 
     /// The tick: a 36 pt accent circle 16 pt from the panel's top and 12 pt from its trailing edge, in a 44 pt target.
@@ -330,42 +365,51 @@ private struct CapsuleSurface<S: Shape>: ViewModifier {
     }
 }
 
-/// How a capsule came on screen: at rest (already up at the first draw, as in snapshots), rising (none was up), or taking
-/// the place of one that was.
+/// How a capsule came on screen: at rest (already up at the first draw, as in snapshots), rising (none was up), taking
+/// the place of one that was, or fading in where it stands over 180 ms (Automatic direction's, TT-234).
 enum CapsuleArrival: Equatable {
     case rest
     case rise
     case swap
+    case appear
 }
 
 /// How a capsule leaves: dropping away (it timed out or was dismissed), fading in place under the one that takes its place,
-/// or, for the day panel, fading from 0.96 with no travel so its tiles never lie across the cards.
+/// for the day panel, fading from 0.96 with no travel so its tiles never lie across the cards, or fading where it stands
+/// over 160 ms (Automatic direction's, TT-234).
 enum CapsuleExit: Equatable {
     case drop
     case swap
     case fade
+    case vanish
 }
 
 /// Where alert capsules come and go (TT-191, D71; the spec board's Motion): one at a time, at the bottom of its space. A
 /// capsule rises 12 pt from 0.94 on `TTMotion.toast` while it fades in over 150 ms, so it never crosses the tab bar, and
 /// leaves 8 pt down over 160 ms. A new item while one is up takes its place: the old one fades out in 120 ms and the new one
 /// fades in over 180 ms from 60 ms, nothing rising again. An item with the same id changes in place (Repeat growing the
-/// capsule into the day panel). `isPanel` says which items leave as the panel does. Reduce Motion: 180 ms fades.
+/// capsule into the day panel). `isPanel` says which items leave as the panel does; `fades` which come and go by fading in
+/// place, with no travel (TT-234, D116). Reduce Motion: 180 ms fades.
 ///
 /// Driven from its own state, each property with its own `.animation(_:value:)`, not by transitions (TT-166: a custom
 /// transition left the opacity unanimated on the simulator).
 struct GlassCapsuleStage<Item: Identifiable & Equatable, Content: View>: View {
     let item: Item?
     let isPanel: (Item) -> Bool
+    let fades: (Item) -> Bool
     let content: (Item) -> Content
 
     /// What is on screen: the item and any that are leaving.
     @State private var entries: [Entry]
 
     /// An item already there at the first draw stands at rest; later ones rise.
-    init(item: Item?, isPanel: @escaping (Item) -> Bool = { _ in false }, @ViewBuilder content: @escaping (Item) -> Content) {
+    init(
+        item: Item?, isPanel: @escaping (Item) -> Bool = { _ in false }, fades: @escaping (Item) -> Bool = { _ in false },
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) {
         self.item = item
         self.isPanel = isPanel
+        self.fades = fades
         self.content = content
         _entries = State(initialValue: item.map { [Entry(item: $0, arrival: .rest)] } ?? [])
     }
@@ -402,10 +446,10 @@ struct GlassCapsuleStage<Item: Identifiable & Equatable, Content: View>: View {
         }
         if let current {
             let leaving = entries[current].item
-            entries[current].exit = new != nil ? .swap : isPanel(leaving) ? .fade : .drop
+            entries[current].exit = new != nil ? .swap : isPanel(leaving) ? .fade : fades(leaving) ? .vanish : .drop
         }
         if let new {
-            entries.append(Entry(item: new, arrival: current == nil ? .rise : .swap))
+            entries.append(Entry(item: new, arrival: current != nil ? .swap : fades(new) ? .appear : .rise))
         }
     }
 }
@@ -435,6 +479,8 @@ private struct CapsuleMotion<Content: View>: View {
         case dropped
         case swappedOut
         case faded
+        /// Faded out where it stood.
+        case vanished
     }
 
     private var pose: Pose {
@@ -442,6 +488,7 @@ private struct CapsuleMotion<Content: View>: View {
         case .drop: .dropped
         case .swap: .swappedOut
         case .fade: .faded
+        case .vanish: .vanished
         case nil: arrived ? .rest : arrival == .rise ? .below : .unseen
         }
     }
@@ -464,7 +511,7 @@ private struct CapsuleMotion<Content: View>: View {
         return switch pose {
         case .below: 0.94
         case .faded: 0.96
-        case .unseen, .rest, .dropped, .swappedOut: 1
+        case .unseen, .rest, .dropped, .swappedOut, .vanished: 1
         }
     }
 
@@ -473,7 +520,7 @@ private struct CapsuleMotion<Content: View>: View {
         return switch pose {
         case .below: 12
         case .dropped: 8
-        case .unseen, .rest, .swappedOut, .faded: 0
+        case .unseen, .rest, .swappedOut, .faded, .vanished: 0
         }
     }
 
@@ -483,15 +530,20 @@ private struct CapsuleMotion<Content: View>: View {
         case .rest: TTMotion.toast
         case .dropped: .easeIn(duration: 0.16)
         case .faded: .easeIn(duration: 0.12)
-        case .below, .unseen, .swappedOut: nil
+        case .below, .unseen, .swappedOut, .vanished: nil
         }
     }
 
     private var opacityAnimation: Animation? {
         guard !reduceMotion else { return TTMotion.fade }
         return switch pose {
-        case .rest: arrival == .swap ? .easeOut(duration: 0.18).delay(0.06) : .easeOut(duration: 0.15)
-        case .dropped: .easeIn(duration: 0.16)
+        case .rest:
+            switch arrival {
+            case .swap: .easeOut(duration: 0.18).delay(0.06)
+            case .appear: .easeOut(duration: 0.18)
+            case .rest, .rise: .easeOut(duration: 0.15)
+            }
+        case .dropped, .vanished: .easeIn(duration: 0.16)
         case .swappedOut, .faded: .easeIn(duration: 0.12)
         case .below, .unseen: nil
         }

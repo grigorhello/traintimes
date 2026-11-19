@@ -45,21 +45,46 @@ final class FakeDirectionLocation: DirectionLocating {
     }
 }
 
-/// Schedule's side of the look in tests: a route a test sets, and a silent turn that is counted.
+/// Schedule's side of the look in tests: a route a test sets, and a silent turn that is counted. Like Schedule, it reads
+/// the other direction's trains first (`holdsTrains` keeps that read waiting, `hasTimetable` false makes it fail) and
+/// asks `stillMay` right before the route turns.
 @MainActor
 final class FakeRouteTurning: RouteTurning {
     var route: Route?
     var isToday = true
+    /// The turns made.
     private(set) var turnCount = 0
+    private(set) var kinds: [RouteTurnKind] = []
+    /// The turns asked for, made or not.
+    private(set) var asked = 0
+    /// The other direction's trains stay unread until `releaseTrains()`.
+    var holdsTrains = false
+    /// False: there is no timetable to read, so a turn by itself is not made.
+    var hasTimetable = true
+    private var held: [CheckedContinuation<Void, Never>] = []
 
     init(route: Route?) {
         self.route = route
     }
 
-    /// The route becomes its reverse.
-    func turn() async {
+    /// The route becomes its reverse, once its trains are read and `stillMay` agrees.
+    func turn(_ kind: RouteTurnKind, while stillMay: @MainActor () -> Bool) async -> Bool {
+        asked += 1
+        let before = route
+        if holdsTrains { await withCheckedContinuation { held.append($0) } }
+        guard route == before, hasTimetable || kind != .byItself, stillMay() else { return false }
         turnCount += 1
+        kinds.append(kind)
         if let route { self.route = Route(from: route.to, to: route.from, line: route.line) }
+        return true
+    }
+
+    /// The held trains are read.
+    func releaseTrains() {
+        holdsTrains = false
+        let waiting = held
+        held = []
+        for waiter in waiting { waiter.resume() }
     }
 }
 

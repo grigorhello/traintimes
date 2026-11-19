@@ -21,6 +21,10 @@ struct ScheduleTimeline: View {
     var departure: DepartureCue = .rest
     /// When the Now line's play started, read by the Now line, dot and label alone; nil draws them at rest.
     var motion: ScheduleMotionClock?
+    /// The trains a turn has just replaced (TT-235, D116): drawn once more over the new ones, fading as those cascade.
+    var outgoing: ScheduleViewModel.OutgoingTrains?
+    /// Each fading card's bell, as it stood.
+    var outgoingBell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
 
     /// The right edge of the label column.
     private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
@@ -62,9 +66,46 @@ struct ScheduleTimeline: View {
             }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+            if let outgoing {
+                outgoingTrains(outgoing, opensAt: viewModel.isToday ? layout.initialScrollOffset : 0)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(height: layout.height, alignment: .top)
+    }
+
+    // MARK: Outgoing trains (TT-235, D116)
+
+    /// The cards a turn replaced, with their rail marks, over the new ones: as far from where the timeline opens now as
+    /// they stood from where it opened before (the turn jumps the timeline to the new Now), whole until the new cascade
+    /// starts and gone 200 ms into it (`OutgoingFade`). They take no touches, report no sizes and are hidden from
+    /// assistive tech; the next train's glint is left out.
+    private func outgoingTrains(_ outgoing: ScheduleViewModel.OutgoingTrains, opensAt: CGFloat) -> some View {
+        let places = Dictionary(outgoing.layout.cards.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let shift = opensAt - outgoing.opensAt
+        return ZStack(alignment: .topLeading) {
+            ForEach(viewModel.cards(of: outgoing, formatter)) { card in
+                if let place = places[card.id] {
+                    Rectangle()
+                        .fill(card.isCancelled ? TTColor.cancelInk : TTColor.inkTertiary)
+                        .frame(width: card.isDeparted ? Self.departedConnector : TTTimeline.connectorLength, height: Self.railWidth)
+                        .offset(
+                            x: card.isDeparted ? Self.railX : Self.railX + Self.markerSize / 2,
+                            y: place.railY - Self.railWidth / 2 + shift
+                        )
+                    DepartureCardView(card: card, bell: outgoingBell(card.id), onOpen: {}, onSize: { _ in })
+                        .padding(.leading, Self.cardX)
+                        .padding(.trailing, TTSpace.s5)
+                        .offset(y: place.top + shift)
+                    marker(for: card, fill: 1)
+                        .centred(x: Self.railX, y: place.railY + shift)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .outgoingFade(cascade)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 
     // MARK: Cards

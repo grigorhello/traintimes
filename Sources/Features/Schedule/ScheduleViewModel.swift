@@ -137,9 +137,47 @@ final class ScheduleViewModel {
     @ObservationIgnored var openTrip: TripKey?
     /// Told each route the rider's choice puts on Schedule (TT-234, D116): Automatic direction's look, set by RootView.
     @ObservationIgnored weak var choices: (any RouteChoiceFollowing)?
-    /// Counts the turns made without the swap button (`turn()`): the route card cross-fades its names on it, and the
-    /// Feedback button's wait starts again.
+    /// Counts the turns made without the swap button (`turn(_:while:)`): the Feedback button's wait starts again on it.
     private(set) var turns = 0
+    /// The last such turn, for the route card's calm swap (TT-235, D116): the names as they stood and when they start to
+    /// trade. A turn made under the launch splash is held (no start) until the splash has gone (`setSplashCovers(_:fade:)`).
+    private(set) var turnToken: RouteCard.Turn?
+    /// The route card's From marker is the location arrow (TT-235, D116): the app turned the route from the rider's place
+    /// in this visit (by itself, or by the capsule's Switch). It goes when the app goes to the background, on Undo, and
+    /// when the route changes by hand or by a link.
+    private(set) var marksFrom = false
+    /// The trains the last turn replaced, drawn once more over the new ones while they fade (TT-235, D116); nil a moment
+    /// after, and when nothing of them showed.
+    private(set) var outgoing: OutgoingTrains?
+    /// The launch splash covers Schedule, as the view reports it.
+    @ObservationIgnored private var splashCovers = false
+    /// A turn's trains show from the timetable until their live status lands: a watched train that is late already is
+    /// then first noted, not felt as turning late.
+    @ObservationIgnored private var fillsLive = false
+
+    /// The trains a turn replaced, as they stood at that moment (TT-235, D116).
+    struct OutgoingTrains {
+        /// The `entranceRequest` that brought the new trains: the old ones are drawn only while it is the latest.
+        let request: Int
+        let route: Route
+        let departures: [Departure]
+        let layout: TimelineLayout
+        let now: Date
+        let next: TripKey?
+        let freshness: Freshness?
+        let hasPlatformSource: Bool
+        let isToday: Bool
+        let isPastDay: Bool
+        /// Where that timeline opened (`initialScrollOffset` on Today, its top on another day): the old cards are drawn as
+        /// far from the new opening as they stood from this one.
+        let opensAt: CGFloat
+        /// The cards near the opening, which are the ones drawn.
+        let shown: Set<TripKey>
+    }
+    /// How far above and below the opening the outgoing cards are drawn, and how long they are kept.
+    private static let outgoingAbove: CGFloat = 400
+    private static let outgoingBelow: CGFloat = 1400
+    private static let outgoingLasts: Duration = .seconds(2)
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
@@ -250,6 +288,28 @@ final class ScheduleViewModel {
             return DepartureCard(
                 departure, isNext: isNext, nextUsableBelow: usableBelow, awaitsPlatform: awaitsPlatform,
                 isDeparted: hasDeparted(departure), isBoarding: isBoarding(departure), now: now, formatter: formatter
+            )
+        }
+    }
+
+    /// The cards of the trains a turn has just replaced, as they stood (TT-235, D116): only those near where the timeline
+    /// was open.
+    func cards(of outgoing: OutgoingTrains, _ formatter: some TimeFormatting) -> [DepartureCard] {
+        let departures = outgoing.departures
+        return departures.indices.compactMap { index in
+            let departure = departures[index]
+            guard outgoing.shown.contains(departure.id) else { return nil }
+            let isNext = departure.id == outgoing.next
+            let awaitsPlatform = outgoing.freshness.map {
+                departure.awaitsPlatform(
+                    isNext: isNext, now: outgoing.now, freshness: $0, hasPlatformSource: outgoing.hasPlatformSource
+                )
+            } ?? false
+            return DepartureCard(
+                departure, isNext: isNext, nextUsableBelow: departures[(index + 1)...].contains { $0.isUsable },
+                awaitsPlatform: awaitsPlatform,
+                isDeparted: outgoing.isPastDay || (outgoing.isToday && departure.hasLeft(at: outgoing.now)),
+                isBoarding: outgoing.isToday && departure.isBoarding(at: outgoing.now), now: outgoing.now, formatter: formatter
             )
         }
     }
@@ -468,7 +528,11 @@ final class ScheduleViewModel {
     /// The first load, then a scroll to the present; the cards cascade in, and Now pulses once the scroll has settled.
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
+        let turnsBefore = turns
         await loadNewTrains()
+        // A turn made while this load ran (Automatic direction under the splash, TT-235) brought its own trains, its jump
+        // to Now and the one Now play.
+        guard turns == turnsBefore else { return }
         requestScroll()
         pulsesOnSettle = true
     }
@@ -549,6 +613,9 @@ final class ScheduleViewModel {
     /// The app went to the background: the moment is kept for `cameToForeground()` (TT-222).
     func wentToBackground() {
         wentToBackgroundAt = clock.now
+        // The arrow on From lives for the visit (TT-235, D116).
+        if marksFrom { marksFrom = false }
+        if outgoing != nil { outgoing = nil }
     }
 
     /// Back in the foreground. After more than 10 min away the timeline goes back to Now on Today, exactly as the
@@ -611,6 +678,7 @@ final class ScheduleViewModel {
         Analytics.track(.routeSwapped)
         let swapped = Route(from: route.to, to: route.from, line: route.line)
         self.route = swapped
+        if marksFrom { marksFrom = false }
         routeStore?.save(swapped)
         recents.record(swapped)
         choices?.chose(swapped, by: .byHand)
@@ -620,26 +688,126 @@ final class ScheduleViewModel {
 
     /// The route turns round without the swap button (TT-234, D116): by itself when the app opens at the other station,
     /// by the capsule's Undo or by its Switch. Silent: no haptic and no event (the caller plays Undo's and Switch's own
-    /// feel), and never through `swap()` or `show(_:chosen:)`. The route is saved and recorded in Recent as a swap is, the
-    /// trains change as on any new route, and the timeline jumps to Now with one Now play. Before the first load (a cold
-    /// start under the splash) the route alone changes, and the normal load reads it.
-    func turn() async {
-        guard let route else { return }
+    /// feel), and never through `swap()` or `show(_:chosen:)`. The route is saved and recorded in Recent as a swap is, and
+    /// the timeline is at Now after it with one Now play.
+    ///
+    /// The turn never empties the timeline (TT-235, D116): the other direction's trains are read first, while the old
+    /// ones show, then the route and the trains change in one step, straight from the timetable; the old cards are kept
+    /// as `outgoing` for their fade, and status and platforms fill in as a poll's do. `stillMay` is asked once the trains
+    /// are in, right before that step: false leaves everything as it is. Returns false when nothing turned: `stillMay`
+    /// said no, the route or the day changed meanwhile, or a turn by itself found no timetable to read (the look then
+    /// asks). Undo and Switch are the rider's taps: with no timetable they turn as any new route does. Before the first
+    /// load (a cold start under the splash) the route alone changes, and the launch's load reads it.
+    @discardableResult
+    func turn(_ kind: RouteTurnKind = .byItself, while stillMay: @MainActor () -> Bool = { true }) async -> Bool {
+        guard let route else { return false }
         let turned = Route(from: route.to, to: route.from, line: route.line)
+        guard hasLoaded else {
+            guard stillMay() else { return false }
+            setTurned(turned, from: route, kind: kind)
+            return true
+        }
+        let day = selectedDay
+        let trips = try? await repository.trips(for: turned, on: day)
+        var nextDay: ServiceDay?
+        if let trips, trips.isEmpty { nextDay = await firstDayWithTrains(after: day, on: turned) }
+        // Another route or day was chosen while the trains were read: that choice stands.
+        guard route == self.route, day == selectedDay else { return false }
+        guard let trips else {
+            guard kind != .byItself, stillMay() else { return false }
+            setTurned(turned, from: route, kind: kind)
+            await loadNewTrains()
+            requestScroll(jumping: true)
+            if isToday { nowPulse += 1 }
+            return true
+        }
+        guard stillMay() else { return false }
+        // From here to the scroll request nothing is awaited: the route, its trains and the old cards' last frame are one
+        // update.
+        let old = loaded.flatMap { $0.day == day ? $0 : nil }
+        let leaving = outgoingTrains(on: old != nil)
+        setTurned(turned, from: route, kind: kind)
+        // An older load of new trains can neither hide these nor end a wait for them.
+        newTrainsTicket += 1
+        if awaitsNewTrains { awaitsNewTrains = false }
+        if newTrainsAreSlow { newTrainsAreSlow = false }
+        if timetableFailed { timetableFailed = false }
+        nextDayWithTrains = nextDay
+        now = clock.now
+        entranceRequest += 1
+        // Timetable times until the status lands. The data mode stays what it was, so the status row does not blink.
+        fillsLive = true
+        loaded = (day, trips, LiveSnapshot(updatedAt: old?.live.updatedAt, isOffline: old?.live.isOffline ?? false))
+        resolve()
+        keep(leaving)
+        requestScroll(jumping: true)
+        if isToday { nowPulse += 1 }
+        await load()
+        fillsLive = false
+        return true
+    }
+
+    /// The route turned (TT-235, D116): saved and recorded as a swap is, with the token the route card plays its calm
+    /// swap from (held while the launch splash covers it) and, unless it is an Undo, the arrow on From.
+    private func setTurned(_ turned: Route, from route: Route, kind: RouteTurnKind) {
         self.route = turned
         turns += 1
         routeStore?.save(turned)
         recents.record(turned)
-        guard hasLoaded else { return }
-        await loadNewTrains()
-        requestScroll(jumping: true)
-        if isToday { nowPulse += 1 }
+        // Device time: the card draws the swap from the display's clock, which Mock time does not move.
+        turnToken = RouteCard.Turn(id: turns, from: route.from.name, to: route.to.name, start: splashCovers ? nil : Date())
+        let marks = kind != .undone
+        if marks != marksFrom { marksFrom = marks }
+    }
+
+    /// The trains on screen right now, for their fade under a turn's new ones; nil when none show (under the splash,
+    /// hidden for a load of new trains, or no timeline).
+    private func outgoingTrains(on showsDay: Bool) -> OutgoingTrains? {
+        guard showsDay, !splashCovers, !awaitsNewTrains, content == .timeline, let route else { return nil }
+        let opensAt = isToday ? layout.initialScrollOffset : 0
+        let shown = layout.cards.filter {
+            $0.bottom >= opensAt - Self.outgoingAbove && $0.top <= opensAt + Self.outgoingBelow
+        }
+        return OutgoingTrains(
+            request: entranceRequest + 1, route: route, departures: departures, layout: layout, now: now, next: nextDepartureId,
+            freshness: freshness, hasPlatformSource: hasPlatformSource, isToday: isToday, isPastDay: isPastDay, opensAt: opensAt,
+            shown: Set(shown.map(\.id))
+        )
+    }
+
+    /// Keeps the replaced trains for their fade, while the new ones are a timeline to fade over.
+    private func keep(_ leaving: OutgoingTrains?) {
+        guard let leaving, leaving.request == entranceRequest, content == .timeline else {
+            if outgoing != nil { outgoing = nil }
+            return
+        }
+        outgoing = leaving
+        let request = leaving.request
+        let lasts = Self.outgoingLasts
+        Task { [weak self] in
+            try? await Task.sleep(for: lasts)
+            guard let self, self.outgoing?.request == request else { return }
+            self.outgoing = nil
+        }
+    }
+
+    /// The launch splash covers Schedule, or has lifted (the view reports it, TT-235, D116). A turn made under it held
+    /// its token: the names trade once the splash has gone, the lift plus its fade (`LaunchMotion`'s 200 ms, 240 ms on
+    /// the first 8 launches).
+    func setSplashCovers(_ covers: Bool, fade: TimeInterval = LaunchMotion.timing.markFadeDuration) {
+        let lifted = splashCovers && !covers
+        splashCovers = covers
+        guard lifted, var token = turnToken, token.start == nil else { return }
+        token.start = Date().addingTimeInterval(fade)
+        turnToken = token
     }
 
     /// A route to show, saved on device so the next launch opens it (TT-120), with who chose it (TT-234, D116): by hand
     /// (the station picker, a Recent row, the welcome), one train's link, or a widget's route link.
     func show(_ route: Route, chosen choice: RouteChoice = .byHand) async {
         routeCount.set(route, isFirst: self.route == nil)
+        // The arrow on From goes when the route changes by hand or by a link (TT-235, D116).
+        if marksFrom, route != self.route { marksFrom = false }
         self.route = route
         routeStore?.save(route)
         recents.record(route)
@@ -713,6 +881,8 @@ final class ScheduleViewModel {
         now = clock.now
         // Trains that replace "Loading timetable" cascade too, even when a refresh brings them.
         if newTrains || loaded == nil { entranceRequest += 1 }
+        // The live status a turn's trains waited for is here.
+        fillsLive = false
         loaded = (day, trips, live)
         resolve(playsDepartures: playsDepartures && !newTrains)
     }
@@ -750,7 +920,7 @@ final class ScheduleViewModel {
     /// An alerted train on Today's timeline turning late or cancelled plays Warning, reaching Boarding now Rail joint
     /// (TT-215, D100); not the train whose Trip details is open, which plays its own.
     private func playWatchedFeels() {
-        guard isToday, let route else {
+        guard isToday, let route, !fillsLive else {
             watchedFeels = WatchedTrainFeels()
             return
         }

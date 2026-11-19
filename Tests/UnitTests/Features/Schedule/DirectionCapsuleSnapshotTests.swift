@@ -5,9 +5,10 @@ import XCTest
 
 /// Automatic direction's capsule on Schedule (TT-234, D116; boards 14 and 20 of the Route and stations canvas), above the
 /// tab bar where a bell's capsule shows, light and dark: "Now from Union" with Undo over the turned route, Union to
-/// Oakville; "Trains from Union?" with Switch over the route as it was; the line after Undo; and a station name too long
-/// for the capsule's room, cut short so the words before it, the question mark and Switch still show. The capsule's
-/// glass is off (`\.rendersGlass`), as in the other Schedule state snapshots.
+/// Oakville, with the location arrow in the From ring's place (TT-235: board 14's last frame; Schedule is drawn at rest,
+/// after the turn's motion); "Trains from Union?" with Switch over the route as it was; the line after Undo; and a
+/// station name too long for the capsule's room, cut short so the words before it, the question mark and Switch still
+/// show. The capsule's glass is off (`\.rendersGlass`), as in the other Schedule state snapshots.
 final class DirectionCapsuleSnapshotTests: XCTestCase {
     @MainActor func testTurnedLight() async throws { try await snap(turned(), .turned(station: "Union"), .light) }
     @MainActor func testTurnedDark() async throws { try await snap(turned(), .turned(station: "Union"), .dark) }
@@ -22,12 +23,14 @@ final class DirectionCapsuleSnapshotTests: XCTestCase {
     private static let longStationName = "Brampton Innovation District GO"
     private static let longShortName = StationNames.short(longStationName)
 
-    /// The app opened at Union and turned the route: Union to Oakville, with trains.
+    /// The app opened at Union and turned the route (`ScheduleViewModel.turn(_:while:)`): Union to Oakville, with trains
+    /// and the arrow on From.
     @MainActor
     private func turned() async throws -> ScheduleViewModel {
         let fixtures = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
-        let route = Route(from: fixtures.route.to, to: fixtures.route.from, line: fixtures.route.line)
-        return try await schedule(on: route, fixtures: fixtures)
+        let model = try await schedule(on: fixtures.route, fixtures: fixtures)
+        await model.turn()
+        return model
     }
 
     /// Union to Brampton Innovation District GO on the Kitchener line: the capsule asks about the To station.

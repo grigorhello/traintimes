@@ -1,0 +1,264 @@
+import XCTest
+@testable import TrainTimes
+
+/// The widget timeline (TT-182, D107) at fixed Toronto times. Oakville ⇄ Union, Wed Nov 11 to Fri Nov 13, 2026; times are
+/// on the service day, so 00:40 is the next morning.
+final class WidgetEntryBuilderTests: XCTestCase {
+    private let wed = ServiceDay(year: 2026, month: 11, day: 11)
+    private var thu: ServiceDay { wed.adding(days: 1) }
+    private var fri: ServiceDay { wed.adding(days: 2) }
+    private let oakvilleToUnion = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
+
+    /// Stored out of order (the builder sorts). From Oakville: 6:00, 7:00, the 7:10 express (in 25 min, so it arrives before the 7:00), 8:00, 9:45, 10:15, 11:30 (an
+    /// alert on Wednesday's), 12:30, 23:30 and 00:40. From Union: 12:15, 17:00, 18:00, 23:00.
+    private func file(days: [ServiceDay]? = nil, usual: [WidgetFile.UsualTime] = []) -> WidgetFile {
+        let days = days ?? [wed, thu, fri]
+        let outbound = days.flatMap { day in
+            ["06:00", "07:00", "08:00", "09:45", "10:15", "11:30", "12:30", "23:30", "00:40"].map { time in
+                departure(day, time, alerted: day == wed && time == "11:30")
+            } + [departure(day, "07:10", minutes: 25, express: true)]
+        }
+        let inbound = days.flatMap { day in ["12:15", "17:00", "18:00", "23:00"].map { departure(day, $0, prefix: "UN") } }
+        return WidgetFile(
+            firstDay: wed, lastDay: fri, openRoute: oakvilleToUnion,
+            routes: [
+                WidgetFile.Timetable(
+                    from: WidgetFile.Stop(id: "OA", name: "Oakville"), to: WidgetFile.Stop(id: "UN", name: "Union"),
+                    line: WidgetFile.TrainLine(id: "LW", name: "Lakeshore West", colorHex: "#8B1A31"),
+                    outbound: outbound.reversed(), inbound: inbound
+                ),
+            ],
+            usualTimes: usual, timeFormat: .twelveHour, stations: [], yourStationIds: []
+        )
+    }
+
+    private func departure(
+        _ day: ServiceDay, _ time: String, minutes: Int = 40, express: Bool = false, alerted: Bool = false, prefix: String = "LW"
+    ) -> WidgetFile.Departure {
+        let start = at(day, time)
+        return WidgetFile.Departure(
+            tripId: "\(prefix)-\(time.replacingOccurrences(of: ":", with: ""))-\(day.gtfsDate)", serviceDay: day, departure: start,
+            arrival: start.addingTimeInterval(TimeInterval(minutes * 60)), isExpress: express, isAlerted: alerted
+        )
+    }
+
+    private func at(_ day: ServiceDay, _ time: String) -> Date {
+        let parts = time.split(separator: ":").map { Int($0)! }
+        return day.date(hour: parts[0], minute: parts[1])
+    }
+
+    private func entry(
+        _ day: ServiceDay, _ time: String, file: WidgetFile? = nil, route: WidgetFile.RouteKey? = nil, turnsAround: Bool = true
+    ) -> WidgetEntry {
+        WidgetEntryBuilder.entry(file: file ?? self.file(), route: route, turnsAround: turnsAround, at: at(day, time))
+    }
+
+    private func trains(_ entry: WidgetEntry, file: StaticString = #filePath, line: UInt = #line) -> WidgetEntry.Trains? {
+        guard case .trains(let trains) = entry.state else {
+            XCTFail("Expected trains, got \(entry.state)", file: file, line: line)
+            return nil
+        }
+        return trains
+    }
+
+    /// "HH:mm" on the service day of each train, to compare lists quickly.
+    private func times(_ trains: WidgetEntry.Trains?) -> [String] {
+        trains?.trains.map { train in
+            let minutes = ServiceDay.minutesIntoServiceDay(train.departure) % (24 * 60)
+            return String(format: "%02d:%02d", minutes / 60, minutes % 60)
+        } ?? []
+    }
+
+    // MARK: - States
+
+    func testNoFileIsNotLoaded() {
+        let entry = WidgetEntryBuilder.entry(file: nil, route: nil, turnsAround: true, at: at(wed, "08:00"))
+        XCTAssertEqual(entry.state, .notLoaded)
+    }
+
+    func testAnotherVersionIsNotLoaded() throws {
+        var other = file()
+        other.version = 2
+        XCTAssertNil(WidgetFile.decode(try other.encoded()))
+        let original = file()
+        XCTAssertEqual(WidgetFile.decode(try original.encoded()), original)
+    }
+
+    func testARouteNotInTheFileIsNotLoaded() {
+        XCTAssertEqual(entry(wed, "08:00", route: WidgetFile.RouteKey(fromId: "OA", toId: "BU")).state, .notLoaded)
+    }
+
+    func testNoRoute() {
+        var noRoute = file()
+        noRoute.openRoute = nil
+        XCTAssertEqual(entry(wed, "08:00", file: noRoute).state, .noRoute)
+    }
+
+    func testOutOfDateAfterTheFilesLastDay() {
+        XCTAssertEqual(entry(fri.adding(days: 1), "08:00").state, .outOfDate)
+        XCTAssertNotEqual(entry(fri, "08:00").state, .outOfDate)
+    }
+
+    func testNoMoreTrainsTonightAfterTheLastTrainUntil3AM() {
+        let late = entry(wed, "01:00", turnsAround: false)
+        guard case .noMoreTrainsTonight(let header, let since, let next) = late.state else { return XCTFail("\(late.state)") }
+        XCTAssertEqual(header.from.id, "OA")
+        XCTAssertEqual(since, at(wed, "00:40"))
+        XCTAssertEqual(next?.departure, at(thu, "06:00"))
+        XCTAssertEqual(next?.arrival, at(thu, "06:40"))
+        // At 3 AM the new service day starts with its trains.
+        XCTAssertEqual(times(trains(entry(thu, "03:00", turnsAround: false))), ["06:00", "07:00", "07:10"])
+    }
+
+    func testNoTrainsToday() {
+        let skipsThursday = file(days: [wed, fri])
+        let thursday = entry(thu, "08:00", file: skipsThursday, turnsAround: false)
+        guard case .noTrainsToday(_, let next) = thursday.state else { return XCTFail("\(thursday.state)") }
+        XCTAssertEqual(next?.key.serviceDay, fri)
+        XCTAssertEqual(next?.departure, at(fri, "06:00"))
+    }
+
+    // MARK: - Direction
+
+    func testTurnsAroundAt12PM() {
+        let morning = trains(entry(wed, "11:59"))
+        XCTAssertEqual(morning?.header.from.name, "Oakville")
+        XCTAssertEqual(times(morning), ["12:30", "23:30", "00:40"])
+        XCTAssertEqual(morning?.trains.first?.departure, at(wed, "12:30"))
+
+        let noon = trains(entry(wed, "12:00"))
+        XCTAssertEqual(noon?.header.from.name, "Union")
+        XCTAssertEqual(noon?.header.to.name, "Oakville")
+        XCTAssertEqual(times(noon), ["12:15", "17:00", "18:00"])
+        XCTAssertEqual(noon?.header.link, URL(string: "traintimes://route?destinationId=OA&originId=UN"))
+    }
+
+    func testTurnAroundOffKeepsFromTo() {
+        XCTAssertEqual(times(trains(entry(wed, "12:00", turnsAround: false))), ["12:30", "23:30", "00:40"])
+    }
+
+    func testAWidgetRouteTurnsAroundFromItsOwnWay() {
+        let unionToOakville = oakvilleToUnion.reversed
+        XCTAssertEqual(trains(entry(wed, "08:00", route: unionToOakville))?.header.from.id, "UN")
+        XCTAssertEqual(trains(entry(wed, "13:00", route: unionToOakville))?.header.from.id, "OA")
+    }
+
+    /// From midnight to 3 AM the day's late trains come first, then the next day's.
+    func testAt1230AMLateTrainsMergeWithTheNextDays() {
+        let night = trains(entry(wed, "00:30", turnsAround: false))
+        XCTAssertEqual(night?.trains.map(\.key.serviceDay), [wed, thu, thu])
+        XCTAssertEqual(times(night), ["00:40", "06:00", "07:00"])
+        // Turned around, Union's last train left at 11 PM.
+        guard case .noMoreTrainsTonight(let header, let since, let next) = entry(wed, "00:30").state else { return XCTFail() }
+        XCTAssertEqual(header.from.id, "UN")
+        XCTAssertEqual(since, at(wed, "23:00"))
+        XCTAssertEqual(next?.departure, at(thu, "12:15"))
+    }
+
+    // MARK: - Labels
+
+    func testYourTrainFromExactly2HoursBefore() {
+        let before = trains(entry(wed, "09:29"))
+        XCTAssertNil(before?.yourTrain)
+        XCTAssertNil(before?.earlier)
+
+        let due = trains(entry(wed, "09:30"))
+        XCTAssertEqual(times(due), ["09:45", "10:15", "11:30"])
+        XCTAssertEqual(due?.yourTrain, 2)
+        XCTAssertEqual(due?.earlier, 0)
+        XCTAssertEqual(due?.trains[2].isAlerted, true)
+
+        // Once it is the next train, it has no Earlier.
+        let next = trains(entry(wed, "10:20"))
+        XCTAssertEqual(next?.yourTrain, 0)
+        XCTAssertNil(next?.earlier)
+    }
+
+    /// Your train stays among the three, in time order, when more trains leave before it; the earliest of two alerted
+    /// trains wins.
+    func testYourTrainIsKeptAmongTheThree() {
+        var busy = file()
+        busy.routes[0].outbound = ["08:00", "08:10", "08:20", "08:30", "08:40", "08:50"].map {
+            departure(wed, $0, alerted: $0 == "08:40" || $0 == "08:50")
+        }
+        let kept = trains(entry(wed, "07:55", file: busy))
+        XCTAssertEqual(times(kept), ["08:00", "08:10", "08:40"])
+        XCTAssertEqual(kept?.yourTrain, 2)
+        XCTAssertEqual(kept?.earlier, 0)
+    }
+
+    func testArrivesFirst() {
+        let express = trains(entry(wed, "06:30"))
+        XCTAssertEqual(times(express), ["07:00", "07:10", "08:00"])
+        XCTAssertEqual(express?.arrivesFirst, 1)
+        // The first train arriving first gets no label.
+        XCTAssertNil(trains(entry(wed, "07:05"))?.arrivesFirst)
+        // Nor does a tie.
+        var tie = file()
+        tie.routes[0].outbound = [departure(wed, "07:00"), departure(wed, "07:10", minutes: 20), departure(wed, "07:15", minutes: 15)]
+        XCTAssertNil(trains(entry(wed, "06:30", file: tie))?.arrivesFirst)
+    }
+
+    func testLastTrainFrom10PMWithTheNextDaysFirst() {
+        let evening = trains(entry(wed, "21:59", turnsAround: false))
+        XCTAssertEqual(times(evening), ["23:30", "00:40", "06:00"])
+        XCTAssertNil(evening?.lastTrain)
+
+        let late = trains(entry(wed, "22:00", turnsAround: false))
+        XCTAssertEqual(late?.lastTrain, 1)
+        XCTAssertEqual(late?.nextDayFirst?.departure, at(thu, "06:00"))
+    }
+
+    // MARK: - Relevance and links
+
+    func testRelevance() {
+        // An alerted train: 1 in its last 30 min.
+        XCTAssertEqual(entry(wed, "11:00").relevance, 1)
+        XCTAssertEqual(entry(wed, "10:59").relevance, 0)
+        // A Repeat alert's usual 8:00 AM on Wednesdays: 0.5 in the 30 min before, on its weekdays and its way only.
+        let usual = file(usual: [WidgetFile.UsualTime(route: oakvilleToUnion, minutesIntoDay: 8 * 60, weekdays: [3])])
+        XCTAssertEqual(entry(wed, "07:30", file: usual).relevance, 0.5)
+        XCTAssertEqual(entry(wed, "07:29", file: usual).relevance, 0)
+        XCTAssertEqual(entry(thu, "07:30", file: usual).relevance, 0)
+        XCTAssertEqual(entry(wed, "07:30", file: usual, route: oakvilleToUnion.reversed, turnsAround: false).relevance, 0)
+    }
+
+    func testLinks() {
+        let train = trains(entry(wed, "08:30"))?.trains.first
+        let link = train?.link
+        XCTAssertEqual(link, URL(string: "traintimes://trip?destinationId=UN&originId=OA&serviceDate=20261111&tripId=LW-0945-20261111"))
+        XCTAssertEqual(
+            link.flatMap { NotificationLink(url: $0, today: wed) },
+            .trip(TripKey(serviceDay: wed, tripId: "LW-0945-20261111"), originId: "OA", destinationId: "UN")
+        )
+        XCTAssertEqual(trains(entry(wed, "08:30"))?.header.link, URL(string: "traintimes://route?destinationId=UN&originId=OA"))
+    }
+
+    func testTheEntryCarriesTheTimeFormat() {
+        XCTAssertEqual(entry(wed, "08:00").timeFormat, .twelveHour)
+    }
+
+    // MARK: - Timeline
+
+    func testTimelineEntriesUntil3AM() {
+        let now = at(wed, "09:00")
+        let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now)
+        XCTAssertEqual(timeline.reloadAt, at(thu, "03:00"))
+        let dates = timeline.entries.map(\.date)
+        XCTAssertEqual(dates.first, now)
+        XCTAssertEqual(dates, dates.sorted())
+        XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < timeline.reloadAt })
+        for time in ["09:30", "09:45", "10:15", "11:00", "11:30", "12:00", "12:15", "17:00", "22:00", "23:00"] {
+            XCTAssertTrue(dates.contains(at(wed, time)), time)
+        }
+        // A usual time adds the moment 30 min before it.
+        let usual = file(usual: [WidgetFile.UsualTime(route: oakvilleToUnion.reversed, minutesIntoDay: 17 * 60 + 40, weekdays: [3])])
+        XCTAssertTrue(WidgetEntryBuilder.timeline(file: usual, route: nil, turnsAround: true, now: now).entries.map(\.date).contains(at(wed, "17:10")))
+    }
+
+    func testNotLoadedTimelineIsOneEntry() {
+        let timeline = WidgetEntryBuilder.timeline(file: nil, route: nil, turnsAround: true, now: at(wed, "09:00"))
+        XCTAssertEqual(timeline.entries.map(\.state), [.notLoaded])
+        XCTAssertEqual(timeline.reloadAt, at(thu, "03:00"))
+    }
+}

@@ -71,8 +71,9 @@ enum Analytics {
 /// How Trip details was opened.
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
-    /// Live Activity before departure; `detection` the background question's notification.
-    case schedule, notification, ride, departure, detection
+    /// Live Activity before departure; `detection` the background question's notification; `link` a `traintimes://trip`
+    /// link, a widget's train (TT-182).
+    case schedule, notification, ride, departure, detection, link
 }
 
 /// How a ride started.

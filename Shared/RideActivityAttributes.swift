@@ -73,6 +73,9 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var updated: String
         /// The train has left with no ride on, and the card asks "On board?" with Yes and No (TT-231, D110).
         var asks = false
+        /// The ride's arrival wish, "Have a good day", in "Now"'s place on the card from 5 s after your stop (TT-229, D108):
+        /// the one the ride screen shows (`ArrivalWishes`). Nil before then, and in the compact island, which keeps "Now".
+        var wish: String? = nil
 
         /// About a minute before your stop: the activity alerts once.
         var isAlert: Bool { phase == .arriving }
@@ -101,7 +104,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
-        case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated
+        case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated, wish
         case stations, skipped, express
         case asks
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
@@ -132,6 +135,7 @@ extension RideActivityAttributes.ContentState {
         isClose = try container.decodeIfPresent(Bool.self, forKey: .isClose) ?? false
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
         asks = try container.decodeIfPresent(Bool.self, forKey: .asks) ?? false
+        wish = try container.decodeIfPresent(String.self, forKey: .wish)
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -154,6 +158,7 @@ extension RideActivityAttributes.ContentState {
         try container.encode(isClose, forKey: .isClose)
         try container.encode(updated, forKey: .updated)
         if asks { try container.encode(asks, forKey: .asks) }
+        try container.encodeIfPresent(wish, forKey: .wish)
     }
 }
 

@@ -122,6 +122,36 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(ended.title, "This is Clarkson")
     }
 
+    func testFiveSecondsAfterYourStopTheRideScreensWishTakesNowsPlace() async throws {
+        // TT-229, D108: the wish `OnBoard` gives the ride screen, only at your stop; the compact island keeps "Now".
+        let rig = await DemoRideRig.started(at: t(17, 43, 5))
+        XCTAssertNil(rig.onBoard.arrivalWish, "Not due yet")
+        rig.drive(to: t(17, 43, 36))
+        let wish = try XCTUnwrap(rig.onBoard.arrivalWish)
+        let engine = try XCTUnwrap(rig.engine)
+        let content = try XCTUnwrap(RideActivityAttributes.ContentState(
+            plan: rig.plan, state: try XCTUnwrap(engine.state), now: engine.now, deviceNow: deviceNow, formatter: formatter,
+            wish: wish
+        ))
+        XCTAssertEqual(content.wish, "Enjoy your evening")
+        XCTAssertEqual(content.wish, rig.tripDetails().rideDetails(formatter)?.wish?.text, "The ride screen's wish")
+        XCTAssertEqual(content.now, "Now")
+        XCTAssertEqual(content.title, "This is Clarkson")
+        XCTAssertFalse(content.looksLike(try self.content(rig)), "The wish sends an update")
+
+        let riding = await DemoRideRig.started(at: t(17, 38))
+        let ridingEngine = try XCTUnwrap(riding.engine)
+        XCTAssertNil(RideActivityAttributes.ContentState(
+            plan: riding.plan, state: try XCTUnwrap(ridingEngine.state), now: ridingEngine.now, deviceNow: deviceNow,
+            formatter: formatter, wish: wish
+        )?.wish, "Only at your stop")
+
+        let decoded = try JSONDecoder().decode(
+            RideActivityAttributes.ContentState.self, from: try JSONEncoder().encode(content)
+        )
+        XCTAssertEqual(decoded, content)
+    }
+
     func testTheTwentyFourHourClockFormatsEveryTime() async throws {
         let rig = await DemoRideRig.started()
         let engine = try XCTUnwrap(rig.engine)

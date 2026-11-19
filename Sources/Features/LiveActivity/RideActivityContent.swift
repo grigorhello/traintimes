@@ -26,8 +26,10 @@ extension RideActivityAttributes.ContentState {
     /// The activity at `now` on the engine's clock (Mock time, or the demo ride's own clock), in the ride screen's words
     /// (`RideDetails`, TT-205): "Clarkson in" over the minutes to your stop, "Arrives 5:43 PM" at the right, the stop line.
     /// The countdown is anchored on the device clock, which timer text runs on: it ends `deviceNow` plus the time left on
-    /// the engine's clock. Nil for a plan with fewer than two stops.
-    init?(plan: RidePlan, state: RideState, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
+    /// the engine's clock. `wish` takes "Now"'s place at your stop (TT-229, D108). Nil for a plan with fewer than two stops.
+    init?(
+        plan: RidePlan, state: RideState, now: Date, deviceNow: Date, formatter: some TimeFormatting, wish: ArrivalWish? = nil
+    ) {
         guard let times = RideTimes(plan: plan, state: state),
               let details = RideDetails(plan: plan, state: state, now: now, formatter: formatter) else { return nil }
         let last = times.last
@@ -63,6 +65,7 @@ extension RideActivityAttributes.ContentState {
         express = plan.isExpress
         isClose = details.isClose
         updated = String(format: String(localized: "live.updated"), formatter.time(now))
+        self.wish = phase == .atYourStop ? wish?.text : nil
     }
 
     /// The same activity as far as a rider can tell: the train within 2 % of the bar and the countdown within 15 s, the

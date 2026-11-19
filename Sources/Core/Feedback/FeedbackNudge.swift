@@ -8,7 +8,7 @@ enum FeedbackOpenSource: String, Sendable {
     case settings
 }
 
-/// When Schedule's Feedback button asks (TT-228, D107): now and then the bubble draws a question mark and goes back, so
+/// When Schedule's Feedback button asks (TT-228, D112): now and then the bubble draws a question mark and goes back, so
 /// riders notice it. One per app, made in `RootView`. It plays only after `stillness` of a still Schedule (`Stillness`),
 /// one try per app open, at most once a Toronto calendar day, not in the install's first two days, and never again once
 /// the sheet has been opened or after `maxShowings`. Settings › Testing › Feedback animation (`playOnNextStill()`) and the

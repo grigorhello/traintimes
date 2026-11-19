@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// When Schedule's Feedback button asks (TT-228, D107): stillness, one try per app open, once a day, not in the first two
+/// When Schedule's Feedback button asks (TT-228, D112): stillness, one try per app open, once a day, not in the first two
 /// days, stop on open or after 5 showings, the Testing reset, and both events.
 @MainActor
 final class FeedbackNudgeTests: XCTestCase {

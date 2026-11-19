@@ -71,8 +71,9 @@ enum Analytics {
 /// How Trip details was opened.
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
-    /// Live Activity before departure; `detection` the background question's notification.
-    case schedule, notification, ride, departure, detection
+    /// Live Activity before departure; `detection` the background question's notification; `link` a `traintimes://trip`
+    /// link, a widget's train (TT-182).
+    case schedule, notification, ride, departure, detection, link
 }
 
 /// How a ride started.
@@ -117,6 +118,16 @@ extension AnalyticsEvent {
     }
 
     static let routeSwapped = Self("route_swapped")
+
+    /// The weather sheet opened from the tile on Schedule (TT-226): the day (0 is Today) and the sheet's first line.
+    static func weatherOpened(dayOffset: Int, cue: WeatherCue) -> Self {
+        Self("weather_opened", ["day_offset": .int(dayOffset), "cue": .string(cue.rawValue)])
+    }
+
+    /// The weather tile turned grey, at most once per Schedule visit (TT-226).
+    static func weatherUnavailable(_ reason: WeatherUnavailable) -> Self {
+        Self("weather_unavailable", ["reason": .string(reason.rawValue)])
+    }
 
     /// The saved route's launch splash lifting over Schedule (TT-227): `schedule_ready` is false while Schedule still showed
     /// "Loading timetable"; `full` is the slower first-launches pace.

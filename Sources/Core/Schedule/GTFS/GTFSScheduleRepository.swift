@@ -183,6 +183,8 @@ actor GTFSFeedStore {
         defer { refreshing = nil }
         let timetable = try await task.value
         current = timetable
+        // A new timetable rewrites the widget file (TT-182); posted on the main actor, where RootView listens.
+        Task { @MainActor in NotificationCenter.default.post(name: .timetableImported, object: nil) }
         return timetable
     }
 
@@ -203,4 +205,9 @@ actor GTFSFeedStore {
 
 private extension GTFSFeed {
     var timetable: GTFSTimetable { GTFSTimetable(feed: self) }
+}
+
+extension Notification.Name {
+    /// `GTFSFeedStore` imported a new timetable (TT-182).
+    static let timetableImported = Notification.Name("ca.traintimes.timetableImported")
 }

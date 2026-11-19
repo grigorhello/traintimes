@@ -18,7 +18,7 @@ final class FeedbackSnapshotTests: XCTestCase {
     /// With the Notice chip, the pill is icon only.
     @MainActor func testSchedulePillWithNoticeDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark) }
 
-    /// The button as it asks (TT-228, D107), frozen about 1000 ms in: solid fill, the question bubble, tilted and grown.
+    /// The button as it asks (TT-228, D112), frozen about 1000 ms in: solid fill, the question bubble, tilted and grown.
     @MainActor func testPillAsksLight() async throws { try await snapSchedule(.loadedFixture(), .light, asks: true) }
     @MainActor func testPillAsksDark() async throws { try await snapSchedule(.loadedFixture(), .dark, asks: true) }
     @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }

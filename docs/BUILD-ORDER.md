@@ -135,4 +135,5 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 83 | TT-206 · First launch: the Bloom splash, a welcome with the network picture, then your line and your station | [#165](https://github.com/grigorhello/traintimes/issues/165) | P1 | 5 | Grigor, 2026-11-15, D94 |
 | 94 | TT-219 · Live view: whole minutes, no seconds ("15 min") | [#188](https://github.com/grigorhello/traintimes/issues/188) | P1 | 1 | Grigor, 2026-11-18, D97 |
 | 96 | TT-221 · Ride screen: Done always closes it, and it closes itself when the ride ends at your stop | [#191](https://github.com/grigorhello/traintimes/issues/191) | P1 | 1 | Grigor, 2026-11-18, D98 |
-| 102 | TT-228 · Feedback button asks: now and then the chat icon draws a question mark, then goes back | [#210](https://github.com/grigorhello/traintimes/issues/210) | P2 | 1 | Grigor, 2026-11-18, D107 |
+| 101 | TT-226 · Weather tile on Schedule: the selected day's weather beside the day strip, with a small sheet | [#202](https://github.com/grigorhello/traintimes/issues/202) | P1 | 3 | Grigor, 2026-11-18, D105 |
+| 102 | TT-228 · Feedback button asks: now and then the chat icon draws a question mark, then goes back | [#210](https://github.com/grigorhello/traintimes/issues/210) | P2 | 1 | Grigor, 2026-11-18, D112 |

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Schedule's Feedback button asking (TT-228, D107; the Schedule canvas, board 24, `feedback-nudge.css`): the bubble turns
+/// Schedule's Feedback button asking (TT-228, D112; the Schedule canvas, board 24, `feedback-nudge.css`): the bubble turns
 /// into the question bubble, tilts like a head asking and the button fills solid, holds, then goes back. About 2.5 s,
 /// played once per showing. Nothing overshoots: nothing was touched (D59, D95). No haptic (D95 rule 1).
 enum FeedbackNudgeMotion {

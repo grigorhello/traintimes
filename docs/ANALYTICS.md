@@ -39,7 +39,9 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `route_swapped` | The swap button | none |
 | `back_to_now` | Back to today, at Now: the Schedule tab tapped again, or the app back after more than 10 min away (TT-222) | `source`: `tab`, `reopen` |
 | `day_changed` | Another day picked on the day strip | `offset` (days from today, -1 is yesterday) |
-| `trip_opened` | Trip details opens | `source`: `schedule` (a card), `notification` (an alert), `ride` (the ride strip), `departure` (the countdown strip or the Live Activity before departure), `detection` (the background question); `is_today` |
+| `weather_opened` | The weather sheet opens from the tile beside the day strip (TT-226) | `day_offset` (days from today, 0 is Today), `cue`: `rain`, `snow`, `cold`, `wind`, `none` (the sheet's first line) |
+| `weather_unavailable` | The weather tile shows grey, at most once per Schedule visit (TT-226) | `reason`: `past` (a day before today), `range` (more than 10 days ahead), `offline`, `failed` (the request failed, or the station has no place) |
+| `trip_opened` | Trip details opens | `source`: `schedule` (a card), `notification` (an alert), `ride` (the ride strip), `departure` (the countdown strip or the Live Activity before departure), `detection` (the background question), `link` (a `traintimes://trip` link: a widget's train, TT-182); `is_today` |
 | `alert_saved` | An alert saved and kept (bell, "Alert me", Repeat days, the Alerts tab switch or days) | `is_on`, `repeats`, `days` (weekdays picked), `is_new` |
 | `alert_removed` | An alert removed by the rider | `source`: `bell` (a one-day alert turned off), `alerts_tab` (Remove alert) |
 | `notification_permission` | The rider answered the iOS notification prompt | `result`: `allowed`, `denied` |
@@ -51,7 +53,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
-| `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D107) | `count` (which showing, 1 to 5) |
+| `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D112) | `count` (which showing, 1 to 5) |
 | `feedback_opened` | The feedback sheet opened (TT-228) | `source`: `schedule`, `settings`; `after_nudge` (within 60 s of the button asking); `nudges_seen` (0 to 5) |
 | `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
 | `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |

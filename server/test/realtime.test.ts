@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decide, hasDeparted } from '../src/alerts.ts';
-import { decodeFeed, liveStatus, tripUpdatesOn, type Call, type TripUpdate } from '../src/realtime.ts';
+import { decodeFeed, hasLeftOrigin, liveStatus, tripUpdatesOn, type Call, type TripUpdate } from '../src/realtime.ts';
 import { importTimetables } from '../src/timetable.ts';
 import { gtfsInstant } from '../src/time.ts';
 import { at, repoFile, sampleFeed, sampleGTFS } from './support.ts';
@@ -63,6 +63,23 @@ test("GO's real feed (D89): a train whose stops ahead all lie past the origin ha
   assert.equal(liveStatus(ahead('7:40', 0), call('LW-1308'), at('7:40')), null);
   // With Oakville still listed, its own departure counts.
   assert.deepEqual(liveStatus(ahead('7:52', 120, ['OA', 'CL', 'UN']), call('LW-1308'), at('7:52')), { kind: 'running', delayMin: 2, expected: at('7:53'), reportedAt: at('7:52') });
+});
+
+test('the feed no longer lists the origin (TT-233): only stops after it, on a train that runs', () => {
+  const lists = (stops: (string | undefined)[], cancelled = false): TripUpdate => ({
+    tripId: '20261109-LW-1308',
+    startDate: '20261109',
+    cancelled,
+    stopTimeUpdates: stops.map((stopId) => ({ stopId, relationship: 'scheduled' as const })),
+  });
+  const fromOakville = call('LW-1308');
+  assert.equal(hasLeftOrigin(lists(['CL', 'PO', 'UN']), fromOakville), true);
+  assert.equal(hasLeftOrigin(lists(['OA', 'CL', 'UN']), fromOakville), false, 'Oakville is still ahead');
+  assert.equal(hasLeftOrigin(lists(['BO', 'CL', 'UN']), fromOakville), false, 'a stop before it is still listed');
+  assert.equal(hasLeftOrigin(lists([]), fromOakville), false, 'an update with no stops says nothing');
+  assert.equal(hasLeftOrigin(lists(['XX', undefined]), fromOakville), false, 'nor one with no stop of this trip');
+  assert.equal(hasLeftOrigin(lists(['XX', 'UN']), fromOakville), true, 'a stop the trip does not call at is passed over');
+  assert.equal(hasLeftOrigin(lists(['CL', 'UN'], true), fromOakville), false, 'a cancelled trip has not left');
 });
 
 test('alert rules: thresholds, steps, status changes and coalescing', () => {

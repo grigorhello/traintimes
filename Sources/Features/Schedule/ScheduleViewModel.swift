@@ -84,7 +84,9 @@ final class ScheduleViewModel {
     /// Bumped when a minute tick or a live update makes trains on Today leave (TT-203, D86): `departing` step up above the
     /// Now line, the Now line glides `departureGlide` onto them and `departureNext` takes the lead. Never bumped by a load
     /// of new trains (launch, day change, route), the first tick after the screen shows or the first poll after the app
-    /// comes back, nor for a train that left over a minute ago or was cancelled: those are drawn at rest.
+    /// comes back, nor for a train the clock says left over a minute ago or one that was cancelled: those are drawn at
+    /// rest. A train GO's feeds say has left (it moved off, or its station dropped out of the trip, TT-233, D114) plays
+    /// when that arrives, however long past its time.
     private(set) var departureRequest = 0
     private(set) var departing: Set<TripKey> = []
     /// The departing train that was the next one: its time shrinks from 34 to 32 pt.
@@ -95,6 +97,9 @@ final class ScheduleViewModel {
     @ObservationIgnored private var seenDepartures: (
         day: ServiceDay, route: Route?, present: Set<TripKey>, departed: Set<TripKey>, next: TripKey?
     )?
+    /// The trains `train_departed` has gone out for (TT-233, D114), so a train whose position comes back after the clock
+    /// took it, and which then leaves again, is counted once.
+    @ObservationIgnored private var countedDepartures: Set<TripKey> = []
 
     /// The weather tile beside the day strip and its sheet (TT-226), for the route's From station.
     let weather: WeatherTileModel
@@ -104,6 +109,8 @@ final class ScheduleViewModel {
     private let routeStore: (any RouteStoring)?
     /// Counts each route shown for analytics and marks the install as counted (TT-217).
     private let routeCount: RouteCount
+    /// Sends `boarding_shown` once per train per day (TT-233, D114).
+    private let boardingShown: BoardingShown
     /// Each route shown is recorded first (D48); the station picker lists the others under Recent (D54).
     let recents: RecentRoutes
     private let dismissedNotices: DismissedNotices
@@ -133,12 +140,14 @@ final class ScheduleViewModel {
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
         recents: RecentRoutes = RecentRoutes(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
         watchedTrips: any WatchedTripsProviding = NoWatchedTrips(), routeCount: RouteCount = RouteCount(defaults: nil),
-        weather: WeatherTileModel? = nil, haptics: any HapticPlaying = TTHaptics.shared
+        boardingShown: BoardingShown = BoardingShown(defaults: nil), weather: WeatherTileModel? = nil,
+        haptics: any HapticPlaying = TTHaptics.shared
     ) {
         self.route = route
         self.weather = weather ?? .app(clock: clock, station: route?.from)
         self.haptics = haptics
         self.routeCount = routeCount
+        self.boardingShown = boardingShown
         self.repository = repository
         self.clock = clock
         self.routeStore = routeStore
@@ -215,11 +224,12 @@ final class ScheduleViewModel {
     /// "Open GO trip planner" on the No direct connection card.
     static let tripPlannerURL = URL(string: "https://www.gotransit.com/en/plan-your-trip")!
 
-    /// The next usable train on today's timeline: the first that is not cancelled, skipped or gone (a train at now has
-    /// left, D86). None on another day.
+    /// The next usable train on today's timeline: the first that is not cancelled, skipped or gone by the boarding rule
+    /// (TT-233, D114). A train standing at its platform past its time stays the next one, and its countdown then reads
+    /// "Departing"; with no position a train at now has left (D86). None on another day.
     var nextDepartureId: TripKey? {
         guard isToday else { return nil }
-        return departures.first { $0.isUsable && $0.departureTime > now }?.id
+        return departures.first { $0.isUsable && !$0.hasLeft(at: now) }?.id
     }
 
     /// The timeline cards in departure order, times from the one formatter the view passes in.
@@ -234,15 +244,22 @@ final class ScheduleViewModel {
             } ?? false
             return DepartureCard(
                 departure, isNext: isNext, nextUsableBelow: usableBelow, awaitsPlatform: awaitsPlatform,
-                isDeparted: hasDeparted(departure), now: now, formatter: formatter
+                isDeparted: hasDeparted(departure), isBoarding: isBoarding(departure), now: now, formatter: formatter
             )
         }
     }
 
-    /// Every train on a past day; on Today, a train whose expected departure is at or before now (TT-203, D86).
+    /// Every train on a past day; on Today, a train that has left by the boarding rule (TT-233, D114): it moved off its
+    /// station, GO's trip feed dropped the station, or, with no position to go by, its expected departure is at or before
+    /// now (TT-203, D86). Never on a later day.
     func hasDeparted(_ departure: Departure) -> Bool {
         if isPastDay { return true }
-        return isToday && departure.departureTime <= now
+        return isToday && departure.hasLeft(at: now)
+    }
+
+    /// On Today, the train stands at the rider's station with its platform posted (`BoardingRule`): its card is Boarding.
+    func isBoarding(_ departure: Departure) -> Bool {
+        isToday && departure.isBoarding(at: now)
     }
 
     /// A gridline label hides near the "Now" label.
@@ -300,6 +317,7 @@ final class ScheduleViewModel {
         let current = clock.now
         guard current != now else { return }
         now = current
+        countBoarding()
         relayout(playsDepartures: playsDepartures)
     }
 
@@ -362,17 +380,29 @@ final class ScheduleViewModel {
         }
     }
 
-    /// The watched train that has left, for the strip above the timeline (TT-144): today only, from the moment its live
-    /// departure time has passed, as Trip details says "Departed" (D32), until 10 min after its arrival (estimated, else
+    /// The watched train that has left, for the strip above the timeline (TT-144): today only, from the moment it is known
+    /// to have left (`isKnownGone`), as Trip details says "Departed" (D32), until 10 min after its arrival (estimated, else
     /// scheduled) or until swiped away. The latest such train when there are several. Watched means the train's own alert
     /// (TT-189), so a repeating alert's train counts on each of its days.
     var watchedDeparture: Departure? {
         guard isToday, let route else { return nil }
         return departures.last { departure in
-            guard let departed = departure.expectedDeparture, departed <= now,
-                  !dismissedWatchedTrips.contains(departure.id), watchedTrips.isWatched(departure.trip, on: route) else { return false }
+            guard isKnownGone(departure), !dismissedWatchedTrips.contains(departure.id),
+                  watchedTrips.isWatched(departure.trip, on: route) else { return false }
             let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
             return now < arrival.addingTimeInterval(Self.watchedStripAfterArrival)
+        }
+    }
+
+    /// "Departed" as the watched-trip strip says it (D32), by the boarding rule (TT-233, D114): GO's feeds say the train has
+    /// left (it moved off, or its station dropped out of the trip), or its live departure time has passed with no position
+    /// to say otherwise. The scheduled time passing with no live data is not enough, and a train still standing at its
+    /// platform past its time has not left.
+    private func isKnownGone(_ departure: Departure) -> Bool {
+        switch BoardingRule.phase(of: departure, now: now).source {
+        case .moved?, .feed?: true
+        case .clock?: departure.expectedDeparture != nil
+        case nil: false
         }
     }
 
@@ -456,20 +486,26 @@ final class ScheduleViewModel {
         // The first poll runs on coming back to the app: trains that left meanwhile are drawn at rest (D86).
         var plays = false
         while !Task.isCancelled {
-            if hasLoaded, !isLoading {
-                // Data left on screen while the app was away ages first, so it never shows as live during the fetch (D13).
-                now = clock.now
-                if today != knownToday {
-                    // The day changed while the app stayed in memory (or in the background): the timeline moves to Today
-                    // and the present, as a relaunch would (D30, D52).
-                    await rollOverIfNeeded()
-                } else {
-                    resolve(playsDepartures: plays)
-                    if isToday { await load(playsDepartures: plays) }
-                }
-            }
+            await pollOnce(playsDepartures: plays)
             plays = true
             try? await Task.sleep(for: interval)
+        }
+    }
+
+    /// One poll of `pollLiveStatus`: the data on screen at the current clock, then today's live status again. A train the
+    /// new status says has left plays its step up unless `playsDepartures` is false (the first poll). Tests call it to poll
+    /// without waiting.
+    func pollOnce(playsDepartures plays: Bool) async {
+        guard hasLoaded, !isLoading else { return }
+        // Data left on screen while the app was away ages first, so it never shows as live during the fetch (D13).
+        now = clock.now
+        if today != knownToday {
+            // The day changed while the app stayed in memory (or in the background): the timeline moves to Today
+            // and the present, as a relaunch would (D30, D52).
+            await rollOverIfNeeded()
+        } else {
+            resolve(playsDepartures: plays)
+            if isToday { await load(playsDepartures: plays) }
         }
     }
 
@@ -652,7 +688,17 @@ final class ScheduleViewModel {
         let hasPlatformSource = isToday && loaded.live.hasPlatformSource
         if hasPlatformSource != self.hasPlatformSource { self.hasPlatformSource = hasPlatformSource }
         playWatchedFeels()
+        countBoarding()
         relayout(playsDepartures: playsDepartures)
+    }
+
+    /// `boarding_shown` for every train on Today's timeline that is Boarding by the rule (TT-233, D114), each time the
+    /// trains or the clock are refreshed; `BoardingShown` sends it once per train per day.
+    private func countBoarding() {
+        guard isToday, let route else { return }
+        for departure in departures where departure.isBoarding(at: now) {
+            boardingShown.shown(departure, station: route.from.id, surface: .schedule, now: now)
+        }
     }
 
     /// An alerted train on Today's timeline turning late or cancelled plays Warning, reaching Boarding now Rail joint
@@ -701,21 +747,33 @@ final class ScheduleViewModel {
         trackDepartures(plays: playsDepartures, previousNowY: previousNowY)
     }
 
-    /// Which trains have just left Today's timeline since the last layout, for the step up (TT-203, D86). Only trains that
-    /// were on screen and not yet gone, usable, and gone within the last minute play; a new day or route never does.
+    /// Which trains have just left Today's timeline since the last layout, by the boarding rule (TT-233, D114), for the step
+    /// up (TT-203, D86). Only trains that were on screen and not yet gone, usable, and seen to leave (`sawLeave`) play; a new
+    /// day or route never does, nor an update that does not play (`plays` false: the screen or the app just came back).
+    /// `train_departed` goes out for the train that was the next one, in the same updates.
     private func trackDepartures(plays: Bool, previousNowY: CGFloat?) {
         guard isToday else {
             seenDepartures = nil
             return
         }
-        let departed = Set(departures.filter { $0.departureTime <= now }.map(\.id))
+        let departed = Set(departures.filter { $0.hasLeft(at: now) }.map(\.id))
         let next = nextDepartureId
         defer { seenDepartures = (selectedDay, route, Set(departures.map(\.id)), departed, next) }
         guard plays, let seen = seenDepartures, seen.day == selectedDay, seen.route == route else { return }
-        let leaving = departures.filter {
+        let left = departures.filter {
             departed.contains($0.id) && !seen.departed.contains($0.id) && seen.present.contains($0.id) && $0.isUsable
-                && now.timeIntervalSince($0.departureTime) < Self.departurePlayWindow
+                && sawLeave($0)
         }
+        // The train that was the next one has left while Schedule watched: what said so, and how long after its scheduled
+        // time. Sent once per train, whether or not its card moves.
+        if let lead = left.first(where: { $0.id == seen.next }), let source = BoardingRule.phase(of: lead, now: now).source,
+           countedDepartures.insert(lead.id).inserted {
+            let seconds = now.timeIntervalSince(lead.trip.scheduledDeparture)
+            Analytics.track(.trainDeparted(source: source, secondsAfter: Int(seconds.rounded(.down))))
+        }
+        // A train steps up only once every train before it has (`TimelineLayout`), so only those that did are moved.
+        let steppedUp = Set(layout.cards.filter(\.isSteppedUp).map(\.id))
+        let leaving = left.filter { steppedUp.contains($0.id) }
         guard !leaving.isEmpty else { return }
         departing = Set(leaving.map(\.id))
         departureLead = seen.next.flatMap { departing.contains($0) ? $0 : nil }
@@ -725,6 +783,16 @@ final class ScheduleViewModel {
         departureRequest += 1
     }
 
-    /// A train that left longer ago than this is drawn at rest: the app was away when it left.
+    /// Schedule saw the train leave in this update: GO's feeds say so (it moved off its station, or the station dropped
+    /// out of the trip), however long past its time, or the clock does within `departurePlayWindow`.
+    private func sawLeave(_ departure: Departure) -> Bool {
+        switch BoardingRule.phase(of: departure, now: now).source {
+        case .moved?, .feed?: true
+        case .clock?: now.timeIntervalSince(departure.departureTime) < Self.departurePlayWindow
+        case nil: false
+        }
+    }
+
+    /// A train the clock says left longer ago than this is drawn at rest: the app was away when it left.
     static let departurePlayWindow: TimeInterval = 60
 }

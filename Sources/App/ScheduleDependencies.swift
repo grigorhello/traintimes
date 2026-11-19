@@ -32,7 +32,8 @@ struct ScheduleDependencies {
             store: .shared,
             live: GTFSRealtimeStore.relay(),
             alerts: GTFSRealtimeStore.relay(url: GTFSRealtimeStore.alertsURL),
-            platforms: PlatformStore.relay()
+            platforms: PlatformStore.relay(),
+            trains: RelayTrainPositions.shared
         )
         let live = ScheduleDependencies(
             repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository,

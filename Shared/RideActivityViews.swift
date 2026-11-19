@@ -7,8 +7,8 @@ import SwiftUI
 // island is always black), so these views keep their own palette rather than the app's tokens, which the extension does
 // not have.
 
-/// The activity's colours: white for the number, mint for boarding and from "is next" on, white on the green card; amber for
-/// a late train's clock time; grey once stale.
+/// The activity's colours: white for the number, mint for boarding (the platform's number too, TT-233) and from "is next"
+/// on, white on the green card; amber for a late train's clock time; grey once stale.
 struct RideActivityStyle {
     static let mint = Color(red: 110 / 255, green: 231 / 255, blue: 183 / 255)
     /// The dark delay ink, #FDE68A: a late train's clock time and its delay.
@@ -25,6 +25,12 @@ struct RideActivityStyle {
     /// The platform pill (TT-199): the number in white on a white tint, the dash in grey on a grey one.
     static let platform = PlatformBadge.Palette(
         numberInk: .white, numberFill: .white.opacity(0.16), dashInk: .white.opacity(0.62), dashFill: .white.opacity(0.16)
+    )
+    /// The pill while the train is boarding (TT-233, D114, board 5): the number in mint, as "boarding now" is; the rest as
+    /// it was.
+    static let boardingPlatform = PlatformBadge.Palette(
+        numberInk: RideActivityStyle.mint, numberFill: .white.opacity(0.16), dashInk: .white.opacity(0.62),
+        dashFill: .white.opacity(0.16)
     )
 
     /// The card is brand green (on the Lock Screen, arriving and at your stop); the island stays black and its text goes
@@ -63,6 +69,9 @@ struct RideActivityStyle {
     var label: Color { .white.opacity(isGreen ? 0.82 : 0.72) }
     /// The value under it, "5:43 PM": white, amber when late.
     var value: Color { isStale ? grey : isLate ? Self.amber : .white }
+    /// The platform pill before departure: its number mint while the train is boarding, on the Lock Screen and in the
+    /// island alike (TT-233); white before that and once stale, as the line's words are.
+    var pill: PlatformBadge.Palette { isClose && !isStale ? Self.boardingPlatform : Self.platform }
     /// The stop line's done part, the train and the pin.
     var tint: Color { isStale ? grey : isGreen ? .white : Self.mint }
     var track: Color { .white.opacity(isGreen ? 0.35 : 0.22) }
@@ -123,9 +132,11 @@ struct RideActivityTile: View {
 }
 
 /// The big number: whole minutes, "15 min" (TT-219, D97: no seconds), text the app and the alert server update when the
-/// minute changes, since iOS has no live "15 min" format; "Now" at your stop. A push from an older alert server, with no
-/// minutes, still shows timer text running to `countdownEnd` ("11:59"), in a fixed width so what stands beside it does not
-/// shift as the digits change.
+/// minute changes, since iOS has no live "15 min" format; "Now" at your stop. "Departing", while a train stands at its
+/// platform past its time (TT-233, D114), is the same text: sized to its words on the card, beside the delay and the pill,
+/// and scaled down into the compact island's 48 pt by the minutes' own scale factor (it needs about 0.7; 0.6 is allowed).
+/// A push from an older alert server, with no minutes, still shows timer text running to `countdownEnd` ("11:59"), in a
+/// fixed width so what stands beside it does not shift as the digits change.
 struct RideActivityCountdown: View {
     let state: RideActivityAttributes.ContentState
     let color: Color
@@ -422,11 +433,11 @@ struct RideActivityCard: View {
         }
     }
 
-    /// The pill before departure (the number, or the dash while it is not posted: still, since an activity does not
-    /// animate); the arrival during the ride.
+    /// The pill before departure (the number, mint while the train is boarding, TT-233, or the dash while it is not posted:
+    /// still, since an activity does not animate); the arrival during the ride.
     @ViewBuilder private var trailing: some View {
         if state.isDeparture {
-            PlatformBadge(number: state.platformNumber, size: 16, palette: RideActivityStyle.platform)
+            PlatformBadge(number: state.platformNumber, size: 16, palette: style.pill)
         } else if let value = state.value {
             Text(value)
                 .font(.system(size: 26, weight: .bold))

@@ -21,12 +21,13 @@ struct DepartureActivitySource {
 ///
 /// Before departure the alert server starts the activity with a push-to-start at T−30 (iOS 17.2+); the app in front starts
 /// it itself when none came, keeps it up to date while it runs; once the train has left the card asks "On board?" (TT-231,
-/// D110: silently while the app is in front, with the alert server's buzz otherwise) and ends 10 min later, or at your stop if
-/// sooner. Yes (the card's link) starts the ride, and No (`DeclineDepartureIntent`) ends it. "I’m on board" turns
-/// that same activity into the ride (the hand-off), and the app tells the server, which then sends nothing more. The app
-/// sends the server its push-to-start token and each departure activity's update token. One per app, made by
-/// `AppDelegate`; none in fixture runs (UI tests, the unit test host, previews), so nothing appears in the island while they
-/// run.
+/// D110: silently while the app is in front, with the alert server's buzz otherwise) and ends 10 min after the train's time,
+/// or at your stop if sooner. When it is boarding and when it has left is the source's word (`LiveDeparture`, which follows
+/// `BoardingRule`, TT-233, D114): nothing here goes by the train's time alone. Yes (the card's link) starts the ride, and
+/// No (`DeclineDepartureIntent`) ends it. "I’m on board" turns that same activity into the ride (the hand-off), and the
+/// app tells the server, which then sends nothing more. The app sends the server its push-to-start token and each
+/// departure activity's update token. One per app, made by `AppDelegate`; none in fixture runs (UI tests, the unit test
+/// host, previews), so nothing appears in the island while they run.
 @MainActor
 final class RideLiveActivity: RideActivityFollowing {
     /// The activity greys itself this long after the app last updated it.
@@ -34,13 +35,14 @@ final class RideLiveActivity: RideActivityFollowing {
     /// An update at least this often, so a running app keeps it fresh; under a minute, so the engine's minute tick on the
     /// timetable always sends one.
     static let refreshAfter: TimeInterval = 45
-    /// While the app is in front, the departure is looked at this often: its phases follow the clock, not the engine.
+    /// While the app is in front, the departure is looked at this often: its phases follow the clock and the train feed
+    /// (`BoardingRule`, TT-233), not the engine. Nothing here waits for the train's time: each look reads the source again.
     static let departureTick: Duration = .seconds(2)
     /// With a push-to-start token the server starts the activity at T−30; the app in front waits this long for it, so the
     /// two do not cross.
     static let serverGrace: TimeInterval = 90
-    /// With the app in front this long before the train leaves, or after, the server asks without an alert (TT-231): told
-    /// ahead of its minute cycle.
+    /// With the app in front this long before the train's time, or after it has left, the server asks without an alert
+    /// (TT-231): told ahead of its minute cycle. Only on the clock: see `asksSilently(_:now:)`.
     static let silenceLead: TimeInterval = 75
 
     private let app: RideEngine?
@@ -308,8 +310,8 @@ final class RideLiveActivity: RideActivityFollowing {
     }
 
     /// No ride runs: the alerted train's countdown (TT-178), then its question (TT-231). Whoever started it, it ends 10 min
-    /// after the train left or at your stop (its stale date); the app keeps the live departure's up to date and starts it
-    /// when none came.
+    /// after the train's time or at your stop (its stale date, where the source's window ends too); the app keeps the live
+    /// departure's up to date and starts it when none came.
     private func reconcileDeparture(_ activities: [Activity<RideActivityAttributes>]) async {
         let deviceNow = Date()
         var current: [Activity<RideActivityAttributes>] = []
@@ -328,8 +330,8 @@ final class RideLiveActivity: RideActivityFollowing {
         let staleDate = Self.departureStaleDate(source.live, now: source.now, deviceNow: deviceNow)
         // With the app in front as the train leaves, the question comes silently (TT-231, D110): Schedule asks with its own
         // strip. The server is told shortly before the departure, ahead of its minute cycle, and then sends the question
-        // with no alert, and no notification.
-        if canStart(), source.live.leaves.timeIntervalSince(source.now) <= Self.silenceLead, askedRides.insert(ride).inserted {
+        // with no alert, and no notification. A train the feed places is told only once it has left (TT-233).
+        if canStart(), Self.asksSilently(source.live, now: source.now), askedRides.insert(ride).inserted {
             let silent = LiveActivityReport(
                 tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
                 destinationId: ride.destinationId, asked: true
@@ -495,10 +497,23 @@ final class RideLiveActivity: RideActivityFollowing {
         next.phase == .arriving && shown.phase != .arriving
     }
 
-    /// A departure's activity goes stale, and ends, 10 min after the train left or at your stop if sooner, on the device
-    /// clock (the server sets the same stale date).
+    /// A departure's activity goes stale, and ends, 10 min after the train's time or at your stop if sooner, on the device
+    /// clock (the server sets the same stale date). That is where `LiveDeparture`'s window ends, also for a train that
+    /// stood at its platform past its time (TT-233), so the card never ends while the source still has the train.
     static func departureStaleDate(_ live: LiveDeparture, now: Date, deviceNow: Date) -> Date {
         deviceNow.addingTimeInterval(live.endsAt.timeIntervalSince(now))
+    }
+
+    /// The app in front tells the server to ask "On board?" without an alert (TT-231) when the question is near as far as
+    /// the source knows (TT-233, D114): once the train has left, and before that only on the clock, within `silenceLead`
+    /// of its time with no position to go by. A train the feed places leaves when it moves off or the feed drops the
+    /// station, not at its time, so nothing is told ahead for it: told 75 s before its time, a rider who put the phone away
+    /// while the train still stood at the platform would get the question minutes later with no buzz. Told late instead
+    /// (the server's minute cycle saw the train leave first), the cost is the server's buzz over the open app.
+    static func asksSilently(_ live: LiveDeparture, now: Date) -> Bool {
+        if live.phase == .departed { return true }
+        guard !BoardingRule.hasSighting(of: live.departure, now: now) else { return false }
+        return live.leaves.timeIntervalSince(now) <= silenceLead
     }
 
     // MARK: The departure question (TT-231, D110)

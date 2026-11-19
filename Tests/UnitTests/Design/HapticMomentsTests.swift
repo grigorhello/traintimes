@@ -94,6 +94,26 @@ final class HapticMomentsTests: XCTestCase {
         XCTAssertNil(feels.moment(for: [train(.onTime)], now: at(1)) { _ in true })
     }
 
+    /// TT-233 (D114): Boarding is the train standing at its platform, so the Rail joint plays then, once, though the
+    /// position goes quiet for a poll and comes back, and not again by the clock in the last 2 min.
+    func testAWatchedTrainStandingAtItsPlatformPlaysRailJointAtTheRealMoment() {
+        var feels = WatchedTrainFeels()
+        func standing(seenMinutesBefore: Double) -> Departure {
+            let trip = Trip(
+                key: TripKey(serviceDay: day, tripId: "LW-0732"), scheduledDeparture: leaves,
+                scheduledArrival: leaves.addingTimeInterval(40 * 60), platform: .published("5"), tags: []
+            )
+            var departure = Departure(trip: trip, status: .onTime, expectedDeparture: leaves, expectedArrival: nil)
+            departure.originFix = OriginFix(metres: 140, reportedAt: at(seenMinutesBefore))
+            return departure
+        }
+        XCTAssertNil(feels.moment(for: [train(.onTime)], now: at(20)) { _ in true })
+        XCTAssertEqual(feels.moment(for: [standing(seenMinutesBefore: 15.1)], now: at(15)) { _ in true }, .boarding)
+        XCTAssertNil(feels.moment(for: [train(.onTime)], now: at(12)) { _ in true }, "the position went quiet")
+        XCTAssertNil(feels.moment(for: [standing(seenMinutesBefore: 10.1)], now: at(10)) { _ in true }, "and came back: not again")
+        XCTAssertNil(feels.moment(for: [train(.onTime)], now: at(1.9)) { _ in true }, "nor by the clock")
+    }
+
     // MARK: Alerts tab, feedback, detection
 
     func testRemoveDropsAndUndoTaps() async {

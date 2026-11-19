@@ -94,10 +94,12 @@ extension RideActivityAttributes.ContentState {
 extension RideActivityAttributes.ContentState {
     /// The alerted train's activity at `now` on its clock (Mock time, or the demo departure's own), the countdown anchored on
     /// the device clock as the ride's is: "5:13 PM departs in" over the minutes to the expected departure, "Platform" and the
-    /// pill at the right; "5:16 PM boarding now" in the last 2 min; once it has left, "5:16 PM departed" over "On board?"
-    /// with Yes and No (TT-231, D110), nothing at the right. `server/src/activity.ts` writes the same words for the same
-    /// train, so the alert server's activity and the app's look alike; only the app knows a posted platform (GO's feeds post
-    /// none, D35).
+    /// pill at the right; "5:16 PM boarding now" while the train stands at the rider's station (TT-233, D114: the phases are
+    /// `LiveDeparture`'s, which follows `BoardingRule`; the last 2 min with no position to go by), and past its time, while
+    /// it still stands there, "Departing" in the minutes' place; once it has left, "5:16 PM departed" over "On board?" with
+    /// Yes and No (TT-231, D110), nothing at the right. `server/src/activity.ts` writes the same words for the same train,
+    /// so the alert server's activity and the app's look alike; only the app knows a posted platform (GO's feeds post none,
+    /// D35).
     init(departure live: LiveDeparture, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
         let leaves = formatter.time(live.leaves)
         let asks = live.phase == .departed
@@ -114,8 +116,13 @@ extension RideActivityAttributes.ContentState {
         }
         let isLate = !asks && live.delayMinutes != nil
         countdownEnd = asks ? nil : deviceNow.addingTimeInterval(live.leaves.timeIntervalSince(now))
-        // The departure hero's and the timeline's minutes ("in 12 min"); the alert server writes the same each minute.
-        minutes = asks ? nil : String(format: String(localized: "onboard.minutes"), live.minutes(at: now))
+        // The departure hero's and the timeline's minutes ("in 12 min"); the alert server writes the same each minute. Once
+        // the train's time has come and it has not left, the timeline card's "Departing" (TT-233, D114): never "1 min" for
+        // a train that stands at its platform past its time. The server writes the word on the same condition.
+        let number = live.isDeparting(at: now)
+            ? String(localized: "schedule.departing")
+            : String(format: String(localized: "onboard.minutes"), live.minutes(at: now))
+        minutes = asks ? nil : number
         self.now = ""
         label = asks ? "" : String(localized: "depart.platformLabel")
         value = nil

@@ -84,6 +84,37 @@ final class DemoScheduleRepositoryTests: XCTestCase {
         XCTAssertTrue(departures.allSatisfy { $0.status == .scheduled && $0.expectedDeparture == nil })
     }
 
+    /// TT-233, D114: Live data › Board through the repository, as Schedule and Trip details read it. Every train carries its
+    /// platform, the live status places the next train at its platform, and the boarding rule reads Boarding for it; the
+    /// fixtures alone have no train feed, so nothing boards without it.
+    func testLiveDataBoardPutsTheNextTrainAtItsPlatform() async throws {
+        let base = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let now = base.now
+        let repository = DemoScheduleRepository(base: base, clock: FixedClock(now: now), mode: { .off }, mockLive: { .boarding })
+        let trips = try await repository.trips(for: base.route, on: base.serviceDay)
+        XCTAssertEqual(trips.count, 4)
+        XCTAssertTrue(trips.allSatisfy { if case .published = $0.platform { true } else { false } })
+
+        let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
+        let first = try XCTUnwrap(trips.min { $0.scheduledDeparture < $1.scheduledDeparture })
+        XCTAssertEqual(live.originFixes, [first.key.tripId: OriginFix(metres: MockLiveFeed.boardingMetres, reportedAt: now)])
+
+        let departures = Departure.resolve(trips, live: live, freshness: Freshness(live, now: now), isToday: true)
+        let next = try XCTUnwrap(departures.first)
+        XCTAssertEqual(next.id, first.key)
+        XCTAssertEqual(BoardingRule.phase(of: next, now: now), .boarding)
+        XCTAssertTrue(next.isBoarding(at: now))
+        XCTAssertEqual(departures.filter { $0.isBoarding(at: now) }.count, 1, "only the next train")
+
+        // Live data off: the fixtures place no train, so the same train waits by the clock.
+        let (plain, _) = try demo(.off)
+        let plainTrips = try await plain.trips(for: base.route, on: base.serviceDay)
+        let plainLive = try await plain.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertTrue(plainLive.originFixes.isEmpty)
+        let waiting = Departure.resolve(plainTrips, live: plainLive, freshness: Freshness(plainLive, now: now), isToday: true)
+        XCTAssertEqual(waiting.map { BoardingRule.phase(of: $0, now: now) }, [.waiting, .waiting, .waiting, .waiting])
+    }
+
     func testTheModeIsReadOnEachCall() async throws {
         final class Box: @unchecked Sendable { // read and written on the main actor in this test only
             var mode = DemoTrains.off

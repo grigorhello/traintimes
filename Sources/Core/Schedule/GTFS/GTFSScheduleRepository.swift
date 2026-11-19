@@ -3,13 +3,22 @@ import Foundation
 /// The schedule from GO Transit's published GTFS feed (TT-130, D35), with live status from its GTFS-realtime
 /// TripUpdates feed (TT-131, D36) and line notices from its Alerts feed (TT-132, D37). With no live feeds (an app built
 /// without the Metrolinx key) every trip is Scheduled and there are no notices. Neither feed carries platforms; those come
-/// from GO's departures board for the route's origin (TT-225).
+/// from GO's departures board for the route's origin (TT-225). GO's train feed says which trains stand at the origin
+/// (TT-233, D114).
 struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
+    /// A train is looked up in GO's train feed from this long before its scheduled departure (Union's trains stand at the
+    /// platform up to half an hour before they leave) until this long after it (a late train).
+    static let sightingLead: TimeInterval = 45 * 60
+    static let sightingTail: TimeInterval = 90 * 60
+
     let store: GTFSFeedStore
     var live: GTFSRealtimeStore?
     var alerts: GTFSRealtimeStore?
     var platforms: PlatformStore?
-    /// Decides which notices are active.
+    /// GO's train positions, for the trains at the route's origin (TT-233); nil without them, and every train then leaves
+    /// by the clock.
+    var trains: (any TrainPositionProviding)?
+    /// Decides which notices are active, and which trains are near enough to their time to look up.
     var clock: any AppClock = SystemClock()
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
@@ -19,7 +28,9 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
     /// The feed's word on the route's trains that day. Its age is the producer's timestamp, never the time it was
     /// fetched, so a feed that stopped updating turns stale (D13). A failed fetch keeps the last good feed, as offline.
     /// The origin's platforms come with it (TT-225), fetched alongside; a board that fails leaves the dash. The pill waits
-    /// (D55) only at a station whose board posts platforms.
+    /// (D55) only at a station whose board posts platforms. For the trains near their time it also says how far GO's train
+    /// feed places each from the origin station, and which have dropped the origin from their update, so a card boards and
+    /// departs with the train (TT-233, D114, `BoardingRule`); a train the feed does not carry gets neither.
     func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot {
         guard let live else { return .empty }
         let platforms = platforms, origin = route.from.id
@@ -32,9 +43,21 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
         let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
         let updates = feed.tripUpdates(on: day)
         var snapshot = LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline, hasPlatformSource: board?.platforms.isEmpty == false)
-        for call in try await store.timetable().directCalls(from: route.from.id, to: route.to.id, on: day) {
-            snapshot.updates[call.tripId] = updates[call.tripId]?.live(on: call, feedTime: updatedAt)
+        let timetable = try await store.timetable()
+        // The saved route's stations carry no place; the timetable's do.
+        let place = timetable.stations.first { $0.id == origin }?.place
+        let now = clock.now
+        for call in timetable.directCalls(from: route.from.id, to: route.to.id, on: day) {
+            let update = updates[call.tripId]
+            snapshot.updates[call.tripId] = update?.live(on: call, feedTime: updatedAt)
             snapshot.platforms[call.tripId] = board?.platform(forTrip: call.tripId)
+            if update?.hasLeft(call) == true { snapshot.leftOrigin.insert(call.tripId) }
+            let untilDeparture = call.departures[call.from].timeIntervalSince(now)
+            guard let trains, let place, untilDeparture <= Self.sightingLead, untilDeparture >= -Self.sightingTail,
+                  let position = await trains.position(of: TripKey(serviceDay: day, tripId: call.tripId)) else { continue }
+            snapshot.originFixes[call.tripId] = OriginFix(
+                metres: TrackShape.distance(position.coordinate, place), reportedAt: position.reportedAt
+            )
         }
         return snapshot
     }

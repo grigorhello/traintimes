@@ -11,7 +11,8 @@ struct DemoScheduleRepository: ScheduleRepository {
     /// Mock time is on (TT-158): the real live status belongs to the real clock, so with Demo trains off there is none.
     var isMockTime: @Sendable () -> Bool = { false }
     /// Settings › Testing › Live data (TT-195): a made-up live feed, used while Demo trains leaves live status alone (Off,
-    /// Ride, Departure). Read on each call, like the mode.
+    /// Ride, Departure). Read on each call, like the mode. Board (TT-233, D114) also places the next train at its platform
+    /// (`LiveSnapshot.originFixes`), so `BoardingRule` reads Boarding where the fixtures and Mock time have no train feed.
     var mockLive: @Sendable () -> MockLive = { .off }
 
     /// The made-up feed that applies now, or nil for the real one.
@@ -34,7 +35,10 @@ struct DemoScheduleRepository: ScheduleRepository {
 
     func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] {
         let trips = try await base.trips(for: route, on: day)
-        if activeMockLive == .mixed { return MockLiveFeed.withPlatforms(trips) }
+        // Live data › Mixed and Board post a platform on every train; Board's next train needs one to read Boarding
+        // (TT-233, D114). Its position at the platform comes with the live status below.
+        let feed = activeMockLive
+        if feed == .mixed || feed == .boarding { return MockLiveFeed.withPlatforms(trips) }
         guard mode() == .awaitingPlatform else { return trips }
         return awaitingPlatform(trips, on: day)
     }

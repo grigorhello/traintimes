@@ -315,6 +315,8 @@ struct ScheduleTimeline: View {
 /// One departure (TT-113, TT-157): three fixed rows, 118 pt in every state, so nothing moves between states (D50).
 /// Row 1: departure time, the Express bolt, the bell. Row 2: countdown and platform, trip length. Row 3: status line,
 /// "Arrival" and the arrival time. Delayed: amber times. Cancelled or stop skipped: struck grey times, no bolt, no bell.
+/// Boarding (TT-233, D114): the accent outline and tint, the platform pill filled and "Boarding" with its pinging dot;
+/// those three cross-fade in and out, and nothing else on the card animates with them.
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
@@ -335,8 +337,12 @@ struct DepartureCardView: View {
     @State private var isPressed = false
     /// Where the time, status and platform sit on the card, for their interest taps (TT-209).
     @State private var interestFrames: [String: CGRect] = [:]
+    /// The card has shown Boarding and has not gone back to waiting since (TT-233): kept once the train has left, so the
+    /// departure's status cross-fade starts from "Boarding", which the card itself no longer says.
+    @State private var wasBoarding = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playsScheduleMotion) private var playsMotion
 
     /// Top, trailing (the bell side), bottom and leading padding from the canvas.
     private static let padding = EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 10)
@@ -369,6 +375,7 @@ struct DepartureCardView: View {
                     InterestTracker.tap(element)
                 }
             })
+            .onChange(of: card.shownStatus, initial: true) { _, shown in noteStatus(shown) }
             // The bell sits over the time row, outside the card's one element, so it is a separate button.
             .overlay(alignment: .topTrailing) {
                 if !card.isCancelled {
@@ -381,7 +388,7 @@ struct DepartureCardView: View {
     }
 
     private var cardFace: some View {
-        Card(padding: 0, flatness: look.look) {
+        Card(padding: 0, flatness: look.look, highlight: card.isBoarding ? 1 : 0) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
                     .departedLook(look.look)
@@ -399,6 +406,7 @@ struct DepartureCardView: View {
                 .departedLook(look.look)
                 HStack(spacing: TTSpace.s2) {
                     status
+                        .animation(boardingFade, value: card.isBoarding)
                         .cardInterest("schedule.card.status") { interestFrames[$0] = $1 }
                     Spacer(minLength: 0)
                     arrival
@@ -408,7 +416,12 @@ struct DepartureCardView: View {
             }
             .padding(Self.padding)
             .frame(height: TimelineCardSize.standard.height, alignment: .top)
+            // The outline's cross-fade stops here: of the content only the status and the platform pill take it up again,
+            // so a time or a countdown that changes in the same update still changes at once.
+            .animation(nil, value: card.isBoarding)
         }
+        // Into and out of Boarding (TT-233, D114): the accent outline and tint cross-fade.
+        .animation(boardingFade, value: card.isBoarding)
         .coordinateSpace(.named(cardSpace))
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
             height = $0
@@ -418,16 +431,39 @@ struct DepartureCardView: View {
     }
 
     /// The status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so it
-    /// reads (D86). A cancelled train keeps "Cancelled".
-    @ViewBuilder private var status: some View {
-        if card.shownStatus != card.status {
-            ZStack(alignment: .leading) {
-                StatusLine(status: card.status).opacity(look.statusOut)
-                StatusLine(status: card.shownStatus).opacity(look.statusIn)
+    /// reads (D86). A cancelled train keeps "Cancelled". "Boarding" lies over the train's own status and cross-fades with
+    /// it (TT-233, D114); a train that leaves from Boarding fades from "Boarding" to "Departed" in the departure's play.
+    private var status: some View {
+        let departed = card.shownStatus == .departed
+        let boarding = card.isBoarding || (departed && wasBoarding)
+        // What the row said before the train left, fading out in the departure's play; at full strength until then.
+        let before = departed ? look.statusOut : 1
+        return ZStack(alignment: .leading) {
+            StatusLine(status: card.status).opacity(boarding ? 0 : before).accessibilityHidden(boarding)
+            if boarding, before > 0 {
+                StatusLine(status: .boarding).opacity(before).transition(.opacity)
             }
-        } else {
-            StatusLine(status: card.status)
+            // The play's own fade brings "Departed" in, so it takes no transition from the Boarding cross-fade.
+            if departed {
+                StatusLine(status: .departed).opacity(look.statusIn).transition(.identity)
+            }
         }
+    }
+
+    /// Keeps `wasBoarding`. "Departed" leaves it as it was, so the card remembers what it said before the train left; it is
+    /// written only when it changes, so a day of cards is not redrawn for it.
+    private func noteStatus(_ shown: TripStatus) {
+        guard shown != .departed else { return }
+        let boards = shown == .boarding
+        if boards != wasBoarding { wasBoarding = boards }
+    }
+
+    /// The cross-fade into and out of Boarding (TT-233, D114): `TTMotion.cross`, `TTMotion.fade` under Reduce Motion. None
+    /// when Schedule's motion is off (snapshots), nor when the train is drawn departed at once, with no play.
+    private var boardingFade: Animation? {
+        guard playsMotion else { return nil }
+        if card.isDeparted, look.statusOut == 0 { return nil }
+        return reduceMotion ? TTMotion.fade : TTMotion.cross
     }
 
     /// The departure time (34 pt on the next train, 32 pt otherwise) and the Express bolt 8 pt after it.
@@ -474,10 +510,14 @@ struct DepartureCardView: View {
             HStack(spacing: TTSpace.s1 + 2) {
                 // "Platform" and the pill first (TT-199, Grigor: "Platform 2 · in 11 min"): the number, or the dash, which
                 // pulses within 15 min of leaving when the feed posts platforms (TT-162). The 22 pt pill overhangs the
-                // 20 pt row into the gaps.
-                PlatformTag(number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform)
-                    .animation(.easeInOut(duration: 0.2), value: card.platformValue)
-                    .cardInterest("schedule.card.platform") { interestFrames[$0] = $1 }
+                // 20 pt row into the gaps. Filled while the train is Boarding (TT-233, D114).
+                PlatformTag(
+                    number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform,
+                    isFilled: card.isBoarding
+                )
+                .animation(.easeInOut(duration: 0.2), value: card.platformValue)
+                .animation(boardingFade, value: card.isBoarding)
+                .cardInterest("schedule.card.platform") { interestFrames[$0] = $1 }
                 // A departing lead keeps its "Departing" until the play fades it (D86).
                 if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
                     let opacity = card.relativeTime == nil ? look.leadOut : look.countdown

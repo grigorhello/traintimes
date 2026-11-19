@@ -8,7 +8,7 @@ enum GlassSwitchLabel {
     case text(LocalizedStringKey)
 }
 
-/// A choice between two to five options (TT-168, D57): a recessed track with one thumb that glides to the chosen option. Used
+/// A choice between two to six options (TT-168, D57): a recessed track with one thumb that glides to the chosen option. Used
 /// by Time format (three words) and the Testing switches (TT-172) in Settings. The thumb is Liquid
 /// Glass on iOS 26 and later, like the tab bar's pill, and a solid raised surface before it and when `\.rendersGlass` is off.
 /// The chosen symbol or word is accent and semibold and presses in on a spring (`settingsPress`); with `turns` a symbol
@@ -110,7 +110,7 @@ private struct SwitchSegmentLabel: View {
         case .symbol(let name):
             Image(systemName: name).font(.system(size: 18, weight: isSelected ? .semibold : .medium))
         case .text(let key):
-            // Five words share the Demo trains track: a long one shrinks a little before it truncates.
+            // Six words share the Demo trains and Live data tracks: a long one shrinks a little before it truncates.
             Text(key).font(.system(size: 15, weight: isSelected ? .semibold : .medium)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.8)
         }

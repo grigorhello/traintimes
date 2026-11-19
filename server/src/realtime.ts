@@ -301,6 +301,23 @@ export function liveStatus(update: TripUpdate, call: Call, feedTime: number): Li
   };
 }
 
+/**
+ * The train has left the rider's origin (TT-233, D114; the app's `TripUpdate.hasLeft(_:)`): GO lists only the stops still
+ * ahead and drops each one once the train has left it (D89), so an update that lists stops after the origin and none at
+ * or before it is a train past it. A cancelled trip keeps every stop, and an update with no stop of this trip says nothing.
+ */
+export function hasLeftOrigin(update: TripUpdate, call: Call): boolean {
+  if (update.cancelled) return false;
+  let listed = 0;
+  for (const stop of update.stopTimeUpdates) {
+    const position = stop.stopId === undefined ? -1 : call.stops.indexOf(stop.stopId);
+    if (position < 0) continue;
+    if (position <= call.from) return false;
+    listed++;
+  }
+  return listed > 0;
+}
+
 /** One train from GO's VehiclePosition feed (TT-179), as `GET /v1/trains` serves it. */
 export interface TrainPosition {
   tripId: string;

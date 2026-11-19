@@ -159,7 +159,8 @@ struct SettingsTestingPage: View {
 
     // MARK: Live data
 
-    /// Live data (TT-195): a made-up feed on the real timetable, five choices on the same switch as Demo trains.
+    /// Live data (TT-195): a made-up feed on the real timetable, six choices on the same switch as Demo trains; the sixth,
+    /// Board, shows Boarding at the platform (TT-233, D114).
     private var liveCard: some View {
         SettingsCard {
             VStack(alignment: .leading, spacing: 10) {
@@ -287,6 +288,7 @@ private extension MockLive {
         case .mixed: "settings.live_data.mixed_detail"
         case .changing: "settings.live_data.changing_detail"
         case .stale: "settings.live_data.stale_detail"
+        case .boarding: "settings.live_data.boarding_detail"
         }
     }
 }

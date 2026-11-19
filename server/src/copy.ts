@@ -26,6 +26,8 @@ export const strings = {
   'depart.boardingLine': '%@ boarding now',
   'depart.departed': 'Departed %@',
   'depart.platformLabel': 'Platform',
+  // In the minutes' place once the train's time has come and it still stands at the station (TT-233).
+  'schedule.departing': 'Departing',
   'onboard.minutes': '%d min',
   'onboard.late': '%d min late',
   'live.updated': 'Updated %@',

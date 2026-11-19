@@ -111,6 +111,104 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertTrue(RideLiveActivity.needsUpdate(from: departure, to: boarding, sentAt: deviceNow, now: deviceNow))
     }
 
+    // MARK: Boarding at the platform (TT-233, D114)
+
+    /// The 5:13 PM train, on time, Platform 7 posted, where GO's train feed places it: `metres` from the rider's station,
+    /// seen at `seen`. With no `metres` the feed does not place it, and it follows the clock.
+    private func train(metres: Double? = nil, seen: Date = DepartureRig.time(17, 0)) -> Departure {
+        let leaves = DepartureRig.time(17, 13)
+        return Departure(
+            trip: Trip(
+                key: TripKey(serviceDay: DepartureRig.day, tripId: "LW-1713"), scheduledDeparture: leaves,
+                scheduledArrival: leaves.addingTimeInterval(30 * 60), platform: .published("7"), tags: []
+            ),
+            status: .onTime,
+            expectedDeparture: leaves,
+            expectedArrival: leaves.addingTimeInterval(30 * 60),
+            originFix: metres.map { OriginFix(metres: $0, reportedAt: seen) }
+        )
+    }
+
+    private func content(of train: Departure, at time: Date) throws -> RideActivityAttributes.ContentState {
+        let live = try XCTUnwrap(LiveDeparture(train, now: time))
+        return RideActivityAttributes.ContentState(departure: live, now: time, deviceNow: deviceNow, formatter: formatter)
+    }
+
+    private func asksSilently(_ train: Departure, at time: Date) throws -> Bool {
+        let live = try XCTUnwrap(LiveDeparture(train, now: time))
+        return RideLiveActivity.asksSilently(live, now: time)
+    }
+
+    func testATrainAtItsPlatformIsBoardingNowLongBeforeItsTime() throws {
+        let content = try content(of: train(metres: 150, seen: DepartureRig.time(16, 58)), at: DepartureRig.time(16, 58, 10))
+        XCTAssertEqual(content.phase, .boarding, "15 min before, standing at its platform")
+        XCTAssertEqual(content.title, "5:13 PM boarding now")
+        XCTAssertEqual(content.minutes, "14 min", "Still the minutes to its time")
+        XCTAssertTrue(content.isClose, "Mint: the number, the line's words and the platform's number")
+        XCTAssertEqual(content.label, "Platform")
+        XCTAssertEqual(content.platformNumber, "7")
+        XCTAssertFalse(content.asks)
+        XCTAssertEqual(try secondsLeft(content), 14 * 60 + 50, accuracy: 1)
+    }
+
+    func testPastItsTimeAndStillAtThePlatformTheMinutesGiveWayToDeparting() throws {
+        let lastMinute = try content(of: train(metres: 150, seen: DepartureRig.time(17, 12, 20)), at: DepartureRig.time(17, 12, 30))
+        XCTAssertEqual(lastMinute.minutes, "1 min", "Its time has not come")
+
+        let departing = try content(of: train(metres: 150, seen: DepartureRig.time(17, 14)), at: DepartureRig.time(17, 14, 10))
+        XCTAssertEqual(departing.phase, .boarding, "No Departed until it moves")
+        XCTAssertEqual(departing.title, "5:13 PM boarding now")
+        XCTAssertEqual(departing.minutes, "Departing", "Never \"1 min\" for a train past its time")
+        XCTAssertTrue(departing.isClose)
+        XCTAssertFalse(departing.asks)
+        XCTAssertEqual(departing.label, "Platform")
+        XCTAssertEqual(departing.platformNumber, "7")
+        XCTAssertEqual(try secondsLeft(departing), -70, accuracy: 1, "The countdown's end is kept: its time, now past")
+
+        // The word is a change the rider sees, so the card is sent again; then nothing until it moves.
+        var shown = departing
+        shown.minutes = "1 min"
+        XCTAssertTrue(RideLiveActivity.needsUpdate(from: shown, to: departing, sentAt: deviceNow, now: deviceNow))
+        XCTAssertFalse(RideLiveActivity.needsUpdate(from: departing, to: departing, sentAt: deviceNow, now: deviceNow))
+    }
+
+    func testOnceItMovesOffTheCardAsks() throws {
+        let content = try content(of: train(metres: 800, seen: DepartureRig.time(17, 14, 30)), at: DepartureRig.time(17, 14, 40))
+        XCTAssertEqual(content.phase, .departed)
+        XCTAssertTrue(content.isAsking, "TT-231's question, at the moment the train moves")
+        XCTAssertEqual(content.title, "5:13 PM departed")
+        XCTAssertNil(content.minutes)
+        XCTAssertNil(content.countdownEnd)
+        XCTAssertNil(content.platformNumber)
+        XCTAssertFalse(content.isClose)
+    }
+
+    func testOnTheClockTheWordDepartingNeverShows() throws {
+        let boarding = try content(of: train(), at: DepartureRig.time(17, 12, 59))
+        XCTAssertEqual(boarding.phase, .boarding, "No position: the last 2 min, as before")
+        XCTAssertEqual(boarding.minutes, "1 min")
+        let left = try content(of: train(), at: DepartureRig.time(17, 13))
+        XCTAssertEqual(left.phase, .departed, "And it has left at its time")
+        XCTAssertNil(left.minutes)
+    }
+
+    func testTheServerIsToldToAskSilentlyOnTheClockOrOnceAPlacedTrainHasLeft() throws {
+        // No position: 75 s before its time, as before TT-233.
+        XCTAssertFalse(try asksSilently(train(), at: DepartureRig.time(17, 11, 44)))
+        XCTAssertTrue(try asksSilently(train(), at: DepartureRig.time(17, 11, 45)))
+        XCTAssertTrue(try asksSilently(train(), at: DepartureRig.time(17, 13, 30)), "It has left, by the clock")
+        // At its platform nothing is told ahead: it leaves when it moves, not at its time.
+        XCTAssertFalse(try asksSilently(train(metres: 150, seen: DepartureRig.time(17, 12)), at: DepartureRig.time(17, 12, 30)))
+        XCTAssertFalse(
+            try asksSilently(train(metres: 150, seen: DepartureRig.time(17, 15)), at: DepartureRig.time(17, 15, 10)),
+            "Still boarding 2 min past its time"
+        )
+        XCTAssertTrue(
+            try asksSilently(train(metres: 800, seen: DepartureRig.time(17, 15, 20)), at: DepartureRig.time(17, 15, 30)),
+            "It moved off"
+        )
+    }
+
     // MARK: The push payload
 
     func testTheStateRoundTripsWithItsCountdownAsSecondsSince1970() throws {

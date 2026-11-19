@@ -16,6 +16,10 @@ enum MockLive: String, CaseIterable, Sendable {
     case changing
     /// The next train late, reported 8 min ago: past the 3 min threshold, so cards fall back to Scheduled.
     case stale
+    /// Boarding at the platform (TT-233, D114): every train live and on time with its platform posted, and the next train
+    /// stands at its platform, so it reads Boarding at once and "Departing" for 1 min past its time; then it has moved off
+    /// and the train after it boards (`BoardingRule`).
+    case boarding
 
     static let key = "settings.mockLive"
 
@@ -41,6 +45,14 @@ enum MockLiveFeed {
     /// Stale: how long ago the data was reported, and the next train's delay in it.
     static let staleAge: TimeInterval = 8 * 60
     static let staleDelayMinutes = 5
+    /// Board (TT-233, D114): the next train stands this far from the station (inside `BoardingRule.radius`) until this long
+    /// past its time.
+    static let boardingMetres: Double = 120
+    static let boardingHold: TimeInterval = 60
+    /// Board: a train that has moved off is placed this far away (outside the radius) for this long; after that nothing
+    /// is said about it, which is the clock.
+    static let movedMetres: Double = 900
+    static let movedFor: TimeInterval = 10 * 60
 
     /// The live snapshot for `mode` (never `.off`) on `trips` at `now`.
     static func snapshot(_ mode: MockLive, trips: [Trip], now: Date) -> LiveSnapshot {
@@ -48,6 +60,8 @@ enum MockLiveFeed {
         let reportedAt = mode == .stale ? now.addingTimeInterval(-staleAge) : now
         var updates: [String: LiveTripUpdate] = [:]
         for trip in trips { updates[trip.key.tripId] = onTime(trip, at: reportedAt) }
+        // Where the train feed places trains against the route's origin: Board's only.
+        var fixes: [String: OriginFix] = [:]
 
         switch mode {
         case .off, .onTime:
@@ -75,11 +89,24 @@ enum MockLiveFeed {
             if let next = trips.first(where: { $0.scheduledDeparture.addingTimeInterval(delay) >= now }) {
                 updates[next.key.tripId] = late(next, minutes: staleDelayMinutes, at: reportedAt)
             }
+        case .boarding:
+            // A train's minute at the platform past its time is over: it has moved off, and is placed away from the
+            // station for 10 min. Earlier trains get no position, so they follow the clock.
+            for trip in trips {
+                let movedAt = trip.scheduledDeparture.addingTimeInterval(boardingHold)
+                if movedAt <= now, now.timeIntervalSince(movedAt) <= movedFor {
+                    fixes[trip.key.tripId] = OriginFix(metres: movedMetres, reportedAt: now)
+                }
+            }
+            // The next train is the first one still there: it stands at its platform, however far off its time is.
+            if let next = trips.first(where: { $0.scheduledDeparture.addingTimeInterval(boardingHold) > now }) {
+                fixes[next.key.tripId] = OriginFix(metres: boardingMetres, reportedAt: now)
+            }
         }
-        return LiveSnapshot(updatedAt: reportedAt, updates: updates)
+        return LiveSnapshot(updatedAt: reportedAt, updates: updates, originFixes: fixes)
     }
 
-    /// Mixed posts a platform on every train, from 3 to 6 in turn.
+    /// Mixed and Board post a platform on every train, from 3 to 6 in turn (a train boards only with its platform posted).
     static func withPlatforms(_ trips: [Trip]) -> [Trip] {
         trips.sorted { $0.scheduledDeparture < $1.scheduledDeparture }.enumerated().map { index, trip in
             var trip = trip

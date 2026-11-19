@@ -1,49 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeVehicles } from '../src/realtime.ts';
-import { downloadFeed, FeedRelay, handleLive, type FeedName } from '../src/relay.ts';
-import { at, repoFile } from './support.ts';
-
-// A small protobuf writer for a VehiclePosition sample (the TT-131 samples have no positions).
-const varint = (n: number): number[] => {
-  const out: number[] = [];
-  while (n > 0x7f) {
-    out.push((n % 128) | 0x80);
-    n = Math.floor(n / 128);
-  }
-  out.push(n);
-  return out;
-};
-const bytesField = (number: number, value: number[] | string) => {
-  const data = typeof value === 'string' ? [...new TextEncoder().encode(value)] : value;
-  return [...varint((number << 3) | 2), ...varint(data.length), ...data];
-};
-const varintField = (number: number, value: number) => [...varint(number << 3), ...varint(value)];
-const floatField = (number: number, value: number) => {
-  const view = new DataView(new ArrayBuffer(4));
-  view.setFloat32(0, value, true);
-  return [...varint((number << 3) | 5), ...new Uint8Array(view.buffer)];
-};
-
-function vehicle(id: string, trip: string, route: string, lat: number, lon: number, status: number | null, time: number) {
-  const descriptor = [...bytesField(1, trip), ...bytesField(3, '20261109'), ...bytesField(5, route)];
-  const position = [...floatField(1, lat), ...floatField(2, lon), ...floatField(3, 90)];
-  const vp = [
-    ...bytesField(1, descriptor),
-    ...bytesField(2, position),
-    ...(status === null ? [] : varintField(4, status)),
-    ...varintField(5, time / 1000),
-    ...bytesField(8, [...bytesField(1, 'V1')]),
-  ];
-  return bytesField(2, [...bytesField(1, id), ...bytesField(4, vp)]);
-}
+import { downloadFeed, FeedRelay, handleLive, vehiclesOf, type FeedName } from '../src/relay.ts';
+import { at, feedMessage, repoFile, vehicle } from './support.ts';
 
 /** Two Lakeshore West trains (one stopped at a station) and one Kitchener train at 7:00 AM on Nov 9. */
-const sample = new Uint8Array([
-  ...bytesField(1, [...bytesField(1, '2.0'), ...varintField(3, at('7:00') / 1000)]),
-  ...vehicle('1', '20261109-LW-1713', '09261126-LW', 43.4467, -79.6668, 1, at('6:59:50')),
-  ...vehicle('2', '20261109-LW-1015', '09261126-LW', 43.6, -79.5, null, at('6:59:40')),
-  ...vehicle('3', '20261109-GT-3531', '09261126-GT', 43.7, -79.6, 2, at('6:59:30')),
+const sample = feedMessage(at('7:00'), [
+  vehicle('1', '20261109-LW-1713', '09261126-LW', 43.4467, -79.6668, 1, at('6:59:50')),
+  vehicle('2', '20261109-LW-1015', '09261126-LW', 43.6, -79.5, null, at('6:59:40')),
+  vehicle('3', '20261109-GT-3531', '09261126-GT', 43.7, -79.6, 2, at('6:59:30')),
 ]);
 
 function rig(feeds: Partial<Record<FeedName, Uint8Array | null>>) {
@@ -104,6 +69,21 @@ test('GET /v1/trains returns the trains of a line, and a second request within 3
   advance(1);
   await get(relay, '/v1/trains');
   assert.deepEqual(calls, ['VehiclePosition', 'VehiclePosition']);
+});
+
+test('a snapshot is decoded once for GET /v1/trains and the minute cycle (TT-233)', async () => {
+  const { relay, advance } = rig({ VehiclePosition: sample });
+  const snapshot = (await relay.get('VehiclePosition'))!;
+  const vehicles = vehiclesOf(snapshot);
+  assert.equal(vehicles.trains.length, 3);
+  assert.equal(vehicles.timestamp, at('7:00'));
+  assert.equal(vehiclesOf(snapshot), vehicles, 'the same decode, not a second one');
+  // The endpoint serves that decode: a train changed in it shows in the answer.
+  vehicles.trains[0].stopped = false;
+  const body = (await (await get(relay, '/v1/trains'))!.json()) as TrainsBody;
+  assert.equal(body.trains[0].stopped, false);
+  advance(30);
+  assert.notEqual(vehiclesOf((await relay.get('VehiclePosition'))!), vehicles, 'a new snapshot is decoded anew');
 });
 
 test('relays TripUpdates and Alerts as GO sent them', async () => {

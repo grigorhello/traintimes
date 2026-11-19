@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { downloadNextService, handlePlatforms, parseNextService, PlatformRelay } from '../src/platforms.ts';
+import { downloadNextService, handlePlatforms, parseNextService, platformFor, PlatformRelay } from '../src/platforms.ts';
 
 const line = (trip: string, scheduled: string, actual: string, extra: Record<string, unknown> = {}) => ({
   StopCode: 'UN', LineCode: 'LW', ServiceType: 'T', TripNumber: trip,
@@ -30,6 +30,13 @@ test('one train comes as an object, none as null', () => {
   assert.equal(parseNextService({ NextService: { Lines: line('1713', '3', '') } })[0]?.platform, '3');
   assert.deepEqual(parseNextService({ NextService: { Lines: null } }), []);
   assert.deepEqual(parseNextService({ NextService: null }), []);
+});
+
+test('a train’s platform is found by GO’s trip number, the last part of its trip id, as the app finds it (TT-233)', () => {
+  const board = { fetchedAt: 0, trips: parseNextService({ NextService: { Lines: [line('1713', '3', ''), line('1715', '', ''), line('1713', '', '11 & 12')] } }) };
+  assert.equal(platformFor(board, '20261118-LW-1713'), '11 & 12', 'the last posting wins');
+  assert.equal(platformFor(board, '20261118-LW-1715'), null, 'on the board with no platform yet');
+  assert.equal(platformFor(board, '20261118-LW-1717'), null, 'not on the board');
 });
 
 test('the download asks GO for the station next to the feeds, with the key, and never without it', async () => {

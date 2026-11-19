@@ -20,6 +20,10 @@ final class DepartureCardSnapshotTests: XCTestCase {
     /// saved), filled, crossed (notifications off).
     @MainActor func testBellFacesLight() { snap(Self.bellFaces, .light) }
     @MainActor func testBellFacesDark() { snap(Self.bellFaces, .dark) }
+    /// TT-233 (D114), board 1: on its way in, Boarding, Boarding past its time ("Departing"), Departed, Boarding and late
+    /// with the alert on, and the clock's last minute with no train position.
+    @MainActor func testBoardingLight() { snap(Self.boarding, .light) }
+    @MainActor func testBoardingDark() { snap(Self.boarding, .dark) }
 
     private struct Sample {
         let card: DepartureCard
@@ -32,8 +36,8 @@ final class DepartureCardSnapshotTests: XCTestCase {
     private static func sample(
         _ hour: Int, _ minute: Int, minutes: Int = 40, platform: Platform = .pending, express: Bool = false,
         status: TrainStatus = .onTime, delay: Int = 0, isNext: Bool = false, nowBefore: TimeInterval = 11 * 60,
-        nextUsableBelow: Bool = true, awaitsPlatform: Bool = false, formatter: TimeFormatter = twelve,
-        bell: AlertBellModel.Bell = .off
+        nextUsableBelow: Bool = true, awaitsPlatform: Bool = false, isDeparted: Bool = false, isBoarding: Bool = false,
+        formatter: TimeFormatter = twelve, bell: AlertBellModel.Bell = .off
     ) -> Sample {
         let departure = day.date(hour: hour, minute: minute)
         let trip = Trip(
@@ -52,9 +56,22 @@ final class DepartureCardSnapshotTests: XCTestCase {
         )
         let now = resolved.departureTime.addingTimeInterval(-nowBefore)
         let card = DepartureCard(
-            resolved, isNext: isNext, nextUsableBelow: nextUsableBelow, awaitsPlatform: awaitsPlatform, now: now, formatter: formatter
+            resolved, isNext: isNext, nextUsableBelow: nextUsableBelow, awaitsPlatform: awaitsPlatform, isDeparted: isDeparted,
+            isBoarding: isBoarding, now: now, formatter: formatter
         )
         return Sample(card: card, bell: bell)
+    }
+
+    private static var boarding: [Sample] {
+        [
+            sample(17, 58, platform: .published("7"), express: true, isNext: true, nowBefore: 14 * 60),
+            sample(17, 58, platform: .published("7"), express: true, isNext: true, nowBefore: 8 * 60, isBoarding: true),
+            sample(17, 58, platform: .published("7"), express: true, isNext: true, nowBefore: -60, isBoarding: true),
+            sample(17, 58, platform: .published("7"), express: true, nowBefore: -90, isDeparted: true),
+            sample(17, 58, platform: .published("7"), express: true, status: .delayed(minutes: 6, reportedAt: reported),
+                   delay: 6, isNext: true, nowBefore: 9 * 60, isBoarding: true, bell: .on),
+            sample(17, 58, platform: .published("7"), express: true, isNext: true, nowBefore: 30),
+        ]
     }
 
     private static var waiting: Sample { sample(7, 58, express: true, isNext: true, awaitsPlatform: true) }

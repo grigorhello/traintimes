@@ -10,7 +10,7 @@ import { ApnsClient } from './apns.ts';
 import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed } from './realtime.ts';
 import { downloadNextService, handlePlatforms, PlatformRelay } from './platforms.ts';
-import { downloadFeed, FeedRelay, handleLive } from './relay.ts';
+import { downloadFeed, FeedRelay, handleLive, vehiclesOf } from './relay.ts';
 import { GITHUB_JWKS_URL, handleTimetableUpload, type JWKS } from './upload.ts';
 
 export interface Env {
@@ -110,7 +110,19 @@ export default {
           console.warn('TripUpdates decode failed', error);
           return null;
         }
-      }, now: Date.now() });
+      },
+      // Boarding at the platform (TT-233): the same copies the app reads through the relays, one decode per snapshot.
+      positions: async () => {
+        const snapshot = await feedRelay(env).get('VehiclePosition');
+        try {
+          return snapshot ? vehiclesOf(snapshot) : null;
+        } catch (error) {
+          console.warn('VehiclePosition decode failed', error);
+          return null;
+        }
+      },
+      platforms: (stop) => platformRelay(env).get(stop),
+      now: Date.now() });
     if (sent.length) console.log(`Sent ${sent.length} alerts`);
   },
 } satisfies ExportedHandler<Env>;

@@ -209,6 +209,20 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertNil(gone.delayBar)
     }
 
+    /// A train still standing at its station past its time has not left (TT-233, D114): it keeps its place, and a later
+    /// train that has left waits behind it, so no stepped-up card lands on it. Once it moves off they step up together.
+    func testATrainStandingAtItsStationPastItsTimeDoesNotStepUp() {
+        var standing = train("b", 7, 32)
+        standing.originFix = OriginFix(metres: 120, reportedAt: at(7, 33))
+        let held = layout([train("a", 7, 25), standing, train("c", 7, 33), train("d", 7, 58)], now: at(7, 34)).cards
+        XCTAssertEqual(held.map(\.isSteppedUp), [true, false, false, false])
+        XCTAssertEqual(held[1].railY, held[1].markerY, accuracy: 0.001)
+
+        standing.originFix = OriginFix(metres: 900, reportedAt: at(7, 33))
+        let gone = layout([train("a", 7, 25), standing, train("c", 7, 33), train("d", 7, 58)], now: at(7, 34)).cards
+        XCTAssertEqual(gone.map(\.isSteppedUp), [true, true, true, false])
+    }
+
     // MARK: Compact scale
 
     func testCompactScale() throws {

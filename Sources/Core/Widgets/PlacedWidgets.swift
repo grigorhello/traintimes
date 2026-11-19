@@ -2,10 +2,24 @@ import AppIntents
 import Foundation
 import WidgetKit
 
-/// One widget on the Home Screen or in StandBy (TT-183): which one, and its own route when Edit widget has a From and a To.
+/// One widget on the Home Screen, in StandBy or on the Lock Screen (TT-183, TT-184): which one, and its own route when
+/// Edit widget has a From and a To.
 struct PlacedWidget: Equatable, Sendable {
     let kind: WidgetKind
     let route: WidgetFile.RouteKey?
+}
+
+extension WidgetKind {
+    /// A placed widget by its WidgetKit kind and family: Next train's Lock Screen sizes go by their own names (TT-184).
+    init?(kind: String, family: WidgetFamily) {
+        guard let widget = WidgetKind(kind: kind) else { return nil }
+        switch (widget, family) {
+        case (.nextTrain, .accessoryRectangular): self = .lockRectangular
+        case (.nextTrain, .accessoryCircular): self = .lockCircular
+        case (.nextTrain, .accessoryInline): self = .lockInline
+        default: self = widget
+        }
+    }
 }
 
 /// The widgets the rider has placed; nil when they could not be read, which is not the same as none. Tests pass a fake;
@@ -20,7 +34,7 @@ struct SystemPlacedWidgets: PlacedWidgetsProviding {
         await withCheckedContinuation { continuation in
             WidgetCenter.shared.getCurrentConfigurations { result in
                 let placed = (try? result.get())?.compactMap { info -> PlacedWidget? in
-                    guard let kind = WidgetKind(kind: info.kind) else { return nil }
+                    guard let kind = WidgetKind(kind: info.kind, family: info.family) else { return nil }
                     return PlacedWidget(kind: kind, route: info.widgetConfigurationIntent(of: TrainWidgetIntent.self)?.route)
                 }
                 continuation.resume(returning: placed)

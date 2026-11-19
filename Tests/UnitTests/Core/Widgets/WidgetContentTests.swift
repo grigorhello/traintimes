@@ -393,14 +393,14 @@ final class WidgetContentTests: XCTestCase {
         count.report([])
         XCTAssertEqual(recorder.events, [])
         count.report([small, small, medium])
-        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 2, departures: 1)])
+        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 2, departures: 1, lock: 0)])
         // The same widgets on the next foreground send nothing.
         count.report([medium, small, small])
         XCTAssertEqual(recorder.events.count, 1)
         // All removed is a change.
         count.report([])
-        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 0, departures: 0))
-        XCTAssertEqual(recorder.events.last?.properties, ["next_train": .int(0), "departures": .int(0)])
+        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 0, departures: 0, lock: 0))
+        XCTAssertEqual(recorder.events.last?.properties, ["next_train": .int(0), "departures": .int(0), "lock": .int(0)])
     }
 
     @MainActor

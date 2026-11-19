@@ -111,21 +111,34 @@ struct WidgetFile: Codable, Equatable, Sendable {
     }
 }
 
-/// The Home Screen widgets (TT-183): the names links and analytics use, and each one's WidgetKit kind.
+/// The widgets by the names links and analytics use, and each one's WidgetKit kind: the Home Screen's two (TT-183) and
+/// Next train's three Lock Screen sizes (TT-184), which are the same WidgetKit widget under names of their own.
 enum WidgetKind: String, CaseIterable, Sendable {
     case nextTrain = "next_train"
     case departures
+    case lockRectangular = "lock_rectangular"
+    case lockCircular = "lock_circular"
+    case lockInline = "lock_inline"
 
     /// The kind WidgetKit knows the widget by.
     var kind: String {
         switch self {
-        case .nextTrain: "NextTrain"
+        case .nextTrain, .lockRectangular, .lockCircular, .lockInline: "NextTrain"
         case .departures: "Departures"
         }
     }
 
+    /// One of Next train's Lock Screen sizes.
+    var isOnLockScreen: Bool {
+        switch self {
+        case .lockRectangular, .lockCircular, .lockInline: true
+        case .nextTrain, .departures: false
+        }
+    }
+
+    /// The widget of a WidgetKit kind; a Lock Screen size is told from Next train by its family (`init(kind:family:)`).
     init?(kind: String) {
-        guard let match = Self.allCases.first(where: { $0.kind == kind }) else { return nil }
+        guard let match = [Self.nextTrain, .departures].first(where: { $0.kind == kind }) else { return nil }
         self = match
     }
 }

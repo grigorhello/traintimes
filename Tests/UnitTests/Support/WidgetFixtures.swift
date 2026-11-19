@@ -60,6 +60,20 @@ enum WidgetFixtures {
         entry(at(8, 1), .trains(trains([train(8, 6, minutes: 30, express: true), train(8, 28, alerted: true), train(8, 58)])))
     }
 
+    /// The alerted 8:28 behind the 8:06 express, as the builder marks it from 2 h before (Your train, the 8:06 Earlier). At
+    /// 7:58 AM it is 30 min away: on the Lock Screen its Live Activity has it, so the 8:06 leads there (TT-184).
+    static func handOver(at date: Date = at(7, 58)) -> WidgetEntry {
+        var list = trains([train(8, 6, minutes: 30, express: true), train(8, 28, alerted: true), train(8, 58)])
+        list.yourTrain = 1
+        list.earlier = 0
+        return entry(date, .trains(list))
+    }
+
+    /// The 7:58 from further away: 6:30 AM is 88 min before it.
+    static func farTrain(at date: Date = at(6, 30), format: TimeFormat = .twelveHour) -> WidgetEntry {
+        entry(date, .trains(trains([train(7, 58), train(8, 6, minutes: 30, express: true), train(8, 28)])), format: format)
+    }
+
     /// 8:05:30 AM: the 8:06 leaves in the minute.
     static var leavingNow: WidgetEntry {
         entry(at(8, 5, second: 30), .trains(trains([train(8, 6, minutes: 30, express: true), train(8, 28), train(8, 58)])))

@@ -35,7 +35,7 @@ final class WidgetSnapshotTests: XCTestCase {
         late.lastTrain = 0
         late.nextDayFirst = WidgetFixtures.train(5, 43, on: WidgetFixtures.day.adding(days: 1))
         let lateEntry = WidgetFixtures.entry(WidgetFixtures.at(21, 17), .trains(late))
-        for widget in WidgetKind.allCases {
+        for widget in [WidgetKind.nextTrain, .departures] {
             snap(widget, lateEntry, "late-express", .light)
             snap(widget, WidgetFixtures.nextTrain(format: .twentyFourHour), "24-hour", .light)
         }

@@ -35,6 +35,10 @@ struct WidgetText: Equatable, Sendable {
         pieces = [Piece(text: text, isStrong: false)]
     }
 
+    init(pieces: [Piece]) {
+        self.pieces = pieces
+    }
+
     /// A localized format with its first value strong and the rest plain: "First train tomorrow %1$@, arrives %2$@".
     init(format: String, strong: String, _ rest: String...) {
         let mark = "\u{1}"
@@ -117,7 +121,7 @@ struct WidgetMessage: Equatable, Sendable {
     }
 }
 
-private extension WidgetEntry {
+extension WidgetEntry {
     /// The header, in the states that know the route.
     var header: Header? {
         switch state {
@@ -227,7 +231,7 @@ struct NextTrainContent: Equatable, Sendable {
     }
 }
 
-private extension WidgetMessage {
+extension WidgetMessage {
     init(title: String, detail: WidgetText?) {
         self.title = title
         self.detail = detail

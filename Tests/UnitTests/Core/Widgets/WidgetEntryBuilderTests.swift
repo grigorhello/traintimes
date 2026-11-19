@@ -301,4 +301,52 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertEqual(timeline.entries.map(\.state), [.notLoaded])
         XCTAssertEqual(timeline.reloadAt, at(thu, "03:00"))
     }
+
+    // MARK: - The Lock Screen sizes (TT-184)
+
+    /// The Lock Screen's switches all land on entries the timeline already has (the minutes of a countdown, D113), so it
+    /// adds none: 60 min before a train the circular turns from the clock time to the minutes, 30 min before it the ring
+    /// starts to empty and an alerted train goes to its Live Activity, and the last minute reads "now". From 10:20 AM
+    /// with the alerted 11:30 next.
+    func testTheLockScreensSwitchesLandOnTheTimelinesEntries() {
+        let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: at(wed, "10:20"))
+        func entry(_ time: String) -> WidgetEntry? {
+            timeline.entries.first { $0.date == at(wed, time) }
+        }
+        func circular(_ time: String) -> LockCircularContent? {
+            entry(time).map { LockCircularContent($0) }
+        }
+        // Your train, with the bell: the clock time until 60 min before, then the minutes, the ring still whole.
+        XCTAssertEqual(circular("10:29")?.glyph, .bell)
+        XCTAssertEqual(circular("10:29")?.value, "11:30")
+        XCTAssertNil(circular("10:29")?.caption)
+        XCTAssertEqual(circular("10:30")?.value, "60")
+        XCTAssertEqual(circular("10:30")?.caption, "min")
+        XCTAssertEqual(circular("10:59")?.glyph, .bell)
+        XCTAssertEqual(circular("10:59")?.ring, 1)
+        // 30 min before: the hand-over (the train, not the bell) and the ring's start.
+        XCTAssertEqual(circular("11:00")?.glyph, .train)
+        XCTAssertEqual(circular("11:00")?.value, "30")
+        XCTAssertEqual(circular("11:00")?.ring, 1)
+        XCTAssertEqual(circular("11:00")?.ringInterval, at(wed, "11:00")...at(wed, "11:30"))
+        XCTAssertEqual(circular("11:15")?.ring, 0.5)
+        // The last minute, and at the departure the next train, an hour away.
+        XCTAssertEqual(circular("11:29")?.value, "now")
+        XCTAssertEqual(circular("11:29")?.caption, "11:30")
+        XCTAssertEqual(circular("11:29")?.ring, 0)
+        XCTAssertEqual(circular("11:30")?.value, "60")
+
+        // The rectangular at the same moments: Your train until 30 min before, then the next train.
+        func header(_ time: String) -> LockRectangularContent.Header? {
+            guard let moment = entry(time), case .train(let train) = LockRectangularContent(moment).body else { return nil }
+            return train.header
+        }
+        XCTAssertEqual(header("10:59"), .yourTrain(to: "Union"))
+        XCTAssertEqual(header("11:00"), .route(from: "Oakville", to: "Union"))
+        // The Home Screen keeps Your train until it leaves.
+        guard let handedOver = entry("11:00"), case .train(let small) = NextTrainContent(handedOver).body else {
+            return XCTFail("Expected a train at 11:00")
+        }
+        XCTAssertEqual(small.isYourTrain, true)
+    }
 }

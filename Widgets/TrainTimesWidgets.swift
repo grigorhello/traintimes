@@ -2,8 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// The widget extension (TT-174, TT-181): the On board Live Activity and the Home Screen widgets, Next train and
-/// Departures (TT-183).
+/// The widget extension (TT-174, TT-181): the On board Live Activity and the widgets, Next train (Home Screen, StandBy and
+/// the Lock Screen, TT-184) and Departures (TT-183).
 @main
 struct TrainTimesWidgets: WidgetBundle {
     var body: some Widget {

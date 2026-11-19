@@ -44,6 +44,8 @@ final class OnBoard {
     private let requestNotifications: @MainActor () async -> Void
     /// The arrival wish of the ride on screen and its analytics (TT-223, D103).
     let wishes: ArrivalWishes
+    /// The ride screen's Tick and Tap and its watch time (TT-224, D106).
+    let screen: RideScreen
 
     /// The detection question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
     private let haptics: any HapticPlaying
@@ -62,7 +64,8 @@ final class OnBoard {
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
         requestNotifications: @escaping @MainActor () async -> Void = {},
         wishes: ArrivalWishes? = nil,
-        haptics: any HapticPlaying = TTHaptics.shared
+        haptics: any HapticPlaying = TTHaptics.shared,
+        screen: RideScreen? = nil
     ) {
         self.haptics = haptics
         self.app = app
@@ -76,6 +79,7 @@ final class OnBoard {
         self.makeDemoNudge = makeDemoNudge
         self.requestNotifications = requestNotifications
         self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: haptics)
+        self.screen = screen ?? RideScreen(haptics: haptics)
     }
 
     /// The demo's engine while it plays, else the app's.

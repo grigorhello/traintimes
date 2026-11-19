@@ -14,6 +14,9 @@ struct ScheduleDependencies {
     var candidates: (any TrainCandidatesProviding)?
     /// Where GO's train feed places each train (TT-179): the alert server's `/v1/trains` in the app; none in fixture runs.
     var trains: (any TrainPositionProviding)?
+    /// The widget file's schedule and stations (TT-182, D107): the GO feed as it is, never wrapped by `withTesting()`, so Demo
+    /// trains and Mock time never reach the widgets; none in fixture runs, which write no widget file.
+    var widgetData: (any ScheduleRepository & StationRepository)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -33,7 +36,7 @@ struct ScheduleDependencies {
         )
         let live = ScheduleDependencies(
             repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository,
-            trains: RelayTrainPositions.shared
+            trains: RelayTrainPositions.shared, widgetData: repository
         )
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
@@ -52,7 +55,8 @@ struct ScheduleDependencies {
             clock: mocked,
             rides: rides,
             candidates: candidates,
-            trains: trains
+            trains: trains,
+            widgetData: widgetData
         )
     }
 

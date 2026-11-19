@@ -57,6 +57,64 @@ final class NotificationLinkTests: XCTestCase {
         XCTAssertEqual(NotificationLink.rule(id: "r1").target(today: thursday), .alerts)
     }
 
+    // MARK: - traintimes:// links (TT-182, D107)
+
+    private func link(_ string: String, today: ServiceDay? = nil) -> NotificationLink? {
+        NotificationLink(url: URL(string: string)!, today: today ?? thursday)
+    }
+
+    func testTripLink() {
+        XCTAssertEqual(
+            link("traintimes://trip?tripId=LW-0758-20261105&serviceDate=20261105&originId=OA&destinationId=UN&source=widget&widget=next"),
+            .trip(key, originId: "OA", destinationId: "UN")
+        )
+        XCTAssertEqual(link("traintimes://trip?tripId=LW-0758-20261105&serviceDate=20261105"), .trip(key, originId: nil, destinationId: nil))
+    }
+
+    /// A widget's train from a past service day opens Schedule at Now on its route, not the Alerts tab.
+    func testPastTripLinkOpensItsRoute() {
+        let past = link("traintimes://trip?tripId=LW-0758-20261105&serviceDate=20261105&originId=OA&destinationId=UN", today: thursday.adding(days: 1))
+        XCTAssertEqual(past, .route(originId: "OA", destinationId: "UN"))
+        XCTAssertEqual(past?.target(today: thursday.adding(days: 1)), .schedule)
+    }
+
+    func testRouteLinks() {
+        let route = link("traintimes://route?originId=UN&destinationId=OA")
+        XCTAssertEqual(route, .route(originId: "UN", destinationId: "OA"))
+        XCTAssertEqual(route?.target(today: thursday), .schedule)
+        XCTAssertEqual(route?.hasStations, true)
+        let tab = link("traintimes://route")
+        XCTAssertEqual(tab, .route(originId: nil, destinationId: nil))
+        XCTAssertEqual(tab?.hasStations, false)
+    }
+
+    func testMalformedLinksOpenNothing() {
+        XCTAssertNil(link("traintimes://trip?tripId=LW-0758-20261105"))
+        XCTAssertNil(link("traintimes://trip?serviceDate=20261105"))
+        XCTAssertNil(link("traintimes://trip?tripId=LW-0758-20261105&serviceDate=soon"))
+        XCTAssertNil(link("traintimes://trip?ruleId=r1"))
+        XCTAssertNil(link("traintimes://station?id=OA"))
+        XCTAssertNil(link("traintimes://route/extra"))
+        XCTAssertNil(link("https://traintimes.ca/route"))
+        // The Live Activity's links are not these.
+        XCTAssertNil(link("traintimes://ride"))
+    }
+
+    /// The links a widget makes read back as the same train and route.
+    func testWidgetLinksRoundTrip() {
+        let route = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
+        XCTAssertEqual(NotificationLink(url: WidgetLink.trip(key, route: route), today: thursday), .trip(key, originId: "OA", destinationId: "UN"))
+        XCTAssertEqual(NotificationLink(url: WidgetLink.route(route), today: thursday), .route(originId: "OA", destinationId: "UN"))
+        XCTAssertEqual(NotificationLink(url: WidgetLink.route(nil), today: thursday), .route(originId: nil, destinationId: nil))
+    }
+
+    func testRouteLinkOpensOnItsStations() async throws {
+        let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
+        let route = await NotificationLink.route(originId: "UN", destinationId: "OA").route(stations: fixture, saved: fixture.route)
+        XCTAssertEqual(route?.from.id, "UN")
+        XCTAssertEqual(route?.to.id, "OA")
+    }
+
     /// The alert's stations win over the saved route, so the trip opens on the route it is watched on.
     func testRouteFromTheAlertsStations() async throws {
         let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))

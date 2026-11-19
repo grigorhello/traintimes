@@ -87,11 +87,6 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-extension ServiceDay {
-    /// The day as a Repeat alert's weekdays count it, ISO: 1 is Monday, 7 is Sunday (`weekday` counts from Sunday).
-    var isoWeekday: Int { (weekday + 5) % 7 + 1 }
-}
-
 /// A rule's saved state. On is shown only once the server stored the rule and the device
 /// token is registered, and only while notifications are allowed.
 enum AlertRuleState: String, Codable, Sendable {

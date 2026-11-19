@@ -48,36 +48,42 @@ struct RideStripView: View {
 }
 
 /// What the strip under the day strip shows (TT-175; TT-205, D93): the ride strip, train detection's question (or the
-/// departure question, TT-231), or the watched-trip strip. Nothing shows while the matcher checks (no checking strip), and no countdown before departure: the
-/// train's own card says it.
+/// departure question, TT-231), Automatic direction's one-time strip (TT-236), or the watched-trip strip, in that order:
+/// one at a time, so a later one waits for those before it. Nothing shows while the matcher checks (no checking strip),
+/// and no countdown before departure: the train's own card says it.
 enum RideStripContent: Equatable {
-    case riding, asking, otherwise
+    case riding, asking, direction, otherwise
 
     /// `asksDeparture`: the alerted train has left and Schedule asks "On board?" about it (TT-231), in the same card.
-    init(isRiding: Bool, detection: TrainMatcher.State, asksDeparture: Bool = false) {
+    /// `showsDirectionStrip`: Automatic direction's one-time strip is unanswered (`DirectionLook.showsStrip`).
+    init(isRiding: Bool, detection: TrainMatcher.State, asksDeparture: Bool = false, showsDirectionStrip: Bool = false) {
         if isRiding {
             self = .riding
         } else if case .asking = detection {
             self = .asking
         } else if asksDeparture {
             self = .asking
+        } else if showsDirectionStrip {
+            self = .direction
         } else {
             self = .otherwise
         }
     }
 
-    @MainActor init(_ onBoard: OnBoard?) {
+    /// From On board alone when `direction` is nil: what Automatic direction's look counts as over Schedule.
+    @MainActor init(_ onBoard: OnBoard?, direction: DirectionLook? = nil) {
         self.init(
             isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle,
-            asksDeparture: onBoard?.asksDeparture ?? false
+            asksDeparture: onBoard?.asksDeparture ?? false, showsDirectionStrip: direction?.showsStrip ?? false
         )
     }
 }
 
-/// The strip under the day strip: the ride strip while a ride runs, train detection's question (TT-175), else `otherwise`
-/// (the watched-trip strip). The ride strip drops in 12 pt from under the day strip, from 0.97, on `RideMotion.rise`; the
-/// question lands from −10 pt and 0.97 on `RideMotion.press`, and its Yes folds it into the ride strip on `RideMotion.fold`.
-/// Reduce Motion fades. The ride strip's digits follow its clock each second.
+/// The strip under the day strip: the ride strip while a ride runs, train detection's question (TT-175), Automatic
+/// direction's one-time strip (TT-236), else `otherwise` (the watched-trip strip). The ride strip drops in 12 pt from under
+/// the day strip, from 0.97, on `RideMotion.rise`; the question and the one-time strip land from −10 pt and 0.97 on
+/// `RideMotion.press`, and the question's Yes folds it into the ride strip on `RideMotion.fold`. Reduce Motion fades. The
+/// ride strip's digits follow its clock each second.
 ///
 /// The strips share one top-aligned `ZStack`, which stays while one replaces another, so the leaving strip fades where it
 /// was and the arriving one lands over it (the animation is on the stack, which a `Group` would have handed to the
@@ -85,6 +91,8 @@ enum RideStripContent: Equatable {
 /// moves the timeline with the strip (`rideStripMotion(_:)`).
 struct RideStripSlot<Otherwise: View>: View {
     let onBoard: OnBoard?
+    /// Automatic direction's look, for its one-time strip; nil shows none.
+    var direction: DirectionLook?
     var onOpen: () -> Void = {}
     @ViewBuilder var otherwise: Otherwise
 
@@ -95,7 +103,7 @@ struct RideStripSlot<Otherwise: View>: View {
 
     var body: some View {
         let detection = onBoard?.detection ?? .idle
-        let content = RideStripContent(onBoard)
+        let content = RideStripContent(onBoard, direction: direction)
         Group {
             if content == .otherwise {
                 otherwise
@@ -138,6 +146,9 @@ struct RideStripSlot<Otherwise: View>: View {
                 )
                 .transition(drop(by: -10))
             }
+        case .direction:
+            DirectionStripCard(onOK: { direction?.stripOK() }, onTurnOff: { direction?.stripTurnOff() })
+                .transition(drop(by: -10))
         case .otherwise:
             EmptyView()
         }
@@ -151,7 +162,7 @@ struct RideStripSlot<Otherwise: View>: View {
         if reduceMotion { return TTMotion.fade }
         switch content {
         case .riding: return wasAsking ? RideMotion.fold : RideMotion.rise
-        case .asking: return RideMotion.press
+        case .asking, .direction: return RideMotion.press
         case .otherwise: return RideMotion.rise
         }
     }
@@ -161,17 +172,20 @@ extension View {
     /// Moves what sits under the header (the timeline) with the strip under the day strip when it changes, on
     /// `RideMotion.fold` (a fade with Reduce Motion), so a strip or the question no longer pushes the timeline down in one
     /// frame. The strip itself keeps its own spring (`RideStripSlot`). Only this modifier reads the strip's state, so a change
-    /// does not redraw the screen it wraps.
-    func rideStripMotion(_ onBoard: OnBoard?) -> some View {
-        modifier(RideStripMotion(onBoard: onBoard))
+    /// does not redraw the screen it wraps. `direction`: Automatic direction's one-time strip moves it too (TT-236).
+    func rideStripMotion(_ onBoard: OnBoard?, direction: DirectionLook? = nil) -> some View {
+        modifier(RideStripMotion(onBoard: onBoard, direction: direction))
     }
 }
 
 private struct RideStripMotion: ViewModifier {
     let onBoard: OnBoard?
+    let direction: DirectionLook?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.animation(reduceMotion ? TTMotion.fade : RideMotion.fold, value: RideStripContent(onBoard))
+        content.animation(
+            reduceMotion ? TTMotion.fade : RideMotion.fold, value: RideStripContent(onBoard, direction: direction)
+        )
     }
 }

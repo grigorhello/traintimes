@@ -384,6 +384,8 @@ struct RootView: View {
                 try? await Task.sleep(for: .milliseconds(700))
                 guard offersDetection, !Task.isCancelled else { return }
                 backgroundDetection?.offerShown()
+                // Automatic direction's one-time strip never shows in the same visit as the offer (TT-236).
+                direction.offerShown()
                 router.present(.detectOffer)
             }
             .task(id: detectedRequest) {

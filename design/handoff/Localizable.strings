@@ -141,6 +141,10 @@
 "direction.capsule.ask" = "Trains from %@?";
 "direction.capsule.switch" = "Switch";
 "direction.capsule.kept" = "Won’t switch by itself for an hour";
+"direction.strip.title" = "Automatic direction is on";
+"direction.strip.body" = "Opens with trains from the station you’re closer to. You can turn this off in Settings.";
+"direction.strip.ok" = "OK";
+"direction.strip.off" = "Turn off";
 "settings.auto_direction" = "Automatic direction";
 "settings.auto_direction.note" = "Opens with trains from the station you’re closer to. Your location stays on the phone.";
 "settings.auto_direction.needs_location" = "Needs your location. Allow it in iOS Settings.";

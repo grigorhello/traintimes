@@ -80,6 +80,7 @@ async function setup(dir) {
     [WIDGETS_BUNDLE_ID, 'Train Times Widgets', 'widgets.mobileprovision']
   ]) {
     const bundle = await bundleId(identifier, name)
+    if (identifier === BUNDLE_ID) await ensureWeatherKit(bundle)
     const profile = await api('POST', '/v1/profiles', {
       data: {
         type: 'profiles',
@@ -116,6 +117,28 @@ async function bundleId(identifier, name) {
   })
   console.log(`Registered App ID ${identifier}`)
   return created.data
+}
+
+/// WeatherKit (TT-226, D105): the app's `com.apple.developer.weatherkit` entitlement needs the capability on its App ID
+/// before the profile is made. The API documents no capability type for it, so this tries the portal's name and, if Apple
+/// refuses, says where to tick it; it never stops the build itself.
+async function ensureWeatherKit(bundle) {
+  try {
+    const capabilities = await api('GET', `/v1/bundleIds/${bundle.id}/bundleIdCapabilities?limit=200`)
+    if (capabilities.data.some((c) => /WEATHER/i.test(c.attributes?.capabilityType ?? ''))) return
+    await api('POST', '/v1/bundleIdCapabilities', {
+      data: {
+        type: 'bundleIdCapabilities',
+        attributes: { capabilityType: 'WEATHERKIT' },
+        relationships: { bundleId: { data: { type: 'bundleIds', id: bundle.id } } }
+      }
+    })
+    console.log(`Switched on WeatherKit for ${BUNDLE_ID}`)
+  } catch (error) {
+    console.log(`::warning::WeatherKit could not be checked or switched on for ${BUNDLE_ID} (${error.message}). ` +
+      'If signing fails on com.apple.developer.weatherkit: developer.apple.com › Certificates, Identifiers & Profiles › ' +
+      `Identifiers › ${BUNDLE_ID} › tick WeatherKit under Capabilities and App Services › Save.`)
+  }
 }
 
 async function wait() {

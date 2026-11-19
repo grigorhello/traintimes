@@ -66,9 +66,9 @@ final class ScheduleTests: XCTestCase {
         let yesterday = app.buttons["schedule.day.-1"]
         XCTAssertTrue(today.waitForExistence(timeout: 10))
         XCTAssertTrue(today.isHittable, "The strip opens with Today first")
-        // Yesterday's tile peeks into the leading margin (like the sixth tile at the right edge), its middle out of view.
+        // Yesterday's tile peeks out from behind the weather tile (TT-226), its middle out of view.
         XCTAssertTrue(yesterday.exists)
-        XCTAssertLessThan(yesterday.frame.midX, 0, "The past week is out of view to the left")
+        XCTAssertLessThan(yesterday.frame.midX, app.buttons["schedule.weather"].frame.maxX, "The past week is out of view to the left")
 
         today.swipeRight()
         XCTAssertTrue(yesterday.waitForExistence(timeout: 5))

@@ -33,6 +33,13 @@ enum TTColor {
     static let capsulePill = Color("CapsulePill")
     /// A day tile that is off inside the capsule: ink at 6 % in light, white at 10 % in dark.
     static let capsuleTile = Color("CapsuleTile")
+    /// The weather glyphs' colours (TT-226): only the sun, moon, drops and flakes carry colour; clouds and wind are grey.
+    /// The weather tile itself never takes a colour (green, amber and red keep their meaning).
+    static let weatherSun = Color("WeatherSun")
+    static let weatherCloud = Color("WeatherCloud")
+    static let weatherRain = Color("WeatherRain")
+    static let weatherSnow = Color("WeatherSnow")
+    static let weatherMoon = Color("WeatherMoon")
 }
 
 enum TTSpace {
@@ -94,6 +101,7 @@ enum TTFont {
     static let widgetStation = Font.system(size: 14, weight: .semibold)                       // Next train: "Union"
     static let widgetFooterTime = Font.system(size: 13, weight: .semibold)                    // Next train: the footer's and a message's time
     static let widgetYourTrain = Font.system(size: 12, weight: .semibold)                     // Next train: "Your train"
+    static let weatherTemperature = Font.system(size: 48, weight: .semibold)                  // the weather sheet's temperature (TT-226)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }
 

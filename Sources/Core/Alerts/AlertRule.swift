@@ -76,6 +76,18 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
             && ServiceDay.minutesIntoServiceDay(scheduledDeparture) == ServiceDay.minutesIntoServiceDay(trip.scheduledDeparture)
     }
 
+    /// A switched-on alert that can stand behind the before-departure Live Activity card of `ride` (TT-240, D118): between
+    /// the card's stations, a This-trip alert for that very train, or a Repeat alert on that weekday. A card carries no
+    /// scheduled time, so a Repeat alert between its stations on its day counts whichever its train: the app ends a card
+    /// only when no alert can be behind it, and the alert server, which knows each alert's train, ends the rest.
+    func covers(_ ride: Ride) -> Bool {
+        guard !paused, origin.id == ride.originId, destination.id == ride.destinationId else { return false }
+        return switch kind {
+        case .thisTrip: trip == ride.tripKey
+        case .repeating: weekdays.contains(ride.tripKey.serviceDay.isoWeekday)
+        }
+    }
+
     private func covers(_ key: TripKey, departure: Date, line: String, from: String, to: String) -> Bool {
         guard origin.id == from, destination.id == to else { return false }
         return switch kind {

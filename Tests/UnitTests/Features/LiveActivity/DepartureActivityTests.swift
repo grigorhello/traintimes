@@ -2,7 +2,8 @@ import XCTest
 @testable import TrainTimes
 
 /// TT-178, TT-205: the alerted train's countdown as its Live Activity's one card shows it (boards 3 and 13), through the
-/// demo departure's moments; the push payload the alert server sends; the activity's links; and the tokens the app reports.
+/// demo departure's moments; the push payload the alert server sends; the activity's links; the tokens the app reports;
+/// and when a card ends with its alert (TT-240).
 @MainActor
 final class DepartureActivityTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
@@ -325,6 +326,103 @@ final class DepartureActivityTests: XCTestCase {
 
         await server.setFailing(true)
         let failed = await rules.report(report)
+        XCTAssertFalse(failed, "An unreachable server: the hand-off is sent again")
+    }
+
+    // MARK: A card ends with its alert (TT-240, D118)
+
+    /// The card of a fixture train: Oakville to Union, the 7:32 AM on Thu Nov 5 unless another is given.
+    private func cardRide(_ trip: Trip = AlertFixtures.trip(), from: String = "OA", to: String = "UN") -> Ride {
+        Ride(trip: trip.key, from: from, to: to)
+    }
+
+    func testACardStaysWhileItIsTheSourcesTrainOrAnAlertStandsBehindIt() {
+        let card = cardRide()
+        let other = cardRide(AlertFixtures.trip("LW-0802-20261105", departure: "13:02"))
+        XCTAssertTrue(
+            RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: true),
+            "No source (another day picked, a turned route, Schedule still loading) never ends a card whose alert is on"
+        )
+        XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: other, hasAlert: true), "Another alerted train is the source")
+        XCTAssertFalse(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: false), "Its alert was removed or switched off")
+        XCTAssertFalse(RideLiveActivity.keepsDeparture(card, source: other, hasAlert: false), "No card stays beside the source's")
+        XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: card, hasAlert: false), "The demo departure has no alert")
+        XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: nil), "Before the rules are connected nothing ends")
+    }
+
+    func testAnAlertStandsBehindACardWhileItIsSwitchedOnForThatTrain() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let trip = AlertFixtures.trip()
+        XCTAssertFalse(rules.hasAlert(for: cardRide(trip)), "No alert")
+
+        var alert = AlertRule(kind: .thisTrip, trip: trip, route: AlertFixtures.route)
+        await rules.save(alert)
+        XCTAssertTrue(rules.hasAlert(for: cardRide(trip)))
+        XCTAssertFalse(rules.hasAlert(for: cardRide(AlertFixtures.trip("LW-0802-20261105", departure: "13:02"))), "Another train")
+        XCTAssertFalse(rules.hasAlert(for: cardRide(trip, from: "UN", to: "OA")), "The other way")
+        XCTAssertFalse(rules.hasAlert(for: cardRide(AlertFixtures.trip(day: 6))), "The same trip id on another day")
+
+        alert.paused = true
+        await rules.save(alert)
+        XCTAssertFalse(rules.hasAlert(for: cardRide(trip)), "Switched off")
+        alert.paused = false
+        await rules.save(alert)
+        XCTAssertTrue(rules.hasAlert(for: cardRide(trip)), "Switched on again")
+        await rules.delete(alert.id)
+        XCTAssertFalse(rules.hasAlert(for: cardRide(trip)), "Removed")
+
+        await server.setFailing(true)
+        await rules.save(alert)
+        XCTAssertTrue(rules.hasAlert(for: cardRide(trip)), "Switched on but not saved still counts, as the bell counts it")
+    }
+
+    func testARepeatAlertStandsBehindACardOnItsDaysBetweenItsStations() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let thursday = AlertFixtures.trip()
+        var alert = AlertRule(kind: .repeating, trip: thursday, route: AlertFixtures.route, weekdays: [1, 2, 3, 4, 5])
+        await rules.save(alert)
+        XCTAssertTrue(rules.hasAlert(for: cardRide(thursday)))
+        XCTAssertTrue(
+            rules.hasAlert(for: cardRide(AlertFixtures.trip("LW-0732-20261106", day: 6))),
+            "Friday's card names Friday's trip: the alert server starts it for the usual train"
+        )
+        XCTAssertFalse(rules.hasAlert(for: cardRide(AlertFixtures.trip("LW-0732-20261107", day: 7))), "Saturday is not one of its days")
+        XCTAssertFalse(rules.hasAlert(for: cardRide(thursday, from: "UN", to: "OA")), "The other way")
+        XCTAssertTrue(
+            rules.hasAlert(for: cardRide(AlertFixtures.trip("LW-0802-20261105", departure: "13:02"))),
+            "A card carries no scheduled time: on the alert's day between its stations it is kept, and the server ends the rest"
+        )
+
+        alert.weekdays = [1, 2, 3, 5]
+        await rules.save(alert)
+        XCTAssertFalse(rules.hasAlert(for: cardRide(thursday)), "Thursday taken out in the day panel")
+        alert.weekdays = [1, 2, 3, 4, 5]
+        alert.paused = true
+        await rules.save(alert)
+        XCTAssertFalse(rules.hasAlert(for: cardRide(thursday)), "The bell turned off keeps the days and pauses the alert")
+    }
+
+    func testAHandOffIsReportedWithNoAlertLeftAndNeverRegistersForIt() async {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let handOff = LiveActivityReport(tripId: "LW-1713", serviceDate: "20261127", originId: "UN", destinationId: "CL", handedOff: true)
+        let sent = await rules.report(handOff)
+        XCTAssertTrue(sent)
+        let reports = await server.activityReports
+        XCTAssertEqual(reports, [handOff], "The server ends a card whose alert is gone, and this one is the ride now")
+        let registrations = await server.registrations
+        XCTAssertEqual(registrations, [], "Nothing is registered for it")
+
+        await server.answerUnknownInstallationOnce()
+        let unknown = await rules.report(handOff)
+        XCTAssertTrue(unknown, "An installation the server does not know has no card there to end")
+        let stillNone = await server.registrations
+        XCTAssertEqual(stillNone, [])
+
+        await server.setFailing(true)
+        let failed = await rules.report(handOff)
         XCTAssertFalse(failed, "An unreachable server: the hand-off is sent again")
     }
 }

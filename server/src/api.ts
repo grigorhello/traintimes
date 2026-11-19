@@ -89,6 +89,22 @@ async function touch(db: D1Database, installation: string, now: number): Promise
   return result.meta.changes > 0;
 }
 
+/**
+ * A rule was removed or switched off (TT-240, D118): the installation's cards between its stations that no cycle has
+ * followed yet get a `shown`, so the minute cycle's sweep ends them too if no other rule watches their train (a bell
+ * turned on and off again within the minute). A card another rule still watches only gets its next update.
+ */
+function releaseActivities(db: D1Database, installation: string, originId: string, destinationId: string) {
+  const stations = `|${originId}|${destinationId}`;
+  return db
+    .prepare(
+      `UPDATE activities SET shown = '' WHERE installation_id = ? AND shown IS NULL AND state IN ('started', 'asked')
+         AND substr(key, -length(?)) = ?`,
+    )
+    .bind(installation, stations, stations)
+    .run();
+}
+
 /** Deletes an installation and everything keyed to it. */
 export function deleteInstallation(db: D1Database, installation: string) {
   return db.batch([
@@ -153,12 +169,16 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       if (typeof asked !== 'boolean') throw new BadRequest('asked');
       if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
       const state = handedOff ? 'handedOff' : asked ? 'asked' : 'started';
+      // An ended card stays ended, unless the app reports another token for the train: a new card is up (the alert was
+      // switched on again inside its window, TT-240), and it gets the server's updates like the first.
       await db
         .prepare(
           `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (installation_id, key) DO UPDATE SET token = COALESCE(excluded.token, activities.token),
              state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff'
-               WHEN excluded.state = 'asked' AND activities.state = 'started' THEN 'asked' ELSE activities.state END,
+               WHEN excluded.state = 'asked' AND activities.state = 'started' THEN 'asked'
+               WHEN activities.state = 'ended' AND excluded.token IS NOT NULL AND excluded.token IS NOT activities.token THEN 'started'
+               ELSE activities.state END,
              version = activities.version + 1`,
         )
         .bind(installation, `${serviceDate}|${tripId}|${originId}|${destinationId}`, serviceDate, token?.toLowerCase() ?? null, state)
@@ -181,7 +201,12 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       const rule = path[4];
       if (!RULE_ID.test(rule)) return json(400, { error: 'invalid', field: 'rule' });
       if (method === 'DELETE') {
+        const removed = await db
+          .prepare('SELECT origin_id, destination_id FROM rules WHERE installation_id = ? AND id = ?')
+          .bind(installation, rule)
+          .first<{ origin_id: string; destination_id: string }>();
         await db.prepare('DELETE FROM rules WHERE installation_id = ? AND id = ?').bind(installation, rule).run();
+        if (removed) await releaseActivities(db, installation, removed.origin_id, removed.destination_id);
         await touch(db, installation, now);
         return noContent();
       }
@@ -238,6 +263,7 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
             now,
           )
           .run();
+        if (paused) await releaseActivities(db, installation, origin.id, destination.id);
         const row = await db
           .prepare('SELECT * FROM rules WHERE installation_id = ? AND id = ?')
           .bind(installation, rule)

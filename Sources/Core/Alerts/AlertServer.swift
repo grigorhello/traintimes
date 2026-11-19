@@ -45,6 +45,8 @@ protocol LiveActivityReporting: AnyObject {
     /// True once the server has it, or when it needs nothing (no alert: the server watches no train); false to try again.
     @discardableResult
     func report(_ activity: LiveActivityReport) async -> Bool
+    /// A switched-on alert stands behind this train's before-departure card (TT-240): the card stays only while one does.
+    func hasAlert(for ride: Ride) -> Bool
 }
 
 extension AlertServer {

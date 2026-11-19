@@ -21,7 +21,12 @@ const api = (request: Request) => handleRequest(request, db, at('6:30'));
 async function setUp(installation = INSTALLATION, startToken: string | null = START_TOKEN, timeFormat = '12h') {
   const registration = { deviceToken: TOKEN, timeFormat, startToken: startToken ?? undefined };
   assert.equal((await call(api, 'PUT', `/v1/installations/${installation}`, registration)).status, 204);
-  const rule = await call(api, 'PUT', `/v1/installations/${installation}/rules/r1`, {
+  assert.equal((await saveRule({}, 'r1', installation)).status, 200);
+}
+
+/** Saves the alert on the 7:13 as the app does; `changes` make it paused or repeating. */
+function saveRule(changes: Record<string, unknown> = {}, id = 'r1', installation = INSTALLATION) {
+  return call(api, 'PUT', `/v1/installations/${installation}/rules/${id}`, {
     kind: 'trip',
     tripId: '20261109-LW-1256',
     serviceDate: '20261109',
@@ -29,9 +34,12 @@ async function setUp(installation = INSTALLATION, startToken: string | null = ST
     scheduledDeparture: new Date(at('7:13')).toISOString(),
     origin: { id: 'OA', name: 'Oakville GO' },
     destination: { id: 'UN', name: 'Union Station GO' },
+    ...changes,
   });
-  assert.equal(rule.status, 200);
 }
+
+/** The bell turned off, or Remove alert. */
+const deleteRule = (id = 'r1', installation = INSTALLATION) => call(api, 'DELETE', `/v1/installations/${installation}/rules/${id}`);
 
 /** The app reports the activity's update token, or that its ride took the activity over. */
 function report(body: Record<string, unknown>, installation = INSTALLATION) {
@@ -286,6 +294,146 @@ describe('the activity, at the right times', () => {
     const [start] = await cycle('6:43:00');
     assert.equal(start.alert.title, '07:13 departs in 30 min');
     assert.equal(start['content-state'].title, '07:13 departs in');
+  });
+});
+
+describe('a card whose alert is gone (TT-240)', () => {
+  const OTHER_TOKEN = 'd'.repeat(160);
+  const rows = () => db.prepare('SELECT COUNT(*) AS n FROM activities').first<{ n: number }>().then((row) => row!.n);
+
+  /** The server's card for the 7:13 is up, its token is in and a cycle has updated it. */
+  async function cardUp() {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    assert.equal((await cycle('6:44:00'))[0].event, 'update');
+  }
+
+  test('the alert removed: the card ends within a cycle, once, and its row goes', async () => {
+    await cardUp();
+    assert.equal((await deleteRule()).status, 204);
+    const [end] = await cycle('6:45:00');
+    assert.equal(end.event, 'end', 'No rule watches the train, so no cycle would update the card again');
+    assert.equal(apns.activityPushes.at(-1)!.token, ACTIVITY_TOKEN);
+    assert.equal(end['dismissal-date'], at('6:45') / 1000, 'It leaves the Lock Screen now');
+    assert.equal(end['content-state'].phase, 'departed');
+    assert.equal(end['content-state'].title, '7:13 AM departs in', 'The line it last showed');
+    assert.equal(await rows(), 0);
+    assert.deepEqual(await cycle('6:46:00'), [], 'Ended once');
+    assert.equal(apns.pushes.length, 0, 'No notification');
+  });
+
+  test('the alert switched off (paused): the same end', async () => {
+    await cardUp();
+    assert.equal((await saveRule({ paused: true })).status, 200);
+    const [end] = await cycle('6:45:00');
+    assert.equal(end.event, 'end');
+    assert.equal(await rows(), 0);
+    assert.deepEqual(await cycle('6:46:00'), []);
+  });
+
+  test('switched on again inside its window: a fresh card starts and is followed', async () => {
+    await cardUp();
+    await deleteRule();
+    await cycle('6:45:00');
+    assert.equal((await saveRule()).status, 200, 'Undo, or the bell again');
+    const [start] = await cycle('6:46:00');
+    assert.equal(start.event, 'start');
+    assert.equal(start['content-state'].minutes, '27 min');
+    await report({ token: OTHER_TOKEN });
+    const [update] = await cycle('6:47:00');
+    assert.equal(update.event, 'update');
+    assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
+  });
+
+  test('Undo before the next cycle: the card the app started again takes the row over, and nothing ends', async () => {
+    await cardUp();
+    await deleteRule();
+    await saveRule();
+    await report({ token: OTHER_TOKEN });
+    const [update] = await cycle('6:45:00');
+    assert.equal(update.event, 'update');
+    assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
+  });
+
+  test('a train another alert still covers keeps its updates', async () => {
+    await cardUp();
+    // A Repeat alert for the same usual train on Mondays: the two share one watch.
+    assert.equal((await saveRule({ kind: 'repeat', weekdays: [1] }, 'r2')).status, 200);
+    await deleteRule('r1');
+    const [update] = await cycle('6:45:00');
+    assert.equal(update.event, 'update');
+    assert.equal(update['content-state'].minutes, '28 min');
+    assert.equal(await rows(), 1);
+  });
+
+  test('a card the app started and no cycle followed yet (bell on and off within the minute) ends too', async () => {
+    await setUp();
+    await report({});
+    await report({ token: ACTIVITY_TOKEN });
+    await deleteRule();
+    const [end] = await cycle('6:45:00');
+    assert.equal(end.event, 'end');
+    assert.equal(end['content-state'].phase, 'departed');
+    assert.equal(await rows(), 0);
+  });
+
+  test('cards no rule here ever watched are left alone: the demo departure, another route’s', async () => {
+    await setUp();
+    const demo = { tripId: 'DEMO-LW-1713', originId: 'UN', destinationId: 'CL', token: OTHER_TOKEN };
+    assert.equal((await report(demo)).status, 204);
+    assert.deepEqual(await cycle('6:30:00'), [], 'Reported by the app, never followed by a cycle');
+    // Removing the alert on the 7:13 from Oakville releases only cards between its stations.
+    await deleteRule();
+    assert.deepEqual(await cycle('6:45:00'), []);
+    assert.equal(await rows(), 1);
+  });
+
+  test('a card the ride took over, or answered No, is left alone', async () => {
+    await cardUp();
+    await report({ handedOff: true });
+    await deleteRule();
+    assert.deepEqual(await cycle('6:45:00'), [], 'It is the ride’s card now');
+    assert.deepEqual(await db.prepare('SELECT token, state FROM activities').first(), { token: ACTIVITY_TOKEN, state: 'handedOff' });
+  });
+
+  test('an end APNs cannot take for a while is sent again the next minute', async () => {
+    await cardUp();
+    await deleteRule();
+    apns.answers.push('retry');
+    assert.equal((await cycle('6:45:00'))[0].event, 'end');
+    assert.equal(await rows(), 1, 'Kept for the next cycle');
+    assert.equal((await cycle('6:46:00'))[0].event, 'end');
+    assert.equal(await rows(), 0);
+  });
+
+  test('the ends stay inside the cycle’s APNs calls', async () => {
+    const riders = Array.from({ length: MAX_SENDS + 3 }, (_, i) => `6f1c2a9e-3b4d-4c5e-9f60-${String(i).padStart(12, '0')}`);
+    for (const rider of riders) await setUp(rider);
+    await cycle('6:43:00');
+    await cycle('6:44:00');
+    for (const rider of riders) {
+      await report({ token: ACTIVITY_TOKEN }, rider);
+      await deleteRule('r1', rider);
+    }
+    assert.equal((await cycle('6:45:00')).length, MAX_SENDS);
+    assert.equal((await cycle('6:46:00')).length, 3);
+    assert.equal((await cycle('6:47:00')).length, 0);
+  });
+
+  test('an ended card stays ended, until the app reports another token for the train', async () => {
+    await cardUp();
+    // APNs says the card is gone (swiped away, or the app ended it): the server stops.
+    apns.answers.push('unregistered');
+    await cycle('6:45:00');
+    assert.deepEqual(await cycle('6:46:00'), []);
+    await report({ token: ACTIVITY_TOKEN });
+    assert.deepEqual(await cycle('6:47:00'), [], 'The same token: the same card, still gone');
+    // The alert was switched on again and the app started a new card: it gets the server's updates.
+    await report({ token: OTHER_TOKEN });
+    const [update] = await cycle('6:48:00');
+    assert.equal(update.event, 'update');
+    assert.equal(apns.activityPushes.at(-1)!.token, OTHER_TOKEN);
   });
 });
 

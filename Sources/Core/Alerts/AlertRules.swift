@@ -383,11 +383,30 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         try? await registerIfNeeded()
     }
 
+    /// A switched-on alert stands behind this train's before-departure card (TT-240, D118): `AlertRule.covers(_:)`, whatever
+    /// its saved state, as `isAlerted` counts it. `RideLiveActivity` ends a card that has none.
+    func hasAlert(for ride: Ride) -> Bool {
+        rules.contains { $0.covers(ride) }
+    }
+
     /// A before-departure activity's start, update token or hand-off. An unreachable server misses it: the server then
     /// starts its own activity or sends nothing to this one, and the app keeps its activity up to date while it runs.
     @discardableResult
     func report(_ activity: LiveActivityReport) async -> Bool {
-        guard !rules.isEmpty else { return true }
+        guard !rules.isEmpty else {
+            // No alert left: the server watches no train, so only a hand-off still matters (TT-240). The server ends a
+            // card whose alert is gone, and this one is the ride now (or was answered No). An installation the server
+            // does not know has no card there to end, and is not registered for this.
+            guard activity.handedOff else { return true }
+            do {
+                try await server.report(activity, installation: installation)
+                return true
+            } catch AlertServerError.unknownInstallation {
+                return true
+            } catch {
+                return false
+            }
+        }
         do {
             try await registerIfNeeded()
             do {

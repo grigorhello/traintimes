@@ -5,6 +5,7 @@
 // trips' part of the feed and today's timetable (the coming week's only when the usual train is missing today), reads
 // the watches in one query, and makes at most MAX_SENDS calls to APNs. GO's train positions are read once, and only
 // while an alerted train is in its Live Activity window; a station's board only while one stands at it (TT-233, D114).
+// Every cycle, idle ones too, also reads the Live Activity cards no rule watches any more and ends them (TT-240, D118).
 
 import {
   decide,
@@ -33,6 +34,7 @@ import {
   signature,
   startPayload,
   staleDate,
+  sweptState,
   updatePayload,
   type Departure,
 } from './activity.ts';
@@ -92,6 +94,14 @@ interface ActivityRow {
   state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified';
   shown: string | null;
   version: number;
+}
+
+/** A card the sweep may end (TT-240): its row with what a push to it needs. */
+interface SweptRow extends ActivityRow {
+  service_date: string;
+  token: string;
+  shown: string;
+  environment: ApnsEnvironment;
 }
 
 interface WatchRow {
@@ -208,6 +218,9 @@ function departureOf(watch: Watch, status: LiveStatus | null): Departure {
 /** One train at one origin station, whoever watches it. */
 const trainKey = (watch: Watch) => `${watch.date}|${watch.tripId}|${watch.rule.origin_id}`;
 
+/** A watch's key, and its activity's: the service date, the trip and the rider's two stations. */
+const watchKey = (watch: Watch) => `${watch.date}|${watch.tripId}|${watch.rule.origin_id}|${watch.rule.destination_id}`;
+
 /** Runs one cycle and returns the notifications APNs accepted, for logs and tests. */
 export async function monitor({ db, apns, feed: loadFeed, positions: loadPositions, platforms: loadPlatforms, now }: MonitorDeps): Promise<Push[]> {
   const sent: Push[] = [];
@@ -307,6 +320,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       }
     }
   }
+  await sweep();
   if (watches.length === 0) return sent;
 
   const feed = await loadFeed(new Set(watches.map((watch) => watch.tripId)));
@@ -331,7 +345,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
   // Riders sent nothing yet go first, then those sent to longest ago, so past MAX_SENDS nobody waits behind updates.
   const queue = watches
     .map((watch) => {
-      const key = `${watch.date}|${watch.tripId}|${watch.rule.origin_id}|${watch.rule.destination_id}`;
+      const key = watchKey(watch);
       const update: TripUpdate | undefined = updatesByDate.get(watch.date)?.get(watch.tripId);
       const status = update && fresh ? liveStatus(update, watch.call, feedTime!) : null;
       // The Live Activity runs on past the train's departure, when departure alerts stop.
@@ -372,6 +386,48 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     }
   }
   return sent;
+
+  /**
+   * Cards nobody watches (TT-240, D118): a Live Activity the server can reach (it has the card's token, and `shown` says
+   * a cycle followed it or its rule was just removed or paused) whose train no watch of this cycle claims. Its alert was
+   * removed, switched off or set to Review needed, so nothing would update the card again and its minutes would stand
+   * still on the Lock Screen: it gets `event: end` and its row goes, so an alert switched on again starts a fresh card.
+   * The app ends the card itself at the tap; this is for a card it could not reach (closed meanwhile, an older build).
+   * Rows without `shown` are left alone: the app reported them and no rule here ever watched them (Demo trains ›
+   * Departure, a rule whose save has not arrived). So are cards handed off to a ride or answered No. Runs every cycle,
+   * idle ones too: one indexed read, and its pushes count in MAX_SENDS.
+   */
+  async function sweep() {
+    const rows = await db
+      .prepare(
+        `SELECT a.installation_id, a.key, a.service_date, a.token, a.state, a.shown, a.version, i.environment FROM activities a
+         JOIN installations i ON i.id = a.installation_id
+         WHERE a.service_date IN (?, ?) AND a.state IN ('started', 'asked') AND a.token IS NOT NULL AND a.shown IS NOT NULL`,
+      )
+      .bind(...dates)
+      .all<SweptRow>();
+    if (rows.results.length === 0) return;
+    const watched = new Set(watches.map((watch) => `${watch.rule.installation_id}|${watchKey(watch)}`));
+    for (const row of rows.results) {
+      if (watched.has(`${row.installation_id}|${row.key}`)) continue;
+      if (sends >= MAX_SENDS) return;
+      // Claim the end first: an overlapping cycle, or the app reporting a new card for the train meanwhile, changes the
+      // version, and then nothing is sent or removed.
+      const claimed = await db
+        .prepare('DELETE FROM activities WHERE installation_id = ? AND key = ? AND version = ?')
+        .bind(row.installation_id, row.key, row.version)
+        .run();
+      if (claimed.meta.changes === 0) continue;
+      sends++;
+      const push = { token: row.token, environment: row.environment, payload: endPayload(sweptState(row.shown), now), expiration: now + 60 * MINUTE };
+      if ((await apns.sendLiveActivity(push, now)) !== 'retry') continue;
+      // Not delivered: the row goes back for the next cycle, unless the app reported a new card meanwhile.
+      await db
+        .prepare('INSERT OR IGNORE INTO activities (installation_id, key, service_date, token, state, shown, version) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(row.installation_id, row.key, row.service_date, row.token, row.state, row.shown, row.version + 1)
+        .run();
+    }
+  }
 
   /**
    * Boarding at the platform (TT-233, D114): where GO's train feed places the alerted trains that are in their activity

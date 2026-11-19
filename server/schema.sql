@@ -71,8 +71,14 @@ CREATE TABLE IF NOT EXISTS activities (
   token TEXT,                       -- the activity's update token from the app, hex; NULL until the app reports it
   state TEXT NOT NULL DEFAULT 'started', -- 'started', 'ended', 'handedOff' (the app's ride took the activity over, or
                                     -- the rider said No), 'asked' (the app was in front: a silent question, TT-231) or 'notified'
-                                    -- (the question went as a notification: no card to ask on)
-  shown TEXT,                       -- what it last showed (src/activity.ts signature), so updates go only on a change
+                                    -- (the question went as a notification: no card to ask on). A 'started' or 'asked' row
+                                    -- with a token and a `shown` that no rule watches any more is ended and deleted by
+                                    -- the minute cycle (TT-240); 'ended' goes back to 'started' when the app reports
+                                    -- another token (a new card); 'removed' (no token): the app ended the card because its
+                                    -- alert was gone, nothing follows it, and a rule saved switched on for its train
+                                    -- deletes it, so the next cycle starts a fresh card (TT-240)
+  shown TEXT,                       -- what it last showed (src/activity.ts signature), so updates go only on a change;
+                                    -- NULL until a cycle follows it, '' once its rule was removed or paused before that
   version INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (installation_id, key)
 );

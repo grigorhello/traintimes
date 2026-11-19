@@ -25,9 +25,11 @@ struct DepartureActivitySource {
 /// or at your stop if sooner. When it is boarding and when it has left is the source's word (`LiveDeparture`, which follows
 /// `BoardingRule`, TT-233, D114): nothing here goes by the train's time alone. Yes (the card's link) starts the ride, and
 /// No (`DeclineDepartureIntent`) ends it. "I’m on board" turns that same activity into the ride (the hand-off), and the
-/// app tells the server, which then sends nothing more. The app sends the server its push-to-start token and each
-/// departure activity's update token. One per app, made by `AppDelegate`; none in fixture runs (UI tests, the unit test
-/// host, previews), so nothing appears in the island while they run.
+/// app tells the server, which then sends nothing more. A card lives only while its alert is switched on (TT-240, D118):
+/// the bell turned off, the alert removed or paused ends it at the tap (`keepsDeparture`, `alertsChanged()`). The app
+/// sends the server its push-to-start token and each departure activity's update token. One per app, made by
+/// `AppDelegate`; none in fixture runs (UI tests, the unit test host, previews), so nothing appears in the island while
+/// they run.
 @MainActor
 final class RideLiveActivity: RideActivityFollowing {
     /// The activity greys itself this long after the app last updated it.
@@ -149,6 +151,12 @@ final class RideLiveActivity: RideActivityFollowing {
         startedRide = nil
         alertedRide = nil
         if isFollowing { listen() }
+    }
+
+    /// The alert rules changed (`RootView`): a pass now, so the card of an alert that was just removed or switched off ends
+    /// at the tap, before the app can be closed (TT-240), and a new alert's card starts without waiting for the ticker.
+    func alertsChanged() {
+        sync()
     }
 
     /// The app came to the front: a ride restored in the background gets its activity now, and the departure is followed
@@ -310,19 +318,37 @@ final class RideLiveActivity: RideActivityFollowing {
     }
 
     /// No ride runs: the alerted train's countdown (TT-178), then its question (TT-231). Whoever started it, it ends 10 min
-    /// after the train's time or at your stop (its stale date, where the source's window ends too); the app keeps the live
-    /// departure's up to date and starts it when none came.
+    /// after the train's time or at your stop (its stale date, where the source's window ends too), and at once when its
+    /// alert is removed or switched off (TT-240); the app keeps the live departure's up to date and starts it when none
+    /// came.
     private func reconcileDeparture(_ activities: [Activity<RideActivityAttributes>]) async {
         let deviceNow = Date()
+        let source = departures?()
         var current: [Activity<RideActivityAttributes>] = []
+        var removed: [RideActivityAttributes] = []
         for activity in activities {
+            let card = Ride(activity.attributes)
             if let stale = activity.content.staleDate, stale <= deviceNow {
                 await Self.end(activity.id, content: nil, dismissal: nil)
+            } else if !Self.keepsDeparture(card, source: source?.ride, hasAlert: reporter?.hasAlert(for: card)) {
+                // Its alert is gone (TT-240, D118): nothing would update the card again, so it leaves now. Forgotten here,
+                // so Undo or a new bell tap starts it again when it is the source's train, and tells the server again that
+                // the question is silent (TT-231) if it comes back in the last 75 s.
+                departureStarted.remove(card)
+                askedRides.remove(card)
+                await Self.end(activity.id, content: nil, dismissal: nil)
+                removed.append(activity.attributes)
             } else {
                 current.append(activity)
             }
         }
-        guard let source = departures?() else { return }
+        // The server is told the card was removed (never handed off, which would silence it for the train after an Undo):
+        // it follows the card no more, and starts a fresh one when the alert is switched on again, whatever Schedule shows.
+        // Told once: if it fails, the server's sweep ends what it still holds for the card in its next minute.
+        for attributes in removed {
+            await report(LiveActivityReport(attributes, removed: true))
+        }
+        guard let source else { return }
         let ride = source.ride
         let content = RideActivityAttributes.ContentState(
             departure: source.live, now: source.now, deviceNow: deviceNow, formatter: formatter()
@@ -497,6 +523,15 @@ final class RideLiveActivity: RideActivityFollowing {
         next.phase == .arriving && shown.phase != .arriving
     }
 
+    /// A departure's card stays only while something stands behind it (TT-240, D118): it is the source's own train (the
+    /// one the app keeps up to date; the demo departure's has no alert), or a switched-on alert covers it
+    /// (`AlertRules.hasAlert(for:)`). The rules are asked about the card itself, never "there is no source": the source is
+    /// also nil while another day is picked, the route is turned or Schedule has not loaded, and none of those may end a
+    /// card whose alert is on. `hasAlert` is nil before `RootView` connects the rules (a background launch): nothing ends.
+    static func keepsDeparture(_ card: Ride, source: Ride?, hasAlert: Bool?) -> Bool {
+        card == source || hasAlert != false
+    }
+
     /// A departure's activity goes stale, and ends, 10 min after the train's time or at your stop if sooner, on the device
     /// clock (the server sets the same stale date). That is where `LiveDeparture`'s window ends, also for a train that
     /// stood at its platform past its time (TT-233), so the card never ends while the source still has the train.
@@ -544,10 +579,10 @@ final class RideLiveActivity: RideActivityFollowing {
 
 extension LiveActivityReport {
     /// The activity's train, as the server keys its watch.
-    init(_ attributes: RideActivityAttributes, token: String? = nil, handedOff: Bool = false) {
+    init(_ attributes: RideActivityAttributes, token: String? = nil, handedOff: Bool = false, removed: Bool = false) {
         self.init(
             tripId: attributes.tripId, serviceDate: String(attributes.serviceDate), originId: attributes.originId,
-            destinationId: attributes.destinationId, token: token, handedOff: handedOff
+            destinationId: attributes.destinationId, token: token, handedOff: handedOff, removed: removed
         )
     }
 }

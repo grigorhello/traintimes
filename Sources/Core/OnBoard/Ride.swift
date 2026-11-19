@@ -34,10 +34,26 @@ struct RidePlan: Sendable, Equatable {
         let stopDistances: [Double]
     }
 
+    /// A station the train passes without stopping between two of the ride's stops (TT-232, D111): a disabled row on the
+    /// ride screen, a hollow dot on the Live Activity's stop line.
+    struct Skipped: Sendable, Equatable {
+        let station: Station
+        /// The stop in `stops` it comes after.
+        let after: Int
+        /// How far from that stop to the next one it is, 0 to 1: by distance along the track where the feed places it,
+        /// evenly between the two otherwise. The train passes its row when the clock is that far along the stretch.
+        let along: Double
+    }
+
     /// The origin first, your stop last; two at least.
     let stops: [Stop]
     /// Nil when the feed gives the trip no track, or a stop no place: the ride then runs on the timetable alone.
     let track: Track?
+    /// The stations passed without stopping, in the order the train passes them (`RidePlan.skipped(stops:track:lineId:places:)`);
+    /// empty on a train that stops everywhere, and where the line's order is not known.
+    var skipped: [Skipped] = []
+    /// The Schedule card's express tag (D35) for this trip between the ride's two ends: the bolt by the train.
+    var isExpress = false
 }
 
 /// The live word on a trip from GO's TripUpdates feed (D36), as the ride uses it.

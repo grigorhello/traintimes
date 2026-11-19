@@ -33,7 +33,7 @@ struct RideActivityWidget: Widget {
                     RideActivityExpanded(attributes: attributes, state: state, style: style)
                 }
             } compactLeading: {
-                RideActivityTile(attributes: attributes, size: .compact)
+                RideActivityCompactLeading(attributes: attributes, state: state, style: style)
             } compactTrailing: {
                 RideActivityCompactTrailing(state: state, style: style)
             } minimal: {

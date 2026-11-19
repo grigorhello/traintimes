@@ -45,6 +45,9 @@ struct RideDetails: Equatable {
         let isNext: Bool
         /// The time is 1 min or more after the timetable's: drawn in the delay ink.
         let isLate: Bool
+        /// A station the train passes without stopping (TT-232, D111): a disabled row with a hollow ring and no time, never
+        /// the next stop. `isDone` once the train has passed it.
+        var isSkipped = false
     }
 
     let moment: Moment
@@ -60,18 +63,26 @@ struct RideDetails: Equatable {
     let wish: ArrivalWish?
     /// "5 min late" when the train is 1 min or more late; nil on time and at your stop.
     let late: String?
-    /// Every stop from where you got on to yours.
+    /// Every station from where you got on to your stop: the ride's stops, and between them the stations the train passes
+    /// without stopping (`Stop.isSkipped`, TT-232).
     let stops: [Stop]
+    /// The Schedule card's express tag: the bolt rides beside the train, and the rail sits 10 pt further in for it.
+    let isExpress: Bool
     /// The rail as drawn: the boarding stop, the stops passed before the last one folded into one short dotted row, the
     /// last stop passed, the next two, the ones between them and your stop folded, and your stop. Your stop's row always
     /// fits on the screen, however long the trip (review of TT-204).
     let rows: [Row]
     /// Where the train is on `stops`: on a stop's index while it stands there; while it moves, that far to the next stop by
-    /// the clock (`RideTimes.fraction(from:at:)`, the timetable moved by the ride's measured delay, TT-224, D106). The view
-    /// keeps it from going back and short of your stop's pin. Nil at your stop, where the tick takes its place.
+    /// the clock (`RideTimes.fraction(from:at:)`, the timetable moved by the ride's measured delay, TT-224, D106), through
+    /// the rows of the stations it does not stop at (`rowsPast`). The view keeps it from going back and short of your
+    /// stop's pin. Nil at your stop, where the tick takes its place.
     let trainPosition: Double?
-    /// The stop the train stands at, or the last one it passed: a stop passes when this goes up.
+    /// The stop the train stands at, or the last one it passed, as its place in `stops`: a stop passes when this goes up.
+    /// A skipped station never moves it.
     let passed: Int
+    /// From the stop the train last left to the next one it stops at, in `stops`: one stretch for the train on screen,
+    /// whatever stations it passes on it (`forward`).
+    let stretch: Range<Double>
     /// Your stop is the next one: moving to it, or standing at the stop before it.
     let yoursIsNext: Bool
     /// "End ride", or "Done" at your stop.
@@ -140,16 +151,33 @@ extension RideDetails {
             countdown = String(localized: "onboard.now")
         }
         self.moment = moment
-        self.passed = passed
         self.yoursIsNext = yoursIsNext
+        isExpress = plan.isExpress
         self.wish = isComplete ? wish : nil
         late = isLate && !isComplete ? String(format: String(localized: "onboard.late"), times.delayMinutes) : nil
 
-        let built = stops.enumerated().map { index, stop -> Stop in
+        // Each stretch's skipped stations, and each stop's row with them between (TT-232).
+        let between = (0..<last).map { index in plan.skipped.filter { $0.after == index } }
+        var rowOfStop: [Int] = []
+        var nextRow = 0
+        for index in stops.indices {
+            rowOfStop.append(nextRow)
+            nextRow += 1 + (index < last ? between[index].count : 0)
+        }
+        let place: Double? = switch moment {
+        case .atYourStop: nil
+        case .atStation: Double(rowOfStop[passed])
+        case .riding, .yourStopNext, .arriving:
+            Double(rowOfStop[passed])
+                + Self.rowsPast(times.fraction(from: passed, at: now), along: passed < last ? between[passed].map(\.along) : [])
+        }
+
+        var built: [Stop] = []
+        for (index, stop) in stops.enumerated() {
             let shows = index > passed || (isComplete && index == last)
-            return Stop(
+            built.append(Stop(
                 id: stop.station.id,
-                index: index,
+                index: rowOfStop[index],
                 name: Self.shortName(stop.station.name),
                 time: shows ? formatter.time(times.time(at: index)) : nil,
                 isFirst: index == 0,
@@ -157,17 +185,30 @@ extension RideDetails {
                 isDone: index <= passed,
                 isNext: !isComplete && index == passed + 1,
                 isLate: isLate && index > passed
-            )
+            ))
+            guard index < last else { continue }
+            for skipped in between[index] {
+                let row = built.count
+                built.append(Stop(
+                    id: skipped.station.id,
+                    index: row,
+                    name: Self.shortName(skipped.station.name),
+                    time: nil,
+                    isFirst: false,
+                    isYours: false,
+                    isDone: Self.hasPassed(row: row, at: place),
+                    isNext: false,
+                    isLate: false,
+                    isSkipped: true
+                ))
+            }
         }
 
         self.stops = built
-        // At your stop the stop before it stays drawn: no row moves while the train slides into your pin (TT-224).
-        rows = Self.rows(built, passed: isComplete ? max(0, last - 1) : passed)
-        trainPosition = switch moment {
-        case .atYourStop: nil
-        case .atStation: Double(passed)
-        case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
-        }
+        self.passed = rowOfStop[passed]
+        stretch = Double(rowOfStop[passed])..<Double(rowOfStop[min(passed + 1, last)])
+        rows = Self.rows(built, at: place)
+        trainPosition = place
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
         button = isComplete ? String(localized: "onboard.done") : String(localized: "onboard.end")
     }
@@ -176,18 +217,62 @@ extension RideDetails {
 extension RideDetails {
     /// The train never goes back on screen (TT-220's rule, D60): a later delay moves the clock's position back a little on
     /// the same stretch, and the train holds where it was instead. A new stretch, a stop, or your stop shows as it is.
-    static func forward(_ position: Double?, from held: Double?) -> Double? {
+    /// `stretch` is the ride's (from the stop it left to the next one it stops at, so the stations it passes between them
+    /// start no new stretch, TT-232); without one, the stretch is from the row behind the train to the next.
+    static func forward(_ position: Double?, from held: Double?, stretch: Range<Double>? = nil) -> Double? {
         guard let position, let held else { return position }
-        guard position.rounded(.down) == held.rounded(.down), position != position.rounded(.down) else { return position }
+        let range = stretch ?? (position.rounded(.down)..<(position.rounded(.down) + 1))
+        guard position > range.lowerBound, range.contains(held) else { return position }
         return max(position, held)
+    }
+
+    /// The furthest the clock places the train on a stretch (`RideTimes.fraction`).
+    static let furthest = 0.92
+
+    /// How many rows past the stop it left the train is, `fraction` of the way to the next stop by the clock (TT-232).
+    /// With no station between, `fraction` itself. Else each skipped station's row is reached when the clock is as far
+    /// along the stretch as the station is (`along`, in order), and at the clock's furthest the train is 0.92 of the way
+    /// from the last of them to the stop, where the rail keeps its gap to your pin.
+    static func rowsPast(_ fraction: Double, along: [Double]) -> Double {
+        let knots: [Double] = [0] + along + [furthest]
+        guard !along.isEmpty else { return fraction }
+        // Out of order (never from `RidePlan.skipped`): the rows evenly.
+        guard zip(knots, knots.dropFirst()).allSatisfy({ $0 < $1 }) else { return fraction * Double(along.count + 1) }
+        let rows: [Double] = (0...along.count).map { Double($0) } + [Double(along.count) + furthest]
+        guard fraction < furthest else { return rows[rows.count - 1] }
+        let index = knots.lastIndex { $0 <= fraction } ?? 0
+        let share = (fraction - knots[index]) / (knots[index + 1] - knots[index])
+        return rows[index] + share * (rows[index + 1] - rows[index])
+    }
+
+    /// A skipped station's ring turns to the accent once the train is at or past its row; at your stop (nil) all have.
+    static func hasPassed(row: Int, at position: Double?) -> Bool {
+        guard let position else { return true }
+        return position >= Double(row)
+    }
+
+    /// The rail's rows with the train at `position` in `stops`: the row behind the train is the last one passed. At your
+    /// stop (nil) the row before it stays drawn: no row moves while the train slides into your pin (TT-224).
+    static func rows(_ stops: [Stop], at position: Double?) -> [Row] {
+        rows(stops, passed: position.map { Int($0.rounded(.down)) } ?? max(0, stops.count - 2))
+    }
+
+    /// The rows as the view draws them, with the train where it holds it (`forward`).
+    func rows(at position: Double?) -> [Row] {
+        Self.rows(stops, at: position)
     }
 
     /// The boarding stop, the last stop passed and your stop always show. Stops passed before the last one fold; stops
     /// ahead all show while there are four at most, else the next two, then a fold, then yours. A fold never hides a single
     /// stop: it shows instead. At most seven stop rows and two folds, so your stop stays on screen.
+    ///
+    /// A station the train does not stop at counts as a row (TT-232, D111), and `passed` is the row behind the train. A ride
+    /// that passes stations shows every row while they fit (seven: Union to Clarkson on an express is its six stations),
+    /// and folds like any other when longer.
     static func rows(_ stops: [Stop], passed: Int) -> [Row] {
         let last = stops.count - 1
         guard last >= 0 else { return [] }
+        if stops.count <= maxRows, stops.contains(where: \.isSkipped) { return stops.map { .stop($0) } }
         let passed = min(max(passed, 0), last)
         var shown: Set<Int> = [0, passed, last]
         let ahead = last - passed
@@ -207,6 +292,11 @@ extension RideDetails {
         }
         return rows
     }
+}
+
+extension RideDetails {
+    /// The most rows the stop card draws without a fold.
+    static let maxRows = 7
 }
 
 /// The ride strip on Schedule (TT-172; one line since TT-205, D93, *Live-Schedule*): the ride screen's line and minutes. A

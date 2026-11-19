@@ -298,27 +298,20 @@ struct DeparturesWidgetView: View {
             }
             // The countdown, and on its baseline the trains after it.
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                // Proportional digits (the countdown is not a clock time), a point into the margin as on the board,
-                // so "11 min" starts under the departure time.
-                // A three-digit wait beside two 24-hour times shrinks rather than end in dots. It shrinks for width
-                // only: the row is 46 pt high and a 44 pt line is taller, so the text keeps its own height.
-                // The countdown is drawn outside its link, with the link laid over it (TT-185): on a tinted or clear
-                // Home Screen iOS draws a link's label in the plain group, whether the text or the link is marked
-                // accentable, and the countdown stayed white beside Next train's tinted one.
-                hero(train)
-                    .font(TTFont.widgetHero)
-                    .tracking(-1.4)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, -1)
-                    .widgetAccentable()
-                    .overlay {
-                        Link(destination: train.link) {
-                            Color.clear
-                        }
-                    }
+                Link(destination: train.link) {
+                    // Proportional digits (the countdown is not a clock time), a point into the margin as on the board,
+                    // so "11 min" starts under the departure time.
+                    // A three-digit wait beside two 24-hour times shrinks rather than end in dots. It shrinks for width
+                    // only: the row is 46 pt high and a 44 pt line is taller, so the text keeps its own height.
+                    hero(train)
+                        .font(TTFont.widgetHero)
+                        .tracking(-1.4)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, -1)
+                }
                 if !train.later.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("widget.next")
@@ -341,16 +334,20 @@ struct DeparturesWidgetView: View {
         }
     }
 
-    /// "11 min" in accent; "now" in the last minute.
+    /// "11 min" in accent; "now" in the last minute. On a tinted or clear Home Screen iOS draws it white, not in the
+    /// tint, though it is marked accentable like Next train's countdown: on the link, outside the link, with the colour
+    /// on the row or with no link at all, it stayed white on the simulator (TT-185, D117; TT-239, #232).
     @ViewBuilder
     private func hero(_ train: DeparturesContent.Train) -> some View {
         if train.isLeavingNow {
             Text("widget.now")
                 .foregroundStyle(TTColor.accent)
+                .widgetAccentable()
         } else {
             Text(verbatim: train.countdown)
                 .foregroundStyle(TTColor.accent)
                 .contentTransition(.numericText())
+                .widgetAccentable()
         }
     }
 

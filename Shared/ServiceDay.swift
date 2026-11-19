@@ -1,8 +1,9 @@
 import Foundation
 
 /// The GO service day (D18): trips after midnight belong to the previous service day and sort after 11:59 PM.
-/// The day changes at `cutoffHour` Toronto time (D24). Used by the day strip, trip identity (D9) and alerts.
-struct ServiceDay: Hashable, Comparable, Sendable, CustomStringConvertible {
+/// The day changes at `cutoffHour` Toronto time (D24). Used by the day strip, trip identity (D9), alerts and the widgets
+/// (in `Shared/` since TT-182, so the widget extension compiles it; Codable for the widget file).
+struct ServiceDay: Hashable, Comparable, Sendable, Codable, CustomStringConvertible {
     static let cutoffHour = 3
 
     let year: Int
@@ -77,6 +78,9 @@ extension ServiceDay {
     /// "Sunday", as in "No direct trains on Sunday" (TT-115).
     var weekdayName: String { Self.symbols.weekdaySymbols[weekday - 1] }
 
+    /// The day as a Repeat alert's weekdays count it, ISO: 1 is Monday, 7 is Sunday (`weekday` counts from Sunday).
+    var isoWeekday: Int { (weekday + 5) % 7 + 1 }
+
     /// "Sun, Nov 8".
     var shortLabel: String {
         "\(weekdayShort), \(Self.symbols.shortMonthSymbols[month - 1]) \(day)"
@@ -87,9 +91,33 @@ extension ServiceDay {
         Self.calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
     }
 
+    /// The moment of a wall-clock time on this service day in Toronto; times before 3:00 AM fall on the next calendar day (D24).
+    func date(hour: Int, minute: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = goTimeZone
+        let nextDay = hour < Self.cutoffHour ? 1 : 0
+        return calendar.date(from: DateComponents(year: year, month: month, day: day + nextDay, hour: hour, minute: minute))!
+    }
+
+    /// The moment `minutes` into this service day, as `ServiceDay.minutesIntoServiceDay` counts them: 1480 is 00:40 the
+    /// next morning.
+    func date(minutesIntoDay minutes: Int) -> Date {
+        let hour = minutes / 60
+        return date(hour: hour >= 24 ? hour - 24 : hour, minute: minutes % 60)
+    }
+
+    /// "20261105", the service date as GTFS and the alert server write it.
+    var gtfsDate: String { String(format: "%04d%02d%02d", year, month, day) }
+
     private static var symbols: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         return calendar
     }
+}
+
+/// A trip's identity (D9): service date plus the feed's trip id, never departure time.
+struct TripKey: Hashable, Sendable {
+    let serviceDay: ServiceDay
+    let tripId: String
 }

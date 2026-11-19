@@ -107,12 +107,4 @@ extension ServiceDay {
         guard parts.count == 3 else { return nil }
         self.init(year: parts[0], month: parts[1], day: parts[2])
     }
-
-    /// The moment of a wall-clock time on this service day in Toronto; times before 3:00 AM fall on the next calendar day (D24).
-    func date(hour: Int, minute: Int) -> Date {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = goTimeZone
-        let nextDay = hour < Self.cutoffHour ? 1 : 0
-        return calendar.date(from: DateComponents(year: year, month: month, day: day + nextDay, hour: hour, minute: minute))!
-    }
 }

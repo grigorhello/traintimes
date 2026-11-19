@@ -5,9 +5,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# D17/D24: every time goes through the one formatter in Sources/Core/Formatting.
-if grep -rnE 'DateFormatter|\.formatted\(' Sources Shared Widgets --include='*.swift' | grep -v '^Sources/Core/Formatting/'; then
-  echo "::error::DateFormatter or Date.formatted used outside Sources/Core/Formatting (D17)"
+# D17/D24: every time goes through the one formatter, Shared/TimeFormatter.swift (in Shared/ since TT-182).
+if grep -rnE 'DateFormatter|\.formatted\(' Sources Shared Widgets --include='*.swift' | grep -v '^Shared/TimeFormatter.swift:'; then
+  echo "::error::DateFormatter or Date.formatted used outside Shared/TimeFormatter.swift (D17)"
   exit 1
 fi
 

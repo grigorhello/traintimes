@@ -106,12 +106,20 @@ function releaseActivities(db: D1Database, installation: string, originId: strin
 }
 
 /**
- * A rule was saved switched on (TT-240, D118): the installation's cards between its stations that the app ended because
- * their alert was gone are forgotten, so a train the rule watches again (Undo, the bell again) gets a fresh card at the
- * next cycle.
+ * A rule was saved switched on (TT-240, D118): the installation's cards of the trains it watches that the app ended
+ * because their alert was gone are forgotten, so the train gets a fresh card at the next cycle (Undo, the bell again).
+ * A This-trip rule forgets its own train's card only, so saving another alert on the route while a removed alert's DELETE
+ * is still on its way does not start that train's card again; a Repeat rule's train is resolved by the cycle, so it
+ * forgets the cards between its stations.
  */
-function forgetRemovedActivities(db: D1Database, installation: string, originId: string, destinationId: string) {
-  const stations = `|${originId}|${destinationId}`;
+function forgetRemovedActivities(db: D1Database, installation: string, rule: { kind: 'trip' | 'repeat'; serviceDate: string; tripId: string; originId: string; destinationId: string }) {
+  const stations = `|${rule.originId}|${rule.destinationId}`;
+  if (rule.kind === 'trip') {
+    return db
+      .prepare(`DELETE FROM activities WHERE installation_id = ? AND state = 'removed' AND key = ?`)
+      .bind(installation, `${rule.serviceDate}|${rule.tripId}${stations}`)
+      .run();
+  }
   return db
     .prepare(`DELETE FROM activities WHERE installation_id = ? AND state = 'removed' AND substr(key, -length(?)) = ?`)
     .bind(installation, stations, stations)
@@ -296,7 +304,7 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
           )
           .run();
         if (paused) await releaseActivities(db, installation, origin.id, destination.id);
-        else await forgetRemovedActivities(db, installation, origin.id, destination.id);
+        else await forgetRemovedActivities(db, installation, { kind, serviceDate, tripId, originId: origin.id, destinationId: destination.id });
         const row = await db
           .prepare('SELECT * FROM rules WHERE installation_id = ? AND id = ?')
           .bind(installation, rule)

@@ -75,8 +75,8 @@ CREATE TABLE IF NOT EXISTS activities (
                                     -- with a token and a `shown` that no rule watches any more is ended and deleted by
                                     -- the minute cycle (TT-240); 'ended' goes back to 'started' when the app reports
                                     -- another token (a new card); 'removed' (no token): the app ended the card because its
-                                    -- alert was gone, nothing follows it, and a rule saved switched on between its
-                                    -- stations deletes it, so the next cycle starts a fresh card (TT-240)
+                                    -- alert was gone, nothing follows it, and a rule saved switched on for its train
+                                    -- deletes it, so the next cycle starts a fresh card (TT-240)
   shown TEXT,                       -- what it last showed (src/activity.ts signature), so updates go only on a change;
                                     -- NULL until a cycle follows it, '' once its rule was removed or paused before that
   version INTEGER NOT NULL DEFAULT 0,

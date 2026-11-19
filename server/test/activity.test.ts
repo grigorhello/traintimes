@@ -475,6 +475,16 @@ describe('a card whose alert is gone (TT-240)', () => {
     assert.equal((await cycle('6:46:00'))[0].event, 'start');
   });
 
+  test('another alert saved on the route while the removed one’s DELETE is on its way does not bring its card back', async () => {
+    await cardUp();
+    await report({ removed: true });
+    // The bell on the 7:43 from Oakville, before the 7:13's DELETE arrives (or while it waits to be sent again).
+    const later = { tripId: '20261109-LW-1258', scheduledDeparture: new Date(at('7:43')).toISOString() };
+    assert.equal((await saveRule(later, 'r3')).status, 200);
+    assert.deepEqual(await cycle('6:45:00'), [], 'No start, and no alert, for the 7:13');
+    assert.deepEqual(await activity(), { token: null, state: 'removed' });
+  });
+
   test('a card the app starts again itself takes the removed row back', async () => {
     await cardUp();
     await report({ removed: true });

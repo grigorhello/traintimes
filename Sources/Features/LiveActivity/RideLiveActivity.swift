@@ -332,8 +332,10 @@ final class RideLiveActivity: RideActivityFollowing {
                 await Self.end(activity.id, content: nil, dismissal: nil)
             } else if !Self.keepsDeparture(card, source: source?.ride, hasAlert: reporter?.hasAlert(for: card)) {
                 // Its alert is gone (TT-240, D118): nothing would update the card again, so it leaves now. Forgotten here,
-                // so Undo or a new bell tap starts it again when it is the source's train.
+                // so Undo or a new bell tap starts it again when it is the source's train, and tells the server again that
+                // the question is silent (TT-231) if it comes back in the last 75 s.
                 departureStarted.remove(card)
+                askedRides.remove(card)
                 await Self.end(activity.id, content: nil, dismissal: nil)
                 removed.append(activity.attributes)
             } else {

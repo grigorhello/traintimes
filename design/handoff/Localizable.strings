@@ -307,6 +307,9 @@
 "settings.testing.reset" = "Reset";
 "settings.testing.time" = "Time";
 "settings.testing.footnote" = "Toronto time. With mock time on, the real live data is off; Live data still works. Testing appears in TestFlight and Xcode builds only.";
+"settings.feedback_nudge" = "Feedback animation";
+"settings.feedback_nudge.play" = "Play on Schedule";
+"settings.feedback_nudge.queued" = "Next still Schedule";
 "settings.demo_trains" = "Demo trains";
 "settings.demo_trains.off" = "Off";
 "settings.demo_trains.delays" = "Delays";

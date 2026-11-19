@@ -50,6 +50,7 @@ struct SettingsMainPage: View {
     let open: (SettingsPage) -> Void
     @State private var showsFeedback = false
     @Environment(\.feedbackSender) private var feedbackSender
+    @Environment(\.feedbackNudge) private var feedbackNudge
 
     var body: some View {
         ScrollView {
@@ -139,7 +140,10 @@ struct SettingsMainPage: View {
 
     /// Support (TT-202, D85): the feedback sheet, and the rider's mail app as the fallback.
     private var feedbackRow: some View {
-        Button { showsFeedback = true } label: {
+        Button {
+            feedbackNudge?.sheetOpened(from: .settings)
+            showsFeedback = true
+        } label: {
             SettingsRow(title: "settings.support.feedback") { SettingsChevron() }
         }
         .buttonStyle(SettingsRowButtonStyle())

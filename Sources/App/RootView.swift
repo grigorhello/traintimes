@@ -30,6 +30,8 @@ struct RootView: View {
     @State private var onBoard: OnBoard
     /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
     @State private var opensRide = false
+    /// Schedule's Feedback button asking now and then (TT-228, D112); Settings opens the sheet through it too.
+    @State private var feedbackNudge: FeedbackNudge
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
     private let backgroundDetection: BackgroundDetection?
@@ -56,7 +58,8 @@ struct RootView: View {
         ride: RideEngine? = nil,
         nudge: ArrivalNudge? = nil,
         liveActivity: RideLiveActivity? = nil,
-        detection: BackgroundDetection? = nil
+        detection: BackgroundDetection? = nil,
+        feedbackNudge: FeedbackNudge = .app()
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), actionDuration: alertDependencies.capsuleActionDuration,
@@ -106,6 +109,7 @@ struct RootView: View {
                 declines: ScheduleDependencies.isFixtureRun(ProcessInfo.processInfo.environment) ? nil : .standard
             )
         )
+        _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
         backgroundDetection = detection
         widgetFile = dependencies.widgetData.flatMap {
@@ -147,6 +151,8 @@ struct RootView: View {
             } else {
                 tabView
                     .environment(\.launchCovers, splashCovers)
+                    .environment(\.feedbackNudge, feedbackNudge)
+                    .environment(\.scheduleCovered, router.presentedSheet != nil || router.selectedTab != .schedule)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
         }

@@ -293,6 +293,8 @@ final class SettingsViewModel {
             }
         } else if was {
             reader.store.isOff = true
+            // An unanswered one-time strip on Schedule goes and counts as answered (TT-236).
+            look?.turnedOffInSettings()
         }
         if prompt == nil { autoDirectionSettled(from: was) }
         return prompt

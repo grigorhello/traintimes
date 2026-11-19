@@ -33,6 +33,8 @@ enum DirectionRule {
     static let undoHold: TimeInterval = 60 * 60
     /// A ride that ended at your stop turns the route for this long after it.
     static let proofLasts: TimeInterval = 60 * 60
+    /// "Now from …" shows on this many of the app's turns; later turns are quiet, unless Reduce Motion is on (TT-236).
+    static let capsuleTurns = 8
 
     /// The route's two stations with their places.
     struct Ends: Equatable, Sendable {

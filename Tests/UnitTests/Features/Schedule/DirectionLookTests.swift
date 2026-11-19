@@ -1645,6 +1645,316 @@ final class DirectionLookTests: XCTestCase {
         XCTAssertEqual(switched.schedule.kinds, [.switched])
     }
 
+    // MARK: The one-time strip (TT-236)
+
+    /// The first turn the app makes brings the strip, beside "Now from Union", silently.
+    func testTheFirstTurnShowsTheStrip() async {
+        let rig = Rig(now: evening)
+        XCTAssertFalse(rig.look.showsStrip)
+        await turnAtUnion(rig)
+        XCTAssertTrue(rig.look.showsStrip)
+        XCTAssertFalse(rig.store.stripAnswered)
+        XCTAssertTrue(rig.haptics.played.isEmpty, "the strip comes with no haptic")
+    }
+
+    /// A turn under the splash puts the strip up at once, so it is in place when the splash lifts; on coming back it
+    /// arrives as the names land.
+    func testTheStripIsInPlaceAtTheLiftAndArrivesAsTheNamesLandOnComingBack() async {
+        let cold = Rig(now: evening, stripDelay: .milliseconds(500), playsSplash: true)
+        cold.look.update(underSplash)
+        cold.location.send(atUnion)
+        await eventually { cold.schedule.turnCount == 1 }
+        XCTAssertTrue(cold.look.showsStrip)
+
+        let back = Rig(now: evening, stripDelay: .milliseconds(500))
+        back.look.update(front)
+        back.location.send(atUnion)
+        await eventually { back.schedule.turnCount == 1 }
+        XCTAssertFalse(back.look.showsStrip, "not before the names land")
+        await eventually { back.look.showsStrip }
+    }
+
+    /// A first turn made with Switch brings the strip, and no capsule after it.
+    func testAFirstSwitchShowsTheStripWithNoCapsule() async {
+        let rig = Rig(now: evening)
+        await askAtUnion(rig)
+        XCTAssertFalse(rig.look.showsStrip, "the question alone brings no strip")
+
+        await rig.look.switchRoute()
+        XCTAssertEqual(rig.schedule.turnCount, 1)
+        XCTAssertTrue(rig.look.showsStrip)
+        XCTAssertNil(rig.capsule)
+    }
+
+    /// The turn after a ride that ended at the stop plays with the plain capsule (Allow Once may be gone by tomorrow), and
+    /// the strip keeps its first time for the next turn.
+    func testARidesTurnShowsNoStripAndKeepsItsFirstTime() async {
+        let rig = Rig(now: evening)
+        rig.ride.arrival = arrival()
+        rig.look.update(front)
+        await eventually { rig.schedule.turnCount == 1 && rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"))
+        await pause()
+        XCTAssertFalse(rig.look.showsStrip)
+        XCTAssertFalse(rig.store.stripAnswered)
+
+        // The next visit, at Oakville, turns the route back: the strip comes with that turn.
+        rig.look.wentToBackground()
+        rig.look.update(front)
+        rig.location.send(atOakville)
+        await eventually { rig.schedule.turnCount == 2 }
+        XCTAssertTrue(rig.look.showsStrip)
+    }
+
+    /// Never in the same visit as Detect my train's offer, shown in this visit or due when the turn comes: the turn plays
+    /// with the plain capsule and the strip waits for the next turn.
+    func testNoStripInTheVisitOfDetectMyTrainsOffer() async {
+        let shown = Rig(now: evening)
+        shown.look.offerShown()
+        await turnAtUnion(shown)
+        await pause()
+        XCTAssertFalse(shown.look.showsStrip)
+
+        shown.look.wentToBackground()
+        shown.look.update(front)
+        shown.location.send(atOakville)
+        await eventually { shown.schedule.turnCount == 2 }
+        XCTAssertTrue(shown.look.showsStrip, "the next visit's turn brings it")
+
+        let due = Rig(now: evening)
+        due.look.update(front)
+        due.offer.isDue = true
+        due.location.send(atUnion)
+        await eventually { due.schedule.turnCount == 1 && due.capsule != nil }
+        XCTAssertEqual(due.capsule, .turned(station: "Union"))
+        XCTAssertFalse(due.look.showsStrip)
+        XCTAssertFalse(due.store.stripAnswered)
+    }
+
+    /// The strip shows only while Automatic direction reads on. Turned off by the rider (seen at Schedule's next scene
+    /// change, or told by Settings): it goes and counts as answered.
+    func testTurnedOffInSettingsTheStripGoesAsAnswered() async {
+        let seen = Rig(now: evening)
+        await turnAtUnion(seen)
+        seen.store.isOff = true
+        seen.look.update(front)
+        XCTAssertFalse(seen.look.showsStrip)
+        XCTAssertTrue(seen.store.stripAnswered)
+
+        let told = Rig(now: evening)
+        await turnAtUnion(told)
+        told.store.isOff = true
+        told.look.turnedOffInSettings()
+        XCTAssertFalse(told.look.showsStrip)
+        XCTAssertTrue(told.store.stripAnswered)
+        XCTAssertTrue(told.haptics.played.isEmpty)
+    }
+
+    /// Location no longer allowed (Allow Once ran out, refused, Precise Location off): the strip goes, unanswered, and
+    /// comes back with the next turn.
+    func testWithoutLocationTheStripGoesAndKeepsItsFirstTime() async {
+        let losses: [(String, (FakeDirectionLocation) -> Void)] = [
+            ("Allow Once ran out", { $0.permission = .notAsked }),
+            ("refused", { $0.permission = .refused }),
+            ("Precise Location off", { $0.isPrecise = false }),
+        ]
+        for (name, lose) in losses {
+            let rig = Rig(now: evening)
+            await turnAtUnion(rig)
+            lose(rig.location)
+            rig.look.update(front)
+            XCTAssertFalse(rig.look.showsStrip, name)
+            XCTAssertFalse(rig.store.stripAnswered, name)
+
+            rig.location.permission = .allowed
+            rig.location.isPrecise = true
+            rig.look.wentToBackground()
+            rig.look.update(front)
+            rig.location.send(atOakville)
+            await eventually { rig.schedule.turnCount == 2 }
+            XCTAssertTrue(rig.look.showsStrip, name)
+        }
+    }
+
+    /// The strip stays until it is answered: no time runs out and it is still there on coming back. After a relaunch with
+    /// it unanswered, it comes back with the next turn.
+    func testTheStripStaysUntilAnswered() async {
+        let store = DirectionStore(defaults: nil)
+        let rig = Rig(store: store, now: evening)
+        await turnAtUnion(rig)
+        rig.look.wentToBackground()
+        rig.look.update(front)
+        await pause()
+        XCTAssertTrue(rig.look.showsStrip, "still there on coming back")
+
+        let relaunched = Rig(store: store, now: evening)
+        relaunched.look.update(front)
+        XCTAssertFalse(relaunched.look.showsStrip, "nothing before the next turn")
+        relaunched.location.send(atUnion)
+        await eventually { relaunched.schedule.turnCount == 1 }
+        XCTAssertTrue(relaunched.look.showsStrip)
+    }
+
+    /// OK closes the strip for good, with a Tap as the train question's No, and sends nothing; the capsule stays.
+    func testOKClosesTheStripForGood() async {
+        let recorder = RecordingAnalytics.install()
+        let store = DirectionStore(defaults: nil)
+        let rig = Rig(store: store, now: evening)
+        await turnAtUnion(rig)
+
+        rig.look.stripOK()
+        XCTAssertFalse(rig.look.showsStrip)
+        XCTAssertTrue(store.stripAnswered)
+        XCTAssertEqual(rig.haptics.played, [.tap])
+        XCTAssertTrue(rig.look.isOn)
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"), "the capsule stays")
+
+        // The next turn shows no strip, nor does a new launch's.
+        rig.look.wentToBackground()
+        rig.look.update(front)
+        rig.location.send(atOakville)
+        await eventually { rig.schedule.turnCount == 2 && rig.capsule != nil }
+        XCTAssertFalse(rig.look.showsStrip)
+
+        let relaunched = Rig(store: store, now: evening)
+        await turnAtUnion(relaunched)
+        await pause()
+        XCTAssertFalse(relaunched.look.showsStrip)
+        XCTAssertTrue(recorder.events.isEmpty, "\(recorder.names)")
+    }
+
+    /// Turn off turns only the setting off, with the Settings switch's one event and nothing else. The route stays turned,
+    /// Undo on the capsule still puts it back, and the next visit has no look.
+    func testTurnOffTurnsOnlyTheSettingOff() async {
+        let recorder = RecordingAnalytics.install()
+        let rig = Rig(now: evening)
+        await turnAtUnion(rig)
+
+        rig.look.stripTurnOff()
+        XCTAssertFalse(rig.look.showsStrip)
+        XCTAssertTrue(rig.store.stripAnswered)
+        XCTAssertTrue(rig.store.isOff)
+        XCTAssertFalse(rig.look.isOn)
+        XCTAssertEqual(rig.schedule.route, turned)
+        XCTAssertEqual(rig.schedule.turnCount, 1)
+        XCTAssertEqual(rig.haptics.played, [.tap])
+        XCTAssertEqual(recorder.events, [.settingChanged("auto_direction", value: "off")])
+
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"))
+        await rig.look.undo()
+        XCTAssertEqual(rig.schedule.route, route)
+        XCTAssertEqual(recorder.events.count, 1, "Undo sends nothing")
+
+        rig.look.wentToBackground()
+        rig.look.update(front)
+        XCTAssertEqual(rig.outcome, .nothing(.off))
+    }
+
+    /// OK and Turn off do nothing with no strip up.
+    func testTheStripsButtonsNeedTheStrip() {
+        let rig = Rig(now: evening)
+        rig.look.stripOK()
+        rig.look.stripTurnOff()
+        XCTAssertFalse(rig.store.stripAnswered)
+        XCTAssertFalse(rig.store.isOff)
+        XCTAssertTrue(rig.haptics.played.isEmpty)
+    }
+
+    // MARK: Quiet after 8 turns (TT-236)
+
+    /// "Now from …" shows on the app's first 8 turns; from the 9th on a turn is quiet, and the route still turns.
+    func testTheCapsuleShowsOnTheFirst8TurnsOnly() async {
+        let rig = Rig(now: evening)
+        for turn in 1...9 {
+            rig.look.wentToBackground()
+            let station = rig.schedule.route?.to
+            rig.look.update(front)
+            rig.location.send(station?.id == "UN" ? atUnion : atOakville)
+            await eventually { rig.schedule.turnCount == turn }
+            if turn <= DirectionRule.capsuleTurns {
+                let name = StationNames.short(station?.name ?? "")
+                await eventually { rig.capsule == .turned(station: name) }
+            } else {
+                await pause()
+                XCTAssertNil(rig.capsule, "turn \(turn) is quiet")
+            }
+        }
+        XCTAssertEqual(rig.store.turnsCounted, 8, "the count stops at 8")
+    }
+
+    /// Every turn the app makes counts: undone or not, after a ride, also when a bell's capsule took the capsule's place.
+    /// A turn made with Switch does not, and nor does Undo's.
+    func testWhichTurnsCount() async {
+        let undone = Rig(now: evening)
+        await turnAtUnion(undone)
+        await undone.look.undo()
+        XCTAssertEqual(undone.store.turnsCounted, 1)
+
+        let afterARide = Rig(now: evening)
+        afterARide.ride.arrival = arrival()
+        afterARide.look.update(front)
+        await eventually { afterARide.schedule.turnCount == 1 }
+        XCTAssertEqual(afterARide.store.turnsCounted, 1)
+
+        let bell = Rig(now: evening)
+        bell.look.update(front)
+        bell.location.send(atUnion)
+        await eventually { bell.schedule.turnCount == 1 }
+        bell.look.update(DirectionLook.Scene(isActive: true, isInFront: true, hasBellCapsule: true))
+        await pause()
+        XCTAssertNil(bell.capsule)
+        XCTAssertEqual(bell.store.turnsCounted, 1)
+
+        let switched = Rig(now: evening)
+        await askAtUnion(switched)
+        await switched.look.switchRoute()
+        XCTAssertEqual(switched.schedule.turnCount, 1)
+        XCTAssertEqual(switched.store.turnsCounted, 0)
+    }
+
+    /// With Reduce Motion on the names do not trade, so "Now from …" shows on every turn; the count still counts.
+    func testWithReduceMotionTheCapsuleShowsOnEveryTurn() async {
+        let store = DirectionStore(defaults: nil)
+        for _ in 0..<12 { store.countTurn() }
+        XCTAssertEqual(store.turnsCounted, 8)
+
+        let quiet = Rig(store: store, now: evening)
+        quiet.look.update(front)
+        quiet.location.send(atUnion)
+        await eventually { quiet.schedule.turnCount == 1 }
+        await pause()
+        XCTAssertNil(quiet.capsule)
+
+        let reduced = Rig(store: store, now: evening)
+        reduced.look.update(DirectionLook.Scene(isActive: true, isInFront: true, reduceMotion: true))
+        reduced.location.send(atUnion)
+        await eventually { reduced.schedule.turnCount == 1 && reduced.capsule != nil }
+        XCTAssertEqual(reduced.capsule, .turned(station: "Union"))
+        XCTAssertEqual(store.turnsCounted, 8)
+    }
+
+    /// The question and the line after Undo always show, whatever the count.
+    func testTheQuestionAndTheLineAfterUndoAlwaysShow() async {
+        let store = DirectionStore(defaults: nil)
+        for _ in 0..<8 { store.countTurn() }
+
+        let asked = Rig(store: store, now: evening)
+        await askAtUnion(asked)
+        XCTAssertEqual(asked.capsule, .asks(station: "Union"))
+
+        // A quiet turn, then the swap button back from it: that is the Undo, with its line.
+        let swapped = Rig(store: store, now: evening)
+        swapped.look.update(front)
+        swapped.location.send(atUnion)
+        await eventually { swapped.schedule.turnCount == 1 }
+        await pause()
+        XCTAssertNil(swapped.capsule)
+        swapped.schedule.route = route
+        swapped.look.chose(route, by: .byHand)
+        XCTAssertEqual(swapped.capsule, .kept)
+        XCTAssertTrue(store.holdsUndo(for: route, at: swapped.clock.now))
+    }
+
     // MARK: No events
 
     /// A turn and its Undo, the question shown, left and answered, and the turn after a ride send no event: each would
@@ -1683,7 +1993,7 @@ final class DirectionLookTests: XCTestCase {
 
 /// A look with everything under it faked: Schedule's route, the reader, the store in memory, the clock, the ride and
 /// Detect my train's offer. The capsule stays up until a test ends it, and the quick time and the limit are long unless
-/// a test shortens them.
+/// a test shortens them. The one-time strip comes at once with its turn unless a test gives it a delay.
 @MainActor
 private final class Rig {
     /// Detect my train's offer, as a test sets it.
@@ -1704,14 +2014,15 @@ private final class Rig {
 
     init(
         route: Route? = DirectionFixtures.route, permission: DirectionPermission = .allowed, isPrecise: Bool = true,
-        stations: any StationRepository = DirectionFixtures.stations, now: Date,
+        stations: any StationRepository = DirectionFixtures.stations, store: DirectionStore? = nil, now: Date,
         track: @escaping @Sendable (Route, ServiceDay) async -> DirectionRule.Track? = { _, _ in nil },
         quick: Duration = .seconds(300), limit: Duration = .seconds(300), capsuleDelay: Duration = .milliseconds(20),
-        playsSplash: Bool = false
+        stripDelay: Duration = .zero, playsSplash: Bool = false
     ) {
         let schedule = FakeRouteTurning(route: route)
         let location = FakeDirectionLocation(permission: permission, isPrecise: isPrecise)
-        let store = DirectionStore(defaults: nil)
+        // A test that relaunches the app passes the same store to a second rig.
+        let store = store ?? DirectionStore(defaults: nil)
         let clock = TestClock(now: now)
         let ride = FakeRideSource()
         let haptics = FakeHaptics()
@@ -1728,7 +2039,7 @@ private final class Rig {
             schedule: schedule, location: location, stations: stations, store: store, clock: clock, ride: ride,
             offerDue: { offer.isDue }, track: track,
             capsule: DirectionCapsuleModel(actionDuration: .seconds(300), plainDuration: .seconds(300)), haptics: haptics,
-            quick: quick, limit: limit, capsuleDelay: capsuleDelay, playsSplash: playsSplash
+            quick: quick, limit: limit, capsuleDelay: capsuleDelay, stripDelay: stripDelay, playsSplash: playsSplash
         )
     }
 

@@ -34,6 +34,11 @@ final class AppSettings {
         }
     }
 
+    /// Settings › Testing › Demo weather (TT-226): fixture weather on the weather tile; TestFlight and Debug builds only.
+    var demoWeather: Bool {
+        didSet { demoWeather ? defaults.set("on", forKey: DemoWeather.key) : defaults.removeObject(forKey: DemoWeather.key) }
+    }
+
     /// The one formatter (D17), following the Time format setting.
     var timeFormatter: TimeFormatter { TimeFormatter(format: timeFormat) }
 
@@ -45,5 +50,6 @@ final class AppSettings {
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
         mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off
         mockTime = MockTime.read(from: defaults)
+        demoWeather = defaults.string(forKey: DemoWeather.key) == "on"
     }
 }

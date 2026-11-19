@@ -87,6 +87,20 @@ enum TTFont {
     static let question   = Font.system(size: 20, weight: .bold)                              // "On the train to Clarkson?" (TT-175, TT-205)
     static let stripMinutes = Font.system(size: 22, weight: .bold)                            // the minutes on Schedule's ride strip (TT-205)
     static let departLine = Font.system(size: 22, weight: .semibold)                          // "5:13 PM departs in" over the minutes (TT-205)
+    static let lineCodeTiny = Font.system(size: 9, weight: .bold)                             // the code in the Next train widget's 20 pt tile (TT-183)
+    // The Home Screen widgets (TT-183). Departures uses three sizes only: 44, 28 and 15 pt.
+    static let widgetHero = Font.system(size: 44, weight: .bold)                              // Departures: the countdown
+    static let widgetTime = Font.system(size: 28, weight: .bold)                              // Departures: the departure time
+    static let widgetArrival = Font.system(size: 28, weight: .medium)                         // Departures: the arrival time
+    static let widgetLabel = Font.system(size: 15, weight: .medium)                           // Departures: "Arrives", "Next", message text
+    static let widgetStrong = Font.system(size: 15, weight: .semibold)                        // Departures: the route, the later times
+    static let widgetTitle = Font.system(size: 28, weight: .semibold)                         // Departures: a message's first line
+    static let widgetPeriod = Font.system(size: 19, weight: .semibold)                        // Next train: "AM" beside the 34 pt time
+    static let widgetCountdown = Font.system(size: 16, weight: .semibold)                     // Next train: "in 11 min"
+    static let widgetTo = Font.system(size: 14, weight: .regular)                             // Next train: "to"
+    static let widgetStation = Font.system(size: 14, weight: .semibold)                       // Next train: "Union"
+    static let widgetFooterTime = Font.system(size: 13, weight: .semibold)                    // Next train: the footer's and a message's time
+    static let widgetYourTrain = Font.system(size: 12, weight: .semibold)                     // Next train: "Your train"
     static let weatherTemperature = Font.system(size: 48, weight: .semibold)                  // the weather sheet's temperature (TT-226)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }

@@ -418,8 +418,40 @@
 "weather.attribution.mark" = "Weather";
 "weather.attribution.legal" = "Other data sources";
 
-/* Home Screen widgets (TT-181; TT-183 replaces the placeholder and keeps these keys) */
+/* Home Screen widgets (TT-181; TT-183 draws them) */
 "widget.next.name" = "Next train";
 "widget.next.description" = "Your next train and how long until it leaves.";
+"widget.departures.name" = "Departures";
+"widget.departures.description" = "Your next trains and when they arrive.";
 "widget.not_loaded.title" = "Open Train Times once";
 "widget.not_loaded.body" = "to load the timetable.";
+"widget.no_route.title" = "Choose your route";
+"widget.no_route.body" = "in Train Times.";
+"widget.out_of_date.title" = "Timetable out of date";
+"widget.out_of_date.body" = "Open Train Times to update it.";
+"widget.none_tonight.title" = "No more trains tonight";
+"widget.none_today.title" = "No more trains today";
+"widget.first_train" = "First train %@";
+"widget.first_train_tomorrow" = "First train tomorrow %1$@, arrives\U00A0%2$@";
+"widget.first_train_arrives" = "First train %1$@, arrives\U00A0%2$@";
+"widget.no_trains.title" = "No trains today";
+"widget.no_trains.body" = "Next %@";
+"widget.to" = "to";
+"widget.in" = "in";
+"widget.now" = "now";
+"widget.minutes" = "%d min";
+"widget.last_train" = "Last train";
+"widget.your_train" = "Your train";
+"widget.then" = "Then";
+"widget.earlier" = "Earlier";
+"widget.first" = "First";
+"widget.arrives" = "Arrives";
+"widget.next" = "Next";
+
+/* Edit widget (TT-183) */
+"widget.edit.title" = "Route";
+"widget.edit.from" = "From";
+"widget.edit.to" = "To";
+"widget.edit.turn_around" = "Turn around at 12 PM";
+"widget.edit.turn_around.description" = "After 12 PM the widget shows the way back.";
+"widget.edit.station" = "Station";

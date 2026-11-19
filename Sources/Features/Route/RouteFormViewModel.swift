@@ -236,19 +236,6 @@ final class RouteFormViewModel {
         query.trimmingCharacters(in: .whitespaces)
     }
 
-    /// The name, or the name from any word on, starts with `prefix`: "oak" and "uni" find Oakville GO and Union Station GO,
-    /// "st" finds Union Station GO too.
-    private static func matches(_ name: String, prefix: String) -> Bool {
-        var start = name.startIndex
-        while start < name.endIndex {
-            let rest = name[start...]
-            if rest.range(of: prefix, options: [.anchored, .caseInsensitive, .diacriticInsensitive]) != nil { return true }
-            guard let separator = rest.firstIndex(where: { $0 == " " || $0 == "-" }) else { return false }
-            start = name.index(after: separator)
-        }
-        return false
-    }
-
     /// The station already chosen for the other field.
     private func isTaken(_ station: Station) -> Bool {
         station.id == (pickingField == .from ? to : from)?.id
@@ -267,7 +254,7 @@ final class RouteFormViewModel {
         let sameAs = String(localized: sameAsKey)
         return list
             .filter { $0.id != ownStationId }
-            .filter { text.isEmpty || Self.matches($0.name, prefix: text) }
+            .filter { text.isEmpty || StationNames.matches($0.name, prefix: text) }
             .map { station in
                 let lines = allLines.count > 1 && Set(station.lines) == allLines
                     ? String(localized: "stations.all_lines")

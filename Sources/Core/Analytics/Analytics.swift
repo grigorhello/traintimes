@@ -243,6 +243,17 @@ extension AnalyticsEvent {
 
     static let directionsOpened = Self("directions_opened")
 
+    /// A tap on a Home Screen widget opened the app (TT-183): which widget, and what it opened (`trip` Trip details,
+    /// `route` Schedule).
+    static func widgetOpened(_ widget: WidgetKind, opensTrip: Bool) -> Self {
+        Self("widget_opened", ["widget": .string(widget.rawValue), "target": .string(opensTrip ? "trip" : "route")])
+    }
+
+    /// The widgets on the Home Screen, when their counts change (`WidgetsPlacedCount`).
+    static func widgetsPlaced(nextTrain: Int, departures: Int) -> Self {
+        Self("widgets_placed", ["next_train": .int(nextTrain), "departures": .int(departures)])
+    }
+
     static func feedbackSent(_ kind: FeedbackKind, withEmail: Bool) -> Self {
         Self("feedback_sent", ["kind": .string(kind.rawValue), "with_email": .bool(withEmail)])
     }

@@ -63,26 +63,68 @@ extension Color {
 
 /// The line's code in a rounded tile in its own colour (D49), as on the canvas's `.line-tile`.
 struct LineTile: View {
+    /// The app's 32 pt tile, and the widgets' 26 pt (Departures) and 20 pt (Next train) ones (TT-183).
+    enum Kind: Sendable {
+        case standard, widget, widgetSmall
+
+        var side: CGFloat {
+            switch self {
+            case .standard: LineTile.size
+            case .widget: 26
+            case .widgetSmall: 20
+            }
+        }
+
+        var radius: CGFloat {
+            switch self {
+            case .standard: 9
+            case .widget: 8
+            case .widgetSmall: 6
+            }
+        }
+
+        var font: Font {
+            switch self {
+            case .standard, .widget: TTFont.lineCode
+            case .widgetSmall: TTFont.lineCodeTiny
+            }
+        }
+
+        var tracking: CGFloat {
+            switch self {
+            case .standard: 0.4
+            case .widget: 0
+            case .widgetSmall: 0.3
+            }
+        }
+    }
+
     @Environment(\.colorScheme) private var colorScheme
     let line: Line
+    var kind: Kind = .standard
+    /// Where iOS draws a widget in one colour (a tinted or clear Home Screen, TT-183): the code in an outline, no fill.
+    var isOutline = false
 
-    static let size: CGFloat = 32
-    private static let radius: CGFloat = 9
+    nonisolated static let size: CGFloat = 32
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: kind.radius)
         Text(verbatim: line.id)
-            .font(TTFont.lineCode)
-            .tracking(0.4)
+            .font(kind.font)
+            .tracking(kind.tracking)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .foregroundStyle(.white)
-            .frame(width: Self.size, height: Self.size)
-            .background(GOLineColor.color(for: line), in: RoundedRectangle(cornerRadius: Self.radius))
+            .foregroundStyle(isOutline ? AnyShapeStyle(.primary) : AnyShapeStyle(.white))
+            .frame(width: kind.side, height: kind.side)
+            .background {
+                if isOutline {
+                    shape.strokeBorder(.primary, lineWidth: 1.5)
+                } else {
+                    shape.fill(GOLineColor.color(for: line))
+                }
+            }
             // A dark line colour on the dark canvas keeps an edge.
-            .overlay(
-                RoundedRectangle(cornerRadius: Self.radius)
-                    .strokeBorder(.white.opacity(colorScheme == .dark ? 0.16 : 0), lineWidth: 1)
-            )
+            .overlay(shape.strokeBorder(.white.opacity(colorScheme == .dark && !isOutline ? 0.16 : 0), lineWidth: 1))
             .accessibilityHidden(true)
     }
 }

@@ -53,7 +53,10 @@ struct GTFSScheduleRepository: ScheduleRepository, StationRepository {
             snapshot.platforms[call.tripId] = board?.platform(forTrip: call.tripId)
             if update?.hasLeft(call) == true { snapshot.leftOrigin.insert(call.tripId) }
             let untilDeparture = call.departures[call.from].timeIntervalSince(now)
-            guard let trains, let place, untilDeparture <= Self.sightingLead, untilDeparture >= -Self.sightingTail,
+            // Offline the fixes are dropped anyway (`Departure.resolve`), so the train feed is not read: on a dead
+            // connection its 10 s timeout would hold Offline back as long again.
+            guard !result.isOffline, let trains, let place,
+                  untilDeparture <= Self.sightingLead, untilDeparture >= -Self.sightingTail,
                   let position = await trains.position(of: TripKey(serviceDay: day, tripId: call.tripId)) else { continue }
             snapshot.originFixes[call.tripId] = OriginFix(
                 metres: TrackShape.distance(position.coordinate, place), reportedAt: position.reportedAt

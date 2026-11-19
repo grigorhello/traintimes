@@ -20,7 +20,7 @@ final class DepartureQuestionTests: XCTestCase {
     // MARK: The rule
 
     func testAsksAtTheExpectedDepartureNotBefore() throws {
-        XCTAssertEqual(try XCTUnwrap(live(at: DepartureRig.time(17, 13, 30))).phase, .boarding, "Late: not at 5:13")
+        XCTAssertEqual(try XCTUnwrap(live(at: DepartureRig.time(17, 13, 30))).phase, .countingDown, "Late: not at 5:13")
         XCTAssertEqual(try XCTUnwrap(live(at: DepartureRig.time(17, 15, 59))).phase, .boarding)
         let asking = try XCTUnwrap(live(at: DepartureRig.time(17, 16)))
         XCTAssertEqual(asking.phase, .departed, "At the expected 5:16")

@@ -14,7 +14,9 @@ if grep -rnE 'DateFormatter|\.formatted\(' Sources Shared Widgets --include='*.s
 fi
 
 PREFERRED="${SIMULATOR_NAME:-iPhone 17 Pro}"
-read -r UDID IOS_VERSION < <(python3 - "$PREFERRED" "${SIMULATOR_OS:-}" <<'PY'
+# Not inside $(...) or <(...): macOS bash 3.2 misreads a heredoc there that holds a quote.
+mkdir -p build
+python3 - "$PREFERRED" "${SIMULATOR_OS:-}" > build/simulator.txt <<'PY'
 import json, subprocess, sys
 preferred, wanted = sys.argv[1], sys.argv[2]
 def simctl(*args):
@@ -26,7 +28,7 @@ if wanted:
     runtimes = [r for r in runtimes if r["version"] == wanted or r["version"].startswith(wanted + ".")]
 if not runtimes:
     sys.exit("No iOS %s simulator runtime installed" % wanted)
-# Some runtimes serve one new device only (Xcode 27.2's iOS-27-2-iPhone19-4): take the newest that runs this device.
+# Some runtimes serve one new device only (iOS-27-2-iPhone19-4 in Xcode 27.2): take the newest that runs this device.
 fits = [r for r in runtimes if any(t["name"] == preferred for t in r.get("supportedDeviceTypes", []))]
 if not fits:
     names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if t["name"].startswith("iPhone")})
@@ -42,7 +44,7 @@ else:
 print("Simulator:", preferred, "iOS", runtime["version"], file=sys.stderr)
 print(udid, runtime["version"])
 PY
-)
+read -r UDID IOS_VERSION < build/simulator.txt
 [[ -n "${GITHUB_ENV:-}" ]] && echo "SIMULATOR_RUNTIME=iOS $IOS_VERSION" >> "$GITHUB_ENV"
 
 xcodebuild -version

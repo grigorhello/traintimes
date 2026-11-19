@@ -1,7 +1,7 @@
 import XCTest
 @testable import TrainTimes
 
-/// Automatic direction's look (TT-234, D116), driven as `ScheduleView` drives it: the scene on every change, the
+/// Automatic direction's look (TT-234, D116; the trains first, TT-235), driven as `ScheduleView` drives it: the scene on every change, the
 /// readings as the reader hands them over, touches, the background and the return. The route is Oakville to Union, so
 /// a reading at Union is the rider at the To end. Times the look counts are passed in: a test that wants an answer in
 /// time gives the look a long quick time, one that wants it late a short one.
@@ -1443,6 +1443,206 @@ final class DirectionLookTests: XCTestCase {
         rig.store.isOff = true
         rig.look.update(front)
         XCTAssertEqual(rig.look.lastLook, DirectionLook.LastLook(waited: 0, outcome: .nothing(.off)))
+    }
+
+    // MARK: The trains first (TT-235)
+
+    /// A turn never empties the timeline: Schedule reads the other direction's trains first, and the route turns, with
+    /// its capsule after, only once they are in.
+    func testTheRouteTurnsOnceItsTrainsAreIn() async {
+        let rig = Rig(now: evening)
+        rig.schedule.holdsTrains = true
+        rig.look.update(front)
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.asked == 1 }
+        XCTAssertEqual(rig.outcome, .turn)
+
+        await pause()
+        XCTAssertEqual(rig.schedule.turnCount, 0, "Nothing moves while the trains are read")
+        XCTAssertEqual(rig.schedule.route, route)
+        XCTAssertNil(rig.capsule)
+
+        rig.schedule.releaseTrains()
+        await eventually { rig.schedule.turnCount == 1 && rig.capsule != nil }
+        XCTAssertEqual(rig.schedule.route, turned)
+        XCTAssertEqual(rig.schedule.kinds, [.byItself])
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"))
+        XCTAssertEqual(rig.outcome, .turn)
+    }
+
+    /// Coming back, Schedule's arrival waits for the trains too, and the turn is then the arrival.
+    func testComingBackWaitsForTheTrains() async {
+        let rig = Rig(now: evening)
+        rig.look.update(front)
+        rig.look.wentToBackground()
+        rig.schedule.holdsTrains = true
+
+        let back = ComingBack(to: rig.look, front)
+        await eventually { rig.location.isReading }
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.asked == 1 }
+        await pause()
+        XCTAssertNil(back.didTurn, "Schedule waits for the trains")
+
+        rig.schedule.releaseTrains()
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, true)
+        XCTAssertEqual(rig.schedule.turnCount, 1)
+    }
+
+    /// Trains that are not in within the quick time count as a late answer: nothing moves, Schedule's arrival goes on
+    /// by itself and the capsule asks. Trains that come after that change nothing.
+    func testTrainsLaterThanTheQuickTimeAsk() async {
+        let rig = Rig(now: evening, quick: .milliseconds(1500))
+        rig.look.update(front)
+        rig.look.wentToBackground()
+        rig.schedule.holdsTrains = true
+
+        let back = ComingBack(to: rig.look, front)
+        await eventually { rig.location.isReading }
+        rig.location.send(atUnion)
+        // The answer itself was in time: Schedule was asked for the trains.
+        await eventually { rig.schedule.asked == 1 }
+
+        await eventually { rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+        XCTAssertEqual(rig.outcome, .ask)
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, false)
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+
+        rig.schedule.releaseTrains()
+        await pause()
+        XCTAssertEqual(rig.schedule.turnCount, 0, "Too late to turn by itself")
+        XCTAssertEqual(rig.schedule.route, route)
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+    }
+
+    /// A cold start: the trains have until the splash lifts. Not in by then, the launch plays as it is and the capsule
+    /// asks, a moment after the lift as a question held under the splash does.
+    func testTrainsNotInByTheLiftAsk() async {
+        let rig = Rig(now: evening, playsSplash: true)
+        rig.schedule.holdsTrains = true
+        rig.look.update(underSplash)
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.asked == 1 }
+        await pause()
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+        XCTAssertNil(rig.capsule)
+
+        let lifted = ContinuousClock.now
+        rig.look.update(front)
+        XCTAssertEqual(rig.outcome, .ask)
+        await eventually { rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - lifted, rig.capsuleDelay)
+
+        rig.schedule.releaseTrains()
+        await pause()
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+        XCTAssertEqual(rig.schedule.route, route)
+    }
+
+    /// Under the splash the quick time does not count: trains read before the lift turn the route.
+    func testTrainsInBeforeTheLiftTurnTheRoute() async {
+        let rig = Rig(now: evening, quick: .zero, playsSplash: true)
+        rig.schedule.holdsTrains = true
+        rig.look.update(underSplash)
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.asked == 1 }
+        await pause()
+
+        rig.schedule.releaseTrains()
+        await eventually { rig.schedule.turnCount == 1 }
+        XCTAssertEqual(rig.schedule.route, turned)
+        XCTAssertEqual(rig.outcome, .turn)
+    }
+
+    /// With no timetable to read there are no trains to show: the capsule asks.
+    func testNoTimetableToReadAsks() async {
+        let rig = Rig(now: evening)
+        rig.schedule.hasTimetable = false
+        rig.look.update(front)
+        rig.location.send(atUnion)
+
+        await eventually { rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+        XCTAssertEqual(rig.outcome, .ask)
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+        XCTAssertEqual(rig.schedule.route, route)
+    }
+
+    /// A drag or a day tap while the trains are read: the rider is reading the old ones, so the capsule asks.
+    func testATouchWhileTheTrainsAreReadAsks() async {
+        let rig = Rig(now: evening)
+        rig.schedule.holdsTrains = true
+        rig.look.update(front)
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.asked == 1 }
+
+        rig.look.touched()
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+        XCTAssertEqual(rig.outcome, .ask)
+
+        rig.schedule.releaseTrains()
+        await pause()
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+        XCTAssertEqual(rig.schedule.route, route)
+    }
+
+    /// What ends a look ends a turn that waits for its trains too: the scene leaving active, the background, something
+    /// over Schedule by the time the trains are in, and a route chosen by hand. Nothing turns and nothing is asked.
+    func testATurnWaitingForItsTrainsEndsAsALookDoes() async {
+        let endings: [(String, (Rig) -> Void)] = [
+            ("inactive", { $0.look.update(self.inactive) }),
+            ("background", { $0.look.wentToBackground() }),
+            ("covered", { $0.look.update(self.covers[0]) }),
+            ("chosen by hand", {
+                $0.schedule.route = self.picked
+                $0.look.chose(self.picked, by: .byHand)
+            }),
+        ]
+        for (name, end) in endings {
+            let rig = Rig(now: evening)
+            rig.schedule.holdsTrains = true
+            rig.look.update(front)
+            rig.location.send(atUnion)
+            await eventually { rig.schedule.asked == 1 }
+
+            end(rig)
+            rig.schedule.releaseTrains()
+            await pause()
+            XCTAssertEqual(rig.schedule.turnCount, 0, name)
+            XCTAssertNil(rig.capsule, name)
+        }
+    }
+
+    /// The ride's proof turns the same way: once the trains are in.
+    func testTheProofWaitsForTheTrainsToo() async {
+        let rig = Rig(now: evening)
+        rig.schedule.holdsTrains = true
+        rig.ride.arrival = arrival()
+        rig.look.update(front)
+        XCTAssertEqual(rig.outcome, .turn)
+        await eventually { rig.schedule.asked == 1 }
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+
+        rig.schedule.releaseTrains()
+        await eventually { rig.schedule.turnCount == 1 && rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"))
+    }
+
+    /// Schedule is told who turns: the look by itself, the capsule's Undo, the capsule's Switch.
+    func testUndoAndSwitchSayWhatTheyAre() async {
+        let undone = Rig(now: evening)
+        await turnAtUnion(undone)
+        await undone.look.undo()
+        XCTAssertEqual(undone.schedule.kinds, [.byItself, .undone])
+
+        let switched = Rig(now: evening)
+        await askAtUnion(switched)
+        await switched.look.switchRoute()
+        XCTAssertEqual(switched.schedule.kinds, [.switched])
     }
 
     // MARK: No events

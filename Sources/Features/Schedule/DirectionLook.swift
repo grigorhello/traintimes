@@ -20,13 +20,25 @@ protocol RouteChoiceFollowing: AnyObject {
     func chose(_ route: Route, by choice: RouteChoice)
 }
 
+/// Who turns the route without the swap button (TT-235, D116).
+enum RouteTurnKind: Sendable {
+    /// The look, from the rider's place: at an open, on coming back, after a ride that ended at the stop.
+    case byItself
+    /// The asking capsule's Switch.
+    case switched
+    /// The Turned capsule's Undo: the route goes back, and the arrow on From goes.
+    case undone
+}
+
 /// What the look needs from Schedule: its route, whether Today shows, and the silent turn.
 @MainActor
 protocol RouteTurning: AnyObject {
     var route: Route? { get }
     var isToday: Bool { get }
-    /// Turns the route round with no haptic and no event (`ScheduleViewModel.turn()`).
-    func turn() async
+    /// Turns the route round with no haptic and no event (`ScheduleViewModel.turn(_:while:)`). The other direction's
+    /// trains are read first, while the old ones show; `stillMay` is asked once they are in, right before the route turns
+    /// in that same step, and false leaves everything as it is. False when nothing turned.
+    func turn(_ kind: RouteTurnKind, while stillMay: @MainActor () -> Bool) async -> Bool
 }
 
 /// Automatic direction's capsule on Schedule (TT-234, D116), in the bell capsule's place when no bell capsule is up.
@@ -125,9 +137,11 @@ final class DirectionCapsuleModel {
 /// Automatic direction's look (TT-234, D116): once per visit, when Schedule is in front on Today with nothing over it,
 /// one look at the location decides whether the route should leave from its other station. The route turns by itself
 /// only when the answer is in before the trains can be read (by the moment the splash lifts on a cold start, within 1 s
-/// on coming back); a later answer, one after a touch on Schedule, or one that may be on the train asks instead; after
-/// 10 s the reader stops. A ride that ended at your stop turns the route with no reading. The rider's own choice wins:
-/// a route chosen by hand is kept until the app has been out of view for more than 10 min, and Undo holds for an hour.
+/// on coming back) and the other direction's trains are in by then too (TT-235: a turn never empties the timeline, so
+/// they are read first and late trains count as a late answer); a later answer, one after a touch on Schedule, or one
+/// that may be on the train asks instead; after 10 s the reader stops. A ride that ended at your stop turns the route
+/// with no reading. The rider's own choice wins: a route chosen by hand is kept until the app has been out of view for
+/// more than 10 min, and Undo holds for an hour.
 ///
 /// A visit is a cold start or a return from the background, until the next background. `ScheduleView` passes its `Scene`
 /// on every change (`update(_:)`), its touches (`touched()`) and the background (`wentToBackground()`), and awaits
@@ -202,6 +216,21 @@ final class DirectionLook: RouteChoiceFollowing {
     @ObservationIgnored private var pendingCapsule: DirectionCapsule.Kind?
     @ObservationIgnored private var capsuleTask: Task<Void, Never>?
     @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
+    /// The answer said turn and the other direction's trains are being read (TT-235): the route turns when they are in,
+    /// unless the turn has become late by then.
+    @ObservationIgnored private var turning: Turning?
+    @ObservationIgnored private var turnings = 0
+    @ObservationIgnored private var turningTimer: Task<Void, Never>?
+
+    /// A turn that waits for its trains.
+    private struct Turning {
+        let id: Int
+        let route: Route
+        /// Decided under the splash: the trains have until it lifts. Otherwise the rest of the 1 s.
+        let underSplash: Bool
+        /// Device time, for `LastLook.waited`.
+        let startedAt: Date
+    }
 
     /// A look in progress.
     private struct Run {
@@ -269,6 +298,8 @@ final class DirectionLook: RouteChoiceFollowing {
                 self.run = run
                 resumeWaiters()
             }
+            // The other direction's trains were not in by the lift: the launch plays as it is and the capsule asks.
+            if let turning, turning.underSplash { turnIsLate(turning.id, afterLift: true) }
             if let kind = pendingCapsule {
                 pendingCapsule = nil
                 showSoon(kind)
@@ -276,6 +307,7 @@ final class DirectionLook: RouteChoiceFollowing {
         }
         guard scene.isActive else {
             if run != nil { finish(.nothing(.left)) }
+            dropTurning()
             return
         }
         if beginsVisit {
@@ -289,6 +321,9 @@ final class DirectionLook: RouteChoiceFollowing {
 
     /// A drag or a tap on Schedule itself, or a day tapped: the rider is reading, so an answer from here on asks.
     func touched() {
+        // The trains for a turn are still being read (a drag or a day tap; the read takes a moment only, so Schedule does
+        // not listen for plain taps then): the rider is reading the old ones, so the capsule asks.
+        if let turning { return turnIsLate(turning.id) }
         guard var run, run.mayTurn else { return }
         run.mayTurn = false
         run.underSplash = false
@@ -300,6 +335,7 @@ final class DirectionLook: RouteChoiceFollowing {
     func wentToBackground() {
         store.leftView(at: clock.now)
         if run != nil { finish(.nothing(.left)) }
+        dropTurning()
         capsuleTask?.cancel()
         pendingCapsule = nil
         capsule.dismiss()
@@ -319,7 +355,8 @@ final class DirectionLook: RouteChoiceFollowing {
         let before = turnsBeforeVisit ?? made
         turnsBeforeVisit = nil
         if turnsMade != before { return true }
-        guard !isCold, let run, run.mayTurn else { return false }
+        // A look that may still turn, or a turn whose trains are being read.
+        guard !isCold, run?.mayTurn == true || turning != nil else { return false }
         await withCheckedContinuation { waiters.append($0) }
         return turnsMade != before
     }
@@ -331,7 +368,7 @@ final class DirectionLook: RouteChoiceFollowing {
         turned = nil
         store.startUndoHour(for: route, at: clock.now)
         capsule.show(.kept)
-        await schedule.turn()
+        _ = await schedule.turn(.undone) { true }
     }
 
     /// The asking capsule's Switch: the route turns, with no capsule after.
@@ -339,7 +376,7 @@ final class DirectionLook: RouteChoiceFollowing {
         guard case .asks = capsule.shown?.kind else { return }
         haptics.play(.swap)
         capsule.dismiss()
-        await schedule.turn()
+        _ = await schedule.turn(.switched) { true }
     }
 
     // MARK: The rider's choice
@@ -349,6 +386,7 @@ final class DirectionLook: RouteChoiceFollowing {
         switch choice {
         case .byHand:
             if run != nil { finish(.nothing(.chosenByHand)) }
+            dropTurning()
             store.choseByHand(at: now)
             store.setMorningWay(from: route, at: now)
             capsuleTask?.cancel()
@@ -363,6 +401,7 @@ final class DirectionLook: RouteChoiceFollowing {
             turned = nil
         case .trainLink:
             if run != nil { finish(.nothing(.chosenByLink)) }
+            dropTurning()
             visitDone = true
             store.choseByHand(at: now)
             capsuleTask?.cancel()
@@ -373,8 +412,9 @@ final class DirectionLook: RouteChoiceFollowing {
             // Applied before the look, which may turn it: a look that ran for the old route starts again, and Schedule's
             // arrival goes on waiting for the new one. What a finished look or a ride's proof said about the old route
             // goes with it (the capsule, and the turn the swap button would undo), and the new route gets its own look.
-            let restarts = run != nil
-            if restarts { finish(.nothing(.restarted), keepsWaiters: true) }
+            let restarts = run != nil || turning != nil
+            if run != nil { finish(.nothing(.restarted), keepsWaiters: true) }
+            dropTurning(keepsWaiters: true)
             capsuleTask?.cancel()
             pendingCapsule = nil
             capsule.dismiss()
@@ -401,9 +441,10 @@ final class DirectionLook: RouteChoiceFollowing {
         usedArrival = arrival
         guard isOn, route.to.id == arrival.stopId, !store.holdsUndo(for: route, at: now) else { return }
         if run != nil { finish(.nothing(.rideProof)) }
+        dropTurning(keepsWaiters: true)
         visitDone = true
         lastLook = LastLook(waited: 0, outcome: .turn)
-        turn()
+        turn(route, underSplash: playsSplash && scene.launchCovers, within: quick, startedAt: Date())
     }
 
     private func startIfDue() {
@@ -511,31 +552,100 @@ final class DirectionLook: RouteChoiceFollowing {
         if outcome == .turn || outcome == .ask, !scene.isClear || !schedule.isToday || schedule.route != run.route {
             outcome = .nothing(.covered)
         }
-        lastLook = LastLook(waited: Date().timeIntervalSince(run.startedAt), outcome: outcome)
+        let waited = Date().timeIntervalSince(run.startedAt)
+        lastLook = LastLook(waited: waited, outcome: outcome)
         switch outcome {
         case .turn:
-            turn()
+            // The arrival goes on waiting until the trains are in and the route turns, or the turn is late.
+            turn(run.route, underSplash: run.underSplash, within: quick - .seconds(waited), startedAt: run.startedAt)
+            return
         case .ask:
-            // Under the splash the question waits for the lift, as "Now from Union" does.
-            let question = DirectionCapsule.Kind.asks(station: StationNames.short(run.route.to.name))
-            if scene.launchCovers { pendingCapsule = question } else { capsule.show(question) }
+            ask(run.route)
         case .nothing:
             break
         }
         if !keepsWaiters { resumeWaiters() }
     }
 
+    /// "Trains from Union?" with Switch. Under the splash the question waits for the lift, as "Now from Union" does.
+    private func ask(_ route: Route) {
+        let question = DirectionCapsule.Kind.asks(station: StationNames.short(route.to.name))
+        if scene.launchCovers { pendingCapsule = question } else { capsule.show(question) }
+    }
+
     private func note(_ reason: DirectionRule.Reason) {
         lastLook = LastLook(waited: 0, outcome: .nothing(reason))
     }
 
-    /// The route turns by itself: silent, then "Now from Union" 1000 ms later (after the splash has lifted).
-    private func turn() {
-        guard let route = schedule.route else { return }
+    /// The route turns by itself (TT-235, D116). A turn never empties the timeline, so Schedule reads the other
+    /// direction's trains first, while the old ones show, and the route turns in the step that puts them on screen:
+    /// silent, then "Now from Union" 1000 ms later (after the splash has lifted). The trains have what is left of the
+    /// time an answer has: until the splash lifts on a cold start (`underSplash`), `within` otherwise. Later than that,
+    /// after a touch, or with no timetable to read, the answer counts as late: nothing moves and the capsule asks.
+    private func turn(_ route: Route, underSplash: Bool, within: Duration, startedAt: Date) {
+        turnings += 1
+        let id = turnings
+        turning = Turning(id: id, route: route, underSplash: underSplash, startedAt: startedAt)
+        turningTimer?.cancel()
+        turningTimer = nil
+        if !underSplash {
+            turningTimer = Task { [weak self] in
+                try? await Task.sleep(for: within)
+                guard !Task.isCancelled else { return }
+                self?.turnIsLate(id)
+            }
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let made = await self.schedule.turn(.byItself) { self.makesTurn(id) }
+            // Not made with the turn still waiting: there was no timetable to read.
+            if !made { self.turnIsLate(id) }
+        }
+    }
+
+    /// Schedule has the other direction's trains and asks, right before it turns the route: yes while the turn still
+    /// waits and Schedule is as the look found it. The capsule follows.
+    private func makesTurn(_ id: Int) -> Bool {
+        guard let turning, turning.id == id else { return false }
+        let route = turning.route
+        guard scene.isClear, schedule.isToday, schedule.route == route else {
+            lastLook = LastLook(waited: Date().timeIntervalSince(turning.startedAt), outcome: .nothing(.covered))
+            dropTurning()
+            return false
+        }
         turnsMade += 1
         turned = Route(from: route.to, to: route.from, line: route.line)
-        Task { [weak self] in await self?.schedule.turn() }
+        dropTurning()
         showSoon(.turned(station: StationNames.short(route.to.name)))
+        return true
+    }
+
+    /// The trains did not come in time: nothing moves, and the capsule asks (TT-234's ask) if Schedule is still as the
+    /// look found it. `afterLift`: the splash has just lifted, and the question shows as one held under it does.
+    private func turnIsLate(_ id: Int, afterLift: Bool = false) {
+        guard let turning, turning.id == id else { return }
+        let route = turning.route
+        let stands = scene.isClear && schedule.isToday && schedule.route == route
+        lastLook = LastLook(
+            waited: Date().timeIntervalSince(turning.startedAt), outcome: stands ? .ask : .nothing(.covered)
+        )
+        dropTurning()
+        guard stands else { return }
+        if afterLift {
+            showSoon(.asks(station: StationNames.short(route.to.name)))
+        } else {
+            ask(route)
+        }
+    }
+
+    /// Ends a turn that waits for its trains: Schedule's question then gets a no. `keepsWaiters`: a look starts again
+    /// at once, so `cameBack(_:)` goes on waiting.
+    private func dropTurning(keepsWaiters: Bool = false) {
+        guard turning != nil else { return }
+        turning = nil
+        turningTimer?.cancel()
+        turningTimer = nil
+        if !keepsWaiters { resumeWaiters() }
     }
 
     private func showSoon(_ kind: DirectionCapsule.Kind) {

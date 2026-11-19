@@ -126,4 +126,73 @@ final class SwapMotionTests: XCTestCase {
     func testATapAtRestCarriesNothing() {
         XCTAssertEqual(SwapMotion.carry(at: SwapMotion.duration, step: step), SwapMotion.Carry())
     }
+
+    // MARK: The calm form (TT-235, D116)
+
+    /// A turn nobody tapped: the button never presses and the pin never pops, while a tap does both.
+    func testTheCalmFormLeavesTheButtonAndThePinAtRest() {
+        for moment in stride(from: 0.0, through: SwapMotion.duration, by: 0.01) {
+            let calm = SwapMotion.pose(at: moment, step: step, calm: true)
+            XCTAssertEqual(calm.buttonScale, 1, "\(moment)")
+            XCTAssertEqual(calm.pinScale, 1, "\(moment)")
+        }
+        XCTAssertEqual(SwapMotion.pose(at: 0, step: step).buttonScale, SwapMotion.pressScale, accuracy: 0.0001)
+        XCTAssertEqual(SwapMotion.pose(at: SwapMotion.pinLand, step: step).pinScale, SwapMotion.pinPeak, accuracy: 0.0001)
+    }
+
+    /// The arrows turn on the names' spring (cross 0.55/0.74): about 6° past upright, where a tap's turn goes 19°.
+    func testTheCalmFormTurnsTheArrowsOnTheNamesSpring() {
+        XCTAssertEqual(SwapMotion.pose(at: 0, step: step, calm: true).arrowDegrees, -180)
+        for moment in [0.05, 0.13, 0.30, 0.65] {
+            let calm = SwapMotion.pose(at: moment, step: step, calm: true)
+            XCTAssertEqual(calm.arrowDegrees, -180 * (1 - TTMotion.crossCurve.progress(at: moment)), accuracy: 0.0001)
+        }
+        let moments = stride(from: 0.0, through: SwapMotion.duration, by: 0.005)
+        let calmPeak = moments.map { SwapMotion.pose(at: $0, step: step, calm: true).arrowDegrees }.max() ?? 0
+        let tapPeak = moments.map { SwapMotion.pose(at: $0, step: step).arrowDegrees }.max() ?? 0
+        XCTAssertEqual(calmPeak, 6, accuracy: 1)
+        XCTAssertEqual(tapPeak, 19, accuracy: 1)
+    }
+
+    /// The names and the rail dots are the swap's own, as built.
+    func testTheCalmFormKeepsTheNamesAndTheDots() {
+        for moment in [0, 0.04, 0.13, 0.18, 0.30, 0.39, 0.65] {
+            let calm = SwapMotion.pose(at: moment, step: step, calm: true)
+            let tap = SwapMotion.pose(at: moment, step: step)
+            XCTAssertEqual(calm.from, tap.from, "\(moment)")
+            XCTAssertEqual(calm.to, tap.to, "\(moment)")
+            XCTAssertEqual(calm.dotLights, tap.dotLights, "\(moment)")
+        }
+    }
+
+    /// From 310 ms the From marker's ring gives way to the location arrow in a linear 180 ms; a tap leaves the marker as
+    /// it is, and so does the card at rest.
+    func testTheCalmFormBringsTheArrowInFrom310ms() {
+        XCTAssertEqual(SwapMotion.pose(at: 0, step: step, calm: true).marker, 0)
+        XCTAssertEqual(SwapMotion.pose(at: 0.31, step: step, calm: true).marker, 0, accuracy: 0.0001)
+        XCTAssertEqual(SwapMotion.pose(at: 0.40, step: step, calm: true).marker, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SwapMotion.pose(at: 0.49, step: step, calm: true).marker, 1, accuracy: 0.0001)
+        XCTAssertEqual(SwapMotion.pose(at: 0.65, step: step, calm: true).marker, 1)
+        XCTAssertEqual(SwapMotion.pose(at: 0.13, step: step).marker, 1, "a tap does not touch the marker")
+        XCTAssertEqual(SwapMotion.rest.marker, 1)
+        XCTAssertEqual(SwapMotion.pose(at: SwapMotion.duration, step: step, calm: true), SwapMotion.rest)
+    }
+
+    /// A turn held until the launch splash has gone is drawn as its first frame: the old order, nothing lit, the ring.
+    func testAMomentBeforeTheStartIsTheFirstFrame() {
+        XCTAssertEqual(SwapMotion.pose(at: -0.2, step: step, calm: true), SwapMotion.pose(at: 0, step: step, calm: true))
+        let first = SwapMotion.pose(at: 0, step: step, calm: true)
+        XCTAssertEqual(first.from, SwapMotion.NamePose(y: step))
+        XCTAssertEqual(first.to, SwapMotion.NamePose(y: -step))
+        XCTAssertEqual(first.dotLights, [0, 0, 0])
+    }
+
+    /// A tap during a calm swap carries on from the calm picture.
+    func testATapCarriesOnFromACalmSwap() {
+        let calm = SwapMotion.pose(at: 0.13, step: step, calm: true)
+        let carry = SwapMotion.carry(at: 0.13, step: step, calm: true)
+        XCTAssertEqual(carry.from, calm.to)
+        XCTAssertEqual(carry.to, calm.from)
+        XCTAssertEqual(carry.arrowDegrees, calm.arrowDegrees)
+    }
 }

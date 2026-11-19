@@ -124,6 +124,8 @@ struct ScheduleView: View {
             .task(id: nudgeStillness) { await waitToAskForFeedback() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
             .onChange(of: viewModel.departureRequest) { startDeparture() }
+            // A turn made under the launch's splash trades its names once the splash has gone (TT-235, D116).
+            .onChange(of: launchCovers, initial: true) { _, covers in viewModel.setSplashCovers(covers) }
             // The launch's splash lifted (TT-227): the cascade and the Now pulse that waited under it play now.
             .onChange(of: launchCovers) { _, covers in
                 guard !covers else { return }
@@ -411,7 +413,9 @@ struct ScheduleView: View {
                 picking: picking,
                 swapID: "schedule.swap",
                 onSwap: { Task { await viewModel.swap() } },
-                turns: viewModel.turns
+                // A turn nobody tapped plays the calm swap (TT-235, D116); where motion is off the names simply change.
+                turn: playsMotion ? viewModel.turnToken : nil,
+                marksFrom: viewModel.marksFrom
             )
         }
     }
@@ -731,7 +735,8 @@ struct ScheduleView: View {
                 case .timeline:
                     ScheduleTimeline(
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
-                        onBell: tapBell(_:), cascade: cascade, departure: departure, motion: motion
+                        onBell: tapBell(_:), cascade: cascade, departure: departure, motion: motion, outgoing: outgoing,
+                        outgoingBell: outgoingBell(for:)
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
@@ -796,6 +801,19 @@ struct ScheduleView: View {
     private func bell(for id: TripKey) -> AlertBellModel.Bell {
         guard let bells, let train = train(id) else { return .off }
         return bells.bell(for: train.trip, on: train.route)
+    }
+
+    /// The trains a turn has just replaced (TT-235, D116), while the new ones they fade over are the latest and motion plays.
+    private var outgoing: ScheduleViewModel.OutgoingTrains? {
+        guard playsMotion, let outgoing = viewModel.outgoing, outgoing.request == viewModel.entranceRequest else { return nil }
+        return outgoing
+    }
+
+    /// A fading card's bell as it stood.
+    private func outgoingBell(for id: TripKey) -> AlertBellModel.Bell {
+        guard let bells, let outgoing = viewModel.outgoing,
+              let departure = outgoing.departures.first(where: { $0.id == id }) else { return .off }
+        return bells.bell(for: departure.trip, on: outgoing.route)
     }
 
     private func shakes(for id: TripKey) -> Int {

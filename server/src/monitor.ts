@@ -23,6 +23,7 @@ import {
   askTitle,
   BOARDING_RADIUS_M,
   contentState,
+  DEPART_LEAD_MS,
   endPayload,
   hasSighting,
   leaves,
@@ -385,7 +386,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     const live = trains.filter((train) => {
       // `followActivity` does nothing more for these, and a card that asks stays the question wherever the train is.
       if (train.activity && train.activity.state !== 'started' && train.activity.state !== 'asked') return false;
-      if (asksIn(train.activity?.shown ?? null)) return false;
+      if (asksIn(train.activity?.shown ?? null) && now >= leaves(departureOf(train, train.status)) - DEPART_LEAD_MS) return false;
       // The window is the clock's and the live status's alone: no position opens or closes it.
       const phase = phaseAt(departureOf(train, train.status), now);
       return phase !== 'before' && phase !== 'over';
@@ -458,8 +459,9 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     };
     let phase = phaseAt(train, now);
     // The question is asked once (TT-231): a card that asks stays the question, though a later position puts the train
-    // back at the station.
-    if ((phase === 'countingDown' || phase === 'boarding') && asksIn(activity?.shown ?? null)) phase = 'asking';
+    // back at the station or the feed that said it had left is gone. Not once its expected time has moved on (a delay
+    // reported after the question): then it counts down again and asks when it leaves, as before TT-233.
+    if ((phase === 'countingDown' || phase === 'boarding') && asksIn(activity?.shown ?? null) && now >= leaves(train) - DEPART_LEAD_MS) phase = 'asking';
     if (phase === 'before') return;
     const expiration = staleDate(train);
 
@@ -532,7 +534,9 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     // Claim the update first, as a watch's send is claimed.
     if (!(await setActivity(activity, { shown }))) return;
     sends++;
-    const payload = updatePayload(train, state, now, rule.time_format, silent);
+    // The alert goes with the update that turns the card into the question, not with a later one that only moves its
+    // time (the expected departure moves once the feed drops the station, D89).
+    const payload = updatePayload(train, state, now, rule.time_format, silent || asksIn(activity.shown));
     const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload, expiration }, now);
     if (result === 'unregistered' || result === 'badToken') {
       // The rider swiped it away, or it ended: nothing more to send.

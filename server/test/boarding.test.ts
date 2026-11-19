@@ -438,6 +438,66 @@ describe('the minute cycle', () => {
     assert.deepEqual(reads.boards, []);
   });
 
+  test('asked once: a later expected time moves the card’s line with no second alert', async () => {
+    await started();
+    const [asking] = await cycle('7:13:00');
+    assert.deepEqual(asking.alert, { title: 'On the 7:13 AM train?', body: '', sound: 'default' });
+    // The feed drops Oakville with Clarkson 2 min late: the server's expected departure moves to the report's time (D89).
+    const late = pastOakville('7:14:50');
+    for (const stop of late.tripUpdates[0].stopTimeUpdates) stop.departure = { delay: 120 };
+    const [moved] = await cycle('7:15:00', { feed: late });
+    assert.equal(moved['content-state'].title, '7:14 AM departed');
+    assert.equal(moved['content-state'].asks, true);
+    assert.equal(moved.alert, undefined, 'Asked once');
+  });
+
+  test('asked once: the card stays the question when the feed that said so is gone before the train’s time', async () => {
+    await started();
+    const [asking] = await cycle('7:12:00', { feed: pastOakville('7:11:50') });
+    assert.equal(asking['content-state'].asks, true);
+    assert.deepEqual(await cycle('7:12:30'), [], 'No feed, 30 s before its time: still the question, not "boarding now"');
+  });
+
+  test('a vehicle with no time and no start date of its own is as old as the feed, on any date', async () => {
+    await started();
+    const bare = vehicle(150, '6:57:50', 'LW-1256', 'OA', { timestamp: undefined, startDate: undefined });
+    const [update] = await cycle('6:58:10', { trains: [bare], platform: '3' });
+    assert.equal(update['content-state'].phase, 'boarding');
+  });
+
+  test('a positions or board read that throws leaves the cycle on what it has', async () => {
+    await started();
+    const phaseAfter = async (time: string, reads: Pick<Parameters<typeof monitor>[0], 'positions' | 'platforms'>) => {
+      await monitor({ db, apns, feed: async () => null, now: at(time), ...reads });
+      return (apns.activityPushes.at(-1)!.payload as { aps: any }).aps['content-state'].phase;
+    };
+    const failing = async () => {
+      throw new Error('GO is down');
+    };
+    assert.equal(await phaseAfter('7:11:30', { positions: failing }), 'boarding', 'No positions: the clock’s last 2 min');
+    const standing = async () => ({ timestamp: at('7:12:30'), trains: [vehicle(150, '7:12:20')] });
+    assert.equal(await phaseAfter('7:12:30', { positions: standing, platforms: failing }), 'countingDown', 'At the station with no platform read');
+  });
+
+  test('a delay reported after the question: the card counts down again and asks when the train leaves, as before', async () => {
+    await started();
+    const listed = (time: string, delay: number): Feed => ({
+      timestamp: at(time),
+      tripUpdates: [
+        { tripId: '20261109-LW-1256', startDate: '20261109', cancelled: false, timestamp: at(time), stopTimeUpdates: ['OA', 'CL', 'UN'].map((stopId) => ({ stopId, relationship: 'scheduled' as const, departure: { delay } })) },
+      ],
+    });
+    const [asking] = await cycle('7:13:00', { feed: listed('7:12:50', 0) });
+    assert.equal(asking['content-state'].asks, true);
+    const [again] = await cycle('7:14:00', { feed: listed('7:13:50', 240) });
+    assert.equal(again['content-state'].title, '7:17 AM departs in', 'Not "7:17 AM departed" three minutes before 7:17');
+    assert.equal(again['content-state'].phase, 'countingDown');
+    assert.equal(again.alert, undefined);
+    const [asked] = await cycle('7:17:00', { feed: listed('7:16:50', 240) });
+    assert.equal(asked['content-state'].asks, true);
+    assert.deepEqual(asked.alert, { title: 'On the 7:13 AM train?', body: '', sound: 'default' });
+  });
+
   test('metres are the app’s: a flat frame at the mean latitude', () => {
     const [latitude, longitude] = STATIONS.UN;
     assert.ok(Math.abs(metresBetween(STATIONS.UN, [latitude + 220 / 111_195.08, longitude]) - 220) < 0.01);

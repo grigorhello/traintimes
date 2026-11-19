@@ -102,11 +102,14 @@ struct NextTrainWidgetView: View {
             .padding(.top, 11)
         }
         HStack(alignment: .firstTextBaseline, spacing: 4) {
+            // The row is 38 pt high and a 34 pt line is taller: offered that height, a text that may shrink would
+            // shrink to fit it. Its own height keeps it at 34 pt; it still shrinks for width ("11:47 PM" and the bolt).
             Text(verbatim: train.time.digits)
                 .font(TTFont.timeLead)
                 .tracking(-0.8)
                 .monospacedDigit()
                 .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.numericText())
             if let period = train.time.period {
                 Text(verbatim: period)
@@ -297,12 +300,14 @@ struct DeparturesWidgetView: View {
                 Link(destination: train.link) {
                     // Proportional digits (the countdown is not a clock time), a point into the margin as on the board,
                     // so "11 min" starts under the departure time.
-                    // A three-digit wait beside two 24-hour times shrinks rather than end in dots.
+                    // A three-digit wait beside two 24-hour times shrinks rather than end in dots. It shrinks for width
+                    // only: the row is 46 pt high and a 44 pt line is taller, so the text keeps its own height.
                     hero(train)
                         .font(TTFont.widgetHero)
                         .tracking(-1.4)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, -1)
                 }

@@ -18,20 +18,17 @@ permissions:
 
 jobs:
   test:
-    # TT-241 trial: the same tests on the Xcode 27 image's own iOS 27.2 simulator and on a downloaded iOS 26.5 one, the
-    # runtime every snapshot reference was recorded on. The PR keeps one of them.
-    name: Build and test (iOS ${{ matrix.ios }})
-    strategy:
-      fail-fast: false
-      matrix:
-        ios: ['27.2', '26.5']
-    # GitHub's Xcode 27 image (macOS 27, arm64): Xcode 27.0, 27.1 (its default) and 27.2. Builds use 27.2, as on the Mac.
+    name: Build and test
+    # GitHub's Xcode 27 image (macOS 27, arm64): Xcode 27.0, 27.1 (its default) and 27.2. Builds use 27.2, as on the Mac,
+    # so the app is built with the iOS 27 SDK (ITMS-90725, TT-241, D119).
     runs-on: xcode-27
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
-      SIMULATOR_OS: ${{ matrix.ios }}
-    # A run that records snapshots tests twice; at about 25 min a pass on a slow runner, 45 cut the second pass off (PR #154).
-    timeout-minutes: 80
+      # The tests run on iOS 26.5, the runtime every snapshot reference was recorded on. The image ships iOS 27 runtimes
+      # only, so the step below downloads it; on iOS 27.2, 261 of 1404 unit tests drew differently (D119).
+      SIMULATOR_OS: '26.5'
+    # A run that records snapshots tests twice: about 40 min a pass on this image, plus the runtime download (D119).
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
@@ -49,7 +46,12 @@ jobs:
             echo "iOS $SIMULATOR_OS is installed."
           else
             # -architectureVariant: without it Xcode answers "not available for download" for iOS 26 runtimes.
-            time xcodebuild -downloadPlatform iOS -buildVersion "$SIMULATOR_OS" -architectureVariant arm64
+            # About 2.5 min from Apple; tried three times so one dropped download does not fail the run.
+            for attempt in 1 2 3; do
+              time xcodebuild -downloadPlatform iOS -buildVersion "$SIMULATOR_OS" -architectureVariant arm64 && break
+              [ "$attempt" = 3 ] && exit 1
+              sleep 30
+            done
           fi
           xcrun simctl list runtimes available
 

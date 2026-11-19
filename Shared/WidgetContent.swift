@@ -297,7 +297,7 @@ struct DeparturesContent: Equatable, Sendable {
     }
 }
 
-/// The minutes to a departure as the widgets write them (TT-183, D112): "11 min", whole minutes rounded down, never hours
+/// The minutes to a departure as the widgets write them (TT-183, D113): "11 min", whole minutes rounded down, never hours
 /// or seconds. Each entry carries its own, and the timeline has an entry a minute while one shows
 /// (`WidgetEntryBuilder.countdownSpan`); the last minute is "now" (`WidgetEntryBuilder.leavingLead`).
 enum WidgetCountdown {

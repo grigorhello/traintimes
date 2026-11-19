@@ -85,7 +85,7 @@ enum WidgetEntryBuilder {
     static let trainCount = 3
     /// The last minute before a departure, when the countdown reads "now" (TT-183).
     static let leavingLead: TimeInterval = 60
-    /// The countdown is text in each entry, so the timeline has an entry a minute while one shows (TT-183, D112: in a
+    /// The countdown is text in each entry, so the timeline has an entry a minute while one shows (TT-183, D113: in a
     /// placed widget iOS did not redraw a counting text by itself). The minutes are written for the next 2 h and
     /// WidgetKit is asked again after 1 h, well inside its daily budget, so an hour of them is in hand when it asks late.
     static let countdownSpan: TimeInterval = 2 * 60 * 60

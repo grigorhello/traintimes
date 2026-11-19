@@ -264,7 +264,7 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertTrue(WidgetEntryBuilder.timeline(file: usual, route: nil, turnsAround: true, now: now).entries.map(\.date).contains(at(wed, "17:10")))
     }
 
-    /// The countdown is text in each entry (TT-183, D112): an entry each minute for 2 h, and iOS is asked again in 1 h.
+    /// The countdown is text in each entry (TT-183, D113): an entry each minute for 2 h, and iOS is asked again in 1 h.
     func testACountdownGetsAnEntryEachMinuteAndAnHourlyReload() {
         let now = at(wed, "09:00")
         let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now)

@@ -33,7 +33,7 @@ private func lockLine(_ text: WidgetText) -> AttributedString {
 
 // MARK: - Rectangular
 
-/// Rectangular (160 × 72 pt on the boards, about 148 × 72 pt on the iPhone 17 Pro, TT-185): the route, the time with the bolt,
+/// Rectangular (160 × 72 pt on the boards, 148 × 72 pt on the iPhone 17 Pro, TT-185): the route, the time with the bolt,
 /// and the countdown with the train after.
 struct LockRectangularView<Plate: View>: View {
     let content: LockRectangularContent
@@ -177,7 +177,7 @@ struct LockRectangularView<Plate: View>: View {
 
 // MARK: - Circular
 
-/// The boards' circle. The iPhone 17 Pro's is smaller (about 58 pt, TT-185), where the 72 pt face ran into its own ring:
+/// The boards' circle. The iPhone 17 Pro's is smaller (58 pt, TT-185), where the 72 pt face ran into its own ring:
 /// the face is laid out at this size and scaled to the circle iOS gives.
 private let lockCircleSide: CGFloat = 72
 

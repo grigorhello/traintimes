@@ -4,8 +4,13 @@ import SwiftUI
 /// rows along arcs, lifting on a raised pill as they pass; the arrows turn half a turn; the glass button presses and springs
 /// back; the three rail dots light up from top to bottom and the pin pops.
 ///
-/// The card draws it frame by frame from `pose(at:step:carry:)`, a function of the seconds since the tap, so that a second
-/// tap can carry on from where the first one is, and a test can read any moment. Nothing here animates by itself.
+/// The card draws it frame by frame from `pose(at:step:carry:calm:)`, a function of the seconds since the tap, so that a
+/// second tap can carry on from where the first one is, and a test can read any moment. Nothing here animates by itself.
+///
+/// **The calm form** (TT-235, D116): a turn the rider did not tap (Automatic direction, its Undo and its Switch) plays the
+/// same names and rail dots with nobody's finger in it: the button does not press, the pin does not pop, and the arrows
+/// turn on the names' spring, about 6° past upright where a tap goes 19°. From 310 ms the From marker's ring cross-fades
+/// into the location arrow (`Pose.marker`).
 enum SwapMotion {
     /// By now every spring is within 0.1 % of rest and the card is drawn at rest.
     static let duration: TimeInterval = 1.0
@@ -29,6 +34,9 @@ enum SwapMotion {
     static let dotCount = 3
     /// What a second tap carries over from the first fades out over this long.
     static let carryFade = 0.2
+    /// The calm form: the From marker's ring starts giving way to the location arrow here, a linear cross-fade this long.
+    static let markerStart = 0.31
+    static let markerFade = 0.18
 
     /// How one station name is drawn: moved off its row, pushed to the side, enlarged, on a raised pill (0 is none).
     struct NamePose: Equatable {
@@ -48,6 +56,9 @@ enum SwapMotion {
         /// How lit each rail dot is, 0 to 1.
         var dotLights = [Double](repeating: 0, count: SwapMotion.dotCount)
         var pinScale: CGFloat = 1
+        /// How far the From marker's ring has given way to the location arrow, 0 to 1. A tap leaves the marker as it is (1);
+        /// the calm form brings the arrow in from `markerStart`.
+        var marker = 1.0
     }
 
     /// What the card keeps from a motion that a second tap interrupts: how each name and the arrows were drawn. The name in
@@ -62,7 +73,9 @@ enum SwapMotion {
 
     /// The card `elapsed` seconds after a tap. `step` is the distance between the two rows (a row and its hairline): at the
     /// start each name stands in the other's row, so the names have traded in the data and still show the old order.
-    static func pose(at elapsed: TimeInterval, step: CGFloat, carry: Carry = Carry()) -> Pose {
+    /// `calm` is the form for a turn nobody tapped: no press, no pin pop, the arrows on the names' spring. A moment before
+    /// the start (a turn held until the launch splash has gone) is drawn as the start.
+    static func pose(at elapsed: TimeInterval, step: CGFloat, carry: Carry = Carry(), calm: Bool = false) -> Pose {
         guard elapsed < duration else { return rest }
         let t = max(0, elapsed)
         let moved = 1 - TTMotion.crossCurve.progress(at: t)
@@ -81,17 +94,18 @@ enum SwapMotion {
         return Pose(
             from: name(start: step, direction: 1, carry: carry.from),
             to: name(start: -step, direction: -1, carry: carry.to),
-            arrowDegrees: (-180 + carry.arrowDegrees) * (1 - TTMotion.turnCurve.progress(at: t)),
-            buttonScale: 1 - (1 - pressScale) * CGFloat(1 - TTMotion.pressCurve.progress(at: t)),
+            arrowDegrees: (-180 + carry.arrowDegrees) * (1 - (calm ? TTMotion.crossCurve : TTMotion.turnCurve).progress(at: t)),
+            buttonScale: calm ? 1 : 1 - (1 - pressScale) * CGFloat(1 - TTMotion.pressCurve.progress(at: t)),
             dotLights: (0..<dotCount).map { dotLight(at: t - dotStart - dotGap * Double($0)) },
-            pinScale: pinScale(at: t)
+            pinScale: calm ? 1 : pinScale(at: t),
+            marker: calm ? min(1, max(0, (t - markerStart) / markerFade)) : 1
         )
     }
 
     /// The carry for a second tap `elapsed` seconds into a motion that began with `carry`: the pose just before the tap, with
-    /// the names exchanged.
-    static func carry(at elapsed: TimeInterval, step: CGFloat, from previous: Carry = Carry()) -> Carry {
-        let current = pose(at: elapsed, step: step, carry: previous)
+    /// the names exchanged. `calm` says which form the interrupted motion was.
+    static func carry(at elapsed: TimeInterval, step: CGFloat, from previous: Carry = Carry(), calm: Bool = false) -> Carry {
+        let current = pose(at: elapsed, step: step, carry: previous, calm: calm)
         return Carry(from: current.to, to: current.from, arrowDegrees: current.arrowDegrees)
     }
 
@@ -131,4 +145,6 @@ extension EnvironmentValues {
     /// Snapshot tests set this to draw the route card as if a swap were that many seconds old (the names already traded in
     /// the data); nil is the app, which draws it from the clock.
     @Entry var swapFrozenAt: TimeInterval? = nil
+    /// With `swapFrozenAt`: draw the calm form (a turn nobody tapped, TT-235) at that moment.
+    @Entry var swapFrozenCalm: Bool = false
 }

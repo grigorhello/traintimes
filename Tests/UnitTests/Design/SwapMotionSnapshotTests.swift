@@ -8,6 +8,10 @@ import XCTest
 /// button pressed), 130 ms (passing on arcs, lifted on a pill, the first dot lit), 300 ms (landing, the pill fading, the
 /// arrows swinging past upright) and 650 ms (at rest but for the arrows and the pin). The card is drawn as the data says
 /// after a swap: Union Station GO over Oakville GO. Glass is off, as in the other control snapshots.
+///
+/// The calm form (TT-235, D116: a turn nobody tapped, boards 14 and 16 of the Route and stations canvas) at the same four
+/// moments: the button never pressed, the pin still, the arrows on the names' spring, and at 650 ms the location arrow in
+/// the From ring's place (it starts at 310 ms, so 300 ms still shows the ring).
 final class SwapMotionSnapshotTests: XCTestCase {
     @MainActor func testTapLight() { snap(0, .light) }
     @MainActor func testTapDark() { snap(0, .dark) }
@@ -18,12 +22,27 @@ final class SwapMotionSnapshotTests: XCTestCase {
     @MainActor func testRestLight() { snap(0.65, .light) }
     @MainActor func testRestDark() { snap(0.65, .dark) }
 
+    @MainActor func testCalmStartLight() { snap(0, .light, calm: true) }
+    @MainActor func testCalmStartDark() { snap(0, .dark, calm: true) }
+    @MainActor func testCalmPassLight() { snap(0.13, .light, calm: true) }
+    @MainActor func testCalmPassDark() { snap(0.13, .dark, calm: true) }
+    @MainActor func testCalmLandLight() { snap(0.30, .light, calm: true) }
+    @MainActor func testCalmLandDark() { snap(0.30, .dark, calm: true) }
+    @MainActor func testCalmRestLight() { snap(0.65, .light, calm: true) }
+    @MainActor func testCalmRestDark() { snap(0.65, .dark, calm: true) }
+
+    /// `calm`: the turn nobody tapped, with the From marker on its way to the location arrow.
     @MainActor
-    private func snap(_ elapsed: TimeInterval, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+    private func snap(
+        _ elapsed: TimeInterval, _ style: UIUserInterfaceStyle, calm: Bool = false, testName: String = #function,
+        line: UInt = #line
+    ) {
         let view = RouteCard(
-            from: "Union Station GO", to: "Oakville GO", fromID: "from", toID: "to", onTap: { _ in }, swapID: "swap", onSwap: {}
+            from: "Union Station GO", to: "Oakville GO", fromID: "from", toID: "to", onTap: { _ in }, swapID: "swap", onSwap: {},
+            marksFrom: calm
         )
         .environment(\.swapFrozenAt, elapsed)
+        .environment(\.swapFrozenCalm, calm)
         .environment(\.rendersGlass, false)
         .padding(TTSpace.s5)
         .frame(maxWidth: .infinity)

@@ -5,10 +5,26 @@ import SwiftUI
 /// Schedule shows it as its header and the route form uses it for its fields. A tap on a station row makes that row the
 /// search field and the swap button turns into the X that cancels (TT-161, D54). While one is open the suggestions
 /// hang right under the card as one surface with it, so the card squares off its bottom corners. The swap button plays
-/// `SwapMotion` (TT-165, D59): the names trade rows, the arrows turn, the rail lights up.
+/// `SwapMotion` (TT-165, D59): the names trade rows, the arrows turn, the rail lights up. A turn nobody tapped (Automatic
+/// direction, TT-235, D116) plays the same motion in its calm form from the model's `Turn`, and the From marker is then
+/// the location arrow (`marksFrom`).
 struct RouteCard: View {
     enum Stop {
         case from, to
+    }
+
+    /// A turn the route made without the swap button (TT-235, D116): by itself, by the capsule's Undo or by its Switch.
+    /// The model publishes one with each such turn and the card plays the calm swap from it: the names as they stood
+    /// trade rows from `start`.
+    struct Turn: Equatable, Sendable {
+        /// Counts the turns, so two turns between the same names are two tokens.
+        let id: Int
+        /// The names before the turn.
+        let from: String?
+        let to: String?
+        /// When the names start to trade. Nil while the launch splash still covers the card: it then draws the old order
+        /// at rest, and the model sets the moment once the splash has gone.
+        var start: Date?
     }
 
     /// The row that is the search field while the picker is open.
@@ -42,16 +58,22 @@ struct RouteCard: View {
     /// Set on the first launch's station step (TT-206): the corner button is the X, which goes back, with the station list
     /// hanging under the card while no row is a search field.
     var onClose: (() -> Void)?
-    /// Counts the turns the route made without the swap button (Automatic direction, TT-234, D116): the names cross-fade
-    /// in 0.18 s and nothing moves.
-    var turns = 0
+    /// The last turn the route made without the swap button (TT-235, D116), nil where no motion plays: the calm swap is
+    /// drawn from it while it is fresh. Under Reduce Motion nothing moves and the names cross-fade (`NameCrossfade`).
+    var turn: Turn?
+    /// The From marker is the location arrow, not the ring (TT-235, D116): the app turned the route from the rider's
+    /// place in this visit. During the calm swap the ring gives way to it from 310 ms.
+    var marksFrom = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.swapFrozenAt) private var frozenAt
+    @Environment(\.swapFrozenCalm) private var frozenCalm
     /// The swap motion in progress, nil at rest.
     @State private var swap = SwapRun()
+    /// The turn whose calm swap is playing, by its id: the timeline runs meanwhile.
+    @State private var turnRun: Int?
     /// Counts the picker opening or closing; the timeline runs for a moment after each (`morphRuns`).
     @State private var morphs = 0
     /// The timeline also runs while the swap arrows and the X trade places, so nothing inside the card waits on a paused
@@ -70,8 +92,23 @@ struct RouteCard: View {
 
     var body: some View {
         // Paused (no frames) unless a swap is playing; the poses come from the clock, not from SwiftUI animations.
-        TimelineView(.animation(paused: swap.start == nil && !morphRuns)) { context in
+        TimelineView(.animation(paused: swap.start == nil && !morphRuns && turnRun == nil)) { context in
             card(pose: pose(at: context.date))
+        }
+        // A turn nobody tapped: the timeline runs until its calm swap is over. The poses come straight from the token, so
+        // the frame before this runs already shows the names where they stood.
+        .onChange(of: turn, initial: true) { _, turn in
+            let left = turn?.start.map { $0.timeIntervalSinceNow + SwapMotion.duration } ?? 0
+            guard !reduceMotion, let turn, left > 0 else {
+                turnRun = nil
+                return
+            }
+            turnRun = turn.id
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(left))
+                // A newer turn has its own run.
+                if turnRun == turn.id { turnRun = nil }
+            }
         }
         .onChange(of: showsClose) {
             morphs += 1
@@ -89,7 +126,9 @@ struct RouteCard: View {
         Card(padding: 0, joinsBelow: showsClose) {
             HStack(spacing: TTSpace.s3) {
                 // The ring centred on the first row; the pin lands centred on the second.
-                RouteMarkers(dotLights: pose.dotLights, pinScale: pose.pinScale)
+                RouteMarkers(dotLights: pose.dotLights, pinScale: pose.pinScale, here: marksFrom ? pose.marker : 0)
+                    // Outside a calm swap (Undo, the route changed by hand, Reduce Motion) the arrow and the ring cross-fade.
+                    .animation(TTMotion.fade, value: marksFrom)
                     .padding(.top, (Self.rowHeight - RouteMarkers.Size.regular.ring) / 2)
                     .frame(width: Self.markerColumn, height: 2 * Self.rowHeight, alignment: .top)
                 // The names stay inside their column (and the pill's 8 pt inset), so a name arcing sideways never covers the
@@ -179,6 +218,9 @@ struct RouteCard: View {
             var carry = SwapMotion.Carry()
             if let start = swap.start {
                 carry = SwapMotion.carry(at: now.timeIntervalSince(start), step: rowStep, from: swap.carry)
+            } else if let start = playingTurn?.start {
+                // A tap during a turn's calm swap carries on from where that is.
+                carry = SwapMotion.carry(at: now.timeIntervalSince(start), step: rowStep, calm: true)
             }
             swap = SwapRun(start: now, from: from, to: to, carry: carry)
             Task { @MainActor in
@@ -190,10 +232,23 @@ struct RouteCard: View {
         onSwap()
     }
 
+    /// The model's turn while the card shows the names it turned to and motion plays: its calm swap is drawn from it.
+    private var playingTurn: Turn? {
+        guard !reduceMotion, let turn, turn.from == to, turn.to == from else { return nil }
+        return turn
+    }
+
     private func pose(at date: Date) -> SwapMotion.Pose {
         guard picking == nil else { return SwapMotion.rest }
-        if let frozenAt { return SwapMotion.pose(at: frozenAt, step: rowStep) }
-        guard let start = swap.start else { return SwapMotion.rest }
+        if let frozenAt { return SwapMotion.pose(at: frozenAt, step: rowStep, calm: frozenCalm) }
+        guard let start = swap.start else {
+            guard let turn = playingTurn else { return SwapMotion.rest }
+            // Held under the launch splash: the old order at rest, which is the calm swap's first frame. A start still to
+            // come (the splash's fade) is drawn the same way, and a turn long over is at rest. Before the timeline runs
+            // (the frame the token arrives in) its date may be an old one, so the moment is read from the clock.
+            let moment = turnRun == nil ? Date() : date
+            return SwapMotion.pose(at: turn.start.map { moment.timeIntervalSince($0) } ?? 0, step: rowStep, calm: true)
+        }
         var pose = SwapMotion.pose(at: date.timeIntervalSince(start), step: rowStep, carry: swap.carry)
         // Until the card shows the stations the other way round than at the tap (Schedule swaps a moment later, in a task),
         // each name stays where the tap found it: at rest, or mid-flight on a second tap (the carry, read back).
@@ -224,7 +279,6 @@ struct RouteCard: View {
             let field: LocalizedStringKey = stop == .from ? "route.from" : "route.to"
             Button { onTap(stop) } label: {
                 name(station, placeholder: placeholder, pose: pose)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: turns)
                     .modifier(NameCrossfade(isOn: reduceMotion, key: station))
                     .contentShape(Rectangle())
             }
@@ -243,8 +297,6 @@ struct RouteCard: View {
                 Text(verbatim: station)
                     .font(TTFont.headline)
                     .foregroundStyle(TTColor.ink)
-                    // A name that changes inside an animation (a turn, TT-234) fades to the new one.
-                    .contentTransition(.opacity)
             } else {
                 Text(placeholder)
                     .font(TTFont.body)
@@ -307,6 +359,8 @@ struct RouteMarkers: View {
         var dots: Int { self == .regular ? 3 : 2 }
         var gap: CGFloat { self == .regular ? 6 : 3 }
         var pin: CGFloat { self == .regular ? 20 : 14 }
+        /// The location arrow that takes the ring's place (TT-235): 16 pt on the canvas, centred on the ring.
+        var arrow: CGFloat { 16 }
     }
 
     var size: Size = .regular
@@ -314,12 +368,26 @@ struct RouteMarkers: View {
     /// from near its tip. At rest: none lit, 1.
     var dotLights: [Double] = []
     var pinScale: CGFloat = 1
+    /// How far the ring has given way to the accent location arrow (TT-235, D116), 0 to 1: the app turned the route to
+    /// leave from the rider's place. The route card's marker only; no rings around it (D80: Now keeps the only rings).
+    var here = 0.0
 
     var body: some View {
         VStack(spacing: size.gap) {
             Circle()
                 .strokeBorder(TTColor.inkSecondary, lineWidth: size.ringStroke)
+                .opacity(1 - here)
                 .frame(width: size.ring, height: size.ring)
+                .overlay {
+                    if here > 0 {
+                        Image(systemName: "location.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(TTColor.accent)
+                            .frame(width: size.arrow, height: size.arrow)
+                            .opacity(here)
+                    }
+                }
             ForEach(0..<size.dots, id: \.self) { index in
                 let light = index < dotLights.count ? dotLights[index] : 0
                 Circle()

@@ -36,6 +36,17 @@ enum CascadeMotion {
     }
 }
 
+/// The trains a turn replaced (Automatic direction, TT-235, D116), drawn once more over the new ones: whole until the new
+/// trains' cascade starts, then fading out in 200 ms, linear, and not drawn after that.
+enum OutgoingFade {
+    static let duration = 0.2
+
+    /// The old cards' opacity `elapsed` seconds after the new trains' cascade started.
+    static func opacity(at elapsed: Double) -> Double {
+        min(1, max(0, 1 - elapsed / duration))
+    }
+}
+
 /// The Now line playing once when the timeline shows: after the launch's scroll settles, on the Schedule tab or the Today
 /// tile, and on coming back to the tab or the app (TT-164, D61; TT-197, D80). The rule draws across from the rail on
 /// `TTMotion.drawInCurve`, the dot swells to 1.7 and back over 0.6 s while a 2 pt accent ring spreads from it to 3.4 times
@@ -355,6 +366,11 @@ extension View {
         modifier(CascadeEntrance(cue: cue, order: order, moves: moves))
     }
 
+    /// The trains a turn replaced, fading out as the new ones' cascade (`cue`) plays (`OutgoingFade`); nothing at rest.
+    func outgoingFade(_ cue: CascadeCue) -> some View {
+        modifier(OutgoingFadeOut(cue: cue))
+    }
+
     /// A day tile pressing (`DayPressMotion`) each time `count`, its taps, goes up. A SwiftUI animation starts on its first
     /// frame, so a slow frame after the tap (the new trains being built) holds the tile at rest and the press still plays
     /// in full; a keyframe's clock ran on through that frame and the 0.90 was never drawn. Played from the tap rather than
@@ -383,6 +399,21 @@ private struct CascadeEntrance: ViewModifier {
                 .opacity(pose.opacity)
                 .scaleEffect(pose.scale)
                 .offset(y: pose.offsetY)
+        }
+    }
+}
+
+private struct OutgoingFadeOut: ViewModifier {
+    let cue: CascadeCue
+
+    func body(content: Content) -> some View {
+        let run = cue.run
+        // Paused (no frames) unless the cascade is playing, as the entering cards are.
+        TimelineView(.animation(paused: run.start == nil)) { context in
+            let opacity = run.elapsed(at: context.date).map { OutgoingFade.opacity(at: $0) } ?? 0
+            if opacity > 0 {
+                content.opacity(opacity)
+            }
         }
     }
 }

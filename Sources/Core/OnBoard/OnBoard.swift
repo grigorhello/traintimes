@@ -137,7 +137,7 @@ final class OnBoard {
         guard let app, demo == nil else { return false }
         let started = await app.start(ride)
         guard started else { return false }
-        Analytics.track(.rideStarted(source: source, demo: false))
+        Analytics.track(.rideStarted(source: source, demo: false, plan: app.plan))
         self.route = route
         await requestNotifications()
         nudge?.replan()
@@ -301,7 +301,7 @@ final class OnBoard {
             followDemo(session.engine)
             let started = await session.engine.start(session.ride)
             Analytics.track(.detectionAnswered(yes: true))
-            if started { Analytics.track(.rideStarted(source: .detection, demo: true)) }
+            if started { Analytics.track(.rideStarted(source: .detection, demo: true, plan: session.engine.plan)) }
             // The question stays until the ride shows, so the strip goes straight from one to the other.
             demoDetector = nil
             return started

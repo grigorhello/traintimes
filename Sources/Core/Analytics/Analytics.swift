@@ -179,8 +179,12 @@ extension AnalyticsEvent {
         Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
     }
 
-    static func rideStarted(source: RideStartSource, demo: Bool) -> Self {
-        Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
+    /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232).
+    static func rideStarted(source: RideStartSource, demo: Bool, plan: RidePlan? = nil) -> Self {
+        Self("ride_started", [
+            "source": .string(source.rawValue), "demo": .bool(demo),
+            "express": .bool(plan?.isExpress ?? false), "skipped_stations": .int(plan?.skipped.count ?? 0),
+        ])
     }
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
@@ -211,6 +215,12 @@ extension AnalyticsEvent {
             "wish": .string(wish.id), "close": .string(close.rawValue), "seconds": .int(seconds), "taps": .int(taps),
             "demo": .bool(demo),
         ])
+    }
+
+    /// Train detection asked "On the train to Clarkson?" (TT-230): on Schedule (`app`) or as the background notification
+    /// (`background`); `evidence` is `stops` (shared stops) or `moving` (moved together on a stretch with no stop between).
+    static func detectionAsked(where place: String, evidence: String) -> Self {
+        Self("detection_asked", ["where": .string(place), "evidence": .string(evidence)])
     }
 
     /// Yes or No on the train detection question on Schedule.

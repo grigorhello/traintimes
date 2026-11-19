@@ -55,9 +55,17 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var platformNumber: String?
         /// The train runs late: the clock time in the line, and the arrival, in amber.
         var late = false
-        /// Where the train is on the stop line, in stops from the origin: 3.25 is a quarter of the way from the fourth stop
-        /// to the fifth; the last stop's index at your stop.
+        /// Where the train is on the stop line, in dots from the origin: 3.25 is a quarter of the way from the fourth dot
+        /// to the fifth; the last dot's index at your stop.
         var position: Double
+        /// The stop line's dots on a ride that passes stations without stopping (TT-232, D111): every station from where
+        /// you got on to your stop. Nil draws the attributes' `stopCount`, the ride's stops.
+        var stations: Int?
+        /// Which of those dots the train does not stop at: drawn hollow.
+        var skipped: [Int] = []
+        /// The Schedule card's express tag: the bolt above the train on the stop line, and after the tile in the compact
+        /// island. Only during the ride.
+        var express = false
         /// Your stop is next, or the train is boarding: the number turns mint, as on the ride screen.
         var isClose = false
         /// "Updated 5:31 PM": shown in place of the line once the activity is stale (the app stopped updating it).
@@ -88,6 +96,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
         case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated
+        case stations, skipped, express
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -110,6 +119,9 @@ extension RideActivityAttributes.ContentState {
         platformNumber = try container.decodeIfPresent(String.self, forKey: .platformNumber)
         late = try container.decodeIfPresent(Bool.self, forKey: .late) ?? false
         position = try container.decodeIfPresent(Double.self, forKey: .position) ?? 0
+        stations = try container.decodeIfPresent(Int.self, forKey: .stations)
+        skipped = try container.decodeIfPresent([Int].self, forKey: .skipped) ?? []
+        express = try container.decodeIfPresent(Bool.self, forKey: .express) ?? false
         isClose = try container.decodeIfPresent(Bool.self, forKey: .isClose) ?? false
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
     }
@@ -127,6 +139,10 @@ extension RideActivityAttributes.ContentState {
         try container.encodeIfPresent(platformNumber, forKey: .platformNumber)
         try container.encode(late, forKey: .late)
         try container.encode(position, forKey: .position)
+        // Only on a ride that has them, so every other activity's JSON stays as the alert server writes it.
+        try container.encodeIfPresent(stations, forKey: .stations)
+        if !skipped.isEmpty { try container.encode(skipped, forKey: .skipped) }
+        if express { try container.encode(express, forKey: .express) }
         try container.encode(isClose, forKey: .isClose)
         try container.encode(updated, forKey: .updated)
     }

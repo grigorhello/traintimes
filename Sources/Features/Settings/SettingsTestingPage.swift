@@ -125,9 +125,19 @@ struct SettingsTestingPage: View {
                     ]
                 )
                 description
+                if viewModel.showsDemoExpress {
+                    // The demo ride as an express (TT-232): the word the Schedule card's bolt reads as.
+                    Toggle(isOn: $viewModel.demoExpress) {
+                        Text("tag.express").font(TTFont.body).foregroundStyle(TTColor.ink)
+                    }
+                    .tint(TTColor.accent)
+                    .padding(.horizontal, 2)
+                    .accessibilityIdentifier("settings.demoExpress")
+                }
             }
             .padding(TTSpace.s3)
         }
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoExpress)
     }
 
     /// One line for the chosen mode. All of them are laid on top of each other, so the card keeps the height of the longest and

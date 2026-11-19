@@ -107,7 +107,8 @@ extension TrainDetector {
             location: SystemLocationProvider(keepsInBackground: false),
             trains: dependencies.trains,
             clock: dependencies.clock,
-            defaults: .standard
+            defaults: .standard,
+            askedWhere: "app"
         )
     }
 }
@@ -133,7 +134,7 @@ extension BackgroundDetection {
             makeDetector: {
                 TrainDetector(
                     candidates: candidates, location: BackgroundFixes(), trains: trains, clock: clock, defaults: .standard,
-                    tickInterval: nil
+                    tickInterval: nil, askedWhere: "background"
                 )
             }
         )

@@ -24,7 +24,27 @@ final class FeedbackSnapshotTests: XCTestCase {
     @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }
     @MainActor func testRoundButtonAsksDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark, asks: true) }
 
+    /// The labelled pill, which a short line name leaves room for, at rest and as it asks (grown to 1.06, label on accent).
+    @MainActor func testLabelledPillAsksLight() { snapPill(.light) }
+    @MainActor func testLabelledPillAsksDark() { snapPill(.dark) }
+
     // MARK: Helpers
+
+    @MainActor
+    private func snapPill(_ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        let view = HStack(spacing: TTSpace.s5) {
+            FeedbackPill {}
+            FeedbackPill(pose: .asking) {}
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TTColor.canvas)
+        assertSnapshot(
+            of: view,
+            as: .image(perceptualPrecision: 0.98, layout: .fixed(width: 330, height: 80), traits: UITraitCollection(userInterfaceStyle: style)),
+            testName: testName,
+            line: line
+        )
+    }
 
     @MainActor
     private func model(_ sender: any FeedbackSending = RecordingFeedbackSender()) -> FeedbackViewModel {

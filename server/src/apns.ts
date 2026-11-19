@@ -21,6 +21,8 @@ export interface Push {
   /** Custom keys beside `aps`: trip id, service date and the rule's origin and destination ids for the deep link (rule 10),
    * and the alert's kind (delay, recovery, cancelled, skipped) for the Alerts tab's icons (TT-143). */
   data: Record<string, string>;
+  /** The notification's category, for its actions: `depart.question` has Yes and No (TT-231). */
+  category?: string;
 }
 
 /** A Live Activity push (TT-178): start, update or end, to a push-to-start token or an activity's update token. */
@@ -93,7 +95,7 @@ export class ApnsClient {
   async send(push: Push, now: number): Promise<PushResult> {
     // Default sound and interruption level; no critical or time-sensitive alerts in v1.
     return this.post(push.token, push.environment, 'alert', this.config.topic, push.expiration, now, {
-      aps: { alert: { title: push.title, body: push.body }, sound: 'default' },
+      aps: { alert: { title: push.title, body: push.body }, sound: 'default', ...(push.category ? { category: push.category } : {}) },
       ...push.data,
     });
   }

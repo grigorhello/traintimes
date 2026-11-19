@@ -29,7 +29,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // A route saved before this install sent analytics counts once, so the install shows as activated (TT-217).
         RouteCount().launched(with: UserDefaultsRouteStore().route)
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().setNotificationCategories([DetectionNotice.notificationCategory])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            DetectionNotice.notificationCategory, DepartureNotice.notificationCategory,
+        ])
+        // No on the departure question's card (TT-231, D110): iOS runs the intent here, which ended the card.
+        DeclineDepartureIntent.declined = { [weak self] train in self?.declined(train, surface: .card) }
         nudge.follow(ride)
         detection?.follow(ride)
         detection?.resume()
@@ -87,6 +91,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             return
         }
         let link = NotificationLink(userInfo: response.notification.request.content.userInfo)
+        // The departure question (TT-231): Yes opens the app and starts the ride, No declines the train in the background,
+        // a tap opens its Trip details.
+        if response.notification.request.content.categoryIdentifier == DepartureNotice.category,
+           case .trip(let key, let from, let to) = link {
+            let action = response.actionIdentifier
+            completionHandler()
+            Task { @MainActor in
+                switch action {
+                case DepartureNotice.yesAction:
+                    Analytics.track(.notificationOpened(kind: DepartureNotice.kind, action: "yes"))
+                    Analytics.track(.departureQuestionAnswered(yes: true, surface: .notification))
+                    if let link { self.router.open(link, boards: true) }
+                case DepartureNotice.noAction:
+                    Analytics.track(.notificationOpened(kind: DepartureNotice.kind, action: "no"))
+                    let train = DeclinedDeparture(
+                        tripId: key.tripId, serviceDate: key.serviceDay.dateKey, originId: from ?? "", destinationId: to ?? ""
+                    )
+                    self.declined(train, surface: .notification)
+                default:
+                    Analytics.track(.notificationOpened(kind: DepartureNotice.kind, action: "open"))
+                    if let link { self.router.open(link) }
+                }
+            }
+            return
+        }
         // A tapped notification leaves Notification Center, so the Alerts tab's Recent updates keeps it here (TT-143).
         let update = AlertUpdate(response.notification)
         completionHandler()
@@ -95,6 +124,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             Analytics.track(.notificationOpened(kind: link == nil ? "other" : "alert"))
             if let link { self.router.open(link) }
         }
+    }
+
+    /// No on the departure question, on the card or its notification (TT-231, D110): the train is not asked about again
+    /// today (nor by train detection), the answer is counted, and the alert server sends nothing more for it.
+    private func declined(_ train: DeclinedDeparture, surface: DepartureQuestion.Surface) {
+        let key = TripKey(serviceDay: ServiceDay(dateKey: train.serviceDate), tripId: train.tripId)
+        DepartureQuestion.decline(key, in: .standard, surface: surface)
+        liveActivity?.declined(train)
     }
 
     /// A notification arriving while the app is open is not shown (D39), but Recent updates lists it (TT-143).

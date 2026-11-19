@@ -84,6 +84,8 @@ enum RideStartSource: String, Sendable {
     case detection
     /// Start On board on the background question's notification (TT-176).
     case notification
+    /// Yes on the departure question: the Live Activity card, its notification or Schedule's strip (TT-231).
+    case departure
 }
 
 /// Where an alert was removed.
@@ -177,6 +179,12 @@ extension AnalyticsEvent {
     /// A notification tapped: an alert (`alert`) or the train detection question (`detection`, with its action).
     static func notificationOpened(kind: String, action: String = "open") -> Self {
         Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
+    }
+
+    /// Yes or No on "On board?" when an alerted train left (TT-231, D110): the Live Activity card, the notification sent
+    /// when there is no card, or Schedule's strip.
+    static func departureQuestionAnswered(yes: Bool, surface: DepartureQuestion.Surface) -> Self {
+        Self("departure_question_answered", ["answer": .string(yes ? "yes" : "no"), "surface": .string(surface.rawValue)])
     }
 
     /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232).

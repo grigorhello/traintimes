@@ -68,7 +68,7 @@ final class OnBoardTests: XCTestCase {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         if springboard.buttons["Open"].waitForExistence(timeout: 3) { springboard.buttons["Open"].tap() }
         let card = app.descendants(matching: .any).matching(identifier: "trip.departure").firstMatch
-        // The demo loops every 102 s and reads Departed for 12 s of it, when the sheet shows the trip instead.
+        // The demo loops every 150 s; for the last 60 s of it the train has left and the sheet shows the trip instead.
         XCTAssertTrue(card.waitForExistence(timeout: 30))
 
         app.buttons["trip.onboard"].tap()
@@ -77,6 +77,26 @@ final class OnBoardTests: XCTestCase {
         XCTAssertFalse(card.exists, "the hero card turned into the ride")
 
         // End ride stops the demo ride.
+        app.buttons["trip.endRide"].tap()
+        XCTAssertTrue(ride.waitForNonExistence(timeout: 15))
+    }
+
+    /// TT-231 (D110): when the alerted train leaves with the app open on Schedule, its strip asks, and Yes starts the ride.
+    /// The demo departure leaves at 5:16 PM on its clock, 90 s after launch at 10×, and asks for 60 s.
+    @MainActor
+    func testScheduleAsksOnBoardWhenTheDemoTrainLeaves() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "departure"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
+        let question = app.descendants(matching: .any).matching(identifier: "schedule.question").firstMatch
+        XCTAssertFalse(question.exists, "not before the train leaves")
+        XCTAssertTrue(question.waitForExistence(timeout: 130), "asks once the train has left")
+
+        app.buttons["schedule.question.yes"].tap()
+        let ride = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
+        XCTAssertTrue(ride.waitForExistence(timeout: 15), "Yes lands in the ride")
         app.buttons["trip.endRide"].tap()
         XCTAssertTrue(ride.waitForNonExistence(timeout: 15))
     }

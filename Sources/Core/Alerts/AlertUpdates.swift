@@ -39,8 +39,10 @@ struct AlertUpdate: Codable, Hashable, Sendable, Identifiable {
 extension AlertUpdate {
     /// A notification's content and payload; nil for one that is not about a train ("Your usual train has changed").
     init?(id: String, deliveredAt: Date, title: String, body: String, userInfo: [AnyHashable: Any]) {
+        // The departure question (TT-231) is about a train too, but it is not an update.
         guard let tripId = userInfo["tripId"] as? String, !tripId.isEmpty,
-              let serviceDate = userInfo["serviceDate"] as? String, !serviceDate.isEmpty else { return nil }
+              let serviceDate = userInfo["serviceDate"] as? String, !serviceDate.isEmpty,
+              userInfo["kind"] as? String != "departure" else { return nil }
         self.init(
             id: id,
             kind: (userInfo["kind"] as? String).flatMap(Kind.init(rawValue:)) ?? .delay,

@@ -47,16 +47,19 @@ struct RideStripView: View {
     }
 }
 
-/// What the strip under the day strip shows (TT-175; TT-205, D93): the ride strip, train detection's question, or the
-/// watched-trip strip. Nothing shows while the matcher checks (no checking strip), and no countdown before departure: the
+/// What the strip under the day strip shows (TT-175; TT-205, D93): the ride strip, train detection's question (or the
+/// departure question, TT-231), or the watched-trip strip. Nothing shows while the matcher checks (no checking strip), and no countdown before departure: the
 /// train's own card says it.
 enum RideStripContent: Equatable {
     case riding, asking, otherwise
 
-    init(isRiding: Bool, detection: TrainMatcher.State) {
+    /// `asksDeparture`: the alerted train has left and Schedule asks "On board?" about it (TT-231), in the same card.
+    init(isRiding: Bool, detection: TrainMatcher.State, asksDeparture: Bool = false) {
         if isRiding {
             self = .riding
         } else if case .asking = detection {
+            self = .asking
+        } else if asksDeparture {
             self = .asking
         } else {
             self = .otherwise
@@ -64,7 +67,10 @@ enum RideStripContent: Equatable {
     }
 
     @MainActor init(_ onBoard: OnBoard?) {
-        self.init(isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle)
+        self.init(
+            isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle,
+            asksDeparture: onBoard?.asksDeparture ?? false
+        )
     }
 }
 
@@ -89,7 +95,7 @@ struct RideStripSlot<Otherwise: View>: View {
 
     var body: some View {
         let detection = onBoard?.detection ?? .idle
-        let content = RideStripContent(isRiding: onBoard?.activeRide != nil, detection: detection)
+        let content = RideStripContent(onBoard)
         Group {
             if content == .otherwise {
                 otherwise
@@ -122,6 +128,13 @@ struct RideStripSlot<Otherwise: View>: View {
                     question: shown,
                     onYes: { train in Task { if await onBoard?.accept(train) == true { onOpen() } } },
                     onNo: { onBoard?.decline() }
+                )
+                .transition(drop(by: -10))
+            } else if let ask = onBoard?.departureAsk {
+                TrainQuestionCard(
+                    departure: ask,
+                    onYes: { Task { if await onBoard?.acceptDeparture() == true { onOpen() } } },
+                    onNo: { onBoard?.declineDeparture() }
                 )
                 .transition(drop(by: -10))
             }

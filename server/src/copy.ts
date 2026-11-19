@@ -19,6 +19,9 @@ export const strings = {
   'notif.rule.body': 'Review your %@ weekday alert.',
   // The before-departure Live Activity (TT-178, TT-205, src/activity.ts).
   'depart.live.title': '%1$@ departs in %2$d min',
+  // The departure question (TT-231, D110).
+  'depart.ask.line': '%@ departed',
+  'depart.ask.notif': 'On the %@ train?',
   'depart.line': '%@ departs in',
   'depart.boardingLine': '%@ boarding now',
   'depart.departed': 'Departed %@',

@@ -69,7 +69,9 @@ CREATE TABLE IF NOT EXISTS activities (
   key TEXT NOT NULL,                -- the watch's key: service date, trip id, origin and destination
   service_date TEXT NOT NULL,
   token TEXT,                       -- the activity's update token from the app, hex; NULL until the app reports it
-  state TEXT NOT NULL DEFAULT 'started', -- 'started', 'ended', or 'handedOff' (the app's ride took the activity over)
+  state TEXT NOT NULL DEFAULT 'started', -- 'started', 'ended', 'handedOff' (the app's ride took the activity over, or
+                                    -- the rider said No), 'asked' (the app was in front: a silent question, TT-231) or 'notified'
+                                    -- (the question went as a notification: no card to ask on)
   shown TEXT,                       -- what it last showed (src/activity.ts signature), so updates go only on a change
   version INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (installation_id, key)

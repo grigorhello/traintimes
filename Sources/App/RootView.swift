@@ -35,8 +35,11 @@ struct RootView: View {
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
     private let backgroundDetection: BackgroundDetection?
-    /// The widget file (TT-182, D107); nil in fixture runs.
-    private let widgetFile: WidgetFileWriter?
+    /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
+    /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
+    /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
+    /// until the next launch (TT-185, D117).
+    @State private var widgetFile: WidgetFileWriter?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -113,9 +116,11 @@ struct RootView: View {
         _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
         backgroundDetection = detection
-        widgetFile = dependencies.widgetData.flatMap {
-            WidgetFileWriter.app(data: $0, routeStore: routeStore, rules: rules, settings: settings, recents: schedule.recents)
-        }
+        _widgetFile = State(
+            initialValue: dependencies.widgetData.flatMap {
+                WidgetFileWriter.app(data: $0, routeStore: routeStore, rules: rules, settings: settings, recents: schedule.recents)
+            }
+        )
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock

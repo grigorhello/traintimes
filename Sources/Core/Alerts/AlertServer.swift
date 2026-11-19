@@ -21,6 +21,9 @@ struct LiveActivityReport: Codable, Hashable, Sendable {
     let destinationId: String
     var token: String?
     var handedOff = false
+    /// The app was in front as the train left (TT-231): the server asks "On board?" on the card with no alert, and sends
+    /// no notification.
+    var asked = false
 }
 
 /// The alert server's app API (TT-140, D38), keyed by the anonymous installation id (D5).

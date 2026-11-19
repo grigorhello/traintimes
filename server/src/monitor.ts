@@ -18,6 +18,7 @@ import {
   type SentKind,
 } from './alerts.ts';
 import {
+  askTitle,
   contentState,
   endPayload,
   LINE_COLORS,
@@ -73,7 +74,8 @@ interface ActivityRow {
   installation_id: string;
   key: string;
   token: string | null;
-  state: 'started' | 'ended' | 'handedOff';
+  /** `asked`: the app was in front as the train left, so the question comes silently (TT-231); `notified`: it went as a notification. */
+  state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified';
   shown: string | null;
   version: number;
 }
@@ -286,7 +288,8 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     const status = update && fresh ? liveStatus(update, call, feedTime!) : null;
     // The Live Activity runs on past the train's departure, when departure alerts stop.
     const activity = activities.get(`${rule.installation_id}|${key}`) ?? null;
-    if (rule.start_token || activity) await followActivity({ rule, date, tripId, departure, call, key }, status, activity);
+    // With no push-to-start token the activity never starts, but the question still goes, as a notification (TT-231).
+    await followActivity({ rule, date, tripId, departure, call, key }, status, activity);
     if (watch?.done) continue;
     const version = watch?.version ?? 0;
 
@@ -315,12 +318,13 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
 
   /**
    * The watched train's before-departure Live Activity (TT-178, D74): started once at T−30 with a push-to-start, updated
-   * when what it shows changes, ended 2 min after the train left (at once when it is cancelled or skips a stop). Nothing
-   * once the app's ride took it over, or for an activity the app started until it reports the activity's update token.
+   * when what it shows changes, turned into the question once the train has left, with an alert (TT-231), and ended 10 min
+   * later or at the rider's stop (at once when it is cancelled or skips a stop). With no card to reach, the question goes as
+   * a notification. Nothing once the app's ride took it over or the rider said No.
    */
   async function followActivity(watch: Watch & { key: string }, status: LiveStatus | null, activity: ActivityRow | null) {
     const { rule, call, key, date } = watch;
-    if (activity && activity.state !== 'started') return;
+    if (activity && activity.state !== 'started' && activity.state !== 'asked') return;
     const train: Departure = {
       scheduled: watch.departure,
       scheduledArrival: call.arrivals[call.to],
@@ -333,7 +337,11 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     const expiration = staleDate(train);
 
     if (!activity) {
-      if (phase === 'over' || phase === 'departed' || !rule.start_token || sends >= MAX_SENDS) return;
+      if (phase === 'asking') {
+        await askByNotification(watch, train, null);
+        return;
+      }
+      if (phase === 'over' || !rule.start_token || sends >= MAX_SENDS) return;
       // Claim the start first: an overlapping cycle finds the row and starts nothing.
       const state = contentState(train, phase, now, rule.time_format);
       const claimed = await db
@@ -381,6 +389,13 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
       await setActivity(activity, { state: 'ended' });
       return;
     }
+    // The app was in front as the train left (it reported `asked`): the question comes with no alert and no notification.
+    const silent = activity.state === 'asked';
+    // No token to reach the card (the app has not reported it): the question goes as a notification instead (TT-231).
+    if (!activity.token && phase === 'asking') {
+      if (!silent) await askByNotification(watch, train, activity);
+      return;
+    }
     if (!activity.token || sends >= MAX_SENDS) return;
     const state = contentState(train, phase, now, rule.time_format);
     const shown = signature(state);
@@ -388,12 +403,47 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     // Claim the update first, as a watch's send is claimed.
     if (!(await setActivity(activity, { shown }))) return;
     sends++;
-    const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload: updatePayload(train, state, now), expiration }, now);
+    const payload = updatePayload(train, state, now, rule.time_format, silent);
+    const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload, expiration }, now);
     if (result === 'unregistered' || result === 'badToken') {
       // The rider swiped it away, or it ended: nothing more to send.
       await setActivity({ ...activity, version: activity.version + 1 }, { state: 'ended' });
     } else if (result === 'retry') {
       await setActivity({ ...activity, version: activity.version + 1 }, { shown: activity.shown });
+    }
+  }
+
+  /**
+   * The departure question as a notification, once, when there is no card to ask on (TT-231, D110): "On the 4:29 PM
+   * train?" with Yes and No (category `depart.question`), expiring when the question ends. The activity row records it, so
+   * it goes once and the card's alert never goes as well.
+   */
+  async function askByNotification(watch: Watch & { key: string }, train: Departure, activity: ActivityRow | null) {
+    const { rule, key, date, tripId } = watch;
+    if (sends >= MAX_SENDS) return;
+    if (activity) {
+      if (!(await setActivity(activity, { state: 'notified' }))) return;
+    } else {
+      const claimed = await db
+        .prepare(`INSERT OR IGNORE INTO activities (installation_id, key, service_date, state) VALUES (?, ?, ?, 'notified')`)
+        .bind(rule.installation_id, key, date)
+        .run();
+      if (claimed.meta.changes === 0) return;
+    }
+    const result = await deliver(rule, {
+      title: askTitle(train, rule.time_format),
+      body: '',
+      expiration: staleDate(train),
+      category: 'depart.question',
+      data: { tripId, serviceDate: date, originId: rule.origin_id, destinationId: rule.destination_id, kind: 'departure' },
+    });
+    if (result === 'retry') {
+      // Not delivered: a later cycle within the question's 10 min tries again.
+      if (activity) {
+        await setActivity({ ...activity, version: activity.version + 1 }, { state: activity.state });
+      } else {
+        await db.prepare(`DELETE FROM activities WHERE installation_id = ? AND key = ? AND state = 'notified'`).bind(rule.installation_id, key).run();
+      }
     }
   }
 

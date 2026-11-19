@@ -3,21 +3,22 @@ import Foundation
 /// Settings › Testing › Demo trains › Departure (TT-177, D69): the before-departure window of the demo ride's train, the
 /// 5:13 PM Lakeshore West train from Union to Clarkson, with an alert on it, played from 5:01 PM on a clock of its own, ten
 /// times as fast and over again, so every moment can be checked on the simulator with no train and no alert: platform
-/// pending (12 min to go), Platform 7 posted at 5:03, 3 min late from 5:04 (5:16 PM), Boarding now from 5:14, Departed at
-/// 5:16, and the window ends at 5:18. Its strip and Trip details take the place of a real live departure; "I’m on board"
+/// pending (12 min to go), Platform 7 posted at 5:03, 3 min late from 5:04 (5:16 PM), Boarding now from 5:14, the departure
+/// question ("On board?", TT-231) from 5:16, and the window ends at 5:26. Its strip and Trip details take the place of a real live departure; "I’m on board"
 /// hands over into the demo ride from the demo's time. The timetable is left alone and nothing is kept on device.
 enum DemoDeparture {
     /// Seconds into the service day, as GTFS counts them.
     static let startSeconds = 17 * 3600 + 1 * 60
     static let platformSeconds = 17 * 3600 + 3 * 60
     static let delaySeconds = 17 * 3600 + 4 * 60
-    /// Two minutes after the late departure: the window ends and the demo starts again from 5:01 PM.
-    static let endSeconds = 17 * 3600 + 18 * 60
+    /// Ten minutes after the late departure (the question's time, TT-231): the window ends and the demo starts again from
+    /// 5:01 PM.
+    static let endSeconds = 17 * 3600 + 26 * 60
     static let departureSeconds = 17 * 3600 + 13 * 60
     static let arrivalSeconds = 17 * 3600 + 43 * 60
     static let delayMinutes = 3
     static let platform = "7"
-    /// The demo clock runs this many times as fast as the real one: the 17 minutes take under 2.
+    /// The demo clock runs this many times as fast as the real one: the 25 minutes take 2.5.
     static let speed = 10.0
 
     /// One play of the demo on `day`, read against `clock`.
@@ -79,7 +80,7 @@ enum DemoDeparture {
     }
 }
 
-/// The demo departure's clock: 5:01 PM when the demo starts, running ten times as fast, back to 5:01 PM after 5:18 PM.
+/// The demo departure's clock: 5:01 PM when the demo starts, running ten times as fast, back to 5:01 PM after 5:26 PM.
 struct DemoDepartureClock: AppClock {
     let day: ServiceDay
     let realStart: Date

@@ -26,14 +26,15 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
     /// the right, and during the ride the stop line. The same words as the app's screens.
     struct ContentState: Codable, Hashable, Sendable {
         /// Where the ride is (`RidePhase`), or before it where the alerted train is (`LiveDeparture.Phase`, TT-178): one
-        /// activity carries the departure and then the ride.
+        /// activity carries the departure and then the ride. `departed` with `asks` is the question "On board?" (TT-231,
+        /// D110); no new case, so a build from before TT-231 still reads the alert server's push.
         enum Phase: String, Codable, Hashable, Sendable {
             case riding, atStation, yourStopNext, arriving, atYourStop
             case countingDown, boarding, departed
         }
 
         var phase: Phase
-        /// The one line: "5:13 PM departs in", "5:16 PM boarding now", "Departed 5:16 PM"; during the ride "Clarkson in",
+        /// The one line: "5:13 PM departs in", "5:16 PM boarding now", "5:16 PM departed"; during the ride "Clarkson in",
         /// "Clarkson is next", "Arriving at Clarkson", "This is Clarkson".
         var title: String
         /// The big number runs on the device to this time (timer text, no updates needed): the expected departure, or the
@@ -62,6 +63,8 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var isClose = false
         /// "Updated 5:31 PM": shown in place of the line once the activity is stale (the app stopped updating it).
         var updated: String
+        /// The train has left with no ride on, and the card asks "On board?" with Yes and No (TT-231, D110).
+        var asks = false
 
         /// About a minute before your stop: the activity alerts once.
         var isAlert: Bool { phase == .arriving }
@@ -76,6 +79,9 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
             case .riding, .atStation, .yourStopNext, .arriving, .atYourStop: false
             }
         }
+
+        /// The card asks "On board?" (TT-231, D110).
+        var isAsking: Bool { phase == .departed && asks }
     }
 
     /// This activity shows `ride`.
@@ -88,6 +94,7 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
 extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
         case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated
+        case asks
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -112,6 +119,7 @@ extension RideActivityAttributes.ContentState {
         position = try container.decodeIfPresent(Double.self, forKey: .position) ?? 0
         isClose = try container.decodeIfPresent(Bool.self, forKey: .isClose) ?? false
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
+        asks = try container.decodeIfPresent(Bool.self, forKey: .asks) ?? false
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -129,12 +137,13 @@ extension RideActivityAttributes.ContentState {
         try container.encode(position, forKey: .position)
         try container.encode(isClose, forKey: .isClose)
         try container.encode(updated, forKey: .updated)
+        if asks { try container.encode(asks, forKey: .asks) }
     }
 }
 
 /// The app's links from the activity: during the ride a tap opens Trip details on the ride; before departure (TT-178) a tap
-/// opens the train's Trip details. The card has no buttons since TT-205 (D93); `end` and `board` stay as links the app
-/// understands.
+/// opens the train's Trip details. The card's only buttons are the departure question's (TT-231, D110): Yes is `board`, No
+/// is `DeclineDepartureIntent`; `end` stays as a link the app understands.
 enum RideActivityLink: Equatable {
     case open
     case end

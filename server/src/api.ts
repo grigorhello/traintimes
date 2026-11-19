@@ -4,7 +4,7 @@
 //   PUT    /v1/installations/:installation                 { deviceToken, timeFormat, environment, startToken? }
 //   DELETE /v1/installations/:installation
 //   PUT    /v1/installations/:installation/activities      { tripId, serviceDate, originId, destinationId, token?,
-//                                                           handedOff? }
+//                                                           handedOff?, asked? }
 //   GET    /v1/installations/:installation/rules
 //   PUT    /v1/installations/:installation/rules/:rule     { kind, tripId, serviceDate, line, scheduledDeparture,
 //                                                           origin: { id, name }, destination: { id, name },
@@ -148,15 +148,20 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       if (token !== null && !ACTIVITY_TOKEN.test(token)) throw new BadRequest('token');
       const handedOff = input.handedOff === undefined ? false : input.handedOff;
       if (typeof handedOff !== 'boolean') throw new BadRequest('handedOff');
+      // The app was in front as the train left (TT-231): the question comes with no alert and no notification.
+      const asked = input.asked === undefined ? false : input.asked;
+      if (typeof asked !== 'boolean') throw new BadRequest('asked');
       if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
+      const state = handedOff ? 'handedOff' : asked ? 'asked' : 'started';
       await db
         .prepare(
           `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (installation_id, key) DO UPDATE SET token = COALESCE(excluded.token, activities.token),
-             state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff' ELSE activities.state END,
+             state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff'
+               WHEN excluded.state = 'asked' AND activities.state = 'started' THEN 'asked' ELSE activities.state END,
              version = activities.version + 1`,
         )
-        .bind(installation, `${serviceDate}|${tripId}|${originId}|${destinationId}`, serviceDate, token?.toLowerCase() ?? null, handedOff ? 'handedOff' : 'started')
+        .bind(installation, `${serviceDate}|${tripId}|${originId}|${destinationId}`, serviceDate, token?.toLowerCase() ?? null, state)
         .run();
       return noContent();
     }

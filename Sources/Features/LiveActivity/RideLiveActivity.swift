@@ -20,7 +20,9 @@ struct DepartureActivitySource {
 /// minute from your stop, and ends it with the ride: 15 min after the train reached your stop, at once on End ride.
 ///
 /// Before departure the alert server starts the activity with a push-to-start at T−30 (iOS 17.2+); the app in front starts
-/// it itself when none came, keeps it up to date while it runs, and ends it 2 min after the train left. "I’m on board" turns
+/// it itself when none came, keeps it up to date while it runs; once the train has left the card asks "On board?" (TT-231,
+/// D110: silently while the app is in front, with the alert server's buzz otherwise) and ends 10 min later, or at your stop if
+/// sooner. Yes (the card's link) starts the ride, and No (`DeclineDepartureIntent`) ends it. "I’m on board" turns
 /// that same activity into the ride (the hand-off), and the app tells the server, which then sends nothing more. The app
 /// sends the server its push-to-start token and each departure activity's update token. One per app, made by
 /// `AppDelegate`; none in fixture runs (UI tests, the unit test host, previews), so nothing appears in the island while they
@@ -37,6 +39,9 @@ final class RideLiveActivity: RideActivityFollowing {
     /// With a push-to-start token the server starts the activity at T−30; the app in front waits this long for it, so the
     /// two do not cross.
     static let serverGrace: TimeInterval = 90
+    /// With the app in front this long before the train leaves, or after, the server asks without an alert (TT-231): told
+    /// ahead of its minute cycle.
+    static let silenceLead: TimeInterval = 75
 
     private let app: RideEngine?
     private var demo: RideEngine?
@@ -79,6 +84,8 @@ final class RideLiveActivity: RideActivityFollowing {
     private var followedTokens: Set<String> = []
     /// The push-to-start token, hex; nil before iOS 17.2 or until iOS issues it.
     private var startToken: String?
+    /// The trains the server was told to ask about silently: the app was in front as they left (TT-231).
+    private var askedRides: Set<Ride> = []
 
     init(
         app: RideEngine?,
@@ -268,8 +275,9 @@ final class RideLiveActivity: RideActivityFollowing {
         await Self.end(current.id, content: content, dismissal: nil)
     }
 
-    /// No ride runs: the alerted train's countdown (TT-178). Whoever started it, it ends 2 min after the train left (its
-    /// stale date); the app keeps the live departure's up to date and starts it when none came.
+    /// No ride runs: the alerted train's countdown (TT-178), then its question (TT-231). Whoever started it, it ends 10 min
+    /// after the train left or at your stop (its stale date); the app keeps the live departure's up to date and starts it
+    /// when none came.
     private func reconcileDeparture(_ activities: [Activity<RideActivityAttributes>]) async {
         let deviceNow = Date()
         var current: [Activity<RideActivityAttributes>] = []
@@ -286,6 +294,17 @@ final class RideLiveActivity: RideActivityFollowing {
             departure: source.live, now: source.now, deviceNow: deviceNow, formatter: formatter()
         )
         let staleDate = Self.departureStaleDate(source.live, now: source.now, deviceNow: deviceNow)
+        // With the app in front as the train leaves, the question comes silently (TT-231, D110): Schedule asks with its own
+        // strip. The server is told shortly before the departure, ahead of its minute cycle, and then sends the question
+        // with no alert, and no notification.
+        if canStart(), source.live.leaves.timeIntervalSince(source.now) <= Self.silenceLead, askedRides.insert(ride).inserted {
+            let silent = LiveActivityReport(
+                tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
+                destinationId: ride.destinationId, asked: true
+            )
+            // Told once: a report that fails only costs the server's buzz, which iOS does not show over the app.
+            await report(silent)
+        }
         let mine = current.filter { $0.attributes.shows(ride) }
         if let shown = mine.first {
             departureStarted.insert(ride)
@@ -298,6 +317,7 @@ final class RideLiveActivity: RideActivityFollowing {
             }
             guard Self.needsUpdate(from: shown.content.state, to: content, sentAt: departureSentAt, now: deviceNow) else { return }
             departureSentAt = deviceNow
+            // The app's own update never alerts: the question's buzz is the alert server's (TT-231).
             await Self.update(shown.id, content: content, staleDate: staleDate, alerts: false)
             return
         }
@@ -443,10 +463,35 @@ final class RideLiveActivity: RideActivityFollowing {
         next.phase == .arriving && shown.phase != .arriving
     }
 
-    /// A departure's activity goes stale, and ends, 2 min after the train left, on the device clock (the server sets the
-    /// same stale date).
+    /// A departure's activity goes stale, and ends, 10 min after the train left or at your stop if sooner, on the device
+    /// clock (the server sets the same stale date).
     static func departureStaleDate(_ live: LiveDeparture, now: Date, deviceNow: Date) -> Date {
-        deviceNow.addingTimeInterval(live.leaves.addingTimeInterval(LiveDeparture.departedFor).timeIntervalSince(now))
+        deviceNow.addingTimeInterval(live.endsAt.timeIntervalSince(now))
+    }
+
+    // MARK: The departure question (TT-231, D110)
+
+    /// No on Schedule's strip: the card leaves the Lock Screen and the server sends nothing more for it (the hand-off's
+    /// report, which stops its updates).
+    func declineDeparture(_ ride: Ride) {
+        departureStarted.insert(ride)
+        Task {
+            for activity in Activity<RideActivityAttributes>.activities where activity.attributes.shows(ride) {
+                let report = LiveActivityReport(activity.attributes, handedOff: true)
+                await Self.end(activity.id, content: nil, dismissal: nil)
+                await handOff(report)
+            }
+        }
+    }
+
+    /// No on the card (`DeclineDepartureIntent`, which ended it) or on the notification: the server sends nothing more.
+    func declined(_ train: DeclinedDeparture) {
+        departureStarted.insert(Ride(train))
+        let report = LiveActivityReport(
+            tripId: train.tripId, serviceDate: String(train.serviceDate), originId: train.originId,
+            destinationId: train.destinationId, handedOff: true
+        )
+        Task { await handOff(report) }
     }
 }
 
@@ -461,6 +506,14 @@ extension LiveActivityReport {
 }
 
 extension Ride {
+    /// The train a No was about (TT-231).
+    init(_ train: DeclinedDeparture) {
+        self.init(
+            trip: TripKey(serviceDay: ServiceDay(dateKey: train.serviceDate), tripId: train.tripId),
+            from: train.originId, to: train.destinationId
+        )
+    }
+
     /// The ride an activity shows.
     init(_ attributes: RideActivityAttributes) {
         self.init(

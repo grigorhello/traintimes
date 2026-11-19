@@ -68,7 +68,7 @@ beforeEach(async () => {
 });
 
 describe('the activity, at the right times', () => {
-  test('starts once at T−30 with the alert, updates on a change, ends 2 min after the train left', async () => {
+  test('starts once at T−30 with the alert, updates on a change, asks once the train left, ends 10 min later', async () => {
     await setUp();
     assert.deepEqual(await cycle('6:42:30'), [], 'Not before its window');
 
@@ -98,7 +98,7 @@ describe('the activity, at the right times', () => {
       isClose: false,
       updated: 'Updated 6:43 AM',
     });
-    assert.equal(start['stale-date'], at('7:15') / 1000, 'Stale, and ended by the app, 2 min after it left');
+    assert.equal(start['stale-date'], at('7:23') / 1000, 'Stale, and ended by the app, 10 min after it left');
     assert.equal(start.timestamp, at('6:43') / 1000);
     assert.equal(apns.activityPushes[0].token, START_TOKEN);
     assert.equal(apns.pushes.length, 0, 'No alert notification for an on-time train');
@@ -116,7 +116,7 @@ describe('the activity, at the right times', () => {
     assert.equal(delayed['content-state'].late, true);
     assert.equal(delayed['content-state'].countdownEnd, at('7:17') / 1000);
     assert.equal(delayed['content-state'].minutes, '26 min');
-    assert.equal(delayed['stale-date'], at('7:19') / 1000);
+    assert.equal(delayed['stale-date'], at('7:27') / 1000);
     // Whole minutes, no seconds (TT-219): each new minute sends an update, the same look nothing.
     const [minute] = await cycle('6:52:00', delayFeed('6:52', 4));
     assert.equal(minute.event, 'update');
@@ -130,19 +130,89 @@ describe('the activity, at the right times', () => {
     assert.equal(boarding['content-state'].delay, '4 min late');
     assert.equal(boarding['content-state'].minutes, '1 min');
 
-    const [departed] = await cycle('7:17:30', delayFeed('7:17', 4));
-    assert.equal(departed['content-state'].phase, 'departed');
-    assert.equal(departed['content-state'].title, 'Departed 7:17 AM');
-    assert.equal(departed['content-state'].countdownEnd, undefined);
-    assert.equal(departed['content-state'].minutes, undefined);
-    assert.equal(departed['content-state'].delay, undefined);
-    assert.equal(departed['content-state'].late, false);
+    // TT-231: the train has left, so the card asks "On board?", with an alert; no notification as well.
+    const [asking] = await cycle('7:17:30', delayFeed('7:17', 4));
+    assert.equal(asking.event, 'update');
+    assert.equal(asking['content-state'].phase, 'departed', 'A phase every app build reads');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal(asking['content-state'].title, '7:17 AM departed');
+    assert.equal(asking['content-state'].label, '', 'Nothing at the right');
+    assert.equal(asking['content-state'].countdownEnd, undefined);
+    assert.equal(asking['content-state'].minutes, undefined);
+    assert.equal(asking['content-state'].delay, undefined);
+    assert.equal(asking['content-state'].late, false);
+    assert.deepEqual(asking.alert, { title: 'On the 7:13 AM train?', body: '', sound: 'default' }, 'Lights the screen, one buzz');
+    assert.equal(asking['stale-date'], at('7:27') / 1000);
+    assert.equal(apns.pushes.filter((push) => push.category === 'depart.question').length, 0, 'With a card, no notification');
 
-    assert.deepEqual(await cycle('7:18:30', delayFeed('7:18', 4)), []);
-    const [end] = await cycle('7:19:00', delayFeed('7:19', 4));
+    assert.deepEqual(await cycle('7:20:00', delayFeed('7:20', 4)), [], 'Asked once');
+    const [end] = await cycle('7:27:00', delayFeed('7:27', 4));
+    assert.equal(end.event, 'end', 'No answer: gone 10 min after it left');
+    assert.equal(end['content-state'].asks, undefined, 'Its last look is Departed, no question');
+    assert.equal(end['dismissal-date'], at('7:27') / 1000);
+    assert.deepEqual(await cycle('7:28:00', delayFeed('7:28', 4)), [], 'Ended once');
+  });
+
+  test('No on the card: nothing more is sent, no notification', async () => {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    const [asking] = await cycle('7:13:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal((await report({ handedOff: true })).status, 204, 'The app reports the No as it reports a hand-off');
+    assert.deepEqual(await cycle('7:23:00'), [], 'No end push: the intent ended it');
+    assert.equal(apns.pushes.length, 0);
+  });
+
+  test('the app was in front as the train left: the question comes with no alert and no notification, and still ends', async () => {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    assert.equal((await report({ asked: true })).status, 204);
+    const [boarding] = await cycle('7:11:30');
+    assert.equal(boarding['content-state'].phase, 'boarding', 'Updates go on');
+    const [asking] = await cycle('7:13:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal(asking.alert, undefined, 'Silent');
+    assert.equal(apns.pushes.length, 0);
+    const [end] = await cycle('7:23:00');
     assert.equal(end.event, 'end');
-    assert.equal(end['dismissal-date'], at('7:19') / 1000);
-    assert.deepEqual(await cycle('7:20:00', delayFeed('7:20', 4)), [], 'Ended once');
+
+    // With no card either, nothing is sent at all.
+    db = memoryD1();
+    apns = new FakeApns();
+    await saveSampleTimetables(db, ['20261109']);
+    await setUp(INSTALLATION, null);
+    await report({ asked: true });
+    assert.deepEqual(await cycle('7:13:30'), []);
+    assert.equal(apns.pushes.length, 0);
+  });
+
+  test('no card (no push-to-start token): the question goes once as a notification', async () => {
+    await setUp(INSTALLATION, null);
+    assert.deepEqual(await cycle('6:43:00'), []);
+    assert.deepEqual(await cycle('7:12:59'), []);
+    assert.equal(apns.pushes.length, 0, 'Not before it leaves');
+    await cycle('7:13:00');
+    assert.equal(apns.pushes.length, 1);
+    const push = apns.pushes[0];
+    assert.equal(push.title, 'On the 7:13 AM train?');
+    assert.equal(push.body, '');
+    assert.equal(push.category, 'depart.question');
+    assert.deepEqual(push.data, { tripId: '20261109-LW-1256', serviceDate: '20261109', originId: 'OA', destinationId: 'UN', kind: 'departure' });
+    assert.equal(push.expiration, at('7:23'), 'Gone with the question');
+    await cycle('7:14:00');
+    assert.equal(apns.pushes.length, 1, 'Once');
+  });
+
+  test('a card the server cannot reach (no update token): the question goes as a notification', async () => {
+    await setUp();
+    await cycle('6:43:00');
+    assert.deepEqual(await cycle('7:13:30'), []);
+    assert.equal(apns.pushes.length, 1);
+    assert.equal(apns.pushes[0].category, 'depart.question');
+    await cycle('7:14:30');
+    assert.equal(apns.pushes.length, 1);
   });
 
   test('the app’s ride took it over: nothing more is sent', async () => {
@@ -151,7 +221,9 @@ describe('the activity, at the right times', () => {
     await report({ token: ACTIVITY_TOKEN });
     assert.equal((await report({ handedOff: true })).status, 204);
     assert.deepEqual(await cycle('7:11:30'), [], 'No Boarding now');
-    assert.deepEqual(await cycle('7:15:30'), [], 'No end');
+    assert.deepEqual(await cycle('7:15:30'), [], 'No question');
+    assert.deepEqual(await cycle('7:23:30'), [], 'No end');
+    assert.equal(apns.pushes.length, 0);
     const row = await db.prepare('SELECT token, state FROM activities').first();
     assert.deepEqual(row, { token: ACTIVITY_TOKEN, state: 'handedOff' }, 'Reporting the hand-off keeps the token');
   });
@@ -169,7 +241,7 @@ describe('the activity, at the right times', () => {
     assert.deepEqual(await cycle('6:45:00'), []);
   });
 
-  test('no push-to-start token (iOS 17.0 and 17.1, or not yet sent): nothing starts', async () => {
+  test('no push-to-start token (iOS 17.0 and 17.1, or not yet sent): no activity starts', async () => {
     await setUp(INSTALLATION, null);
     assert.deepEqual(await cycle('6:43:00'), []);
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM activities').first<{ n: number }>())!.n, 0);
@@ -220,17 +292,23 @@ describe('the activity, at the right times', () => {
 describe('the rules', () => {
   const train: Departure = { scheduled: at('7:13'), scheduledArrival: at('7:47'), status: null, origin: 'Oakville GO', destination: 'Union Station GO' };
 
-  test('the window: 30 min before, Boarding now for the last 2, Departed for 2 after', () => {
+  test('the window: 30 min before, Boarding now for the last 2, the question for 10 after or to your stop', () => {
     assert.equal(phaseAt(train, at('6:42:59')), 'before');
     assert.equal(phaseAt(train, at('6:43')), 'countingDown');
     assert.equal(phaseAt(train, at('7:10:59')), 'countingDown');
     assert.equal(phaseAt(train, at('7:11')), 'boarding');
-    assert.equal(phaseAt(train, at('7:13')), 'departed');
-    assert.equal(phaseAt(train, at('7:14:59')), 'departed');
-    assert.equal(phaseAt(train, at('7:15')), 'over');
+    assert.equal(phaseAt(train, at('7:13')), 'asking', 'At the departure, not before');
+    assert.equal(phaseAt(train, at('7:22:59')), 'asking');
+    assert.equal(phaseAt(train, at('7:23')), 'over');
+    const short = { ...train, scheduledArrival: at('7:19') };
+    assert.equal(phaseAt(short, at('7:18:59')), 'asking');
+    assert.equal(phaseAt(short, at('7:19')), 'over', 'At your stop if sooner');
     const late = { ...train, status: { kind: 'running' as const, delayMin: 4, expected: at('7:17'), reportedAt: at('7:00') } };
     assert.equal(phaseAt(late, at('6:46:30')), 'before', 'From the expected departure');
     assert.equal(phaseAt(late, at('6:47')), 'countingDown');
+    assert.equal(phaseAt(late, at('7:16:59')), 'boarding', 'A delayed train asks at its expected time');
+    assert.equal(phaseAt(late, at('7:17')), 'asking');
+    assert.equal(phaseAt(late, at('7:27')), 'over');
     assert.equal(phaseAt({ ...train, status: { kind: 'skipped', stop: 'destination', reportedAt: at('7:00') } }, at('7:00')), 'over');
   });
 
@@ -286,6 +364,7 @@ describe('the API', () => {
     assert.deepEqual(await report({ token: 'no' }), { status: 400, json: { error: 'invalid', field: 'token' } });
     assert.deepEqual(await report({ serviceDate: 'today' }), { status: 400, json: { error: 'invalid', field: 'serviceDate' } });
     assert.deepEqual(await report({ handedOff: 'yes' }), { status: 400, json: { error: 'invalid', field: 'handedOff' } });
+    assert.deepEqual(await report({ asked: 'yes' }), { status: 400, json: { error: 'invalid', field: 'asked' } });
     assert.equal((await call(api, 'GET', `/v1/installations/${INSTALLATION}/activities`)).status, 405);
   });
 

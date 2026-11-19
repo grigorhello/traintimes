@@ -2,7 +2,8 @@ import XCTest
 @testable import TrainTimes
 
 /// Before departure's window (TT-177, D69): live from 30 min before the expected departure, Boarding now from 2 min before,
-/// Departed for 2 min, then over; cancelled trains never; of the alerted trains, the one that leaves first.
+/// departed (the question, TT-231) for 10 min or until your stop, then over; cancelled trains never; of the alerted trains,
+/// the one that leaves first.
 final class LiveDepartureTests: XCTestCase {
     private let day = ServiceDay(year: 2026, month: 11, day: 5)
 
@@ -37,14 +38,20 @@ final class LiveDepartureTests: XCTestCase {
         XCTAssertEqual(LiveDeparture(train, now: at(16, 43))?.minutes(at: at(16, 43)), 30)
     }
 
-    func testBoardingFor2MinThenDepartedFor2MinThenOver() {
+    func testBoardingFor2MinThenDepartedFor10MinThenOver() {
         let train = departure("A", at: 17, 13)
         XCTAssertEqual(LiveDeparture(train, now: at(17, 10, 59))?.phase, .countingDown)
         XCTAssertEqual(LiveDeparture(train, now: at(17, 11))?.phase, .boarding)
         XCTAssertEqual(LiveDeparture(train, now: at(17, 12, 59))?.phase, .boarding)
         XCTAssertEqual(LiveDeparture(train, now: at(17, 13))?.phase, .departed)
-        XCTAssertEqual(LiveDeparture(train, now: at(17, 14, 59))?.phase, .departed)
-        XCTAssertNil(LiveDeparture(train, now: at(17, 15)))
+        XCTAssertEqual(LiveDeparture(train, now: at(17, 22, 59))?.phase, .departed)
+        XCTAssertNil(LiveDeparture(train, now: at(17, 23)), "TT-231: the question's 10 min")
+    }
+
+    func testATrainThatHasLeftGivesWayToOneStillToLeave() {
+        let trains = [departure("A", at: 17, 13), departure("B", at: 17, 20)]
+        XCTAssertEqual(LiveDeparture.earliest(in: trains, now: at(17, 14)) { _ in true }?.key.tripId, "B")
+        XCTAssertEqual(LiveDeparture.earliest(in: [trains[0]], now: at(17, 14)) { _ in true }?.key.tripId, "A")
     }
 
     func testALateTrainCountsToItsExpectedDeparture() throws {
@@ -91,7 +98,7 @@ final class LiveDepartureTests: XCTestCase {
     }
 
     func testAnAlertedTrainOutsideItsWindowLeavesItToTheNext() {
-        // A has left more than 2 min ago; D is more than 30 min away; C is the live one.
+        // A left 10 min ago; D is more than 30 min away; C is the live one.
         let trains = [departure("A", at: 16, 50), departure("C", at: 17, 20), departure("D", at: 17, 40)]
         XCTAssertEqual(LiveDeparture.earliest(in: trains, now: at(17, 0)) { _ in true }?.key.tripId, "C")
     }

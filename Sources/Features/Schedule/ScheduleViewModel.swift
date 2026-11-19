@@ -386,8 +386,8 @@ final class ScheduleViewModel {
         )
     }
 
-    /// The Live Activity's train (TT-178, D74): the same train at `now`, the app's clock to the second, and still for the 2
-    /// min after it left, while the activity says "Departed".
+    /// The Live Activity's train (TT-178, D74): the same train at `now`, the app's clock to the second, and still for the 10
+    /// min after it left (or to your stop), while the activity asks "On board?" (TT-231).
     func activityDeparture(at now: Date) -> LiveDeparture? {
         guard isToday, let route else { return nil }
         return LiveDeparture.earliest(in: departures, now: now) { watchedTrips.isAlerted($0.trip, on: route) }

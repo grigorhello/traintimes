@@ -9,8 +9,8 @@ import XCTest
 /// shape and the Lock Screen's rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone
 /// (compact trailing about 52 pt, the expanded island at most 160 pt tall and 374 pt wide, the camera's row about 40 pt),
 /// so content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made.
-/// Before departure (TT-178): the Lock Screen card pending, late, boarding, departed and stale; the island compact and
-/// expanded.
+/// Before departure (TT-178): the Lock Screen card pending, late, boarding, the departure question (TT-231, boards 31 and
+/// 32: "On board?" with Yes and No once the train has left) and stale; the island compact and expanded, and asking.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -43,7 +43,7 @@ final class RideActivitySnapshotTests: XCTestCase {
     }
 
     /// The demo departure at `time` (TT-177): platform pending at 5:01, Platform 7 and 3 min late at 5:05, Boarding now at
-    /// 5:14:30, Departed at 5:16:30.
+    /// 5:14:30, asking "On board?" at 5:16:30 (TT-231).
     @MainActor
     private func departure(_ time: Date) throws -> Moment {
         let day = DepartureRig.day
@@ -76,18 +76,18 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// Before departure: pending, late, boarding, departed, and stale.
+    /// Before departure: pending, late, boarding, the question once it has left (TT-231), and stale.
     @MainActor
     private func departureLockScreen() throws -> some View {
         let pending = try departure(DepartureRig.time(17, 1))
         let late = try departure(DepartureRig.time(17, 5))
         let boarding = try departure(DepartureRig.time(17, 14, 30))
-        let departed = try departure(DepartureRig.time(17, 16, 30))
+        let asking = try departure(DepartureRig.time(17, 16, 30))
         return VStack(spacing: 14) {
             lockCard(pending, isStale: false)
             lockCard(late, isStale: false)
             lockCard(boarding, isStale: false)
-            lockCard(departed, isStale: false)
+            lockCard(asking, isStale: false)
             lockCard(late, isStale: true)
             Spacer()
         }
@@ -132,18 +132,22 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// Before departure: compact pending and late, expanded pending, late and boarding.
+    /// Before departure: compact pending, late and asking (the mint train glyph), expanded pending, late, boarding and
+    /// asking.
     @MainActor
     private func departureIsland() throws -> some View {
         let pending = try departure(DepartureRig.time(17, 1))
         let late = try departure(DepartureRig.time(17, 5))
         let boarding = try departure(DepartureRig.time(17, 14, 30))
+        let asking = try departure(DepartureRig.time(17, 16, 30))
         return VStack(spacing: 18) {
             compact(pending)
             compact(late)
+            compact(asking)
             expanded(pending)
             expanded(late)
             expanded(boarding)
+            expanded(asking)
             Spacer()
         }
         .padding(.top, 11)

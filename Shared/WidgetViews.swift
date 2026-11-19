@@ -43,7 +43,8 @@ private struct WidgetMessageDetail: View {
 
 // MARK: - Next train, small
 
-/// Next train (158 pt square): the line tile and "to Union", the time, the countdown in accent, and one footer line.
+/// Next train (164 pt square on the iPhone 17 Pro; the boards drew 158): the line tile and "to Union", the time, the
+/// countdown in accent, and one footer line.
 struct NextTrainWidgetView: View {
     let content: NextTrainContent
     @Environment(\.widgetLook) private var look
@@ -224,8 +225,8 @@ struct NextTrainWidgetView: View {
 
 // MARK: - Departures, medium
 
-/// Departures (338 × 158 pt): the route, the next train's departure over its countdown, its arrival, and the two trains
-/// after it on one line. Three sizes only: 44, 28 and 15 pt.
+/// Departures (350 × 164 pt on the iPhone 17 Pro; the boards drew 338 × 158): the route, the next train's departure over
+/// its countdown, its arrival, and the two trains after it on one line. Three sizes only: 44, 28 and 15 pt.
 struct DeparturesWidgetView: View {
     let content: DeparturesContent
     @Environment(\.widgetLook) private var look
@@ -333,7 +334,9 @@ struct DeparturesWidgetView: View {
         }
     }
 
-    /// "11 min" in accent; "now" in the last minute.
+    /// "11 min" in accent; "now" in the last minute. On a tinted or clear Home Screen iOS draws it white, not in the
+    /// tint, though it is marked accentable like Next train's countdown: on the link, outside the link, with the colour
+    /// on the row or with no link at all, it stayed white on the simulator (TT-185, D117; TT-239, #232).
     @ViewBuilder
     private func hero(_ train: DeparturesContent.Train) -> some View {
         if train.isLeavingNow {

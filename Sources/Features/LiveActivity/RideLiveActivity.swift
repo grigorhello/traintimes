@@ -383,11 +383,11 @@ final class RideLiveActivity: RideActivityFollowing {
         guard !observesTokens else { return }
         observesTokens = true
         if #available(iOS 17.2, *) {
-            Task {
+            Task { [weak self] in
                 await Self.startTokens { [weak self] token in await self?.received(startToken: token) }
             }
         }
-        Task {
+        Task { [weak self] in
             await Self.newActivities { [weak self] id in await self?.followToken(of: id) }
         }
         for activity in Activity<RideActivityAttributes>.activities {
@@ -402,7 +402,7 @@ final class RideLiveActivity: RideActivityFollowing {
 
     private func followToken(of id: String) {
         guard followedTokens.insert(id).inserted else { return }
-        Task {
+        Task { [weak self] in
             await Self.pushTokens(of: id) { [weak self] token in await self?.received(token: token, of: id) }
         }
     }

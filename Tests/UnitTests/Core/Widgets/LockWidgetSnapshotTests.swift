@@ -4,8 +4,8 @@ import XCTest
 @testable import TrainTimes
 
 /// Next train's Lock Screen sizes (TT-184) against the "Lock Screen" row of board Widgets-States: every state of the
-/// rectangular (160 × 72 pt), the circular (72 pt) and the inline line at the boards' sizes (until TT-185 measures the
-/// simulator's), one sheet per size, each state under its name. Light, dark, and dimmed as on the Always-On display (no
+/// rectangular and the circular at the iPhone 17 Pro's sizes (`WidgetFixtures.lockRectangular`, `lockCircular`, measured
+/// by TT-185) and the inline line at the boards' size, one sheet per size, each state under its name. Light, dark, and dimmed as on the Always-On display (no
 /// plate, no disc). A flat colour stands for the wallpaper and a faint fill for iOS's own plate, which only the widget
 /// extension can draw; the inline's font is iOS's, so the sheet sets the boards' 18 pt.
 final class LockWidgetSnapshotTests: XCTestCase {
@@ -78,7 +78,7 @@ final class LockWidgetSnapshotTests: XCTestCase {
                 LockRectangularView(content: LockRectangularContent(entry), isDimmed: isDimmed) { Color.primary.opacity(0.1) }
             }
         }
-        sheet("lock-rectangular", cells, CGSize(width: 160, height: 72), columns: 2, style, testName: testName, line: line)
+        sheet("lock-rectangular", cells, WidgetFixtures.lockRectangular, columns: 2, style, testName: testName, line: line)
     }
 
     @MainActor
@@ -93,7 +93,7 @@ final class LockWidgetSnapshotTests: XCTestCase {
                 LockCircularView(content: LockCircularContent(entry), isDimmed: isDimmed) { Color.primary.opacity(0.1) }
             }
         }
-        sheet("lock-circular", cells, CGSize(width: 72, height: 72), columns: 4, style, cellWidth: 96, testName: testName, line: line)
+        sheet("lock-circular", cells, WidgetFixtures.lockCircular, columns: 4, style, cellWidth: 96, testName: testName, line: line)
     }
 
     /// The inline line at the width beside the date, and in a width too short for "to Union".

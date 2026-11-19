@@ -1,4 +1,9 @@
 import Foundation
+import os
+
+/// The writer's log (TT-185): a write that failed, or one that never finished, left no trace, and the widgets kept
+/// the old file. No rider data in it: the sizes and the error's type only.
+private let widgetLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "TrainTimes", category: "widgets")
 
 /// The routes of the widgets placed on the Home and Lock Screens: `PlacedWidgetRoutes` reads their From and To from
 /// WidgetKit (TT-183).
@@ -78,15 +83,27 @@ final class WidgetFileWriter {
     /// schedule could not be read (the last file stays).
     @discardableResult
     func write() async -> Bool {
-        guard let file = try? await makeFile(), let data = try? file.encoded() else { return false }
-        guard (try? Data(contentsOf: fileURL)) != data else { return false }
+        widgetLog.info("Widget file: write starts")
+        let data: Data
+        do {
+            data = try await makeFile().encoded()
+        } catch {
+            widgetLog.error("Widget file: not made, \(String(describing: type(of: error)), privacy: .public)")
+            return false
+        }
+        guard (try? Data(contentsOf: fileURL)) != data else {
+            widgetLog.info("Widget file: unchanged")
+            return false
+        }
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: fileURL, options: .atomic)
         } catch {
+            widgetLog.error("Widget file: not saved, \(String(describing: type(of: error)), privacy: .public)")
             return false
         }
         reload()
+        widgetLog.info("Widget file: written, \(data.count, privacy: .public) bytes")
         return true
     }
 

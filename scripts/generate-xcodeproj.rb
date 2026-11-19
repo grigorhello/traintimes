@@ -179,6 +179,8 @@ widgets.build_configurations.each do |config|
     'APPLICATION_EXTENSION_API_ONLY' => 'YES',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks'],
     'SWIFT_EMIT_LOC_STRINGS' => 'YES',
+    # TT-185 (D117): Edit widget draws its values ("Choose", a station) in the extension's accent, iOS blue without this.
+    'ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME' => 'Accent',
     'EXCLUDED_SOURCE_FILE_NAMES' => '.gitkeep'
   )
 end

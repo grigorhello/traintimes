@@ -301,12 +301,18 @@ struct DeparturesContent: Equatable, Sendable {
     }
 }
 
-/// The minutes to a departure as the widgets write them (TT-183, D113): "11 min", whole minutes rounded down, never hours
+/// The minutes to a departure as the widgets write them (TT-183, D113): "11 min", whole minutes rounded up, never hours
 /// or seconds. Each entry carries its own, and the timeline has an entry a minute while one shows
 /// (`WidgetEntryBuilder.countdownSpan`); the last minute is "now" (`WidgetEntryBuilder.leavingLead`).
 enum WidgetCountdown {
     static func minutes(from now: Date, to departure: Date) -> String {
-        String(format: String(localized: "widget.minutes"), max(0, Int(departure.timeIntervalSince(now) / 60)))
+        String(format: String(localized: "widget.minutes"), wholeMinutes(from: now, to: departure))
+    }
+
+    /// The minutes left, rounded up (TT-185): every entry but a timeline's first is on a whole minute, so a first entry
+    /// between two minutes reads what the entry on the minute before it would, and the number steps on the minute.
+    static func wholeMinutes(from now: Date, to departure: Date) -> Int {
+        max(0, Int((departure.timeIntervalSince(now) / 60).rounded(.up)))
     }
 }
 

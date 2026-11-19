@@ -91,6 +91,23 @@ final class ArrivalWishTests: XCTestCase {
         XCTAssertEqual(analytics.names, ["arrival_wish_shown", "arrival_wish_closed"], "Only the first way it left counts")
     }
 
+    func testTheLockScreenIsCountedOncePerRide() {
+        // TT-229, D108: apart from `arrival_wish_shown`, which stays the ride screen's.
+        let analytics = RecordingAnalytics.install()
+        let wishes = ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
+        wishes.reachedLockScreen()
+        XCTAssertTrue(analytics.events.isEmpty, "No wish yet")
+        _ = wishes.wish(for: "a", arrivedAt: at(7), demo: false)
+        wishes.reachedLockScreen()
+        wishes.reachedLockScreen()
+        XCTAssertEqual(analytics.events, [
+            AnalyticsEvent("arrival_wish_lock_screen", ["wish": .string("goodDay"), "period": .string("morning"), "demo": .bool(false)]),
+        ])
+        _ = wishes.wish(for: "b", arrivedAt: at(7), demo: false)
+        wishes.reachedLockScreen()
+        XCTAssertEqual(analytics.names, ["arrival_wish_lock_screen", "arrival_wish_lock_screen"], "Again for the next ride")
+    }
+
     func testSecondsStopAtTwoMinutes() {
         let analytics = RecordingAnalytics.install()
         let wishes = ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })

@@ -319,7 +319,8 @@ extension RideActivityAttributes.ContentState {
 /// The one card (TT-205, D93) on the Lock Screen and in the expanded island: the line's tile and the one line with the
 /// label at the right; the number at 40 pt with the value under the label ("Platform" over the pill before departure,
 /// "Arrives" over "5:43 PM" during the ride); during the ride the stop line under both. Arriving and at your stop the right
-/// side is empty. Sizes 40, 26 and 15 pt; under 160 pt tall with the Lock Screen's padding.
+/// side is empty, and 5 s after your stop the ride's wish takes "Now"'s place (TT-229, D108). Sizes 40, 32, 26 and 15 pt;
+/// under 160 pt tall with the Lock Screen's padding.
 struct RideActivityCard: View {
     let attributes: RideActivityAttributes
     let state: RideActivityAttributes.ContentState
@@ -341,8 +342,18 @@ struct RideActivityCard: View {
                 }
             }
             HStack(alignment: .center, spacing: 8) {
-                if state.phase != .departed {
+                if let wish = state.wish {
+                    // The arrival wish in "Now"'s place (TT-229, D108): it pushes in from below as "Now" leaves upward.
+                    Text(wish)
+                        .font(.system(size: 32, weight: .bold))
+                        .tracking(-0.6)
+                        .foregroundStyle(style.number)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .transition(.push(from: .bottom))
+                } else if state.phase != .departed {
                     RideActivityCountdown(state: state, color: style.number, fontSize: 40, width: 118)
+                        .transition(.push(from: .bottom))
                     if let delay = state.delay, !style.isStale {
                         Text(delay)
                             .font(.system(size: 15, weight: .semibold))

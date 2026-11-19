@@ -90,7 +90,7 @@ enum WidgetEntryBuilder {
     /// WidgetKit is asked again after 1 h, well inside its daily budget, so an hour of them is in hand when it asks late.
     static let countdownSpan: TimeInterval = 2 * 60 * 60
     static let countdownReload: TimeInterval = 60 * 60
-    /// The timeline ends 3 h on, or at 3 AM if sooner (TT-185, D116): iOS drops a timeline whose archive is too large.
+    /// The timeline ends 3 h on, or at 3 AM if sooner (TT-185, D117): iOS drops a timeline whose archive is too large.
     /// A whole day's 304 entries made Departures' archive 12 MB on a tinted Home Screen, and the widget stayed a
     /// placeholder; 8 MB still loaded. Three hours are about 150 entries at most, and iOS is asked again before they end.
     static let horizon: TimeInterval = 3 * 60 * 60

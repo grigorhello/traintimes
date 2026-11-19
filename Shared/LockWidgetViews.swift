@@ -75,12 +75,13 @@ struct LockRectangularView<Plate: View>: View {
             }
         case .message(let message):
             VStack(alignment: .leading, spacing: 2) {
+                // "Open Train Times once" needs 83 % on the iPhone 17 Pro's 148 pt plate and was cut at 80 % (TT-185).
                 Text(verbatim: message.title)
                     .font(TTFont.widgetStrong)
                     .tracking(-0.2)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
                 if let detail = message.detail {
                     Text(verbatim: detail.plain)
                         .font(TTFont.footnote)
@@ -101,11 +102,11 @@ struct LockRectangularView<Plate: View>: View {
                 .font(LockWidgetSymbol.glyph)
             switch header {
             case .route(let from, let to):
-                Text(verbatim: "\(from) \u{2192} \(to)")
+                headerText("\(from) \u{2192} \(to)", narrowsOver: 24)
             case .yourTrain(let to):
                 Image(systemName: LockWidgetGlyph.bell.symbol)
                     .font(LockWidgetSymbol.mark)
-                Text(verbatim: "\(String(localized: "widget.your_train")) · \(to)")
+                headerText("\(String(localized: "widget.your_train")) · \(to)", narrowsOver: 20)
             }
         }
         .font(TTFont.badge)
@@ -116,6 +117,14 @@ struct LockRectangularView<Plate: View>: View {
         .frame(height: 16)
         // A long name ("West Harbour → Niagara Falls") may run 6 pt into the right margin before it is cut.
         .padding(.trailing, -6)
+    }
+
+    /// A header too long for the iPhone 17 Pro's 148 pt plate even at 65 % ("West Harbour → Niagara Falls", and from
+    /// "Your train · Burlington" on, where the bell takes 16 pt more) is set in the compressed width, so the station
+    /// is read whole instead of ending in dots (TT-185, D117).
+    private func headerText(_ text: String, narrowsOver limit: Int) -> some View {
+        Text(verbatim: text)
+            .fontWidth(text.count > limit ? .compressed : nil)
     }
 
     /// "8:06 AM" and the bolt of an express, level with the middle of the digits.
@@ -230,9 +239,12 @@ struct LockCircularView<Disc: View>: View {
                     .frame(width: 48, height: 26)
                 // The caption's row stays when there is none, so a clock time sits where the minutes do, across the
                 // disc's widest part: a row lower its corners touched the ring. Down here the ring's inside is 29 pt
-                // wide, so "11:47" under "now" (33 pt) shrinks to 26 pt (for width only, as above).
+                // wide, so "11:47" under "now" (33 pt) is set in the compressed width to fit its 26 pt: shrunk
+                // instead, it was about 6.5 pt on the iPhone 17 Pro's 58 pt circle (TT-185). It still shrinks for
+                // width only, as above, if it must.
                 Text(verbatim: content.caption ?? " ")
                     .font(TTFont.lockUnit)
+                    .fontWidth((content.caption?.count ?? 0) > 4 ? .compressed : nil)
                     .tracking(0.1)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)

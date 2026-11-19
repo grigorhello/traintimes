@@ -58,8 +58,9 @@ struct TrainWidgetEntry: TimelineEntry {
 }
 
 /// Both widgets' timeline (TT-183): the widget file as the app last wrote it (TT-182), the widget's From and To (none
-/// follows the route open in the app) and "Turn around at 12 PM", as TT-182's entries until 3 AM, with one a minute
-/// while a countdown shows; iOS is asked again each hour then, else at 3 AM.
+/// follows the route open in the app) and "Turn around at 12 PM", as TT-182's entries for the next 3 h (or until 3 AM
+/// if sooner, TT-185, D117), with one a minute while a countdown shows; iOS is asked again each hour then, else when
+/// the entries end.
 /// The real clock and the real timetable, never Settings › Testing.
 struct TrainWidgetProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> TrainWidgetEntry {

@@ -244,7 +244,7 @@ final class WidgetEntryBuilderTests: XCTestCase {
 
     // MARK: - Timeline
 
-    /// The timeline is the next 3 h, or until 3 AM if sooner (TT-185, D116): a whole day's entries made an archive iOS
+    /// The timeline is the next 3 h, or until 3 AM if sooner (TT-185, D117): a whole day's entries made an archive iOS
     /// refused.
     func testTimelineEntriesForTheNext3Hours() {
         let now = at(wed, "09:00")

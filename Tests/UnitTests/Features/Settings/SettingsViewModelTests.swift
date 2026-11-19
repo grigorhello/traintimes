@@ -160,6 +160,37 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(model.isTestingActive)
     }
 
+    /// TT-233, D114: Live data › Board is the sixth choice. Its raw value is the launch argument (`-settings.mockLive
+    /// boarding`) and the end of the switch's identifier; the Testing row names it, it is one at a time with Delays, and
+    /// Reset turns it off.
+    func testLiveDataBoardIsNamedOnTheRowAndResetTurnsItOff() {
+        XCTAssertEqual(MockLive.allCases, [.off, .onTime, .mixed, .changing, .stale, .boarding])
+        XCTAssertEqual(MockLive.boarding.rawValue, "boarding")
+        XCTAssertEqual(MockLive.boarding.labelKey, "settings.live_data.boarding")
+
+        let defaults = UserDefaults.ephemeral()
+        let settings = AppSettings(defaults: defaults)
+        let model = makeModel(settings: settings, showsTesting: true)
+        model.demoTrains = .delays
+        model.mockLive = .boarding
+        XCTAssertEqual(settings.mockLive, .boarding)
+        XCTAssertEqual(settings.demoTrains, .off, "Delays makes its own live status")
+        XCTAssertEqual(defaults.string(forKey: MockLive.key), "boarding")
+        XCTAssertEqual(AppSettings(defaults: defaults).mockLive, .boarding, "read back at the next launch")
+        XCTAssertTrue(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Live: Board")
+
+        model.demoTrains = .departure
+        XCTAssertEqual(settings.mockLive, .boarding, "Depart leaves live status alone")
+        XCTAssertEqual(model.testingValue, "Depart · Live: Board")
+
+        model.resetTesting()
+        XCTAssertEqual(settings.mockLive, .off)
+        XCTAssertEqual(settings.demoTrains, .off)
+        XCTAssertFalse(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Off")
+    }
+
     /// TT-168: "My alerts · N" counts every saved rule; none without alert rules.
     func testAlertCountIsTheNumberOfSavedRules() async {
         XCTAssertEqual(makeModel().alertCount, 0)

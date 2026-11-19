@@ -24,6 +24,7 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(hero.late)
         XCTAssertFalse(hero.isLate)
         XCTAssertFalse(hero.isBoarding)
+        XCTAssertFalse(hero.boardsByClock)
     }
 
     func testThePostedPlatformShowsInThePill() async throws {
@@ -45,10 +46,12 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertTrue(hero.isLate)
     }
 
+    /// The demo train has no position (TT-233): "boarding now" is the clock's last 2 min (D69), without the Boarding look.
     func testBoardingNowFor2MinBeforeItLeaves() async throws {
         let hero = try await hero(at: DepartureRig.time(17, 14))
         XCTAssertEqual(hero.line, "5:16 PM boarding now")
-        XCTAssertTrue(hero.isBoarding)
+        XCTAssertTrue(hero.boardsByClock)
+        XCTAssertFalse(hero.isBoarding, "no outline and no filled pill on the clock alone")
         XCTAssertEqual(hero.countdown, "2 min")
     }
 

@@ -29,6 +29,46 @@ export async function saveSampleTimetables(db: D1Database, dates: string[]): Pro
   }
 }
 
+// A small protobuf writer for VehiclePosition samples (the TT-131 samples have no positions).
+const varint = (n: number): number[] => {
+  const out: number[] = [];
+  while (n > 0x7f) {
+    out.push((n % 128) | 0x80);
+    n = Math.floor(n / 128);
+  }
+  out.push(n);
+  return out;
+};
+const bytesField = (number: number, value: number[] | string) => {
+  const data = typeof value === 'string' ? [...new TextEncoder().encode(value)] : value;
+  return [...varint((number << 3) | 2), ...varint(data.length), ...data];
+};
+const varintField = (number: number, value: number) => [...varint(number << 3), ...varint(value)];
+const floatField = (number: number, value: number) => {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setFloat32(0, value, true);
+  return [...varint((number << 3) | 5), ...new Uint8Array(view.buffer)];
+};
+
+/** One train of a VehiclePosition feed, on Nov 9: `status` 1 is STOPPED_AT, null leaves it out; `time` in epoch ms. */
+export function vehicle(id: string, trip: string, route: string, lat: number, lon: number, status: number | null, time: number): number[] {
+  const descriptor = [...bytesField(1, trip), ...bytesField(3, '20261109'), ...bytesField(5, route)];
+  const position = [...floatField(1, lat), ...floatField(2, lon), ...floatField(3, 90)];
+  const vp = [
+    ...bytesField(1, descriptor),
+    ...bytesField(2, position),
+    ...(status === null ? [] : varintField(4, status)),
+    ...varintField(5, time / 1000),
+    ...bytesField(8, [...bytesField(1, 'V1')]),
+  ];
+  return bytesField(2, [...bytesField(1, id), ...bytesField(4, vp)]);
+}
+
+/** A GTFS-realtime `FeedMessage` written at `time` (epoch ms) with these entities. */
+export function feedMessage(time: number, entities: number[][] = []): Uint8Array {
+  return new Uint8Array([...bytesField(1, [...bytesField(1, '2.0'), ...varintField(3, time / 1000)]), ...entities.flat()]);
+}
+
 /** Epoch ms of a Toronto wall-clock time on Monday Nov 9, 2026 (EST, UTC-5). */
 export function at(hhmm: string, date = '2026-11-09'): number {
   const [h, m, s = '0'] = hhmm.split(':');

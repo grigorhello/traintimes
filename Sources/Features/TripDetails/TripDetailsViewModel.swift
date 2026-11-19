@@ -112,10 +112,13 @@ final class TripDetailsViewModel {
     /// the sheet is open (TT-215, D100): an open sheet watches its train.
     private let haptics: any HapticPlaying
     @ObservationIgnored private var watchedFeels = WatchedTrainFeels()
+    /// Counts `boarding_shown` once per train per day, with Schedule (TT-233, D114). Previews and most tests count nothing.
+    private let boardingShown: BoardingShown
 
     init(
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
         onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, bells: AlertBellModel? = nil,
+        boardingShown: BoardingShown = BoardingShown(defaults: nil),
         maps: any MapsOpening = SystemMapsOpener(), haptics: any HapticPlaying = TTHaptics.shared
     ) {
         self.haptics = haptics
@@ -127,6 +130,7 @@ final class TripDetailsViewModel {
         self.onBoard = onBoard
         self.alerts = alerts
         self.bells = bells
+        self.boardingShown = boardingShown
         followsRide = onBoard?.isRunning(key) ?? false
         self.maps = maps
         now = clock.now
@@ -134,10 +138,12 @@ final class TripDetailsViewModel {
 
     var isToday: Bool { key.serviceDay == ServiceDay(containing: now) }
 
-    /// The live departure is in the past: the sheet says "Departed" and hides the alert button.
+    /// The train has left its station as far as live data says: the sheet says "Departed". It moved off or the feed dropped
+    /// the station (TT-233, D114, `BoardingRule`), or its live departure time has passed with no position to go by; a train
+    /// standing at its platform past its time has not left. Without live data the clock alone never claims it.
     var hasDeparted: Bool {
-        guard let expected = departure?.expectedDeparture else { return false }
-        return expected <= now
+        guard let departure, let source = BoardingRule.phase(of: departure, now: now).source else { return false }
+        return source != .clock || departure.expectedDeparture != nil
     }
 
     /// The stop list shows live times only while the trip's status rests on fresh live data and every stop the train
@@ -147,17 +153,19 @@ final class TripDetailsViewModel {
         return stops.allSatisfy { $0.isSkipped || $0.expected != nil }
     }
 
-    /// No alert for a train that has already left today, or that is cancelled.
+    /// No alert for a train that has already left today (`BoardingRule`, TT-233: one still standing at its platform past its
+    /// time has not), or that is cancelled.
     var showsAlertButton: Bool {
         guard let departure, departure.isUsable else { return false }
-        return !(isToday && departure.departureTime <= now)
+        return !(isToday && departure.hasLeft(at: now))
     }
 
-    /// The departure station while directions to it help (TT-188, D64): the train has not left it yet (live time, else
-    /// scheduled; a past day's train has left), it calls there (not cancelled, no skipped stop), and the feed gives the
-    /// station a place. Riding (TT-172) replaces the journey card with the ride card, which takes the link with it.
+    /// The departure station while directions to it help (TT-188, D64): the train has not left it yet (`BoardingRule`,
+    /// TT-233: where it stands when the train feed places it, else its live time, else the scheduled one; a past day's train
+    /// has left), it calls there (not cancelled, no skipped stop), and the feed gives the station a place. Riding (TT-172)
+    /// replaces the journey card with the ride card, which takes the link with it.
     var directionsStation: Station? {
-        guard let departure, departure.isUsable, departure.departureTime > now,
+        guard let departure, departure.isUsable, !departure.hasLeft(at: now),
               let station = stops.first?.station, station.place != nil
         else { return nil }
         return station
@@ -398,8 +406,9 @@ final class TripDetailsViewModel {
 
     /// The hero card over the folded trip (TT-205, D93) for every train that has not left and runs, while no ride shows
     /// (TT-207, D96). It counts down on the next train, the alerted one in its window (TT-177) and while "I’m on board"
-    /// shows; any other train says "Departs at" and its expected time. Nil once the train has left, or when it is
-    /// cancelled or skips a stop: the sheet shows the trip as before.
+    /// shows; any other train says "Departs at" and its expected time. Any of them reads "boarding now" and lights up
+    /// while the train stands at its platform, also past its time (TT-233, D114). Nil once the train has left
+    /// (`BoardingRule`), or when it is cancelled or skips a stop: the sheet shows the trip as before.
     func departureHero(_ formatter: some TimeFormatting) -> DepartureHero? {
         guard !isRiding, let departure else { return nil }
         return DepartureHero(
@@ -413,13 +422,15 @@ final class TripDetailsViewModel {
         departure?.id == nextDepartureId || liveDeparture != nil || showsOnBoardButton
     }
 
-    /// The sheet follows the clock each second: riding, or before departure (the hero's countdown).
+    /// The sheet follows the clock each second: riding, or before departure (the hero's countdown, also while the next
+    /// train stands at its platform past its time, TT-233).
     var followsClock: Bool {
         isRiding || liveDeparture != nil || demoDeparture != nil || showsOnBoardButton
-            || (departure.map { $0.id == nextDepartureId && $0.departureTime > now } ?? false)
+            || (departure.map { $0.id == nextDepartureId && !$0.hasLeft(at: now) } ?? false)
     }
 
-    /// Each second while `followsClock`: the countdown, Boarding now and Departed follow the clock between loads.
+    /// Each second while `followsClock`: the countdown, Boarding now and Departed follow the clock between loads (a
+    /// position that grows older than 2 min says nothing more, `BoardingRule`).
     func tick() {
         resolve()
     }
@@ -478,16 +489,27 @@ final class TripDetailsViewModel {
         now = current
         let departures = Departure.resolve(trips, live: isToday ? live : .empty, freshness: freshness, isToday: isToday)
         departure = departures.first { $0.id == key }
-        nextDepartureId = isToday ? departures.first { $0.isUsable && $0.departureTime >= current }?.id : nil
+        // The next train is the first that has not left (`BoardingRule`, TT-233): one standing at its platform past its
+        // time is still the next one.
+        nextDepartureId = isToday ? departures.first { $0.isUsable && !$0.hasLeft(at: current) }?.id : nil
         self.freshness = freshness
         self.departures = departures
         hasPlatformSource = isToday && live.hasPlatformSource
         playWatchedFeels()
+        countBoardingShown()
     }
 
     /// This train turning late or cancelled plays Warning, reaching Boarding now Rail joint, once each, not while riding.
     private func playWatchedFeels() {
         guard !isRiding, let departure else { return }
         if let moment = watchedFeels.moment(for: [departure], now: now, isWatched: { _ in true }) { haptics.play(moment) }
+    }
+
+    /// The hero shows this train Boarding at its platform (the rule's, never the clock's last 2 min): `boarding_shown`,
+    /// which `BoardingShown` sends once per train per day (TT-233, D114). Not while the ride shows in the hero's place;
+    /// the demo departure's train is made up and has no position.
+    private func countBoardingShown() {
+        guard !isRiding, let departure, departure.isBoarding(at: now) else { return }
+        boardingShown.shown(departure, station: route.from.id, surface: .trip, now: now)
     }
 }

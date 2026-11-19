@@ -64,6 +64,15 @@ extension GTFSRealtimeFeed.TripUpdate {
         )
     }
 
+    /// The train has left the route's origin (TT-233, D114): GO lists only the stops still ahead and drops each one once
+    /// the train has left it (D89), so an update that lists stops after the origin and none at or before it is a train
+    /// past it. A cancelled trip keeps every stop, and an update with no stop of this trip says nothing.
+    func hasLeft(_ call: GTFSTimetable.Call) -> Bool {
+        guard !isCancelled else { return false }
+        let positions = stopTimeUpdates.compactMap { update in update.stopId.flatMap { call.stops.firstIndex(of: $0) } }
+        return !positions.isEmpty && positions.allSatisfy { $0 > call.from }
+    }
+
     /// Trip details' stop list with the feed's own estimate and skipped flag at each stop (D32). A stop the feed says
     /// nothing about keeps its scheduled time only.
     func applied(to stops: [TripStop]) -> [TripStop] {

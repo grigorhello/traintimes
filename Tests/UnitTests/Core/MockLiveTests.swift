@@ -100,4 +100,102 @@ final class MockLiveTests: XCTestCase {
         let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
         XCTAssertTrue(live.isOffline)
     }
+
+    // MARK: Board (TT-233, D114)
+
+    /// Board: every train live and on time with its platform posted, and the next one stands at its platform, so the
+    /// boarding rule reads Boarding at once, here 11 min before its time.
+    func testBoardStandsTheNextTrainAtItsPlatform() async throws {
+        let (repository, base, now) = try make(.boarding)
+        let trips = try await repository.trips(for: base.route, on: base.serviceDay)
+        let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
+        let freshness = Freshness(live, now: now)
+        XCTAssertTrue(freshness.isLive)
+        let departures = Departure.resolve(trips, live: live, freshness: freshness, isToday: true)
+        XCTAssertEqual(departures.count, 4)
+        XCTAssertTrue(departures.allSatisfy { $0.status == .onTime && $0.hasPostedPlatform })
+
+        let next = try XCTUnwrap(departures.first)
+        let atPlatform = OriginFix(metres: MockLiveFeed.boardingMetres, reportedAt: now)
+        XCTAssertEqual(live.originFixes, [next.id.tripId: atPlatform], "one train stands at the station")
+        XCTAssertEqual(next.originFix, atPlatform)
+        XCTAssertLessThanOrEqual(MockLiveFeed.boardingMetres, BoardingRule.radius)
+        XCTAssertEqual(BoardingRule.phase(of: next, now: now), .boarding)
+        XCTAssertEqual(departures.dropFirst().map { BoardingRule.phase(of: $0, now: now) }, [.waiting, .waiting, .waiting])
+    }
+
+    /// Board: the train stays at its platform for 1 min past its time, then it has moved off and the following train boards.
+    func testBoardHoldsTheTrainAMinutePastItsTimeThenItMovesOff() async throws {
+        let base = try FixtureScheduleRepository(bundle: Bundle(for: Self.self))
+        let trips = try await base.trips(for: base.route, on: base.serviceDay).sorted { $0.scheduledDeparture < $1.scheduledDeparture }
+        let leaves = try XCTUnwrap(trips.first).scheduledDeparture
+
+        let held = leaves.addingTimeInterval(30)
+        let (atHeld, _) = try await resolved(.boarding, now: held)
+        XCTAssertEqual(atHeld.count, 4)
+        XCTAssertEqual(BoardingRule.phase(of: atHeld[0], now: held), .boarding, "30 s past its time it still stands there")
+        XCTAssertNil(atHeld[1].originFix, "one train at the platform at a time")
+        XCTAssertEqual(BoardingRule.phase(of: atHeld[1], now: held), .waiting)
+
+        let moved = leaves.addingTimeInterval(61)
+        let (atMoved, _) = try await resolved(.boarding, now: moved)
+        XCTAssertEqual(atMoved.count, 4)
+        XCTAssertEqual(atMoved[0].originFix, OriginFix(metres: MockLiveFeed.movedMetres, reportedAt: moved))
+        XCTAssertGreaterThan(MockLiveFeed.movedMetres, BoardingRule.radius)
+        XCTAssertEqual(BoardingRule.phase(of: atMoved[0], now: moved), .departed(.moved), "61 s past its time it has moved off")
+        XCTAssertEqual(BoardingRule.phase(of: atMoved[1], now: moved), .boarding, "the following train boards")
+    }
+
+    /// Board: a train that moved off is placed away from the station for 10 min; one that left before that gets no
+    /// position, so it follows the clock, and the trains after the next one wait with none.
+    func testBoardPlacesTheTrainsThatLeftForTenMinutes() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        // Minutes from now: two trains that left, the next one, one after it.
+        let minutesFromNow: [Int] = [-20, -5, 5, 15]
+        let day = ServiceDay(year: 2026, month: 11, day: 5)
+        let trips: [Trip] = minutesFromNow.indices.map { (index: Int) -> Trip in
+            let leaves: Date = now.addingTimeInterval(TimeInterval(minutesFromNow[index]) * 60)
+            return Trip(
+                key: TripKey(serviceDay: day, tripId: "T\(index)"),
+                scheduledDeparture: leaves,
+                scheduledArrival: leaves.addingTimeInterval(1800),
+                platform: .pending, tags: []
+            )
+        }
+        let live = MockLiveFeed.snapshot(.boarding, trips: trips, now: now)
+        XCTAssertEqual(live.updatedAt, now)
+        XCTAssertTrue(trips.allSatisfy { live.updates[$0.key.tripId]?.expectedDeparture == $0.scheduledDeparture }, "all on time")
+        XCTAssertEqual(live.originFixes, [
+            "T1": OriginFix(metres: MockLiveFeed.movedMetres, reportedAt: now),
+            "T2": OriginFix(metres: MockLiveFeed.boardingMetres, reportedAt: now),
+        ])
+        XCTAssertTrue(live.leftOrigin.isEmpty)
+
+        let departures = Departure.resolve(
+            MockLiveFeed.withPlatforms(trips), live: live, freshness: Freshness(live, now: now), isToday: true
+        )
+        let phases: [BoardingRule.Phase] = departures.map { BoardingRule.phase(of: $0, now: now) }
+        XCTAssertEqual(phases, [.departed(.clock), .departed(.moved), .boarding, .waiting])
+
+        // The other feeds place no train, so they follow the clock as before.
+        for mode in [MockLive.onTime, .mixed, .changing, .stale] {
+            XCTAssertTrue(MockLiveFeed.snapshot(mode, trips: trips, now: now).originFixes.isEmpty, "\(mode)")
+        }
+    }
+
+    /// Demo trains Platform makes its own live status and wins over Board: no platform posted, no train placed. Ride and
+    /// Departure leave live status alone, so Board plays under them.
+    func testDemoTrainsThatMakeLiveStatusWinOverBoard() async throws {
+        let (repository, base, _) = try make(.boarding, demo: .awaitingPlatform)
+        let trips = try await repository.trips(for: base.route, on: base.serviceDay)
+        let live = try await repository.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertTrue(trips.allSatisfy { $0.platform == .pending })
+        XCTAssertTrue(live.originFixes.isEmpty)
+
+        let (riding, _, _) = try make(.boarding, demo: .ride)
+        let ridingTrips = try await riding.trips(for: base.route, on: base.serviceDay)
+        let ridingLive = try await riding.liveStatus(for: base.route, on: base.serviceDay)
+        XCTAssertTrue(ridingTrips.allSatisfy { $0.platform != .pending })
+        XCTAssertEqual(ridingLive.originFixes.count, 1)
+    }
 }

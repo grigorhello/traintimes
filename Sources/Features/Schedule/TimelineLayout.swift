@@ -34,8 +34,9 @@ struct TimelineLayout: Hashable, Sendable {
         let bottom: CGFloat
         /// Delayed train only: the hollow marker at the scheduled time. None once the train has left.
         let scheduledMarkerY: CGFloat?
-        /// Departed on Today (TT-203, D86): the card is drawn `TTTimeline.departedLift` above its timetable place, so
-        /// departed cards stack above the Now line and never cover it.
+        /// Departed on Today (TT-203, D86; by the boarding rule, TT-233): the card is drawn `TTTimeline.departedLift` above
+        /// its timetable place, so departed cards stack above the Now line and never cover it. A departed train behind one
+        /// still standing at its platform past its time is not stepped up until that one has left.
         var isSteppedUp = false
 
         /// Where the marker and the connector are drawn: the train's place, or for a stepped-up card
@@ -95,9 +96,12 @@ extension TimelineLayout {
         let ppm = input.pointsPerMinute
         let gap = TTTimeline.minCardGap
         func size(_ index: Int) -> TimelineCardSize { input.cardSizes[departures[index].id] ?? .standard }
-        /// Departed on Today: expected departure at or before now (TT-203, D86). Departures are in time order, so the
-        /// stepped-up cards are the first ones and all move by the same amount: they never overlap.
-        func stepsUp(_ index: Int) -> Bool { input.now.map { departures[index].departureTime <= $0 } ?? false }
+        /// Departed on Today (TT-203, D86) by the boarding rule (TT-233, D114): the train moved off its station, the feed
+        /// dropped the station, or with no position its expected departure is at or before now. A train standing at its
+        /// platform past its time has not left, so a later train that has waits in its place until that one goes: the
+        /// stepped-up cards stay the first ones in time order and all move by the same amount, so they never overlap.
+        let steppedUp = input.now.map { now in departures.prefix(while: { $0.hasLeft(at: now) }).count } ?? 0
+        func stepsUp(_ index: Int) -> Bool { index < steppedUp }
         func lift(_ index: Int) -> CGFloat { stepsUp(index) ? TTTimeline.departedLift : 0 }
 
         // Every marker on the rail, in time order: each card's marker, plus the scheduled marker of a delayed train.

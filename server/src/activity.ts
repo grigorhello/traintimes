@@ -5,7 +5,13 @@
 // at the rider's stop if sooner, unless the app's ride took it over (the same activity becomes the ride) or the rider said
 // No. Every word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
 // looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes, "Platform" and the pill.
-// GO's feeds post no platforms (D35, D36), so the server's pill is always the dash.
+//
+// Boarding at the platform (TT-233, D114): "boarding now" and the moment the train has left follow `boardingPhase`, the
+// port of the app's `BoardingRule` (`Sources/Core/Schedule/BoardingRule.swift`; change both together). The minute cycle
+// gives it where GO's train feed places the train, whether the feed still lists the rider's station, and the platform the
+// station's board posts (`src/monitor.ts`). With no fresh position the clock decides, as before: boarding for the last 2
+// min, left at its time. The pill carries the platform only while the train stands at the station, where the board is
+// read; otherwise it is the dash.
 
 import { DELAY_MIN } from './alerts.ts';
 import { format, strings } from './copy.ts';
@@ -14,10 +20,16 @@ import { formatTime, MINUTE, type TimeFormat } from './time.ts';
 
 /** The window opens this long before the expected departure (`LiveDeparture.window`). */
 export const WINDOW_MS = 30 * MINUTE;
-/** "Boarding now" from this long before the expected departure. */
+/** "Boarding now" from this long before the expected departure, when no position says where the train is. */
 export const BOARDING_MS = 2 * MINUTE;
 /** The question after departure stays this long at most, then the activity ends (TT-231, `LiveDeparture.askFor`). */
 export const ASK_MS = 10 * MINUTE;
+/** A train this close to the station's place stands at it (`BoardingRule.radius`, TT-233). */
+export const BOARDING_RADIUS_M = 350;
+/** A position older than this says nothing (`BoardingRule.fixMaxAge`). */
+export const POSITION_FRESH_MS = 2 * MINUTE;
+/** The feed's word that the train has left counts from this long before its time (`BoardingRule.departLead`). */
+export const DEPART_LEAD_MS = MINUTE;
 
 /** The activity type's name in the app, which a push-to-start names (`attributes-type`). */
 export const ATTRIBUTES_TYPE = 'RideActivityAttributes';
@@ -49,6 +61,15 @@ export interface Departure {
   /** Station names as the rule carries them, "Union Station GO". */
   origin: string;
   destination: string;
+  /**
+   * How far GO's train feed places the train from the rider's origin station, and when it did, epoch ms (the app's
+   * `OriginFix`, TT-233). Null or left out when the feed does not carry the train: it follows the clock.
+   */
+  position?: { metres: number; at: number } | null;
+  /** The origin has dropped out of the trip's TripUpdates: the train has left it (`hasLeftOrigin` in `realtime.ts`). */
+  hasLeftOrigin?: boolean;
+  /** The platform the origin's board posts for the train; null or left out while none is posted or the board was not read. */
+  platform?: string | null;
 }
 
 /** The activity's fixed part: which ride it is (the app's `Ride`), the line's tile, your stop and the stop count. */
@@ -63,18 +84,23 @@ export interface Attributes {
   stopCount: number;
 }
 
-/** The app's `ContentState`, key for key; `countdownEnd` is seconds since 1970. No `platformNumber`: the dash. */
+/** The app's `ContentState`, key for key; `countdownEnd` is seconds since 1970. */
 export interface ContentState {
   phase: Exclude<Phase, 'asking'>;
   /** The card asks "On board?" with Yes and No (TT-231). */
   asks?: boolean;
   title: string;
   countdownEnd?: number;
-  /** The big number in whole minutes, "12 min" (TT-219): sent again each minute, since iOS has no live "12 min" text. */
+  /**
+   * The big number in whole minutes, "12 min" (TT-219): sent again each minute, since iOS has no live "12 min" text.
+   * "Departing" once the train's time has come and it has not left (TT-233).
+   */
   minutes?: string;
   now: string;
   label: string;
   delay?: string;
+  /** The posted platform in its pill, "3" (TT-233); left out, the app draws the dash. */
+  platformNumber?: string;
   late: boolean;
   position: number;
   isClose: boolean;
@@ -106,22 +132,64 @@ export function endsAt(departure: Departure): number {
   return Math.min(leavesAt + ASK_MS, Math.max(arrives(departure), leavesAt));
 }
 
+/** What said the train has left: its position is away from the station, the feed dropped the station, or its time came. */
+export type DepartedBy = 'moved' | 'feed' | 'clock';
+
+/** `BoardingRule.Phase`: not at the platform as far as anyone knows and not left, standing there with its platform posted, or left. */
+export type BoardingPhase = { kind: 'waiting' } | { kind: 'boarding' } | { kind: 'departed'; source: DepartedBy };
+
 /**
- * Where the train is at `now`: before its window, counting down, boarding (the last 2 min), asking (from the expected
- * departure until `endsAt`), or over. A cancelled train or a skipped stop is over at once: it never goes live (D69).
+ * Boarding at the platform (TT-233, D114): the app's `BoardingRule.phase(of:now:)`, check for check and in its order.
+ *
+ * - Boarding while GO's train feed places the train within 350 m of the rider's station, not more than 2 min ago, and its
+ *   platform is posted. It stays boarding past its time while the train stands there.
+ * - Departed when the origin has dropped out of the trip's TripUpdates (from 1 min before its time), or its position is
+ *   farther than 350 m once its time has come. In the minute before its time a far position alone is not a departure: a
+ *   train still rolling in is as far away.
+ * - No fresh position: the clock, as before. Never boarding on a guess.
+ * - Cancelled trains and skipped stops never board; they follow the clock.
+ */
+export function boardingPhase(departure: Departure, now: number): BoardingPhase {
+  const leavesAt = leaves(departure);
+  const clock: BoardingPhase = now >= leavesAt ? { kind: 'departed', source: 'clock' } : { kind: 'waiting' };
+  if (departure.status && departure.status.kind !== 'running') return clock;
+  if (departure.hasLeftOrigin && now >= leavesAt - DEPART_LEAD_MS) return { kind: 'departed', source: 'feed' };
+  const position = departure.position;
+  if (!position || !hasSighting(departure, now)) return clock;
+  if (position.metres <= BOARDING_RADIUS_M) {
+    // Never departed while it stands there, whatever the clock says; boarding only once the platform is posted.
+    return departure.platform ? { kind: 'boarding' } : { kind: 'waiting' };
+  }
+  return now >= leavesAt ? { kind: 'departed', source: 'moved' } : { kind: 'waiting' };
+}
+
+/** The train feed placed the train recently enough to go by (`BoardingRule.hasSighting`): nothing is guessed from the clock. */
+export function hasSighting(departure: Pick<Departure, 'position'>, now: number): boolean {
+  return !!departure.position && now - departure.position.at <= POSITION_FRESH_MS;
+}
+
+/**
+ * Where the train is at `now` (the app's `LiveDeparture`): before its window, counting down, boarding, asking (once it has
+ * left, until `endsAt`), or over. Boarding and left are `boardingPhase`'s (TT-233): a train standing at the station past
+ * its time stays boarding until the window ends, and it asks when it moves off. With no fresh position the last 2 min
+ * read boarding and it has left at its time, by the clock (D69). A cancelled train or a skipped stop is over at once: it
+ * never goes live.
  */
 export function phaseAt(departure: Departure, now: number): Exclude<Phase, 'departed'> | 'before' | 'over' {
   if (departure.status && departure.status.kind !== 'running') return 'over';
   const until = leaves(departure) - now;
   if (until > WINDOW_MS) return 'before';
-  if (until > BOARDING_MS) return 'countingDown';
-  if (until > 0) return 'boarding';
-  return now < endsAt(departure) ? 'asking' : 'over';
+  if (now >= endsAt(departure)) return 'over';
+  const rule = boardingPhase(departure, now);
+  if (rule.kind === 'departed') return 'asking';
+  if (rule.kind === 'boarding') return 'boarding';
+  return !hasSighting(departure, now) && until <= BOARDING_MS ? 'boarding' : 'countingDown';
 }
 
 /**
  * The activity at `now` in `phase`, as the app writes it (`ContentState(departure:…)`): the expected departure's clock time
- * in the line and the countdown to it, "3 min late" beside it while late.
+ * in the line and the countdown to it, "3 min late" beside it while late; "Departing" in the minutes' place once its time
+ * has come and it has not left, and the posted platform in the pill when the cycle read it (TT-233).
  */
 export function contentState(departure: Departure, phase: Phase, now: number, timeFormat: TimeFormat): ContentState {
   const time = (ms: number) => formatTime(ms, timeFormat);
@@ -152,7 +220,9 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
   if (late) state.delay = format(strings['onboard.late'], delay);
   if (!left) {
     state.countdownEnd = Math.round(leavesAt / 1000);
-    state.minutes = format(strings['onboard.minutes'], minutesUntil(leavesAt, now));
+    // Never "1 min" for a train that stands at its platform past its time (`LiveDeparture.isDeparting`).
+    state.minutes = now >= leavesAt ? strings['schedule.departing'] : format(strings['onboard.minutes'], minutesUntil(leavesAt, now));
+    if (departure.platform) state.platformNumber = departure.platform;
   }
   return state;
 }
@@ -165,11 +235,19 @@ export function minutesUntil(leavesAt: number, now: number): number {
 /**
  * What a rider sees, the update time aside: an update is sent only when this changes, so once a minute for the minutes
  * (TT-219). The countdown counts to the half minute, so an expected time that moves by a few seconds sends nothing more
- * (the app allows 15 s).
+ * (the app allows 15 s). The platform is added only when there is one, so a signature stored before TT-233 still matches
+ * the same look.
  */
 export function signature(state: ContentState): string {
   const countdown = state.countdownEnd === undefined ? '' : Math.round(state.countdownEnd / 30);
-  return [state.phase, state.title, state.delay ?? '', countdown, state.minutes ?? '', state.asks ? 'asks' : ''].join('|');
+  const parts = [state.phase, state.title, state.delay ?? '', countdown, state.minutes ?? '', state.asks ? 'asks' : ''];
+  if (state.platformNumber) parts.push(`platform ${state.platformNumber}`);
+  return parts.join('|');
+}
+
+/** The stored signature is the question's: `signature` of a state that asks, which carries no platform, so it ends there. */
+export function asksIn(shown: string | null): boolean {
+  return shown?.endsWith('|asks') ?? false;
 }
 
 /** The activity becomes stale, and the app ends it, when the question ends (`endsAt`). */

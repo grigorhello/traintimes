@@ -103,6 +103,57 @@ final class LiveDepartureTests: XCTestCase {
         XCTAssertEqual(LiveDeparture.earliest(in: trains, now: at(17, 0)) { _ in true }?.key.tripId, "C")
     }
 
+    // MARK: Boarding at the platform (TT-233, D114)
+
+    /// The 5:13 PM train with what the train feed says about it: `metres` from the station at `seen`.
+    private func sighted(metres: Double, seen: Date, platform: Platform = .published("7"), hasLeftOrigin: Bool = false) -> Departure {
+        var train = departure("A", at: 17, 13, platform: platform)
+        train.originFix = OriginFix(metres: metres, reportedAt: seen)
+        train.hasLeftOrigin = hasLeftOrigin
+        return train
+    }
+
+    func testBoardingNowIsTheTrainStandingAtTheStation() throws {
+        let live = try XCTUnwrap(LiveDeparture(sighted(metres: 150, seen: at(16, 58)), now: at(16, 58, 10)))
+        XCTAssertEqual(live.phase, .boarding, "15 min before, at its platform")
+        XCTAssertFalse(live.isDeparting(at: at(16, 58, 10)))
+        XCTAssertEqual(live.minutes(at: at(16, 58, 10)), 14)
+    }
+
+    func testItStaysBoardingPastItsTimeAndReadsDeparting() throws {
+        let live = try XCTUnwrap(LiveDeparture(sighted(metres: 150, seen: at(17, 14)), now: at(17, 14, 10)))
+        XCTAssertEqual(live.phase, .boarding)
+        XCTAssertTrue(live.isDeparting(at: at(17, 14, 10)))
+    }
+
+    func testWithAPositionTheLast2MinAreNotBoardingByTheClock() {
+        let away = sighted(metres: 2_000, seen: at(17, 11, 30))
+        XCTAssertEqual(LiveDeparture(away, now: at(17, 11, 40))?.phase, .countingDown, "still rolling in")
+        let noPlatform = sighted(metres: 150, seen: at(17, 11, 30), platform: .pending)
+        XCTAssertEqual(LiveDeparture(noPlatform, now: at(17, 11, 40))?.phase, .countingDown, "no platform, no Boarding")
+        XCTAssertEqual(LiveDeparture(noPlatform, now: at(17, 13, 30))?.phase, .countingDown, "past its time and still there")
+        XCTAssertEqual(LiveDeparture(noPlatform, now: at(17, 13, 31))?.phase, .departed, "the fix went stale: the clock again")
+    }
+
+    func testItHasLeftWhenItMovesOffOrTheFeedDropsTheStation() {
+        XCTAssertEqual(LiveDeparture(sighted(metres: 800, seen: at(17, 13, 20)), now: at(17, 13, 30))?.phase, .departed)
+        XCTAssertEqual(
+            LiveDeparture(sighted(metres: 150, seen: at(17, 12, 20), hasLeftOrigin: true), now: at(17, 12, 30))?.phase, .departed,
+            "the feed's word counts from 1 min before"
+        )
+        let departed = LiveDeparture(sighted(metres: 800, seen: at(17, 13, 20)), now: at(17, 13, 30))
+        XCTAssertEqual(departed?.isDeparting(at: at(17, 13, 30)), false)
+    }
+
+    func testATrainStandingPastItsTimeIsStillTheOneToLeaveFirst() {
+        let trains = [sighted(metres: 150, seen: at(17, 14)), departure("B", at: 17, 20)]
+        XCTAssertEqual(LiveDeparture.earliest(in: trains, now: at(17, 14, 10)) { _ in true }?.key.tripId, "A")
+    }
+
+    func testTheWindowStillEnds10MinAfterItsTimeThoughTheTrainStands() {
+        XCTAssertNil(LiveDeparture(sighted(metres: 150, seen: at(17, 23)), now: at(17, 23)))
+    }
+
     func testALateEarlierTrainLeavesAfterTheNextOneOnTime() {
         // A is scheduled first but 10 min late, so B leaves first and wins.
         let trains = [

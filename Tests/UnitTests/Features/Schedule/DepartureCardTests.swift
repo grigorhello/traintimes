@@ -7,7 +7,8 @@ final class DepartureCardTests: XCTestCase {
     private let day = ServiceDay(year: 2026, month: 11, day: 5)
 
     private func card(
-        minutes: Int = 40, platform: Platform = .pending, tags: [TrainTag] = [], status: TrainStatus = .scheduled
+        minutes: Int = 40, platform: Platform = .pending, tags: [TrainTag] = [], status: TrainStatus = .scheduled,
+        isDeparted: Bool = false, isBoarding: Bool = false
     ) -> DepartureCard {
         let departure = day.date(hour: 7, minute: 58)
         let trip = Trip(
@@ -18,7 +19,9 @@ final class DepartureCardTests: XCTestCase {
             tags: tags
         )
         let resolved = Departure(trip: trip, status: status, expectedDeparture: nil, expectedArrival: nil)
-        return DepartureCard(resolved, isNext: false, now: departure, formatter: formatter)
+        return DepartureCard(
+            resolved, isNext: false, isDeparted: isDeparted, isBoarding: isBoarding, now: departure, formatter: formatter
+        )
     }
 
     func testTripLengthInMinutesUpTo99ThenHours() {
@@ -44,8 +47,23 @@ final class DepartureCardTests: XCTestCase {
         XCTAssertFalse(pending.hasPlatform)
     }
 
+    /// TT-233 (D114): "Boarding" while the train stands at its platform, a late train too; "Departed" once it has left; a
+    /// cancelled train keeps "Cancelled".
+    func testTheStatusRowSaysBoardingThenDeparted() {
+        XCTAssertEqual(card(status: .onTime).shownStatus, .onTime)
+        XCTAssertEqual(card(status: .onTime, isBoarding: true).shownStatus, .boarding)
+        XCTAssertEqual(card(status: .onTime, isBoarding: true).status, .onTime, "The train's own status stays under it")
+        let late = card(status: .delayed(minutes: 9, reportedAt: day.date(hour: 7, minute: 50)), isBoarding: true)
+        XCTAssertEqual(late.shownStatus, .boarding)
+        XCTAssertTrue(late.isDelayed, "A late train's times stay amber while it boards")
+        XCTAssertEqual(card(status: .onTime, isDeparted: true).shownStatus, .departed)
+        XCTAssertEqual(card(status: .onTime, isDeparted: true, isBoarding: true).shownStatus, .departed, "Departed wins")
+        let cancelled = card(status: .cancelled(reportedAt: day.date(hour: 7, minute: 5)), isDeparted: true)
+        XCTAssertEqual(cancelled.shownStatus, .cancelled)
+    }
+
     func testFilledDotForLiveStatusRingForScheduled() {
-        XCTAssertTrue([TripStatus.onTime, .delayed(minutes: 9), .cancelled, .stopSkipped].allSatisfy(\.isLive))
+        XCTAssertTrue([TripStatus.onTime, .delayed(minutes: 9), .cancelled, .stopSkipped, .boarding].allSatisfy(\.isLive))
         XCTAssertFalse([TripStatus.scheduled, .lastReported(time: "7:29 AM"), .offline].contains(where: \.isLive))
         XCTAssertEqual(card(status: .scheduled).status, .scheduled, "No live data is never On time (D50)")
         XCTAssertEqual(card(status: .onTime).status, .onTime)

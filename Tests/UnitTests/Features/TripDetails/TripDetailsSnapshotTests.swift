@@ -5,7 +5,7 @@ import XCTest
 
 /// Trip details against design/frames/trip-details*.png (TT-163) and the Delay-A boards (TT-207), light and dark: the 7:32 AM
 /// train delayed 9 min with an alert, on time, a later delayed train, the 7:58 AM express train on the timetable only, a cancelled train, a 12-stop trip scrolled to its end, and a train
-/// after it has left, and the alert bar's day panel (TT-192). The sheet content is drawn on its own in the key window; the system draws the grabber.
+/// after it has left, the alert bar's day panel (TT-192), and a train boarding at its platform (TT-233). The sheet content is drawn on its own in the key window; the system draws the grabber.
 final class TripDetailsSnapshotTests: XCTestCase {
     @MainActor func testDelayedLight() async throws { snap(try await .loadedFixture(.delayed, hasAlert: true), .light) }
     @MainActor func testDelayedDark() async throws { snap(try await .loadedFixture(.delayed, hasAlert: true), .dark) }
@@ -28,6 +28,16 @@ final class TripDetailsSnapshotTests: XCTestCase {
     /// 7:32 AM train is 11 min out with its alert on, so the hero card sits over the folded trip (TT-205, D93).
     @MainActor func testAlertDaysLight() async throws { snap(try await alertDays(), .light) }
     @MainActor func testAlertDaysDark() async throws { snap(try await alertDays(), .dark) }
+    /// TT-233 (Card states board 5, "at the platform"): the 7:32 AM train standing at Platform 2, 8 min before it leaves.
+    /// The hero's accent outline and tint, "7:32 AM boarding now" in the accent over "8 min", the pill filled.
+    @MainActor func testBoardingLight() async throws { snap(try await boarding(), .light) }
+    @MainActor func testBoardingDark() async throws { snap(try await boarding(), .dark) }
+
+    /// The 7:32 AM train at 7:24 AM, placed 120 m from Oakville by the train feed, its platform posted.
+    @MainActor
+    private func boarding() async throws -> TripDetailsViewModel {
+        try await TripBoardingRig.opened(TripBoardingRig.nextTrain, hour: 7, minute: 24, metres: 120).model
+    }
 
     /// The 7:32 AM train with its alert turned on from the bar, and Repeat's day panel open.
     @MainActor

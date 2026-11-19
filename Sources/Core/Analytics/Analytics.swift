@@ -119,6 +119,16 @@ extension AnalyticsEvent {
 
     static let routeSwapped = Self("route_swapped")
 
+    /// The weather sheet opened from the tile on Schedule (TT-226): the day (0 is Today) and the sheet's first line.
+    static func weatherOpened(dayOffset: Int, cue: WeatherCue) -> Self {
+        Self("weather_opened", ["day_offset": .int(dayOffset), "cue": .string(cue.rawValue)])
+    }
+
+    /// The weather tile turned grey, at most once per Schedule visit (TT-226).
+    static func weatherUnavailable(_ reason: WeatherUnavailable) -> Self {
+        Self("weather_unavailable", ["reason": .string(reason.rawValue)])
+    }
+
     /// The saved route's launch splash lifting over Schedule (TT-227): `schedule_ready` is false while Schedule still showed
     /// "Loading timetable"; `full` is the slower first-launches pace.
     static func launchSplashEnded(scheduleReady: Bool, full: Bool) -> Self {
@@ -169,8 +179,12 @@ extension AnalyticsEvent {
         Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
     }
 
-    static func rideStarted(source: RideStartSource, demo: Bool) -> Self {
-        Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
+    /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232).
+    static func rideStarted(source: RideStartSource, demo: Bool, plan: RidePlan? = nil) -> Self {
+        Self("ride_started", [
+            "source": .string(source.rawValue), "demo": .bool(demo),
+            "express": .bool(plan?.isExpress ?? false), "skipped_stations": .int(plan?.skipped.count ?? 0),
+        ])
     }
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
@@ -206,6 +220,12 @@ extension AnalyticsEvent {
             "wish": .string(wish.id), "close": .string(close.rawValue), "seconds": .int(seconds), "taps": .int(taps),
             "demo": .bool(demo),
         ])
+    }
+
+    /// Train detection asked "On the train to Clarkson?" (TT-230): on Schedule (`app`) or as the background notification
+    /// (`background`); `evidence` is `stops` (shared stops) or `moving` (moved together on a stretch with no stop between).
+    static func detectionAsked(where place: String, evidence: String) -> Self {
+        Self("detection_asked", ["where": .string(place), "evidence": .string(evidence)])
     }
 
     /// Yes or No on the train detection question on Schedule.

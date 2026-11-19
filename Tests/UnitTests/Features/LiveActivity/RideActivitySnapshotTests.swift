@@ -25,6 +25,13 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testArrivalWishLight() async throws { snap(try await arrivalWish(), .light) }
     @MainActor func testArrivalWishDark() async throws { snap(try await arrivalWish(), .dark) }
 
+    // On an express (TT-232, D111, the Live view canvas's board 40): the stations it passes hollow, the bolt above the train
+    // and after the tile in the compact island. Riding at 5:22 and 5:29 PM, arriving at 5:38:20, at Clarkson at 5:39:05.
+    @MainActor func testExpressLockScreenLight() async throws { snap(try await expressLockScreen(), .light) }
+    @MainActor func testExpressLockScreenDark() async throws { snap(try await expressLockScreen(), .dark) }
+    @MainActor func testExpressIslandLight() async throws { snap(try await expressIsland(), .light) }
+    @MainActor func testExpressIslandDark() async throws { snap(try await expressIsland(), .dark) }
+
     private struct Moment {
         let attributes: RideActivityAttributes
         let state: RideActivityAttributes.ContentState
@@ -34,8 +41,8 @@ final class RideActivitySnapshotTests: XCTestCase {
     private static let deviceNow = DemoRideRig.time(17, 32)
 
     @MainActor
-    private func moment(_ time: Date) async throws -> Moment {
-        let rig = await DemoRideRig.started(at: time)
+    private func moment(_ time: Date, express: Bool = false) async throws -> Moment {
+        let rig = express ? await DemoRideRig.express(at: time) : await DemoRideRig.started(at: time)
         let engine = try XCTUnwrap(rig.engine)
         let state = try XCTUnwrap(RideActivityAttributes.ContentState(
             plan: rig.plan, state: try XCTUnwrap(engine.state), now: engine.now, deviceNow: Self.deviceNow,
@@ -71,6 +78,25 @@ final class RideActivitySnapshotTests: XCTestCase {
             lockCard(next, isStale: false)
             lockCard(arriving, isStale: false)
             lockCard(riding, isStale: true)
+            Spacer()
+        }
+        .padding(.top, 120)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    @MainActor
+    private func expressLockScreen() async throws -> some View {
+        let early = try await moment(DemoRideRig.time(17, 22), express: true)
+        let riding = try await moment(DemoRideRig.time(17, 29), express: true)
+        let arriving = try await moment(DemoRideRig.time(17, 38, 20), express: true)
+        let there = try await moment(DemoRideRig.time(17, 39, 5), express: true)
+        return VStack(spacing: 14) {
+            lockCard(early, isStale: false)
+            lockCard(riding, isStale: false)
+            lockCard(arriving, isStale: false)
+            lockCard(there, isStale: false)
             Spacer()
         }
         .padding(.top, 120)
@@ -160,6 +186,23 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
+    @MainActor
+    private func expressIsland() async throws -> some View {
+        let riding = try await moment(DemoRideRig.time(17, 29), express: true)
+        let arriving = try await moment(DemoRideRig.time(17, 38, 20), express: true)
+        return VStack(spacing: 18) {
+            compact(riding)
+            compact(arriving)
+            expanded(riding)
+            expanded(arriving)
+            Spacer()
+        }
+        .padding(.top, 11)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
     /// Before departure: compact pending and late, expanded pending, late and boarding.
     @MainActor
     private func departureIsland() throws -> some View {
@@ -180,12 +223,12 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// The compact island: the tile left of the camera, the minutes right of it.
+    /// The compact island: the tile (and an express ride's bolt) left of the camera, the minutes right of it.
     @MainActor
     private func compact(_ moment: Moment) -> some View {
         let style = RideActivityStyle.island(moment.state, isStale: false)
         return HStack(spacing: 0) {
-            RideActivityTile(attributes: moment.attributes, size: .compact)
+            RideActivityCompactLeading(attributes: moment.attributes, state: moment.state, style: style)
             Spacer(minLength: 126)
             RideActivityCompactTrailing(state: moment.state, style: style)
                 .frame(maxWidth: 52, alignment: .trailing)

@@ -330,13 +330,17 @@ struct RideRail {
         return from + (end - from) * min(fraction / RideMotion.lastStretchEnd, 1)
     }
 
-    /// The next drawn stop's centre ahead of the train, where the glint runs to.
+    /// The centre of the next drawn stop ahead of the train that it stops at, where the glint runs to: the stations it
+    /// passes without stopping (TT-232) are on its way there.
     func nextY(_ position: Double?) -> CGFloat? {
         guard let position else { return nil }
         let last = max(0, stopCount - 1)
         let index = min(max(Int(position.rounded(.down)), 0), last)
         guard index < last else { return nil }
-        return (index + 1...last).lazy.compactMap { centre(ofStop: $0) }.first
+        for (row, drawn) in rows.enumerated() {
+            if case .stop(let stop) = drawn, stop.index > index, !stop.isSkipped { return tops[row] + Self.row / 2 }
+        }
+        return nil
     }
 }
 
@@ -349,6 +353,10 @@ struct RideRail {
 /// While the train moves one loop plays (TT-224, D106, board 19): a halo from the train, a glint along the rail ahead, the
 /// next stop's dot answering. A stop passing pops its dot with one ring (board 20). Arriving at your stop, the train slides
 /// into the pin, the check draws on with one ring (board 22). None of it in snapshots; no loop with Reduce Motion.
+///
+/// A station the train passes without stopping is a disabled row (TT-232, D111, boards 36 to 39): a hollow ring, a grey
+/// name, no time; the train travels through it and its ring turns to the accent, with no pop. On an express the bolt
+/// rides left of the train, and the rail sits 10 pt further in to give it room.
 struct RideStopList: View {
     let ride: RideDetails
 
@@ -363,15 +371,26 @@ struct RideStopList: View {
     private static let markerColumn: CGFloat = 20
     private static let rail: CGFloat = 2
     private static let marker: CGFloat = 30
+    /// How much further in the rows sit on an express, for the bolt left of the train.
+    private static let expressInset: CGFloat = 10
+    /// How far the bolt's box reaches into the train's: its glyph ends about 2 pt from the train's.
+    private static let boltOverlap: CGFloat = 4
 
     var body: some View {
-        let position = RideDetails.forward(ride.trainPosition, from: held)
-        let geometry = RideRail(rows: ride.rows, stopCount: ride.stops.count)
+        let position = RideDetails.forward(ride.trainPosition, from: held, stretch: ride.stretch)
+        let rows = ride.rows(at: position)
+        let geometry = RideRail(rows: rows, stopCount: ride.stops.count)
         let trainY = geometry.trainY(position)
         VStack(spacing: 0) {
-            ForEach(Array(zip(ride.rows.indices, ride.rows)), id: \.1.id) { index, row in
+            ForEach(Array(zip(rows.indices, rows)), id: \.1.id) { index, row in
                 switch row {
-                case .stop(let stop): stopRow(stop).transition(Self.rowTransition)
+                case .stop(let stop):
+                    if stop.isSkipped {
+                        skippedRow(stop, isPassed: RideDetails.hasPassed(row: stop.index, at: position))
+                            .transition(Self.rowTransition)
+                    } else {
+                        stopRow(stop).transition(Self.rowTransition)
+                    }
                 case .fold: foldRow(top: geometry.tops[index], trainY: trainY, position: position).transition(Self.rowTransition)
                 }
             }
@@ -387,13 +406,16 @@ struct RideStopList: View {
         .overlay(alignment: .topLeading) { train(trainY: trainY, position: position) }
         .contentShape(Rectangle())
         .tracksInterest("ride.stops")
-        .padding(.horizontal, TTSpace.s4)
+        .padding(.leading, TTSpace.s4 + inset)
+        .padding(.trailing, TTSpace.s4)
         .padding(.vertical, TTSpace.s2)
         .ttSheetCard()
         .animation(trainAnimation(position), value: position)
-        .animation(reduceMotion ? nil : RideMotion.glide, value: ride.rows)
+        .animation(reduceMotion ? nil : RideMotion.glide, value: rows)
         .onChange(of: position) { _, new in held = new }
     }
+
+    private var inset: CGFloat { ride.isExpress ? Self.expressInset : 0 }
 
     private var animates: Bool { playsMotion && !reduceMotion }
 
@@ -404,7 +426,8 @@ struct RideStopList: View {
     private func trainAnimation(_ position: Double?) -> Animation? {
         guard !reduceMotion else { return nil }
         guard let position else { return RideMotion.glide.delay(playsMotion ? RideMotion.arrivalDelay : 0) }
-        guard let held, held.rounded(.down) == position.rounded(.down), position != position.rounded(.down) else {
+        // One stretch from a stop to the next one the train stops at: it creeps through the stations it passes.
+        guard let held, ride.stretch.contains(held), ride.stretch.contains(position), position > ride.stretch.lowerBound else {
             return RideMotion.glide
         }
         return RideMotion.creep
@@ -468,16 +491,23 @@ struct RideStopList: View {
         RoundedRectangle(cornerRadius: TTRadius.md)
             .fill(TTColor.accentSoft)
             .frame(height: Self.row - 8)
-            .padding(.horizontal, -10)
+            .padding(.leading, -10 - inset)
+            .padding(.trailing, -10)
             .offset(y: geometry.totalHeight - Self.row + 4)
             .accessibilityHidden(true)
     }
 
     /// The train glyph on a surface disc, centred on the rail, with its halo while it moves; it slides into your pin and
-    /// goes as the check draws on.
+    /// goes as the check draws on. On an express the bolt rides left of it, centred on it, and goes with it (TT-232).
     private func train(trainY: CGFloat, position: Double?) -> some View {
         TrainMarker(loop: animates ? ride.loop : nil)
             .frame(width: Self.marker, height: Self.marker)
+            .overlay(alignment: .leading) {
+                if ride.isExpress {
+                    RideBolt(loop: animates ? ride.loop : nil)
+                        .offset(x: Self.boltOverlap - RideBolt.size)
+                }
+            }
             .offset(x: Self.markerColumn / 2 - Self.marker / 2, y: trainY - Self.marker / 2)
             .opacity(position == nil ? 0 : 1)
             .animation(
@@ -514,6 +544,25 @@ struct RideStopList: View {
             .animation(animates && !stop.isYours ? RideMotion.passFade : nil, value: stop.isDone)
         }
         .font(isBold ? TTFont.headline : TTFont.body)
+        .frame(height: Self.row)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("trip.ride.stop.\(stop.id)")
+    }
+
+    /// A station the train passes without stopping (TT-232): the hollow ring, the name in the tertiary ink at 60 %, regular
+    /// weight, no time. The ring's stroke turns to the accent as the train passes; nothing pops and nothing is felt.
+    private func skippedRow(_ stop: RideDetails.Stop, isPassed: Bool) -> some View {
+        HStack(spacing: TTSpace.s3) {
+            SkippedRing(isPassed: isPassed)
+                .animation(animates ? .easeOut(duration: 0.25) : nil, value: isPassed)
+                .frame(width: Self.markerColumn, height: Self.row)
+            Text(verbatim: stop.name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .foregroundStyle(TTColor.inkTertiary.opacity(0.6))
+            Spacer(minLength: TTSpace.s2)
+        }
+        .font(TTFont.body)
         .frame(height: Self.row)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("trip.ride.stop.\(stop.id)")
@@ -613,6 +662,21 @@ private struct StopDot: View {
         let down = RideMotion.progress(phase, from: RideMotion.answerPeak, to: RideMotion.answerEnd)
         let lift = phase < RideMotion.answerPeak ? up : 1 - down
         return 1 + CGFloat((RideMotion.answerScale - 1) * lift)
+    }
+}
+
+/// The ring of a station the train does not stop at (TT-232, board 36): 10 pt, a 2 pt stroke in the control border on the
+/// surface, which hides the rail under it; the stroke is the accent once the train has passed.
+private struct SkippedRing: View {
+    let isPassed: Bool
+
+    var body: some View {
+        Circle()
+            .strokeBorder(isPassed ? TTColor.accent : TTColor.controlBorder, lineWidth: 2)
+            .background(TTColor.surface, in: Circle())
+            .frame(width: 10, height: 10)
+            .padding(2)
+            .background(TTColor.surface, in: Circle())
     }
 }
 

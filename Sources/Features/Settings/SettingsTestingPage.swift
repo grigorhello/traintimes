@@ -19,6 +19,7 @@ struct SettingsTestingPage: View {
                     liveCard.settingsRise(order: 1)
                     header("settings.testing.time").settingsRise(order: 2)
                     mockTimeCard.settingsRise(order: 2)
+                    demoWeatherCard.settingsRise(order: 2)
                     SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
                     hapticsCard.settingsRise(order: 3)
                 }
@@ -98,9 +99,19 @@ struct SettingsTestingPage: View {
                     ]
                 )
                 description
+                if viewModel.showsDemoExpress {
+                    // The demo ride as an express (TT-232): the word the Schedule card's bolt reads as.
+                    Toggle(isOn: $viewModel.demoExpress) {
+                        Text("tag.express").font(TTFont.body).foregroundStyle(TTColor.ink)
+                    }
+                    .tint(TTColor.accent)
+                    .padding(.horizontal, 2)
+                    .accessibilityIdentifier("settings.demoExpress")
+                }
             }
             .padding(TTSpace.s3)
         }
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoExpress)
     }
 
     /// One line for the chosen mode. All of them are laid on top of each other, so the card keeps the height of the longest and
@@ -150,6 +161,22 @@ struct SettingsTestingPage: View {
             }
             .padding(TTSpace.s3)
         }
+    }
+
+    // MARK: Demo weather
+
+    /// Demo weather (TT-226): fixture weather on the weather tile, for the simulator and screenshots.
+    private var demoWeatherCard: some View {
+        SettingsCard {
+            Toggle(isOn: $viewModel.isDemoWeatherOn) {
+                Text("settings.demo_weather").font(TTFont.body).foregroundStyle(TTColor.ink)
+            }
+            .tint(TTColor.accent)
+            .padding(.horizontal, TTSpace.s4)
+            .frame(minHeight: SettingsMetrics.rowHeight)
+            .accessibilityIdentifier("settings.demoWeather")
+        }
+        .padding(.top, TTSpace.s3)
     }
 
     // MARK: Mock time

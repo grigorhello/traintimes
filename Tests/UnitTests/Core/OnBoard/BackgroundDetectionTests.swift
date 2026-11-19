@@ -41,6 +41,36 @@ final class BackgroundDetectionTests: XCTestCase {
         XCTAssertFalse(rig.detection.isOn, "Shown is not turned on")
     }
 
+    /// TT-230: the offer follows the ride engine, not a screen, so a ride that reaches your stop with the phone locked (the
+    /// app in the background, SwiftUI not drawing) still makes it due.
+    func testOfferDueWhenTheFollowedRideReachesYourStop() async throws {
+        let rig = BackgroundRig()
+        let ride = await DemoRideRig.started()
+        rig.detection.follow(try XCTUnwrap(ride.engine))
+        XCTAssertFalse(rig.detection.offerDue)
+
+        ride.drive(to: try XCTUnwrap(ride.plan.stops.last).arrival.addingTimeInterval(20))
+        for _ in 0..<100 where !rig.detection.offerDue { await Task.yield() }
+
+        XCTAssertTrue(rig.detection.offerDue)
+    }
+
+    func testReachedYourStopIsAtYourStopOrEndedThere() {
+        var state = RideState(
+            phase: .atYourStop, currentStop: nil, nextStop: nil, stopsLeft: 0, minutesToYourStop: 0, expectedArrival: Date(),
+            source: .timetable, lastUpdate: nil, endReason: nil
+        )
+        XCTAssertTrue(BackgroundDetection.reachedYourStop(state))
+        state.phase = .ended
+        state.endReason = .arrived
+        XCTAssertTrue(BackgroundDetection.reachedYourStop(state))
+        state.endReason = .byRider
+        XCTAssertFalse(BackgroundDetection.reachedYourStop(state))
+        state.phase = .yourStopNext
+        state.endReason = nil
+        XCTAssertFalse(BackgroundDetection.reachedYourStop(state))
+    }
+
     func testNoOfferWhenTheSwitchIsAlreadyOn() {
         let rig = BackgroundRig.on()
 

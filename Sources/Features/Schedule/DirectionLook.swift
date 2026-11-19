@@ -397,8 +397,12 @@ final class DirectionLook: RouteChoiceFollowing {
         guard case .asks = capsule.shown?.kind else { return }
         haptics.play(.swap)
         capsule.dismiss()
-        // A first Switch brings the one-time strip; it is not counted (it shows no "Now from …").
-        if await schedule.turn(.switched, while: { true }) { offerStrip() }
+        // A first Switch brings the one-time strip; it is not counted (it shows no "Now from …"). It is offered in the step
+        // the route turns in, so it lands with the names, not after the new trains' live status is read.
+        _ = await schedule.turn(.switched, while: {
+            offerStrip()
+            return true
+        })
     }
 
     // MARK: The one-time strip (TT-236)

@@ -66,8 +66,8 @@ struct WidgetEntry: Equatable, Sendable {
     }
 }
 
-/// A widget's whole timeline: its entries until the next 3 AM, and when WidgetKit asks again (after an hour while a
-/// countdown shows, else at 3 AM).
+/// A widget's timeline: its entries for the next 3 h (or until 3 AM, if sooner), and when WidgetKit asks again (after an
+/// hour while a countdown shows, else when the entries end).
 struct WidgetTimeline: Equatable, Sendable {
     let entries: [WidgetEntry]
     let reloadAt: Date
@@ -90,24 +90,30 @@ enum WidgetEntryBuilder {
     /// WidgetKit is asked again after 1 h, well inside its daily budget, so an hour of them is in hand when it asks late.
     static let countdownSpan: TimeInterval = 2 * 60 * 60
     static let countdownReload: TimeInterval = 60 * 60
+    /// The timeline ends 3 h on, or at 3 AM if sooner (TT-185, D117): iOS drops a timeline whose archive is too large.
+    /// A whole day's 304 entries made Departures' archive 12 MB on a tinted Home Screen, and the widget stayed a
+    /// placeholder; 8 MB still loaded. Three hours are about 150 entries at most, and iOS is asked again before they end.
+    static let horizon: TimeInterval = 3 * 60 * 60
 
     static func timeline(file: WidgetFile?, route: WidgetFile.RouteKey?, turnsAround: Bool, now: Date) -> WidgetTimeline {
         let cutoff = ServiceDay(containing: now).adding(days: 1).date(hour: ServiceDay.cutoffHour, minute: 0)
+        let end = min(cutoff, now.addingTimeInterval(horizon))
         func make(_ date: Date) -> WidgetEntry {
             entry(file: file, route: route, turnsAround: turnsAround, at: date)
         }
-        let moments = [now] + changes(file: file, route: route, turnsAround: turnsAround, after: now, before: cutoff)
+        let moments = [now] + changes(file: file, route: route, turnsAround: turnsAround, after: now, before: end)
         // Each whole minute of the next 2 h that is not a change already, kept where a countdown shows.
         let known = Set(moments)
         let firstMinute = (now.timeIntervalSince1970 / 60).rounded(.down) * 60 + 60
-        let lastMinute = min(cutoff, now.addingTimeInterval(countdownSpan)).timeIntervalSince1970
+        let lastMinute = min(end, now.addingTimeInterval(countdownSpan)).timeIntervalSince1970
         let minutes = stride(from: firstMinute, through: lastMinute, by: 60)
             .map { Date(timeIntervalSince1970: $0) }
-            .filter { $0 < cutoff && !known.contains($0) }
+            .filter { $0 < end && !known.contains($0) }
         let entries = (moments.map(make) + minutes.map(make).filter(\.showsCountdown)).sorted { $0.date < $1.date }
-        // Asked again an hour on while a countdown shows (or when the first one starts, if later), else at 3 AM.
+        // Asked again an hour on while a countdown shows (or when the first one starts, if later), else when the entries
+        // end: 3 h on, or at 3 AM.
         let firstCountdown = entries.first(where: \.showsCountdown)?.date
-        let reloadAt = firstCountdown.map { min(cutoff, max($0, now.addingTimeInterval(countdownReload))) } ?? cutoff
+        let reloadAt = firstCountdown.map { min(end, max($0, now.addingTimeInterval(countdownReload))) } ?? end
         return WidgetTimeline(entries: entries, reloadAt: reloadAt)
     }
 

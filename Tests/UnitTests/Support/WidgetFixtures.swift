@@ -8,6 +8,16 @@ enum WidgetFixtures {
     static let route = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
     static let line = WidgetFile.TrainLine(id: "LW", name: "Lakeshore West", colorHex: "#8B1A31")
 
+    /// The widgets' sizes on the iPhone 17 Pro, measured on its simulator (iOS 26.3) by TT-185: 493 px square and
+    /// 1049 × 493 px at 3×, which iOS's own log gives as 164.33 and 349.67 × 164.33 pt (the boards drew Apple's 393 pt
+    /// class, 158 and 338 × 158 pt). The snapshots draw them to the pixel.
+    static let small = CGSize(width: 493.0 / 3, height: 493.0 / 3)
+    static let medium = CGSize(width: 1049.0 / 3, height: 493.0 / 3)
+    /// The Lock Screen sizes there: the boxes iOS lays the views out in, read with a `GeometryReader` on the placed
+    /// widgets (the boards drew 160 × 72 and 72 pt, and iOS's own log says 162 × 72 and 72 × 72).
+    static let lockRectangular = CGSize(width: 148, height: 72)
+    static let lockCircular = CGSize(width: 58, height: 58)
+
     static func at(_ hour: Int, _ minute: Int, second: Int = 0, on day: ServiceDay = day) -> Date {
         day.date(hour: hour, minute: minute).addingTimeInterval(TimeInterval(second))
     }

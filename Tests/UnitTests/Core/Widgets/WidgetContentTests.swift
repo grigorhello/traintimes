@@ -252,12 +252,16 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(StationNames.short("GO"), "GO")
     }
 
-    func testTheCountdownIsWholeMinutesRoundedDown() {
+    /// Rounded up (TT-185): a timeline that starts between two minutes reads what the one on the minute before reads,
+    /// and steps with it on the next minute.
+    func testTheCountdownIsWholeMinutesRoundedUp() {
         let departure = WidgetFixtures.at(7, 58)
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47), to: departure), "11 min")
-        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47, second: 30), to: departure), "10 min")
+        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47, second: 30), to: departure), "11 min")
+        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 48), to: departure), "10 min")
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(4, 51), to: departure), "187 min")
-        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 59), to: departure), "0 min")
+        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 57), to: departure), "1 min")
+        XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 59), to: WidgetFixtures.at(7, 58)), "0 min")
     }
 
     func testTheGallerySampleIsThe758FromOakvilleToUnion() {

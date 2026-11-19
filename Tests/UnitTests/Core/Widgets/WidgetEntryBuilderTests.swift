@@ -244,24 +244,40 @@ final class WidgetEntryBuilderTests: XCTestCase {
 
     // MARK: - Timeline
 
-    func testTimelineEntriesUntil3AM() {
+    /// The timeline is the next 3 h, or until 3 AM if sooner (TT-185, D117): a whole day's entries made an archive iOS
+    /// refused.
+    func testTimelineEntriesForTheNext3Hours() {
         let now = at(wed, "09:00")
         let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now)
         let dates = timeline.entries.map(\.date)
         XCTAssertEqual(dates.first, now)
         XCTAssertEqual(dates, dates.sorted())
         XCTAssertEqual(Set(dates).count, dates.count)
-        XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < at(thu, "03:00") })
-        for time in ["09:30", "09:45", "10:15", "11:00", "11:30", "12:00", "12:15", "17:00", "22:00", "23:00"] {
+        XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < at(wed, "12:00") })
+        XCTAssertLessThanOrEqual(dates.count, 150)
+        // Departures, 2 h and 30 min before the alerted 11:30, and the minute before each departure, when the
+        // countdown reads "now" (TT-183).
+        for time in ["09:30", "09:45", "10:15", "11:00", "11:30", "09:44", "10:14", "11:29"] {
             XCTAssertTrue(dates.contains(at(wed, time)), time)
         }
-        // The minute before each departure, when the countdown reads "now" (TT-183).
-        for time in ["09:44", "10:14", "11:29", "12:14", "16:59", "22:59"] {
-            XCTAssertTrue(dates.contains(at(wed, time)), time)
+        // 12 PM, the way home's trains and 10 PM, each from a timeline that reaches it.
+        func later(from time: String, file: WidgetFile? = nil) -> [Date] {
+            WidgetEntryBuilder.timeline(file: file ?? self.file(), route: nil, turnsAround: true, now: at(wed, time)).entries.map(\.date)
         }
+        for time in ["12:00", "12:14", "12:15"] {
+            XCTAssertTrue(later(from: "10:30").contains(at(wed, time)), time)
+        }
+        for time in ["16:59", "17:00"] {
+            XCTAssertTrue(later(from: "15:00").contains(at(wed, time)), time)
+        }
+        for time in ["22:00", "22:59", "23:00"] {
+            XCTAssertTrue(later(from: "21:00").contains(at(wed, time)), time)
+        }
+        XCTAssertTrue(later(from: "22:30").allSatisfy { $0 < at(wed, "01:30") })
+        XCTAssertTrue(later(from: "01:00").allSatisfy { $0 < at(thu, "03:00") })
         // A usual time adds the moment 30 min before it.
         let usual = file(usual: [WidgetFile.UsualTime(route: oakvilleToUnion.reversed, minutesIntoDay: 17 * 60 + 40, weekdays: [3])])
-        XCTAssertTrue(WidgetEntryBuilder.timeline(file: usual, route: nil, turnsAround: true, now: now).entries.map(\.date).contains(at(wed, "17:10")))
+        XCTAssertTrue(later(from: "15:00", file: usual).contains(at(wed, "17:10")))
     }
 
     /// The countdown is text in each entry (TT-183, D113): an entry each minute for 2 h, and iOS is asked again in 1 h.
@@ -287,6 +303,10 @@ final class WidgetEntryBuilderTests: XCTestCase {
         let night = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: at(wed, "00:10"))
         XCTAssertEqual(night.entries.map(\.date), [at(wed, "00:10")])
         XCTAssertEqual(night.reloadAt, at(thu, "03:00"))
+        // More than 3 h before 3 AM the entries end 3 h on, and iOS is asked again then.
+        let evening = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: at(wed, "23:10"))
+        XCTAssertEqual(evening.entries.map(\.date), [at(wed, "23:10")])
+        XCTAssertEqual(evening.reloadAt, at(wed, "02:10"))
 
         var morningOnly = file()
         morningOnly.routes[0].outbound = [departure(wed, "08:00")]
@@ -299,7 +319,7 @@ final class WidgetEntryBuilderTests: XCTestCase {
     func testNotLoadedTimelineIsOneEntry() {
         let timeline = WidgetEntryBuilder.timeline(file: nil, route: nil, turnsAround: true, now: at(wed, "09:00"))
         XCTAssertEqual(timeline.entries.map(\.state), [.notLoaded])
-        XCTAssertEqual(timeline.reloadAt, at(thu, "03:00"))
+        XCTAssertEqual(timeline.reloadAt, at(wed, "12:00"))
     }
 
     // MARK: - The Lock Screen sizes (TT-184)

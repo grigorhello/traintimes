@@ -99,8 +99,8 @@ struct DirectionCapsule: Equatable, Identifiable {
 final class DirectionCapsuleModel {
     private(set) var shown: DirectionCapsule?
 
-    @ObservationIgnored private let actionDuration: Duration
-    @ObservationIgnored private let plainDuration: Duration
+    private let actionDuration: Duration
+    private let plainDuration: Duration
     @ObservationIgnored private var hideTask: Task<Void, Never>?
     @ObservationIgnored private var nextID = 0
 
@@ -181,19 +181,19 @@ final class DirectionLook: RouteChoiceFollowing {
     /// A look is running: Schedule listens for a tap on itself meanwhile.
     private(set) var isLooking = false
 
-    @ObservationIgnored private let schedule: any RouteTurning
-    @ObservationIgnored private let location: any DirectionLocating
-    @ObservationIgnored private let stations: any StationRepository
-    @ObservationIgnored private let store: DirectionStore
-    @ObservationIgnored private let clock: any AppClock
-    @ObservationIgnored private let ride: (any DirectionRideSource)?
-    @ObservationIgnored private let offerDue: @MainActor () -> Bool
-    @ObservationIgnored private let track: @Sendable (Route, ServiceDay) async -> DirectionRule.Track?
-    @ObservationIgnored private let haptics: any HapticPlaying
-    @ObservationIgnored private let quick: Duration
-    @ObservationIgnored private let limit: Duration
-    @ObservationIgnored private let capsuleDelay: Duration
-    @ObservationIgnored private let playsSplash: Bool
+    private let schedule: any RouteTurning
+    private let location: any DirectionLocating
+    private let stations: any StationRepository
+    private let store: DirectionStore
+    private let clock: any AppClock
+    private let ride: (any DirectionRideSource)?
+    private let offerDue: @MainActor () -> Bool
+    private let track: @Sendable (Route, ServiceDay) async -> DirectionRule.Track?
+    private let haptics: any HapticPlaying
+    private let quick: Duration
+    private let limit: Duration
+    private let capsuleDelay: Duration
+    private let playsSplash: Bool
 
     @ObservationIgnored private var scene = Scene()
     /// The visit is the cold start, not a return from the background.

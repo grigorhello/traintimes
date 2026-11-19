@@ -166,7 +166,11 @@ struct ScheduleView: View {
                     let scene = directionScene(isActive: true)
                     let look = direction
                     Task {
-                        await viewModel.cameToForeground(looking: look.map { look in { await look.cameBack(scene) } })
+                        if let look {
+                            await viewModel.cameToForeground { await look.cameBack(scene) }
+                        } else {
+                            await viewModel.cameToForeground()
+                        }
                     }
                 default: break
                 }

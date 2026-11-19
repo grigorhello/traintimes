@@ -538,11 +538,7 @@ private struct CapsuleMotion<Content: View>: View {
         guard !reduceMotion else { return TTMotion.fade }
         return switch pose {
         case .rest:
-            switch arrival {
-            case .swap: .easeOut(duration: 0.18).delay(0.06)
-            case .appear: .easeOut(duration: 0.18)
-            case .rest, .rise: .easeOut(duration: 0.15)
-            }
+            arrival == .swap ? .easeOut(duration: 0.18).delay(0.06) : .easeOut(duration: arrival == .appear ? 0.18 : 0.15)
         case .dropped, .vanished: .easeIn(duration: 0.16)
         case .swappedOut, .faded: .easeIn(duration: 0.12)
         case .below, .unseen: nil

@@ -151,11 +151,14 @@ final class MockLiveTests: XCTestCase {
     func testBoardPlacesTheTrainsThatLeftForTenMinutes() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         // Minutes from now: two trains that left, the next one, one after it.
-        let trips = [-20, -5, 5, 15].enumerated().map { index, minutes in
-            Trip(
-                key: TripKey(serviceDay: ServiceDay(year: 2026, month: 11, day: 5), tripId: "T\(index)"),
-                scheduledDeparture: now.addingTimeInterval(TimeInterval(minutes * 60)),
-                scheduledArrival: now.addingTimeInterval(TimeInterval(minutes * 60 + 1800)),
+        let minutesFromNow: [Int] = [-20, -5, 5, 15]
+        let day = ServiceDay(year: 2026, month: 11, day: 5)
+        let trips: [Trip] = minutesFromNow.indices.map { (index: Int) -> Trip in
+            let leaves: Date = now.addingTimeInterval(TimeInterval(minutesFromNow[index]) * 60)
+            return Trip(
+                key: TripKey(serviceDay: day, tripId: "T\(index)"),
+                scheduledDeparture: leaves,
+                scheduledArrival: leaves.addingTimeInterval(1800),
                 platform: .pending, tags: []
             )
         }
@@ -171,10 +174,8 @@ final class MockLiveTests: XCTestCase {
         let departures = Departure.resolve(
             MockLiveFeed.withPlatforms(trips), live: live, freshness: Freshness(live, now: now), isToday: true
         )
-        XCTAssertEqual(
-            departures.map { BoardingRule.phase(of: $0, now: now) },
-            [.departed(.clock), .departed(.moved), .boarding, .waiting]
-        )
+        let phases: [BoardingRule.Phase] = departures.map { BoardingRule.phase(of: $0, now: now) }
+        XCTAssertEqual(phases, [.departed(.clock), .departed(.moved), .boarding, .waiting])
 
         // The other feeds place no train, so they follow the clock as before.
         for mode in [MockLive.onTime, .mixed, .changing, .stale] {

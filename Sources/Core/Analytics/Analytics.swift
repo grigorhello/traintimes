@@ -71,8 +71,9 @@ enum Analytics {
 /// How Trip details was opened.
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
-    /// Live Activity before departure; `detection` the background question's notification.
-    case schedule, notification, ride, departure, detection
+    /// Live Activity before departure; `detection` the background question's notification; `link` a `traintimes://trip`
+    /// link, a widget's train (TT-182).
+    case schedule, notification, ride, departure, detection, link
 }
 
 /// How a ride started.
@@ -173,15 +174,18 @@ extension AnalyticsEvent {
     }
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
-    /// read as giving up (TT-221).
-    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false) -> Self {
+    /// read as giving up (TT-221). `watchedSeconds` and `opens`: how long, in whole seconds, and how many times the ride
+    /// screen was on screen during the ride (TT-224, D106).
+    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
         case .arrived: "arrived"
         case .leftTheLine: "left_the_line"
         case .cancelled: "cancelled"
         }
-        return Self("ride_ended", ["reason": .string(name), "at_stop": .bool(atStop)])
+        return Self("ride_ended", [
+            "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
+        ])
     }
 
     /// The arrival wish on screen with the app active, once per ride (TT-223, D103).

@@ -18,6 +18,29 @@ extension EnvironmentValues {
     @Entry var widgetLook = WidgetLook()
 }
 
+/// A message's second line, its time strong.
+private struct WidgetMessageDetail: View {
+    let text: WidgetText
+    let font: Font
+    let strongFont: Font
+
+    var body: some View {
+        Text(attributed)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var attributed: AttributedString {
+        var result = AttributedString()
+        for piece in text.pieces {
+            var run = AttributedString(piece.text)
+            run.font = piece.isStrong ? strongFont : font
+            run.foregroundColor = piece.isStrong ? TTColor.ink : TTColor.inkSecondary
+            result += run
+        }
+        return result
+    }
+}
+
 // MARK: - Next train, small
 
 /// Next train (158 pt square): the line tile and "to Union", the time, the countdown in accent, and one footer line.

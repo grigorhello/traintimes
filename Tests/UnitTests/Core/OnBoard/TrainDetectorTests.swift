@@ -75,6 +75,63 @@ final class TrainDetectorTests: XCTestCase {
         XCTAssertEqual(makeDetector(location: location, clock: clock, defaults: defaults).silenced, [])
     }
 
+    // MARK: A turned route (TT-234, D116)
+
+    /// Automatic direction turns the route round under the matcher: the same two stations the other way keep the matcher,
+    /// its question and its trains, also after the screen went and came back; the new route is the one it loads next.
+    func testARouteTurnedRoundKeepsTheMatcher() async throws {
+        let clock = startClock()
+        let location = FakeLocation(authorized: true)
+        let candidates = CountingCandidates(train: DemoRide.candidate(on: day))
+        let detector = makeDetector(location: location, clock: clock, defaults: nil, candidates: candidates)
+        _ = await detector.start(on: DemoRide.route)
+        await ride(detector, location: location, clock: clock)
+        guard case .asking(let question) = detector.state else { return XCTFail("The detector asks after two shared stops") }
+        let loaded = await candidates.routes
+
+        let turned = Route(from: DemoRide.route.to, to: DemoRide.route.from, line: DemoRide.route.line)
+        let started = await detector.start(on: turned)
+
+        XCTAssertTrue(started)
+        XCTAssertEqual(detector.state, .asking(question), "The question stays through the turn")
+        XCTAssertTrue(location.isUpdating)
+        let afterTurn = await candidates.routes
+        XCTAssertEqual(afterTurn, loaded, "The matcher keeps its trains: nothing is loaded again")
+
+        // The screen goes and comes back, the route turned again meanwhile.
+        detector.stop()
+        _ = await detector.start(on: DemoRide.route)
+        XCTAssertEqual(detector.state, .asking(question))
+        _ = await detector.start(on: turned)
+
+        // The next minute's trains are loaded for the route as it is now.
+        clock.advance(seconds: TrainDetector.candidatesInterval)
+        await detector.tick()
+        let afterAMinute = await candidates.routes
+        XCTAssertEqual(afterAMinute.count, loaded.count + 1)
+        XCTAssertEqual(afterAMinute.last, turned)
+    }
+
+    /// Another pair of stations starts the matcher again: the question goes and the trains are loaded for the new route.
+    func testAnotherPairOfStationsStartsTheMatcherAgain() async throws {
+        let clock = startClock()
+        let location = FakeLocation(authorized: true)
+        let candidates = CountingCandidates(train: DemoRide.candidate(on: day))
+        let detector = makeDetector(location: location, clock: clock, defaults: nil, candidates: candidates)
+        _ = await detector.start(on: DemoRide.route)
+        await ride(detector, location: location, clock: clock)
+        XCTAssertTrue(detector.isAsking)
+        let loaded = await candidates.routes
+
+        let other = Route(from: DemoRide.route.from, to: Station(id: "OA", name: "Oakville GO"), line: DemoRide.line)
+        _ = await detector.start(on: other)
+
+        XCTAssertEqual(detector.state, .idle)
+        let afterwards = await candidates.routes
+        XCTAssertEqual(afterwards.count, loaded.count + 1)
+        XCTAssertEqual(afterwards.last, other)
+    }
+
     // MARK: The demo through On board
 
     func testDemoAsksBeforeTheRideAndYesStartsIt() async throws {
@@ -160,12 +217,14 @@ final class TrainDetectorTests: XCTestCase {
         TestClock(now: day.gtfsTime(DemoRide.detectStartSeconds))
     }
 
-    /// A detector on the demo train, placed by GO's train feed, against a phone the test moves.
+    /// A detector on the demo train, placed by GO's train feed, against a phone the test moves. `candidates`: the trains
+    /// it loads, the demo's one train by default.
     private func makeDetector(
-        location: FakeLocation, clock: TestClock, defaults: UserDefaults?, askedWhere: String? = nil
+        location: FakeLocation, clock: TestClock, defaults: UserDefaults?, askedWhere: String? = nil,
+        candidates: (any TrainCandidatesProviding)? = nil
     ) -> TrainDetector {
         TrainDetector(
-            candidates: DemoCandidates(train: DemoRide.candidate(on: day)),
+            candidates: candidates ?? DemoCandidates(train: DemoRide.candidate(on: day)),
             location: location,
             trains: DemoTrainPositions(plan: DemoRide.plan(on: day), clock: clock),
             clock: clock,
@@ -202,6 +261,21 @@ final class TrainDetectorTests: XCTestCase {
             detector.receive(LocationFix(coordinate: shape.point(at: plan.scheduledAlong(at: clock.now)), horizontalAccuracy: 5))
         }
         return detector
+    }
+}
+
+/// The demo's one train, keeping the route of each load.
+private actor CountingCandidates: TrainCandidatesProviding {
+    private let train: TrainCandidate
+    private(set) var routes: [Route] = []
+
+    init(train: TrainCandidate) {
+        self.train = train
+    }
+
+    func candidates(on route: Route, at time: Date) async -> [TrainCandidate] {
+        routes.append(route)
+        return [train]
     }
 }
 

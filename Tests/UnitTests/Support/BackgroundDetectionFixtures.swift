@@ -76,21 +76,44 @@ final class BackgroundRig {
     }
 }
 
-/// Wake-ups and the Always permission in tests.
+/// Wake-ups and the location permissions in tests. It keeps the iOS prompts in the order the model asked for them
+/// (TT-234), and adds no order of its own.
 @MainActor
 final class FakeWakeLocation: WakeLocationProviding {
+    /// One iOS prompt.
+    enum Ask: Equatable {
+        case whenInUse
+        case always
+    }
+
     var allowsAlways: Bool
     /// What the rider answers to the Always dialog.
     var answer = true
+    /// Location was never asked, so the When In Use prompt can show; false as for a rider who answered it before.
+    var canAskWhenInUse = false
+    /// What the rider answers to the When In Use prompt, or answered before.
+    var whenInUseAnswer = true
+    /// How many times Always was asked for.
     private(set) var requests = 0
+    /// Every prompt shown, in order.
+    private(set) var asks: [Ask] = []
     private(set) var isWaking = false
 
     init(allowsAlways: Bool) {
         self.allowsAlways = allowsAlways
     }
 
+    func requestWhenInUse() async -> Bool {
+        if canAskWhenInUse {
+            asks.append(.whenInUse)
+            canAskWhenInUse = false
+        }
+        return whenInUseAnswer
+    }
+
     func requestAlways() async -> Bool {
         requests += 1
+        asks.append(.always)
         if !allowsAlways { allowsAlways = answer }
         return allowsAlways
     }

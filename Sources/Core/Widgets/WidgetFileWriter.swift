@@ -15,6 +15,9 @@ struct NoWidgetRoutes: WidgetRoutesProviding {
 /// 14 service days (or to the feed's end), the alerted trains, the Repeat alerts' usual times, the Time format and the
 /// stations. It reads the real schedule and the device clock, never Settings › Testing (Demo trains, Mock time), and fixture
 /// runs make none. The widgets reload only when the bytes change.
+///
+/// The open route is written in its morning way, which is a value of its own in `DirectionStore` (TT-234, D116): the route
+/// on Schedule now turns by itself, so the way it points when the file is written says nothing about the morning.
 @MainActor
 final class WidgetFileWriter {
     static let days = 14
@@ -28,6 +31,9 @@ final class WidgetFileWriter {
     private let rules: AlertRules
     private let settings: AppSettings
     private let recents: RecentRoutes
+    /// Holds the widgets' morning way (TT-234, D116). Nil works it out from the open route and the clock at each write, as
+    /// before Automatic direction.
+    private let direction: DirectionStore?
     private let reload: @MainActor () -> Void
     private var running: Task<Void, Never>?
     private var writesAgain = false
@@ -35,7 +41,8 @@ final class WidgetFileWriter {
     init(
         repository: any ScheduleRepository, stations: any StationRepository, clock: any AppClock = SystemClock(), fileURL: URL,
         widgetRoutes: any WidgetRoutesProviding = NoWidgetRoutes(), routeStore: any RouteStoring, rules: AlertRules,
-        settings: AppSettings, recents: RecentRoutes, reload: @escaping @MainActor () -> Void
+        settings: AppSettings, recents: RecentRoutes, direction: DirectionStore? = nil,
+        reload: @escaping @MainActor () -> Void
     ) {
         self.repository = repository
         self.stations = stations
@@ -46,6 +53,7 @@ final class WidgetFileWriter {
         self.rules = rules
         self.settings = settings
         self.recents = recents
+        self.direction = direction
         self.reload = reload
     }
 
@@ -82,14 +90,17 @@ final class WidgetFileWriter {
         return true
     }
 
+    /// The file as it stands now. Making it stores the morning way when the store has none for the open route's two
+    /// stations (`morningWay(of:at:)`), also when the schedule then cannot be read.
     func makeFile() async throws -> WidgetFile {
         let now = clock.now
+        let open = routeStore.route
+        let morning = open.map { morningWay(of: $0, at: now) }
         let firstDay = ServiceDay(containing: now)
         var lastDay = firstDay.adding(days: Self.days - 1)
         if let end = try await repository.lastServiceDay(), end < lastDay { lastDay = end }
         let days = firstDay <= lastDay ? (0...firstDay.days(to: lastDay)).map { firstDay.adding(days: $0) } : []
 
-        let open = routeStore.route
         let placed = try await widgetRoutes.routes()
         var routes: [Route] = []
         for route in [open].compactMap({ $0 }) + placed where !routes.contains(where: { $0.joinsSameStations(as: route) }) {
@@ -108,10 +119,6 @@ final class WidgetFileWriter {
             )
         }
 
-        let morning = open.map { route in
-            let key = WidgetFile.RouteKey(fromId: route.from.id, toId: route.to.id)
-            return now < firstDay.date(hour: WidgetEntryBuilder.turnAroundHour, minute: 0) ? key : key.reversed
-        }
         let usualTimes = rules.rules.filter { $0.kind == .repeating && !$0.paused }.map { rule in
             WidgetFile.UsualTime(
                 route: WidgetFile.RouteKey(fromId: rule.origin.id, toId: rule.destination.id),
@@ -127,6 +134,19 @@ final class WidgetFileWriter {
             firstDay: firstDay, lastDay: lastDay, openRoute: morning, routes: timetables, usualTimes: usualTimes,
             timeFormat: settings.timeFormat, stations: allStations, yourStationIds: yourStationIds
         )
+    }
+
+    /// The open route's morning way (TT-234, D116): the stored one while it names the open route's two stations, either
+    /// way round, so a turn, Undo and Switch leave it. With nothing stored (an install from before the store) or a way
+    /// stored for two other stations (a link put another route on Schedule), it is taken once from the open route by
+    /// D107's rule, the route as it shows before 12 PM and its reverse after, and stored. With no store, that rule at
+    /// each write.
+    private func morningWay(of route: Route, at now: Date) -> WidgetFile.RouteKey {
+        let taken = DirectionStore.morningWay(of: route, at: now)
+        guard let direction else { return taken }
+        if let stored = direction.morningWay, stored == taken || stored == taken.reversed { return stored }
+        direction.setMorningWay(from: route, at: now)
+        return taken
     }
 
     private func departures(_ route: Route, on days: [ServiceDay]) async throws -> [WidgetFile.Departure] {

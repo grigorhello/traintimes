@@ -102,7 +102,7 @@
 "depart.ask.question" = "On board?";
 "depart.ask.notif" = "On the %@ train?";
 "loc.title" = "Train Times needs your location";
-"loc.subtitle" = "To show the minutes to your stop and tell you before it. Only while you ride.";
+"loc.subtitle" = "To show the minutes to your stop and tell you before it. Also to open with trains from the station you’re closer to. Your location stays on the phone.";
 "loc.allow" = "Allow location";
 "loc.later" = "Not now";
 
@@ -135,6 +135,16 @@
 "loc.turnOn" = "Turn on";
 "detect.setting" = "Detect my train";
 "detect.setting.turnedOff" = "Turned off after three “No” in a week. Turn it on again any time.";
+
+/* Automatic direction (TT-234, D116): Schedule's capsules when the route turned by itself or asks, and the Settings switch. %@ is the station's short name. */
+"direction.capsule.turned" = "Now from %@";
+"direction.capsule.ask" = "Trains from %@?";
+"direction.capsule.switch" = "Switch";
+"direction.capsule.kept" = "Won’t switch by itself for an hour";
+"settings.auto_direction" = "Automatic direction";
+"settings.auto_direction.note" = "Opens with trains from the station you’re closer to. Your location stays on the phone.";
+"settings.auto_direction.needs_location" = "Needs your location. Allow it in iOS Settings.";
+"settings.auto_direction.needs_precise" = "Needs Precise Location. Turn it on in iOS Settings.";
 
 /* Status badges */
 "status.on_time" = "On time";
@@ -394,6 +404,29 @@
 "settings.mock_time.late" = "Late evening";
 "settings.mock_time.day_change" = "Midnight";
 "settings.demo_weather" = "Demo weather";
+/* Settings › Testing › Demo place and Last look (TT-234, D116), TestFlight and Xcode builds only. In last_look.*: %@ is the seconds waited, then the reason. */
+"settings.demo_place" = "Demo place";
+"settings.demo_place.off" = "Off";
+"settings.demo_place.detail" = "Automatic direction reads the phone as at this station. Off uses the real location.";
+"settings.last_look" = "Last look";
+"settings.last_look.none" = "None yet";
+"settings.last_look.turn" = "Turned the route after %@ s";
+"settings.last_look.ask" = "Asked after %@ s";
+"settings.last_look.nothing" = "Nothing after %@ s: %@";
+"settings.last_look.reason.alreadyCloser" = "already at the closer station";
+"settings.last_look.reason.inBetween" = "between the stations or far from both";
+"settings.last_look.reason.noReading" = "no clear reading in 10 s";
+"settings.last_look.reason.covered" = "something was over Schedule";
+"settings.last_look.reason.noPlaces" = "no station places";
+"settings.last_look.reason.left" = "the app left the front";
+"settings.last_look.reason.off" = "Automatic direction is off";
+"settings.last_look.reason.riding" = "a ride is on";
+"settings.last_look.reason.chosenByHand" = "your own choice holds";
+"settings.last_look.reason.chosenByLink" = "a train’s link chose the route";
+"settings.last_look.reason.undone" = "inside the Undo hour";
+"settings.last_look.reason.noRoute" = "no route at the start";
+"settings.last_look.reason.restarted" = "the route changed";
+"settings.last_look.reason.rideProof" = "a ride ended at your stop";
 "weather.tile" = "Weather";
 "weather.sky.clear" = "Clear";
 "weather.sky.partly" = "Partly cloudy";

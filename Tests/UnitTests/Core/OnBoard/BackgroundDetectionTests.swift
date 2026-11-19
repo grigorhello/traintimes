@@ -108,6 +108,44 @@ final class BackgroundDetectionTests: XCTestCase {
         XCTAssertFalse(rig.wakes.isWaking)
     }
 
+    /// TT-234 (D116): where location was never asked, iOS asks for When In Use first, so the rider reads its sentence, then
+    /// for Always.
+    func testWhenInUseIsAskedBeforeAlwaysWhereLocationWasNeverAsked() async {
+        let rig = BackgroundRig(allowsAlways: false)
+        rig.wakes.canAskWhenInUse = true
+
+        let on = await rig.detection.turnOn()
+
+        XCTAssertTrue(on)
+        XCTAssertEqual(rig.wakes.asks, [.whenInUse, .always])
+        XCTAssertTrue(rig.detection.isOn)
+        XCTAssertTrue(rig.wakes.isWaking)
+    }
+
+    /// When In Use refused: Always is never asked for, and the switch goes back off.
+    func testWhenInUseRefusedNeverAsksForAlways() async {
+        let rig = BackgroundRig(allowsAlways: false)
+        rig.wakes.canAskWhenInUse = true
+        rig.wakes.whenInUseAnswer = false
+
+        let on = await rig.detection.turnOn()
+
+        XCTAssertFalse(on)
+        XCTAssertEqual(rig.wakes.asks, [.whenInUse])
+        XCTAssertFalse(rig.detection.isOn)
+        XCTAssertFalse(rig.wakes.isWaking)
+        XCTAssertFalse(BackgroundRig(defaults: rig.defaults).detection.isOn)
+    }
+
+    /// A rider who answered the When In Use prompt before (a ride, Automatic direction) is asked for Always only.
+    func testLocationAnsweredBeforeIsAskedForAlwaysOnly() async {
+        let rig = BackgroundRig(allowsAlways: false)
+
+        await rig.detection.turnOn()
+
+        XCTAssertEqual(rig.wakes.asks, [.always])
+    }
+
     func testWakeUpsStartAgainAtLaunch() {
         let rig = BackgroundRig.on()
         rig.detection.resume()

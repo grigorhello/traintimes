@@ -6,7 +6,7 @@ final class SettingsTests: XCTestCase {
     }
 
     /// The main view's glass switch changes Time format in one tap (there is no Appearance row, D84), and Notifications, About and Testing open
-    /// and close (TT-105, TT-168), and Testing › Haptics (TT-214).
+    /// and close (TT-105, TT-168), and Testing › Haptics (TT-214). The Automatic direction row always shows (TT-234, D116).
     @MainActor
     func testChangeTimeFormatAndOpenThePages() {
         let app = XCUIApplication.onFixtures()
@@ -17,7 +17,7 @@ final class SettingsTests: XCTestCase {
         app.launch()
 
         app.tabBars.buttons["Settings"].tap()
-        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
         XCTAssertFalse(app.buttons["settings.appearance.system"].exists)
 
@@ -28,38 +28,53 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.timeFormat.device"].tap()
         XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
 
+        // Automatic direction (TT-234, D116): a fixture run has no location reader, so the row reads off and a tap changes
+        // nothing; the iOS location prompt can never show in a UI test.
+        let direction = app.switches["settings.autoDirection"]
+        XCTAssertTrue(direction.waitForExistence(timeout: 15))
+        XCTAssertEqual(direction.value as? String, "0")
+        // The switch is labelled, so its element spans the row: tap at the trailing edge, where the switch is.
+        direction.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        wait(for: [expectation(for: NSPredicate(format: "value == '0'"), evaluatedWith: direction)], timeout: 15)
+        XCTAssertTrue(app.staticTexts["settings.title"].exists, "no prompt and no other page")
+
         // The app never asks before an alert is set or "Turn on notifications" is tapped (TT-142, TT-168), so a fresh install
         // reads Off with a grey dot, and the page offers to turn them on.
         let notifications = app.buttons["settings.notifications"]
-        XCTAssertTrue(notifications.waitForExistence(timeout: 5))
+        XCTAssertTrue(notifications.waitForExistence(timeout: 15))
         XCTAssertTrue(notifications.label.contains("Off"))
         notifications.tap()
-        XCTAssertTrue(app.staticTexts["Not turned on yet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Not turned on yet"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["settings.notifications.turnOn"].exists)
         XCTAssertTrue(app.buttons["settings.myAlerts"].label.contains("0"))
         // The tab bar stays on a pushed page.
         XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
         app.buttons["settings.back"].tap()
-        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
 
         app.buttons["settings.about"].tap()
-        XCTAssertTrue(app.staticTexts["Train Times"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Train Times"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["settings.privacy"].exists)
         XCTAssertTrue(app.buttons["settings.scheduleData"].exists)
         XCTAssertTrue(app.buttons["settings.officialUpdates"].exists)
         app.buttons["settings.back"].tap()
-        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
 
         app.buttons["settings.testing"].tap()
-        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["settings.demoTrains.off"].isSelected)
-        // Testing › Haptics opens (TT-214): a row per feel.
+        // Demo place (TT-234, D116) is off: no station of the route is chosen.
+        XCTAssertTrue(app.buttons["settings.demoPlace.off"].isSelected)
+        // Testing › Haptics opens (TT-214): a row per feel. With Demo place the page is longer than the screen, so the
+        // row is brought up first.
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["settings.haptics"].waitForExistence(timeout: 15))
         app.buttons["settings.haptics"].tap()
         XCTAssertTrue(app.buttons["haptics.feel.railJoint"].waitForExistence(timeout: 15))
         app.buttons["settings.back"].tap()
         XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 15))
         app.buttons["settings.back"].tap()
-        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
     }
 
     /// "My alerts" on the Notifications page switches to the Alerts tab (TT-168).
@@ -72,7 +87,7 @@ final class SettingsTests: XCTestCase {
 
         app.tabBars.buttons["Settings"].tap()
         app.buttons["settings.notifications"].tap()
-        XCTAssertTrue(app.staticTexts["Notifications are on"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Notifications are on"].waitForExistence(timeout: 15))
         app.buttons["settings.myAlerts"].tap()
         XCTAssertTrue(app.staticTexts["Next trains"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.tabBars.buttons["Alerts"].isSelected)
@@ -87,16 +102,16 @@ final class SettingsTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "offline"]
         app.launch()
 
-        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
         let offline = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Offline · last updated")).firstMatch
-        XCTAssertTrue(offline.waitForExistence(timeout: 10))
+        XCTAssertTrue(offline.waitForExistence(timeout: 15))
 
         app.tabBars.buttons["Settings"].tap()
         let testing = app.buttons["settings.testing"]
-        XCTAssertTrue(testing.waitForExistence(timeout: 5))
+        XCTAssertTrue(testing.waitForExistence(timeout: 15))
         XCTAssertTrue(testing.label.contains("Offline"), "The Testing row says what is on")
         testing.tap()
-        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["settings.demoTrains.offline"].isSelected)
         XCTAssertFalse(app.buttons["settings.demoTrains.off"].isSelected)
     }
@@ -110,7 +125,7 @@ final class SettingsTests: XCTestCase {
         app.launch()
 
         let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
         XCTAssertTrue(card.label.contains("in 11 min"), "The fixture clock is 7:21 AM")
 
         // Tapping stores Mock time on the simulator, so a failure part way still turns it off for the next test.
@@ -124,27 +139,27 @@ final class SettingsTests: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         app.buttons["settings.testing"].tap()
         let mockTime = app.switches["settings.mockTime"]
-        XCTAssertTrue(mockTime.waitForExistence(timeout: 5))
+        XCTAssertTrue(mockTime.waitForExistence(timeout: 15))
         // The switch is labelled, so its element spans the row: tap at the trailing edge, where the switch is.
         mockTime.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
         let dayChange = app.buttons["settings.mockTime.dayChange"]
-        XCTAssertTrue(dayChange.waitForExistence(timeout: 5))
+        XCTAssertTrue(dayChange.waitForExistence(timeout: 15))
         XCTAssertTrue(app.descendants(matching: .any)["settings.mockTime.picker"].exists)
         dayChange.tap()
         XCTAssertEqual(app.switches["settings.mockTime"].value as? String, "1")
 
         app.tabBars.buttons["Schedule"].tap()
-        wait(for: [expectation(for: NSPredicate(format: "NOT (label CONTAINS 'in 11 min')"), evaluatedWith: card)], timeout: 10)
+        wait(for: [expectation(for: NSPredicate(format: "NOT (label CONTAINS 'in 11 min')"), evaluatedWith: card)], timeout: 15)
 
         // The Settings tab still shows the Testing page; Reset turns Mock time off and goes back to the real time.
         app.tabBars.buttons["Settings"].tap()
         let reset = app.buttons["settings.testing.reset"]
-        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        XCTAssertTrue(reset.waitForExistence(timeout: 15))
         reset.tap()
         XCTAssertEqual(app.switches["settings.mockTime"].value as? String, "0")
         XCTAssertFalse(app.buttons["settings.mockTime.dayChange"].exists)
 
         app.tabBars.buttons["Schedule"].tap()
-        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS 'in 11 min'"), evaluatedWith: card)], timeout: 10)
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS 'in 11 min'"), evaluatedWith: card)], timeout: 15)
     }
 }

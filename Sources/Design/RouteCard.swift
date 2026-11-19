@@ -42,6 +42,9 @@ struct RouteCard: View {
     /// Set on the first launch's station step (TT-206): the corner button is the X, which goes back, with the station list
     /// hanging under the card while no row is a search field.
     var onClose: (() -> Void)?
+    /// Counts the turns the route made without the swap button (Automatic direction, TT-234, D116): the names cross-fade
+    /// in 0.18 s and nothing moves.
+    var turns = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
@@ -221,6 +224,7 @@ struct RouteCard: View {
             let field: LocalizedStringKey = stop == .from ? "route.from" : "route.to"
             Button { onTap(stop) } label: {
                 name(station, placeholder: placeholder, pose: pose)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: turns)
                     .modifier(NameCrossfade(isOn: reduceMotion, key: station))
                     .contentShape(Rectangle())
             }
@@ -239,6 +243,8 @@ struct RouteCard: View {
                 Text(verbatim: station)
                     .font(TTFont.headline)
                     .foregroundStyle(TTColor.ink)
+                    // A name that changes inside an animation (a turn, TT-234) fades to the new one.
+                    .contentTransition(.opacity)
             } else {
                 Text(placeholder)
                     .font(TTFont.body)

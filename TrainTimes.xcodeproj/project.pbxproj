@@ -508,7 +508,7 @@
 			};
 			name = Debug;
 		};
-		281556A1142CB65FD01EC12CAE2CF24B /* Release */ = {
+		3A48CE30623905E87B1AA2FE6FD50387 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -520,16 +520,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					.gitkeep,
-					Fixtures.json,
-				);
+				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Train Times asks when you get on a GO train. Your location stays on the phone.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows which station is next while you ride, and tells you before your stop.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -545,9 +542,8 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
-				VALIDATE_PRODUCT = YES;
 			};
-			name = Release;
+			name = Debug;
 		};
 		50E5198AF475557AADDF7FA0225CE764 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -721,7 +717,7 @@
 			};
 			name = Release;
 		};
-		C452FA508855844F515DB4434AA802F2 /* Debug */ = {
+		D3658742F4DA3FCB9C33B9F08217618E /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -733,13 +729,16 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					.gitkeep,
+					Fixtures.json,
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Train Times asks when you get on a GO train. Your location stays on the phone.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows which station is next while you ride, and tells you before your stop.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -755,8 +754,9 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
 			};
-			name = Debug;
+			name = Release;
 		};
 		E8E1A18053E7550B4B7E8FE9C4E20197 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -794,8 +794,8 @@
 		378E434833C7FF4B0C54105730829BEE /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				281556A1142CB65FD01EC12CAE2CF24B /* Release */,
-				C452FA508855844F515DB4434AA802F2 /* Debug */,
+				D3658742F4DA3FCB9C33B9F08217618E /* Release */,
+				3A48CE30623905E87B1AA2FE6FD50387 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -26,7 +26,10 @@ permissions:
 jobs:
   upload:
     name: Archive and upload
-    runs-on: macos-latest
+    # GitHub's Xcode 27 image: the iOS 27 SDK App Store Connect asks for from April 2027 (ITMS-90725, TT-241).
+    runs-on: xcode-27
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     timeout-minutes: 45
     outputs:
       certificate: ${{ steps.upload.outputs.certificate }}

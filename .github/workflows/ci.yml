@@ -18,10 +18,20 @@ permissions:
 
 jobs:
   test:
-    name: Build and test
-    runs-on: macos-latest
+    # TT-241 trial: the same tests on the Xcode 27 image's own iOS 27.2 simulator and on a downloaded iOS 26.5 one, the
+    # runtime every snapshot reference was recorded on. The PR keeps one of them.
+    name: Build and test (iOS ${{ matrix.ios }})
+    strategy:
+      fail-fast: false
+      matrix:
+        ios: ['27.2', '26.5']
+    # GitHub's Xcode 27 image (macOS 27, arm64): Xcode 27.0, 27.1 (its default) and 27.2. Builds use 27.2, as on the Mac.
+    runs-on: xcode-27
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      SIMULATOR_OS: ${{ matrix.ios }}
     # A run that records snapshots tests twice; at about 25 min a pass on a slow runner, 45 cut the second pass off (PR #154).
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v5
         with:
@@ -31,6 +41,17 @@ jobs:
 
       - name: Handoff copies are in sync
         run: scripts/check-handoff-sync.sh
+
+      - name: Install the iOS simulator runtime if the image lacks it
+        run: |
+          xcodebuild -version
+          if xcrun simctl list runtimes available | grep -q "iOS $SIMULATOR_OS"; then
+            echo "iOS $SIMULATOR_OS is installed."
+          else
+            # -architectureVariant: without it Xcode answers "not available for download" for iOS 26 runtimes.
+            time xcodebuild -downloadPlatform iOS -buildVersion "$SIMULATOR_OS" -architectureVariant arm64
+          fi
+          xcrun simctl list runtimes available
 
       - name: Test (records snapshots that have no reference yet)
         id: test
@@ -58,7 +79,7 @@ jobs:
           git add -- 'Tests/**/__Snapshots__/**'
           # [skip ci]: a run for a commit pushed with GITHUB_TOKEN waits for manual approval. This job re-runs
           # the tests itself and reports the result on the pushed commit below.
-          git commit -m "Record reference snapshots on $(xcrun simctl list runtimes | grep -o 'iOS [0-9.]*' | tail -1) [skip ci]"
+          git commit -m "Record reference snapshots on $SIMULATOR_RUNTIME [skip ci]"
           git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
           echo "recorded=true" >> "$GITHUB_OUTPUT"
 

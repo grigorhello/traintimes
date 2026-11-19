@@ -242,8 +242,15 @@ struct RootView: View {
                     router.dismissSheet()
                 }
             case nil:
-                // A widget's train or header (TT-182); a cold launch takes the pending-link path.
-                if let link = NotificationLink(url: url, today: ServiceDay(containing: clock.now)) { router.open(link, source: .link) }
+                // A widget's train or header (TT-182); a cold launch takes the pending-link path. A tap on a widget is
+                // counted with what it opened (TT-183).
+                guard let link = NotificationLink(url: url, today: ServiceDay(containing: clock.now)) else { break }
+                if let widget = WidgetLink.widget(of: url) {
+                    var opensTrip = false
+                    if case .trip = link { opensTrip = true }
+                    Analytics.track(.widgetOpened(widget, opensTrip: opensTrip))
+                }
+                router.open(link, source: .link)
             }
         }
         .onChange(of: onBoard.activeRide) {
@@ -338,8 +345,10 @@ struct RootView: View {
             }
     }
 
-    /// The widget file (TT-182, D107) is written at launch, after a route, alert, Time format or timetable change, and when
-    /// the app goes to the background; the widgets reload only when its bytes changed.
+    /// The widget file (TT-182, D107) is written at launch, each time the app comes to the front (a widget placed or edited
+    /// meanwhile gets its route, TT-183), after a route, alert, Time format or timetable change, and when the app goes to
+    /// the background; the widgets reload only when its bytes changed. Coming to the front also counts the placed widgets
+    /// (`widgets_placed`), in real runs only.
     private func writesWidgetFile(_ content: some View) -> some View {
         content
             .task { widgetFile?.update() }
@@ -347,7 +356,11 @@ struct RootView: View {
             .onChange(of: alerts.rules) { widgetFile?.update() }
             .onChange(of: settings.timeFormat) { widgetFile?.update() }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .background { widgetFile?.update() }
+                if phase != .inactive { widgetFile?.update() }
+            }
+            .task(id: scenePhase) {
+                guard scenePhase == .active, widgetFile != nil else { return }
+                WidgetsPlacedCount().report(await SystemPlacedWidgets().widgets())
             }
             .onReceive(NotificationCenter.default.publisher(for: .timetableImported)) { _ in widgetFile?.update() }
     }

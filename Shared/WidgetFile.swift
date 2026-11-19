@@ -111,6 +111,25 @@ struct WidgetFile: Codable, Equatable, Sendable {
     }
 }
 
+/// The Home Screen widgets (TT-183): the names links and analytics use, and each one's WidgetKit kind.
+enum WidgetKind: String, CaseIterable, Sendable {
+    case nextTrain = "next_train"
+    case departures
+
+    /// The kind WidgetKit knows the widget by.
+    var kind: String {
+        switch self {
+        case .nextTrain: "NextTrain"
+        case .departures: "Departures"
+        }
+    }
+
+    init?(kind: String) {
+        guard let match = Self.allCases.first(where: { $0.kind == kind }) else { return nil }
+        self = match
+    }
+}
+
 /// The app's links (TT-182): a widget's train and header, as `traintimes://trip?…` and `traintimes://route?…`, with the
 /// notification payload's keys (D39). The app reads them with `NotificationLink(url:today:)`.
 enum WidgetLink {
@@ -126,6 +145,23 @@ enum WidgetLink {
     /// Schedule on the route at Now; with no route, the Schedule tab.
     static func route(_ route: WidgetFile.RouteKey?) -> URL {
         url(host: "route", route.map { ["originId": $0.fromId, "destinationId": $0.toId] } ?? [:])
+    }
+
+    /// The link as a widget opens it (TT-183): `source=widget&widget=next_train` beside its own items, so the app counts the
+    /// tap (`widget_opened`). `NotificationLink(url:today:)` ignores both.
+    static func tagged(_ url: URL, from widget: WidgetKind) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        var items = (components.queryItems ?? []).filter { $0.name != "source" && $0.name != "widget" }
+        items += [URLQueryItem(name: "source", value: "widget"), URLQueryItem(name: "widget", value: widget.rawValue)]
+        components.queryItems = items.sorted { $0.name < $1.name }
+        return components.url ?? url
+    }
+
+    /// The widget a link was tapped on; nil for every other link.
+    static func widget(of url: URL) -> WidgetKind? {
+        guard url.scheme == scheme, let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.first(where: { $0.name == "source" })?.value == "widget" else { return nil }
+        return items.first { $0.name == "widget" }?.value.flatMap(WidgetKind.init(rawValue:))
     }
 
     private static func url(host: String, _ items: [String: String]) -> URL {

@@ -95,8 +95,9 @@ final class WidgetEntryBuilderTests: XCTestCase {
     }
 
     func testOutOfDateAfterTheFilesLastDay() {
-        XCTAssertEqual(entry(fri.adding(days: 1), "08:00").state, .outOfDate)
-        XCTAssertNotEqual(entry(fri, "08:00").state, .outOfDate)
+        guard case .outOfDate(let header) = entry(fri.adding(days: 1), "08:00").state else { return XCTFail("Expected out of date") }
+        XCTAssertEqual(header.to.name, "Union")
+        if case .outOfDate = entry(fri, "08:00").state { XCTFail("Friday is still in the file") }
     }
 
     func testNoMoreTrainsTonightAfterTheLastTrainUntil3AM() {
@@ -249,6 +250,10 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertEqual(dates, dates.sorted())
         XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < timeline.reloadAt })
         for time in ["09:30", "09:45", "10:15", "11:00", "11:30", "12:00", "12:15", "17:00", "22:00", "23:00"] {
+            XCTAssertTrue(dates.contains(at(wed, time)), time)
+        }
+        // The minute before each departure, when the countdown reads "now" (TT-183).
+        for time in ["09:44", "10:14", "11:29", "12:14", "16:59", "22:59"] {
             XCTAssertTrue(dates.contains(at(wed, time)), time)
         }
         // A usual time adds the moment 30 min before it.

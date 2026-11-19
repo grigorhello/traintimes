@@ -50,6 +50,8 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `arrival_wish_closed` | The first way the arrival wish left the screen, once per ride | `wish`, `close` (`done` Done tapped, `dismissed` chevron or swipe, `left_app` the app went to the background, `auto` the screen closed itself 2 min after your stop), `seconds` (whole seconds on screen, 120 at most), `taps` (taps on the wish), `demo` |
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
+| `widget_opened` | A tap on a Home Screen widget opened the app (TT-183) | `widget`: `next_train`, `departures`; `target`: `trip` (a train: Trip details), `route` (the header, a message or anywhere else: Schedule). `trip_opened` with `source: link` follows a `trip` |
+| `widgets_placed` | The app came to the front and the number of placed widgets differs from the last one sent (kept on device; an install that never placed one sends nothing) | `next_train`, `departures` (how many of each are placed) |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
 | `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
 | `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |

@@ -22,13 +22,17 @@ final class WidgetExtensionTests: XCTestCase {
         XCTAssertEqual(extensionInfo["NSExtensionPointIdentifier"] as? String, "com.apple.widgetkit-extension")
     }
 
-    func testExtensionReadsThePlaceholderStrings() throws {
+    func testExtensionReadsTheWidgetStrings() throws {
         let bundle = try appex
         let expected = [
             "widget.next.name": "Next train",
             "widget.next.description": "Your next train and how long until it leaves.",
+            "widget.departures.name": "Departures",
+            "widget.departures.description": "Your next trains and when they arrive.",
             "widget.not_loaded.title": "Open Train Times once",
             "widget.not_loaded.body": "to load the timetable.",
+            "widget.edit.turn_around": "Turn around at 12 PM",
+            "widget.edit.turn_around.description": "After 12 PM the widget shows the way back.",
         ]
         for (key, value) in expected {
             XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), value, key)

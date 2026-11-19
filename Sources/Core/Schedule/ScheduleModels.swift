@@ -18,13 +18,6 @@ struct Station: Hashable, Sendable, Identifiable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-struct Line: Hashable, Sendable, Identifiable {
-    let id: String
-    let name: String
-    /// Hex colour from feed metadata ("#111827"); nil when the feed has none (the header then uses ink-secondary).
-    let colorHex: String?
-}
-
 struct Route: Hashable, Sendable {
     let from: Station
     let to: Station

@@ -15,8 +15,8 @@ struct WidgetEntry: Equatable, Sendable {
         case notLoaded
         /// No route open in the app and none on the widget.
         case noRoute
-        /// The current service day is past the file's last day.
-        case outOfDate
+        /// The current service day is past the file's last day; the route is still known.
+        case outOfDate(header: Header)
         case trains(Trains)
         /// After the service day's last train until 3 AM: when that train left, and the next day's first train.
         case noMoreTrainsTonight(header: Header, since: Date, next: Train?)
@@ -74,6 +74,8 @@ enum WidgetEntryBuilder {
     static let yourTrainLead: TimeInterval = 2 * 60 * 60
     static let relevanceLead: TimeInterval = 30 * 60
     static let trainCount = 3
+    /// The last minute before a departure, when the countdown reads "now" (TT-183).
+    static let leavingLead: TimeInterval = 60
 
     static func timeline(file: WidgetFile?, route: WidgetFile.RouteKey?, turnsAround: Bool, now: Date) -> WidgetTimeline {
         let reloadAt = ServiceDay(containing: now).adding(days: 1).date(hour: ServiceDay.cutoffHour, minute: 0)
@@ -122,7 +124,7 @@ enum WidgetEntryBuilder {
 
     private static func state(file: WidgetFile, shown: Shown, at date: Date) -> WidgetEntry.State {
         let today = ServiceDay(containing: date)
-        guard today <= file.lastDay else { return .outOfDate }
+        guard today <= file.lastDay else { return .outOfDate(header: shown.header) }
         let todays = shown.trains.filter { $0.serviceDay == today }
         guard let last = todays.last else {
             let next = shown.trains.first { $0.serviceDay > today }
@@ -187,8 +189,8 @@ enum WidgetEntryBuilder {
         }
     }
 
-    /// When the entry changes before `end`: each departure in the direction shown then, 12 PM, 10 PM, 2 h and 30 min before
-    /// an alerted train, and 30 min before a usual time.
+    /// When the entry changes before `end`: each departure in the direction shown then and the minute before it (the
+    /// countdown's "now", TT-183), 12 PM, 10 PM, 2 h and 30 min before an alerted train, and 30 min before a usual time.
     private static func changes(
         file: WidgetFile?, route: WidgetFile.RouteKey?, turnsAround: Bool, after start: Date, before end: Date
     ) -> [Date] {
@@ -198,7 +200,7 @@ enum WidgetEntryBuilder {
         for moment in [start, day.date(hour: turnAroundHour, minute: 0)] {
             guard let shown = direction(file: file, route: route, turnsAround: turnsAround, at: max(moment, start)) else { continue }
             for train in shown.trains {
-                moments.append(train.departure)
+                moments += [train.departure, train.departure.addingTimeInterval(-leavingLead)]
                 if train.isAlerted {
                     moments += [train.departure.addingTimeInterval(-yourTrainLead), train.departure.addingTimeInterval(-relevanceLead)]
                 }

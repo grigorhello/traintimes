@@ -1,7 +1,7 @@
 import Foundation
 
-/// The routes of the widgets placed on the Home and Lock Screens. None until TT-183 reads their From and To
-/// (`WidgetCenter.shared.currentConfigurations()`).
+/// The routes of the widgets placed on the Home and Lock Screens: `PlacedWidgetRoutes` reads their From and To from
+/// WidgetKit (TT-183).
 protocol WidgetRoutesProviding: Sendable {
     func routes() async -> [Route]
 }
@@ -48,8 +48,9 @@ final class WidgetFileWriter {
         self.reload = reload
     }
 
-    /// Writes the file soon: at launch, after a route, alert, Time format or timetable change and on going to the
-    /// background. A call while a write runs writes once more after it.
+    /// Writes the file soon: at launch, each time the app comes to the front (a widget placed or edited meanwhile gets
+    /// its route), after a route, alert, Time format or timetable change and on going to the background. A call while a
+    /// write runs writes once more after it.
     func update() {
         guard running == nil else {
             writesAgain = true

@@ -143,6 +143,10 @@ final class DirectionCapsuleModel {
 /// with no reading. The rider's own choice wins: a route chosen by hand is kept until the app has been out of view for
 /// more than 10 min, and Undo holds for an hour.
 ///
+/// Part 3 (TT-236): the first turn the app makes at an open or a return, or a first Switch, brings the one-time strip
+/// (`showsStrip`, under the day strip in the ride strip's slot) until it is answered; "Now from …" shows on the app's first
+/// 8 turns only (`DirectionRule.capsuleTurns`), and on every turn with Reduce Motion on.
+///
 /// A visit is a cold start or a return from the background, until the next background. `ScheduleView` passes its `Scene`
 /// on every change (`update(_:)`), its touches (`touched()`) and the background (`wentToBackground()`), and awaits
 /// `cameBack(_:)` before its own arrival. Made in `RootView`; it never runs from the background or `AppDelegate`, and it
@@ -163,6 +167,8 @@ final class DirectionLook: RouteChoiceFollowing {
         var hasBellCapsule = false
         /// The launch splash still covers Schedule.
         var launchCovers = false
+        /// Reduce Motion is on: the names do not trade, so "Now from …" shows on every turn (TT-236).
+        var reduceMotion = false
 
         /// Nothing is over Schedule.
         var isClear: Bool { isActive && isInFront && !isBusy && !hasBellCapsule }
@@ -178,6 +184,9 @@ final class DirectionLook: RouteChoiceFollowing {
     private(set) var lastLook: LastLook?
     /// A look is running: Schedule listens for a tap on itself meanwhile.
     private(set) var isLooking = false
+    /// The one-time strip is up (TT-236): "Automatic direction is on" with OK and Turn off, in the ride strip's slot,
+    /// until it is answered. Kept for the run; the phone stores only whether it was answered.
+    private(set) var showsStrip = false
 
     private let schedule: any RouteTurning
     private let location: any DirectionLocating
@@ -191,6 +200,7 @@ final class DirectionLook: RouteChoiceFollowing {
     private let quick: Duration
     private let limit: Duration
     private let capsuleDelay: Duration
+    private let stripDelay: Duration
     private let playsSplash: Bool
 
     @ObservationIgnored private var scene = Scene()
@@ -221,6 +231,10 @@ final class DirectionLook: RouteChoiceFollowing {
     @ObservationIgnored private var turning: Turning?
     @ObservationIgnored private var turnings = 0
     @ObservationIgnored private var turningTimer: Task<Void, Never>?
+    /// Detect my train's offer was shown in this visit: the strip waits for a later turn (TT-236).
+    @ObservationIgnored private var offerShownThisVisit = false
+    /// The strip, on its way in as the names land.
+    @ObservationIgnored private var stripTask: Task<Void, Never>?
 
     /// A turn that waits for its trains.
     private struct Turning {
@@ -228,6 +242,8 @@ final class DirectionLook: RouteChoiceFollowing {
         let route: Route
         /// Decided under the splash: the trains have until it lifts. Otherwise the rest of the 1 s.
         let underSplash: Bool
+        /// A ride's proof: no strip with it (TT-236).
+        let isProof: Bool
         /// Device time, for `LastLook.waited`.
         let startedAt: Date
     }
@@ -248,7 +264,8 @@ final class DirectionLook: RouteChoiceFollowing {
     }
 
     /// `track`: the track between the route's two stations for the train check, nil where there is none (fixture runs).
-    /// `quick`, `limit` and `capsuleDelay` are the rule's times; tests shorten them. `playsSplash` is whether a cold start
+    /// `quick`, `limit` and `capsuleDelay` are the rule's times; tests shorten them. `stripDelay` is when the one-time strip
+    /// comes after a turn that is not under the splash: as the names land (TT-236). `playsSplash` is whether a cold start
     /// plays the launch splash: where it does not, a cold start follows the coming-back rule.
     init(
         schedule: any RouteTurning, location: any DirectionLocating, stations: any StationRepository, store: DirectionStore,
@@ -256,7 +273,8 @@ final class DirectionLook: RouteChoiceFollowing {
         track: @escaping @Sendable (Route, ServiceDay) async -> DirectionRule.Track? = { _, _ in nil },
         capsule: DirectionCapsuleModel = DirectionCapsuleModel(), haptics: any HapticPlaying = TTHaptics.shared,
         quick: Duration = DirectionRule.quick, limit: Duration = DirectionRule.limit,
-        capsuleDelay: Duration = .milliseconds(1000), playsSplash: Bool = LaunchMotion.plays
+        capsuleDelay: Duration = .milliseconds(1000), stripDelay: Duration = .seconds(SwapMotion.restTime),
+        playsSplash: Bool = LaunchMotion.plays
     ) {
         self.schedule = schedule
         self.location = location
@@ -271,6 +289,7 @@ final class DirectionLook: RouteChoiceFollowing {
         self.quick = quick
         self.limit = limit
         self.capsuleDelay = capsuleDelay
+        self.stripDelay = stripDelay
         self.playsSplash = playsSplash
         hadRoute = schedule.route != nil
     }
@@ -305,6 +324,7 @@ final class DirectionLook: RouteChoiceFollowing {
                 showSoon(kind)
             }
         }
+        followSettingForStrip()
         guard scene.isActive else {
             if run != nil { finish(.nothing(.left)) }
             dropTurning()
@@ -342,6 +362,7 @@ final class DirectionLook: RouteChoiceFollowing {
         isCold = false
         beginsVisit = true
         visitDone = false
+        offerShownThisVisit = false
         turned = nil
     }
 
@@ -376,7 +397,90 @@ final class DirectionLook: RouteChoiceFollowing {
         guard case .asks = capsule.shown?.kind else { return }
         haptics.play(.swap)
         capsule.dismiss()
-        _ = await schedule.turn(.switched) { true }
+        // A first Switch brings the one-time strip; it is not counted (it shows no "Now from …"). It is offered in the step
+        // the route turns in, so it lands with the names, not after the new trains' live status is read.
+        _ = await schedule.turn(.switched, while: {
+            offerStrip()
+            return true
+        })
+    }
+
+    // MARK: The one-time strip (TT-236)
+
+    /// Detect my train's offer is shown (`RootView`): the strip does not show in this visit.
+    func offerShown() {
+        offerShownThisVisit = true
+    }
+
+    /// The strip's OK: it closes for good.
+    func stripOK() {
+        guard showsStrip else { return }
+        haptics.play(.undo)
+        answerStrip()
+    }
+
+    /// The strip's Turn off: only the setting goes off, as in Settings, with the same event; the route stays as it is, and
+    /// Undo on the capsule or the swap button puts it back.
+    func stripTurnOff() {
+        guard showsStrip else { return }
+        haptics.play(.undo)
+        answerStrip()
+        let was = isOn
+        store.isOff = true
+        // No property says where: a Turn off on the strip would say that a first turn just happened.
+        if was { Analytics.track(.settingChanged("auto_direction", value: "off")) }
+    }
+
+    /// The rider turned the switch off in Settings: an unanswered strip goes and counts as answered.
+    func turnedOffInSettings() {
+        guard showsStrip || stripTask != nil else { return }
+        answerStrip()
+    }
+
+    /// Puts the strip up as a first turn does, with no wait. A turn calls it through `offerStrip(now:)`; snapshots call
+    /// it directly.
+    func showStrip() {
+        stripTask?.cancel()
+        stripTask = nil
+        if !showsStrip { showsStrip = true }
+    }
+
+    /// The strip comes with this turn unless it was answered, Automatic direction reads off, or Detect my train's offer is
+    /// due or was shown in this visit (then it waits for a later turn). `now`: the turn was made under the splash, so the
+    /// strip is in place when it lifts; otherwise it arrives as the names land.
+    private func offerStrip(now: Bool = false) {
+        guard !showsStrip, stripTask == nil, !store.stripAnswered, isOn, !offerDue(), !offerShownThisVisit else { return }
+        guard !now, stripDelay > .zero else { return showStrip() }
+        let delay = stripDelay
+        stripTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.stripTask = nil
+            guard !self.store.stripAnswered, self.isOn else { return }
+            self.showsStrip = true
+        }
+    }
+
+    /// The strip shows only while Automatic direction reads on. Turned off by the rider: it goes and counts as answered.
+    /// Location no longer allowed (Allow Once ran out, refused, Precise Location off): it goes and keeps its first time.
+    private func followSettingForStrip() {
+        guard showsStrip || stripTask != nil, !isOn else { return }
+        if store.isOff {
+            answerStrip()
+        } else {
+            hideStrip()
+        }
+    }
+
+    private func answerStrip() {
+        store.stripAnswered = true
+        hideStrip()
+    }
+
+    private func hideStrip() {
+        stripTask?.cancel()
+        stripTask = nil
+        if showsStrip { showsStrip = false }
     }
 
     // MARK: The rider's choice
@@ -444,7 +548,7 @@ final class DirectionLook: RouteChoiceFollowing {
         dropTurning(keepsWaiters: true)
         visitDone = true
         lastLook = LastLook(waited: 0, outcome: .turn)
-        turn(route, underSplash: playsSplash && scene.launchCovers, within: quick, startedAt: Date())
+        turn(route, underSplash: playsSplash && scene.launchCovers, within: quick, startedAt: Date(), isProof: true)
     }
 
     private func startIfDue() {
@@ -582,10 +686,10 @@ final class DirectionLook: RouteChoiceFollowing {
     /// silent, then "Now from Union" 1000 ms later (after the splash has lifted). The trains have what is left of the
     /// time an answer has: until the splash lifts on a cold start (`underSplash`), `within` otherwise. Later than that,
     /// after a touch, or with no timetable to read, the answer counts as late: nothing moves and the capsule asks.
-    private func turn(_ route: Route, underSplash: Bool, within: Duration, startedAt: Date) {
+    private func turn(_ route: Route, underSplash: Bool, within: Duration, startedAt: Date, isProof: Bool = false) {
         turnings += 1
         let id = turnings
-        turning = Turning(id: id, route: route, underSplash: underSplash, startedAt: startedAt)
+        turning = Turning(id: id, route: route, underSplash: underSplash, isProof: isProof, startedAt: startedAt)
         turningTimer?.cancel()
         turningTimer = nil
         if !underSplash {
@@ -604,7 +708,8 @@ final class DirectionLook: RouteChoiceFollowing {
     }
 
     /// Schedule has the other direction's trains and asks, right before it turns the route: yes while the turn still
-    /// waits and Schedule is as the look found it. The capsule follows.
+    /// waits and Schedule is as the look found it. The turn is counted; "Now from …" follows on the first 8 (always with
+    /// Reduce Motion), and the one-time strip with a first turn that is not a ride's proof (TT-236).
     private func makesTurn(_ id: Int) -> Bool {
         guard let turning, turning.id == id else { return false }
         let route = turning.route
@@ -616,7 +721,13 @@ final class DirectionLook: RouteChoiceFollowing {
         turnsMade += 1
         turned = Route(from: route.to, to: route.from, line: route.line)
         dropTurning()
-        showSoon(.turned(station: StationNames.short(route.to.name)))
+        let counted = store.turnsCounted
+        store.countTurn()
+        if counted < DirectionRule.capsuleTurns || scene.reduceMotion {
+            showSoon(.turned(station: StationNames.short(route.to.name)))
+        }
+        // After a ride Allow Once may be gone by tomorrow: that turn keeps the strip's first time for the next one.
+        if !turning.isProof { offerStrip(now: scene.launchCovers) }
         return true
     }
 

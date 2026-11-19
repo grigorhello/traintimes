@@ -1,9 +1,10 @@
 import Foundation
 
 /// What Automatic direction keeps on device (TT-234, D116): the rider's own "off", when the app was last in view, when the
-/// route was last chosen by hand, the Undo hour with its two stations, and the widgets' morning way. No place and no
-/// reading. Times come from the app's clock, passed in. Each value is read from the defaults when asked, so a UI test's
-/// launch arguments (`LaunchArguments.noDirectionHolds`) read as cleared for the whole run.
+/// route was last chosen by hand, the Undo hour with its two stations, the widgets' morning way, and (TT-236) whether the
+/// one-time strip was answered and how many turns the app has made, up to 8. No place and no reading. Times come from the
+/// app's clock, passed in. Each value is read from the defaults when asked, so a UI test's launch arguments
+/// (`LaunchArguments.noDirectionHolds`) read as cleared for the whole run.
 @MainActor
 final class DirectionStore {
     static let offKey = "direction.off"
@@ -11,6 +12,8 @@ final class DirectionStore {
     static let byHandKey = "direction.byHand"
     static let undoKey = "direction.undo"
     static let morningKey = "direction.morningWay"
+    static let stripKey = "direction.stripAnswered"
+    static let turnsKey = "direction.turns"
     /// A stored time may be this far ahead of the clock before it counts as kept under a later clock.
     private static let clockSlack: TimeInterval = 60
 
@@ -27,6 +30,23 @@ final class DirectionStore {
     var isOff: Bool {
         get { value(Self.offKey) as? Bool ?? false }
         set { set(newValue ? true : nil, Self.offKey) }
+    }
+
+    /// The one-time strip was answered (TT-236): OK, Turn off, or the setting turned off in Settings while it showed.
+    var stripAnswered: Bool {
+        get { value(Self.stripKey) as? Bool ?? false }
+        set { set(newValue ? true : nil, Self.stripKey) }
+    }
+
+    /// The turns the app has made by itself, up to `DirectionRule.capsuleTurns` (TT-236): the count only decides whether
+    /// "Now from …" shows.
+    var turnsCounted: Int { value(Self.turnsKey) as? Int ?? 0 }
+
+    /// The app made a turn by itself: counted, up to `DirectionRule.capsuleTurns`.
+    func countTurn() {
+        let counted = turnsCounted
+        guard counted < DirectionRule.capsuleTurns else { return }
+        set(counted + 1, Self.turnsKey)
     }
 
     /// The app went to the background at `now`.

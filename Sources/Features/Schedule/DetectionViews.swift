@@ -79,8 +79,9 @@ struct TrainQuestionCard: View {
     private static let noWidth: CGFloat = 88 - 2 * TTSpace.s4
 }
 
-/// The question's buttons, 44 pt (`.sug .acts .btn`): Yes filled in the accent, No outlined in ink.
-private struct QuestionButtonStyle: ButtonStyle {
+/// The question's buttons, 44 pt (`.sug .acts .btn`): Yes filled in the accent, No outlined in ink. Automatic direction's
+/// one-time strip uses them too (TT-236).
+struct QuestionButtonStyle: ButtonStyle {
     let isPrimary: Bool
 
     func makeBody(configuration: Configuration) -> some View {

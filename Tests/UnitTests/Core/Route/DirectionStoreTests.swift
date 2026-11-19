@@ -265,17 +265,40 @@ final class DirectionStoreTests: XCTestCase {
         store.choseByHand(at: at(8))
         store.startUndoHour(for: route, at: at(8))
         store.setMorningWay(from: route, at: at(8))
+        store.stripAnswered = true
+        store.countTurn()
 
-        for key in [DirectionStore.offKey, DirectionStore.byHandKey, DirectionStore.undoKey, DirectionStore.morningKey] {
+        for key in [
+            DirectionStore.offKey, DirectionStore.byHandKey, DirectionStore.undoKey, DirectionStore.morningKey,
+            DirectionStore.stripKey, DirectionStore.turnsKey,
+        ] {
             defaults.removeObject(forKey: key)
         }
         XCTAssertFalse(store.isOff)
         XCTAssertFalse(store.holdsChoice(at: at(8, 1)))
         XCTAssertFalse(store.holdsUndo(for: route, at: at(8, 1)))
         XCTAssertNil(store.morningWay)
+        XCTAssertFalse(store.stripAnswered)
+        XCTAssertEqual(store.turnsCounted, 0)
     }
 
-    /// The store keeps five values and nothing else: no place and no reading.
+    /// The one-time strip's answer and the app's turns, counted up to 8 (TT-236).
+    func testTheStripsAnswerAndTheTurnsCountedUpTo8() {
+        for defaults in [UserDefaults.ephemeral(), nil] {
+            let store = DirectionStore(defaults: defaults)
+            XCTAssertFalse(store.stripAnswered)
+            XCTAssertEqual(store.turnsCounted, 0)
+            store.stripAnswered = true
+            XCTAssertTrue(store.stripAnswered)
+            for turn in 1...10 {
+                store.countTurn()
+                XCTAssertEqual(store.turnsCounted, min(turn, DirectionRule.capsuleTurns))
+            }
+            XCTAssertEqual(DirectionRule.capsuleTurns, 8)
+        }
+    }
+
+    /// The store keeps seven values and nothing else: no place and no reading.
     func testTheStoreKeepsNoPlace() {
         let defaults = UserDefaults.ephemeral()
         let before = Set(defaults.dictionaryRepresentation().keys)
@@ -285,15 +308,19 @@ final class DirectionStoreTests: XCTestCase {
         store.choseByHand(at: at(8))
         store.startUndoHour(for: route, at: at(8))
         store.setMorningWay(from: route, at: at(8))
+        store.stripAnswered = true
+        store.countTurn()
 
         let written = Set(defaults.dictionaryRepresentation().keys).subtracting(before)
         XCTAssertEqual(
             written,
             [
                 DirectionStore.offKey, DirectionStore.inViewKey, DirectionStore.byHandKey, DirectionStore.undoKey,
-                DirectionStore.morningKey,
+                DirectionStore.morningKey, DirectionStore.stripKey, DirectionStore.turnsKey,
             ]
         )
+        XCTAssertEqual(defaults.object(forKey: DirectionStore.stripKey) as? Bool, true)
+        XCTAssertEqual(defaults.object(forKey: DirectionStore.turnsKey) as? Int, 1)
         XCTAssertEqual(defaults.object(forKey: DirectionStore.inViewKey) as? Double, at(8).timeIntervalSince1970)
         XCTAssertEqual(defaults.object(forKey: DirectionStore.byHandKey) as? Double, at(8).timeIntervalSince1970)
         XCTAssertEqual(defaults.stringArray(forKey: DirectionStore.morningKey), ["OA", "UN"])
@@ -314,5 +341,10 @@ final class DirectionStoreTests: XCTestCase {
         XCTAssertNil(store.morningWay)
         defaults.set("yesterday", forKey: DirectionStore.byHandKey)
         XCTAssertFalse(store.holdsChoice(at: at(8)))
+        // An empty launch argument (`-direction.stripAnswered ""`, `-direction.turns ""`) reads as never answered, none counted.
+        defaults.set("", forKey: DirectionStore.stripKey)
+        XCTAssertFalse(store.stripAnswered)
+        defaults.set("", forKey: DirectionStore.turnsKey)
+        XCTAssertEqual(store.turnsCounted, 0)
     }
 }

@@ -22,9 +22,14 @@ enum LaunchArguments {
     static let noDirectionChoice = ["-direction.byHand", ""]
     /// The rider has not turned Automatic direction off.
     static let noDirectionOff = ["-direction.off", ""]
-    /// Nothing holds Automatic direction back: no Undo hour, no choice by hand and no "off", whatever an earlier run left.
-    /// A test that checks the Undo hour relaunches without `noDirectionUndo`.
-    static let noDirectionHolds = noDirectionUndo + noDirectionChoice + noDirectionOff
+    /// The one-time strip was never answered (TT-236), so the first turn shows it.
+    static let noDirectionStrip = ["-direction.stripAnswered", ""]
+    /// No turns counted yet (TT-236), so a turn shows "Now from …".
+    static let noDirectionTurns = ["-direction.turns", ""]
+    /// Nothing holds Automatic direction back: no Undo hour, no choice by hand and no "off", whatever an earlier run left,
+    /// with the strip unanswered and no turns counted. A test that checks the Undo hour relaunches without
+    /// `noDirectionUndo`, and one that checks the strip's answer without `noDirectionStrip`.
+    static let noDirectionHolds = noDirectionUndo + noDirectionChoice + noDirectionOff + noDirectionStrip + noDirectionTurns
 
     /// Settings › Testing › Demo place at one of the route's two stations, by id: the phone reads as standing there, with
     /// location allowed (TT-234, D116). Fixture runs have no location reader, so this is how a UI test turns the route.

@@ -26,14 +26,15 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
     /// the right, and during the ride the stop line. The same words as the app's screens.
     struct ContentState: Codable, Hashable, Sendable {
         /// Where the ride is (`RidePhase`), or before it where the alerted train is (`LiveDeparture.Phase`, TT-178): one
-        /// activity carries the departure and then the ride.
+        /// activity carries the departure and then the ride. `departed` with `asks` is the question "On board?" (TT-231,
+        /// D110); no new case, so a build from before TT-231 still reads the alert server's push.
         enum Phase: String, Codable, Hashable, Sendable {
             case riding, atStation, yourStopNext, arriving, atYourStop
             case countingDown, boarding, departed
         }
 
         var phase: Phase
-        /// The one line: "5:13 PM departs in", "5:16 PM boarding now", "Departed 5:16 PM"; during the ride "Clarkson in",
+        /// The one line: "5:13 PM departs in", "5:16 PM boarding now", "5:16 PM departed"; during the ride "Clarkson in",
         /// "Clarkson is next", "Arriving at Clarkson", "This is Clarkson".
         var title: String
         /// The big number runs on the device to this time (timer text, no updates needed): the expected departure, or the
@@ -70,6 +71,8 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var isClose = false
         /// "Updated 5:31 PM": shown in place of the line once the activity is stale (the app stopped updating it).
         var updated: String
+        /// The train has left with no ride on, and the card asks "On board?" with Yes and No (TT-231, D110).
+        var asks = false
         /// The ride's arrival wish, "Have a good day", in "Now"'s place on the card from 5 s after your stop (TT-229, D108):
         /// the one the ride screen shows (`ArrivalWishes`). Nil before then, and in the compact island, which keeps "Now".
         var wish: String? = nil
@@ -87,6 +90,9 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
             case .riding, .atStation, .yourStopNext, .arriving, .atYourStop: false
             }
         }
+
+        /// The card asks "On board?" (TT-231, D110).
+        var isAsking: Bool { phase == .departed && asks }
     }
 
     /// This activity shows `ride`.
@@ -100,6 +106,7 @@ extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
         case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated, wish
         case stations, skipped, express
+        case asks
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -127,6 +134,7 @@ extension RideActivityAttributes.ContentState {
         express = try container.decodeIfPresent(Bool.self, forKey: .express) ?? false
         isClose = try container.decodeIfPresent(Bool.self, forKey: .isClose) ?? false
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
+        asks = try container.decodeIfPresent(Bool.self, forKey: .asks) ?? false
         wish = try container.decodeIfPresent(String.self, forKey: .wish)
     }
 
@@ -149,13 +157,14 @@ extension RideActivityAttributes.ContentState {
         if express { try container.encode(express, forKey: .express) }
         try container.encode(isClose, forKey: .isClose)
         try container.encode(updated, forKey: .updated)
+        if asks { try container.encode(asks, forKey: .asks) }
         try container.encodeIfPresent(wish, forKey: .wish)
     }
 }
 
 /// The app's links from the activity: during the ride a tap opens Trip details on the ride; before departure (TT-178) a tap
-/// opens the train's Trip details. The card has no buttons since TT-205 (D93); `end` and `board` stay as links the app
-/// understands.
+/// opens the train's Trip details. The card's only buttons are the departure question's (TT-231, D110): Yes is `board`, No
+/// is `DeclineDepartureIntent`; `end` stays as a link the app understands.
 enum RideActivityLink: Equatable {
     case open
     case end

@@ -39,9 +39,14 @@ final class AppRouter {
         presentedSheet = nil
     }
 
-    /// A notification tap, or a widget's link; RootView opens it once it is on screen.
-    func open(_ link: NotificationLink, source: TripOpenSource = .notification) {
+    /// The pending link came from Yes on the departure question's notification (TT-231): its ride starts too.
+    var pendingLinkBoards = false
+
+    /// A notification tap, or a widget's link; RootView opens it once it is on screen. `boards`: Yes on the departure
+    /// question.
+    func open(_ link: NotificationLink, source: TripOpenSource = .notification, boards: Bool = false) {
         pendingLinkSource = source
+        pendingLinkBoards = boards
         pendingLink = link
     }
 

@@ -49,6 +49,12 @@ final class OnBoard {
 
     /// The detection question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
     private let haptics: any HapticPlaying
+    /// Where a No on the departure question is kept for the day (TT-231): `.standard` in the app, nil in tests.
+    private let declines: UserDefaults?
+    /// Schedule's question when the alerted train has left (TT-231, D110), set by `RootView` while Schedule shows.
+    private(set) var departureAsk: DepartureAsk?
+    /// Demo departures declined while the app runs: the demo is not kept on device.
+    @ObservationIgnored private var declinedDemo: Set<Ride> = []
 
     init(
         app: RideEngine?,
@@ -65,9 +71,11 @@ final class OnBoard {
         requestNotifications: @escaping @MainActor () async -> Void = {},
         wishes: ArrivalWishes? = nil,
         haptics: any HapticPlaying = TTHaptics.shared,
-        screen: RideScreen? = nil
+        screen: RideScreen? = nil,
+        declines: UserDefaults? = nil
     ) {
         self.haptics = haptics
+        self.declines = declines
         self.app = app
         self.detector = detector
         self.liveActivity = liveActivity
@@ -319,6 +327,64 @@ final class OnBoard {
         (demoDetector ?? detector)?.decline()
     }
 
+    // MARK: The departure question (TT-231)
+
+    /// The Live Activity's train at its clock (`DepartureActivitySource`): Schedule asks about it once it has left, while no
+    /// ride runs and it was not declined today; nil clears the question (Schedule went, the window ended).
+    func updateDepartureAsk(_ live: LiveDeparture?, route: Route?, isDemo: Bool) {
+        var ask: DepartureAsk?
+        if let live, let route {
+            let candidate = DepartureAsk(live: live, route: route, isDemo: isDemo)
+            if DepartureQuestion.asks(live, isRiding: activeRide != nil, isDeclined: isDeclined(candidate)) { ask = candidate }
+        }
+        if ask != departureAsk { departureAsk = ask }
+    }
+
+    /// No train detection question shows: detection's own question wins the strip.
+    var asksDeparture: Bool {
+        guard departureAsk != nil, activeRide == nil else { return false }
+        if case .asking = detection { return false }
+        return true
+    }
+
+    /// The train was declined today: on the card, the notification or Schedule's strip, or on detection's question.
+    func isDeclined(_ ask: DepartureAsk) -> Bool {
+        ask.isDemo ? declinedDemo.contains(ask.ride) : DepartureQuestion.isDeclined(ask.ride.tripKey, in: declines)
+    }
+
+    /// Yes on Schedule's strip: Rail joint at the tap, and the ride starts (the demo's hands over into the demo ride).
+    @discardableResult
+    func acceptDeparture() async -> Bool {
+        guard let ask = departureAsk, !isAccepting else { return false }
+        haptics.play(.onBoard)
+        isAccepting = true
+        defer { isAccepting = false }
+        Analytics.track(.departureQuestionAnswered(yes: true, surface: .schedule))
+        let started: Bool
+        if ask.isDemo {
+            started = await handOffDemo()
+            if started { Analytics.track(.rideStarted(source: .departure, demo: true)) }
+        } else {
+            started = await start(ask.ride, on: ask.route, source: .departure)
+        }
+        if started { departureAsk = nil }
+        return started
+    }
+
+    /// No on Schedule's strip: nothing asks about that train again today, and its card leaves the Lock Screen.
+    func declineDeparture() {
+        guard let ask = departureAsk else { return }
+        haptics.play(.undo)
+        if ask.isDemo {
+            declinedDemo.insert(ask.ride)
+            Analytics.track(.departureQuestionAnswered(yes: false, surface: .schedule))
+        } else {
+            DepartureQuestion.decline(ask.ride.tripKey, in: declines, surface: .schedule)
+        }
+        liveActivity?.declineDeparture(ask.ride)
+        departureAsk = nil
+    }
+
     /// The route to open the ride's Trip details on: the demo's, the one it was started on, else its two stations' (a ride
     /// restored at launch); nil when a station is no longer in the schedule.
     func rideRoute(stations: any StationRepository) async -> Route? {
@@ -339,4 +405,11 @@ final class OnBoard {
 @MainActor
 protocol RideActivityFollowing: AnyObject {
     func follow(demo engine: RideEngine?)
+    /// No on the departure question in the app (TT-231): that train's card leaves the Lock Screen, and the alert server
+    /// sends nothing more for it.
+    func declineDeparture(_ ride: Ride)
+}
+
+extension RideActivityFollowing {
+    func declineDeparture(_ ride: Ride) {}
 }

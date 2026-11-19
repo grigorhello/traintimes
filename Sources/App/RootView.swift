@@ -105,7 +105,8 @@ struct RootView: View {
                 app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
                 nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
                 requestNotifications: { await rules.requestPermission() },
-                wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared)
+                wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared),
+                declines: ScheduleDependencies.isFixtureRun(ProcessInfo.processInfo.environment) ? nil : .standard
             )
         )
         _feedbackNudge = State(initialValue: feedbackNudge)
@@ -177,9 +178,15 @@ struct RootView: View {
         // A tapped notification, also one that launched the app before this view appeared (TT-144).
         .onChange(of: router.pendingLink, initial: true) { _, link in
             guard let link else { return }
+            let boards = router.pendingLinkBoards
             router.pendingLink = nil
+            router.pendingLinkBoards = false
             let source = router.pendingLinkSource
-            Task { await open(link, source: source) }
+            Task {
+                await open(link, source: boards ? .departure : source)
+                // Yes on the departure question's notification (TT-231): the ride starts as "I’m on board" does.
+                if boards, case .trip(let key, _, _) = link { await board(key) }
+            }
         }
         // The first route saved on device: Rail joint as the first trains land, 260 ms in (TT-215, D100); the station tap
         // that set it is silent.
@@ -215,6 +222,8 @@ struct RootView: View {
             liveActivity?.sceneDidBecomeActive()
             // Schedule's detection takes over from a background check, and a Not me tapped meanwhile counts (TT-176).
             backgroundDetection?.appDidBecomeActive()
+            // A departure question the rider left unanswered goes once its 10 min are over (TT-231).
+            await DepartureNotice.removeExpired()
             backgroundDetection?.refresh()
             await refreshAlerts()
             await bells.cameBack()
@@ -349,6 +358,19 @@ struct RootView: View {
                 router.detectedTrain = nil
                 await openDetected(request)
             }
+            // The departure question (TT-231, D110): with the app in front on Schedule, its strip asks once the alerted
+            // train has left; elsewhere nothing asks in the app.
+            .task(id: asksOnSchedule) {
+                guard asksOnSchedule else {
+                    onBoard.updateDepartureAsk(nil, route: nil, isDemo: false)
+                    return
+                }
+                while !Task.isCancelled {
+                    let source = departureForActivity(askingDeclined: true)
+                    onBoard.updateDepartureAsk(source?.live, route: source?.route, isDemo: onBoard.departureDemo != nil)
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
     }
 
     /// The widget file (TT-182, D107) is written at launch, each time the app comes to the front (a widget placed or edited
@@ -441,16 +463,29 @@ struct RootView: View {
     }
 
     /// The Live Activity's train before it leaves (TT-178): the demo departure's while it plays, else Schedule's alerted train
-    /// today, on the app's clock to the second.
-    private func departureForActivity() -> DepartureActivitySource? {
+    /// today, on the app's clock to the second. Once it has left, none for a train declined today (TT-231), unless
+    /// `askingDeclined` (Schedule's strip checks that itself, also for the demo).
+    private func departureForActivity(askingDeclined: Bool = false) -> DepartureActivitySource? {
+        let source: DepartureActivitySource
         if let demo = onBoard.departureDemo {
             let now = demo.now
             guard let departure = demo.departure(at: now), let live = LiveDeparture(departure, now: now) else { return nil }
-            return DepartureActivitySource(live: live, route: demo.route, now: now)
+            source = DepartureActivitySource(live: live, route: demo.route, now: now)
+        } else {
+            let now = clock.now
+            guard let route = schedule.route, let live = schedule.activityDeparture(at: now) else { return nil }
+            source = DepartureActivitySource(live: live, route: route, now: now)
         }
-        let now = clock.now
-        guard let route = schedule.route, let live = schedule.activityDeparture(at: now) else { return nil }
-        return DepartureActivitySource(live: live, route: route, now: now)
+        if !askingDeclined, source.live.phase == .departed,
+           onBoard.isDeclined(DepartureAsk(live: source.live, route: source.route, isDemo: onBoard.departureDemo != nil)) {
+            return nil
+        }
+        return source
+    }
+
+    /// Schedule shows in the foreground with a route: where the departure question asks in the app (TT-231).
+    private var asksOnSchedule: Bool {
+        scenePhase == .active && router.selectedTab == .schedule && schedule.route != nil
     }
 
     /// The departure activity's tap: its train's Trip details; its "I’m on board" also starts the ride, in the sheet's own
@@ -469,10 +504,20 @@ struct RootView: View {
             key = ride.tripKey
             await open(.trip(key, originId: ride.originId, destinationId: ride.destinationId), source: .departure)
         }
-        guard boards, let details = tripDetails, details.key == key else { return }
+        guard boards else { return }
+        // Yes on the card's question (TT-231, D110; the card has no other link to boarding).
+        Analytics.track(.departureQuestionAnswered(yes: true, surface: .card))
+        await board(key)
+    }
+
+    /// Yes on the departure question, on the card or its notification: in the open Trip details, the ride starts as
+    /// "I’m on board" does, in the sheet's button window (from 20 min before departure until arrival, D63) and unless the
+    /// first-ride sheet has to come first (the rider then taps "I’m on board" there).
+    private func board(_ key: TripKey) async {
+        guard let details = tripDetails, details.key == key else { return }
         await details.load()
         guard details.showsOnBoardButton, !details.needsLocationIntro else { return }
-        _ = await details.startRide()
+        _ = await details.startRide(source: .departure)
     }
 
     /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's

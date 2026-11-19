@@ -69,10 +69,11 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.minutes, "1 min")
     }
 
-    func testDepartedDropsTheCountdown() throws {
+    func testOnceItHasLeftTheCardAsksAndDropsTheCountdown() throws {
         let content = try content(at: DepartureRig.time(17, 16, 30))
         XCTAssertEqual(content.phase, .departed)
-        XCTAssertEqual(content.title, "Departed 5:16 PM")
+        XCTAssertTrue(content.isAsking, "TT-231: On board? in the Departed card's place")
+        XCTAssertEqual(content.title, "5:16 PM departed")
         XCTAssertNil(content.countdownEnd)
         XCTAssertNil(content.minutes)
         XCTAssertNil(content.delay)
@@ -84,12 +85,12 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertEqual(content.title, "17:13 departs in")
     }
 
-    func testTheActivityEndsTwoMinutesAfterTheTrainLeftOnTheDeviceClock() throws {
+    func testTheActivityEndsTenMinutesAfterTheTrainLeftOnTheDeviceClock() throws {
         let time = DepartureRig.time(17, 5)
         let session = DemoDeparture.Session(day: DepartureRig.day, clock: TestClock(now: time))
         let live = try XCTUnwrap(session.departure(at: time).flatMap { LiveDeparture($0, now: time) })
         let stale = RideLiveActivity.departureStaleDate(live, now: time, deviceNow: deviceNow)
-        XCTAssertEqual(stale.timeIntervalSince(deviceNow), 13 * 60, accuracy: 1, "5:16 PM plus 2 min, 13 min from 5:05")
+        XCTAssertEqual(stale.timeIntervalSince(deviceNow), 21 * 60, accuracy: 1, "5:16 PM plus 10 min (TT-231), 21 min from 5:05")
     }
 
     func testAnUpdateOnlyWhenWhatItShowsChanges() throws {

@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 // The On board Live Activity's views (TT-174, D67; one card for every moment since TT-205, D93, after the Live view canvas's
@@ -12,6 +13,8 @@ struct RideActivityStyle {
     static let mint = Color(red: 110 / 255, green: 231 / 255, blue: 183 / 255)
     /// The dark delay ink, #FDE68A: a late train's clock time and its delay.
     static let amber = Color(red: 253 / 255, green: 230 / 255, blue: 138 / 255)
+    /// Yes's ink on the mint pill, #06281C (TT-231).
+    static let askYesInk = Color(red: 6 / 255, green: 40 / 255, blue: 28 / 255)
     /// Brand green, #0C7B53: the card arriving and at your stop.
     static let alertGreen = Color(red: 12 / 255, green: 123 / 255, blue: 83 / 255)
     /// The Lock Screen card, #1C202A, at 78 % over the wallpaper.
@@ -327,6 +330,47 @@ struct RideActivityCard: View {
     let style: RideActivityStyle
 
     var body: some View {
+        // A stale question (nobody ended it) has no buttons: "Updated 5:26 PM" on the plain card.
+        if state.isAsking, !style.isStale {
+            asking
+        } else {
+            card
+        }
+    }
+
+    /// The departure question (TT-231, D110; the Live view canvas's boards 31 and 32): "**4:29 PM** departed" in the line,
+    /// nothing at the right, then "On board?" at 26 pt with Yes (mint) and No (glass), 44 pt pills at 17 pt. Yes opens the app
+    /// into the ride (`traintimes://departure/board`); No ends the card in the background (`DeclineDepartureIntent`).
+    private var asking: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                RideActivityTile(attributes: attributes, size: .card, edge: style.tileEdge)
+                Text(line)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 10) {
+                Text("depart.ask.question")
+                    .font(.system(size: 26, weight: .bold))
+                    .tracking(-0.6)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Link(destination: RideActivityLink.board.url) {
+                    RideActivityAnswer(title: "detect.yes", ink: RideActivityStyle.askYesInk, fill: RideActivityStyle.mint)
+                }
+                Button(intent: DeclineDepartureIntent(attributes)) {
+                    RideActivityAnswer(title: "detect.no", ink: .white, fill: .white.opacity(0.16))
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 44)
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 RideActivityTile(attributes: attributes, size: .card, edge: style.tileEdge)
@@ -410,6 +454,25 @@ struct RideActivityCard: View {
     }
 }
 
+/// A departure question's answer (TT-231): a 44 pt pill, at least 76 pt wide, 17 pt semibold.
+struct RideActivityAnswer: View {
+    let title: LocalizedStringKey
+    let ink: Color
+    let fill: Color
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 17, weight: .semibold))
+            .tracking(-0.4)
+            .foregroundStyle(ink)
+            .lineLimit(1)
+            .padding(.horizontal, 16)
+            .frame(minWidth: 76, minHeight: 44)
+            .background(fill, in: Capsule())
+            .contentShape(Capsule())
+    }
+}
+
 /// The Lock Screen presentation, with the card's padding; its background is the card colour, or brand green arriving and
 /// at your stop.
 struct RideActivityLockView: View {
@@ -461,13 +524,19 @@ struct RideActivityCompactLeading: View {
 }
 
 /// The compact island's trailing side, about 52 pt wide on the iPhone 17 Pro: the minutes to the train, then to your stop,
-/// white, mint once close; nothing once the train has left before a ride.
+/// white, mint once close; the mint train glyph while the departure question waits for an answer (TT-231).
 struct RideActivityCompactTrailing: View {
     let state: RideActivityAttributes.ContentState
     let style: RideActivityStyle
 
     var body: some View {
-        if state.phase != .departed {
+        if state.isAsking {
+            // Until the question is answered: the mint train glyph (TT-231, board 32).
+            TrainGlyph()
+                .fill(RideActivityStyle.mint, style: FillStyle(eoFill: true))
+                .frame(width: 20, height: 20)
+                .accessibilityLabel(Text("depart.ask.question"))
+        } else if state.phase != .departed {
             RideActivityCountdown(state: state, color: style.number, fontSize: 15, width: 48, minutesWidth: 48, alignment: .trailing)
         }
     }

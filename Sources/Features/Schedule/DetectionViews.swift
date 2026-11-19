@@ -27,22 +27,37 @@ extension TrainQuestion {
 /// The question card under the day strip (`.sug`): the rippling dot and the question, Yes and No. Nothing starts until the
 /// rider taps one.
 struct TrainQuestionCard: View {
-    let question: TrainQuestion
-    var onYes: (TrainCandidate) -> Void = { _ in }
+    /// "On the train to Clarkson?".
+    let title: String
+    var onYes: () -> Void = {}
     var onNo: () -> Void = {}
+
+    /// Train detection's question: Yes starts the matcher's first train.
+    init(question: TrainQuestion, onYes: @escaping (TrainCandidate) -> Void = { _ in }, onNo: @escaping () -> Void = {}) {
+        title = question.title
+        self.onYes = { onYes(question.train) }
+        self.onNo = onNo
+    }
+
+    /// The departure question (TT-231, D110): the same card, asked about the alerted train that has just left.
+    init(departure ask: DepartureAsk, onYes: @escaping () -> Void, onNo: @escaping () -> Void) {
+        title = String(format: String(localized: "detect.question"), TrainQuestion.shortName(ask.route.to.name))
+        self.onYes = onYes
+        self.onNo = onNo
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
             HStack(spacing: 10) {
                 LiveDot()
-                Text(verbatim: question.title)
+                Text(verbatim: title)
                     .font(TTFont.question)
                     .tracking(-0.5)
                     .foregroundStyle(TTColor.ink)
                     .lineLimit(2)
             }
             HStack(spacing: 10) {
-                Button { onYes(question.train) } label: {
+                Button(action: onYes) {
                     Text("detect.yes").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(QuestionButtonStyle(isPrimary: true))

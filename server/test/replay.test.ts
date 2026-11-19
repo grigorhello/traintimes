@@ -30,11 +30,17 @@ async function setUp(trains: Record<string, string>, timeFormat = '12h', install
   }
 }
 
-/** One monitoring cycle at `time` reading `feed`; returns the notifications sent, as "title | body". */
+/**
+ * One monitoring cycle at `time` reading `feed`; returns the alert notifications sent, as "title | body". The departure
+ * question (TT-231, `test/activity.test.ts`) is left out: these riders have no Live Activity, so it goes as a notification.
+ */
 async function cycle(time: string, feed: Feed | null): Promise<string[]> {
   const before = apns.pushes.length;
   await monitor({ db, apns, feed: async () => feed, now: at(time) });
-  return apns.pushes.slice(before).map((push) => `${push.title} | ${push.body}`);
+  return apns.pushes
+    .slice(before)
+    .filter((push) => push.category !== 'depart.question')
+    .map((push) => `${push.title} | ${push.body}`);
 }
 
 /** A feed with one trip's delay at Oakville, written at `time`. */

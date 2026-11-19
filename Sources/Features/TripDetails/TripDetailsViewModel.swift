@@ -353,9 +353,10 @@ final class TripDetailsViewModel {
         return onBoard?.details(for: key, formatter: formatter)
     }
 
-    /// "I'm on board" (or Continue on the permission sheet): the ride starts, and location is asked here.
+    /// "I'm on board" (or Continue on the permission sheet): the ride starts, and location is asked here. `source`:
+    /// `departure` for Yes on the departure question (TT-231), which opens this sheet and starts the ride.
     @discardableResult
-    func startRide() async -> Bool {
+    func startRide(source: RideStartSource = .onBoard) async -> Bool {
         guard let onBoard else { return false }
         // Rail joint at the tap; when iOS will ask for location first, once the ride has started.
         let asks = needsLocationIntro
@@ -366,7 +367,7 @@ final class TripDetailsViewModel {
         if demoDeparture != nil {
             started = await onBoard.handOffDemo()
         } else {
-            started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route)
+            started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route, source: source)
         }
         if started { followsRide = true } else { ridesInPlace = false }
         if started, asks { haptics.play(.onBoard) }

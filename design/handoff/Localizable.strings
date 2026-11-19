@@ -97,6 +97,10 @@
 "depart.arrivesLabel" = "Arrives";
 "depart.departed" = "Departed %@";
 "depart.live.title" = "%1$@ departs in %2$d min";
+/* The departure question (TT-231, D110): the Live Activity card when an alerted train has left, and the notification when there is no card. %@ is a time from the one formatter. */
+"depart.ask.line" = "%@ departed";
+"depart.ask.question" = "On board?";
+"depart.ask.notif" = "On the %@ train?";
 "loc.title" = "Train Times needs your location";
 "loc.subtitle" = "To show the minutes to your stop and tell you before it. Only while you ride.";
 "loc.allow" = "Allow location";

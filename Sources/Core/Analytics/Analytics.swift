@@ -173,15 +173,18 @@ extension AnalyticsEvent {
     }
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
-    /// read as giving up (TT-221).
-    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false) -> Self {
+    /// read as giving up (TT-221). `watchedSeconds` and `opens`: how long, in whole seconds, and how many times the ride
+    /// screen was on screen during the ride (TT-224, D106).
+    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
         case .arrived: "arrived"
         case .leftTheLine: "left_the_line"
         case .cancelled: "cancelled"
         }
-        return Self("ride_ended", ["reason": .string(name), "at_stop": .bool(atStop)])
+        return Self("ride_ended", [
+            "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
+        ])
     }
 
     /// The arrival wish on screen with the app active, once per ride (TT-223, D103).

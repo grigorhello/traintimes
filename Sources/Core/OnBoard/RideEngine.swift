@@ -101,6 +101,9 @@ final class RideEngine {
     /// starts, so the arrival wish (TT-223) keeps its ride and its time while the sheet closes.
     @ObservationIgnored private(set) var startedAt: Date?
     @ObservationIgnored private(set) var arrivedAt: Date?
+    /// How long and how often the ride screen was on screen during this ride, for `ride_ended` (TT-224, D106); the ride
+    /// screen's `RideScreen` keeps it. A relaunch starts it again.
+    @ObservationIgnored var watch = RideWatch()
 
     private let data: (any RideDataProviding)?
     private let location: any LocationProviding
@@ -223,6 +226,7 @@ final class RideEngine {
         self.status = status
         state = nil
         startedAt = saved.startedAt
+        watch = RideWatch()
         arrivedAt = saved.arrivedAt
         fix = nil
         feedPosition = nil
@@ -250,7 +254,7 @@ final class RideEngine {
         ended.phase = .ended
         ended.endReason = reason
         state = ended
-        Analytics.track(.rideEnded(reason, atStop: atStop))
+        Analytics.track(.rideEnded(reason, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
         emit(.phase(.ended))

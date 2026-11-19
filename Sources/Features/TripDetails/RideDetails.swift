@@ -66,9 +66,14 @@ struct RideDetails: Equatable {
     /// last stop passed, the next two, the ones between them and your stop folded, and your stop. Your stop's row always
     /// fits on the screen, however long the trip (review of TT-204).
     let rows: [Row]
-    /// Where the train is on `stops`: on a stop's index while it stands there, half way to the next one while it moves, so
-    /// it never covers your stop's pin. Nil at your stop, where the tick takes its place.
+    /// Where the train is on `stops`: on a stop's index while it stands there; while it moves, that far to the next stop by
+    /// the clock (`RideTimes.fraction(from:at:)`, the timetable moved by the ride's measured delay, TT-224, D106). The view
+    /// keeps it from going back and short of your stop's pin. Nil at your stop, where the tick takes its place.
     let trainPosition: Double?
+    /// The stop the train stands at, or the last one it passed: a stop passes when this goes up.
+    let passed: Int
+    /// Your stop is the next one: moving to it, or standing at the stop before it.
+    let yoursIsNext: Bool
     /// "End ride", or "Done" at your stop.
     let button: String
 
@@ -80,6 +85,15 @@ struct RideDetails: Equatable {
     let isClose: Bool
     /// Your stop's pin rings until the train stops there.
     var pingsYourStop: Bool { moment == .yourStopNext || moment == .arriving }
+    /// The train is between two stations: the loop plays (TT-224).
+    var isMoving: Bool { moment == .riding || moment == .yourStopNext || moment == .arriving }
+    /// The loop's length while the train moves, quicker in the last minute; nil standing at a station.
+    var loop: Double? {
+        guard isMoving else { return nil }
+        return moment == .arriving ? RideMotion.arrivingLoop : RideMotion.movingLoop
+    }
+    /// The rail from the train to your pin is soft green: your stop is next, or the train is arriving.
+    var softensLastStretch: Bool { (yoursIsNext || moment == .arriving) && !isComplete }
     /// How far the rail is green, in the same rows as `trainPosition`.
     var railFill: Double { trainPosition ?? Double(max(0, stops.count - 1)) }
 
@@ -126,6 +140,8 @@ extension RideDetails {
             countdown = String(localized: "onboard.now")
         }
         self.moment = moment
+        self.passed = passed
+        self.yoursIsNext = yoursIsNext
         self.wish = isComplete ? wish : nil
         late = isLate && !isComplete ? String(format: String(localized: "onboard.late"), times.delayMinutes) : nil
 
@@ -145,11 +161,12 @@ extension RideDetails {
         }
 
         self.stops = built
-        rows = Self.rows(built, passed: passed)
+        // At your stop the stop before it stays drawn: no row moves while the train slides into your pin (TT-224).
+        rows = Self.rows(built, passed: isComplete ? max(0, last - 1) : passed)
         trainPosition = switch moment {
         case .atYourStop: nil
         case .atStation: Double(passed)
-        case .riding, .yourStopNext, .arriving: Double(passed) + 0.5
+        case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
         }
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
         button = isComplete ? String(localized: "onboard.done") : String(localized: "onboard.end")
@@ -157,6 +174,14 @@ extension RideDetails {
 }
 
 extension RideDetails {
+    /// The train never goes back on screen (TT-220's rule, D60): a later delay moves the clock's position back a little on
+    /// the same stretch, and the train holds where it was instead. A new stretch, a stop, or your stop shows as it is.
+    static func forward(_ position: Double?, from held: Double?) -> Double? {
+        guard let position, let held else { return position }
+        guard position.rounded(.down) == held.rounded(.down), position != position.rounded(.down) else { return position }
+        return max(position, held)
+    }
+
     /// The boarding stop, the last stop passed and your stop always show. Stops passed before the last one fold; stops
     /// ahead all show while there are four at most, else the next two, then a fold, then yours. A fold never hides a single
     /// stop: it shows instead. At most seven stop rows and two folds, so your stop stays on screen.

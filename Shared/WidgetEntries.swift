@@ -55,6 +55,9 @@ struct WidgetEntry: Equatable, Sendable {
         /// The last train of its service day, from 10 PM, with the next day's first train.
         var lastTrain: Int?
         var nextDayFirst: Train?
+        /// The third train to leave, when Your train took its place among the three: Departures lists the plain next
+        /// trains (TT-183).
+        var displaced: Train?
     }
 }
 
@@ -137,10 +140,13 @@ enum WidgetEntryBuilder {
 
         var three = Array(upcoming.prefix(trainCount))
         let yours = upcoming.first { $0.isAlerted && $0.departure.timeIntervalSince(date) <= yourTrainLead }
+        var displaced: WidgetFile.Departure?
         if let yours, !three.contains(yours) {
+            displaced = three.last
             three = Array(upcoming.prefix(trainCount - 1)) + [yours]
         }
         var trains = WidgetEntry.Trains(header: shown.header, trains: three.map { train($0, shown) })
+        trains.displaced = displaced.map { train($0, shown) }
         if let yours, let index = three.firstIndex(of: yours) {
             trains.yourTrain = index
             if index != 0 { trains.earlier = 0 }

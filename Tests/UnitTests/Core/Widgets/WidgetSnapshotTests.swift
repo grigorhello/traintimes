@@ -13,8 +13,9 @@ final class WidgetSnapshotTests: XCTestCase {
     @MainActor func testNextTrainDark() { snap(.nextTrain, trains, .dark) }
     @MainActor func testNextTrainMessagesLight() { snap(.nextTrain, messages, .light) }
     @MainActor func testNextTrainMessagesDark() { snap(.nextTrain, messages, .dark) }
-    @MainActor func testDeparturesLight() { snap(.departures, trains, .light) }
-    @MainActor func testDeparturesDark() { snap(.departures, trains, .dark) }
+    // Departures has no "Your train": that state draws the same as the first one.
+    @MainActor func testDeparturesLight() { snap(.departures, trains.filter { $0.0 != "your-train" }, .light) }
+    @MainActor func testDeparturesDark() { snap(.departures, trains.filter { $0.0 != "your-train" }, .dark) }
     @MainActor func testDeparturesMessagesLight() { snap(.departures, messages, .light) }
     @MainActor func testDeparturesMessagesDark() { snap(.departures, messages, .dark) }
 
@@ -34,7 +35,8 @@ final class WidgetSnapshotTests: XCTestCase {
         snap(.departures, WidgetFixtures.nextTrain(), "next-train", .light, countsDown: false)
     }
 
-    /// The widest lines: an express at 11:47 PM that is the last train, 150 min away; and the 24-hour clock.
+    /// The widest lines: an express at 11:47 PM that is the last train, 150 min away; the 24-hour clock; and Departures'
+    /// widest row, a three-digit wait beside two 24-hour times.
     @MainActor func testLongLines() {
         var late = WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(23, 47, express: true)])
         late.lastTrain = 0
@@ -44,6 +46,11 @@ final class WidgetSnapshotTests: XCTestCase {
             snap(widget, lateEntry, "late-express", .light)
             snap(widget, WidgetFixtures.nextTrain(format: .twentyFourHour), "24-hour", .light)
         }
+        let early = WidgetEntry.Trains(
+            header: WidgetFixtures.header(),
+            trains: [WidgetFixtures.train(12, 43), WidgetFixtures.train(13, 13), WidgetFixtures.train(13, 43)]
+        )
+        snap(.departures, WidgetFixtures.entry(WidgetFixtures.at(10, 0), .trains(early), format: .twentyFourHour), "long-wait", .light)
     }
 
     // MARK: - States

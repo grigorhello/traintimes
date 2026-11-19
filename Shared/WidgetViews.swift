@@ -30,7 +30,7 @@ struct WidgetCountdown: View {
     let departure: Date
     @Environment(\.widgetCountdownFixedAt) private var fixedAt
 
-    static var isAvailable: Bool {
+    nonisolated static var isAvailable: Bool {
         if #available(iOS 18, *) { true } else { false }
     }
 
@@ -53,7 +53,7 @@ struct WidgetCountdown: View {
     }
 
     /// The same words at a fixed moment: whole minutes left, rounded down like iOS's.
-    static func minutes(from now: Date, to departure: Date) -> String {
+    nonisolated static func minutes(from now: Date, to departure: Date) -> String {
         String(format: String(localized: "widget.minutes"), max(0, Int(departure.timeIntervalSince(now) / 60)))
     }
 }
@@ -152,14 +152,17 @@ struct NextTrainWidgetView: View {
             if let period = train.time.period {
                 Text(verbatim: period)
                     .font(TTFont.widgetPeriod)
+                    .tracking(-0.3)
                     .fixedSize()
             }
             if train.isExpress {
+                // Level with the middle of the digits, as on the board, not on their baseline.
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(TTColor.accent)
                     .widgetAccentable()
                     .padding(.leading, 3)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 12 }
             }
         }
         .foregroundStyle(TTColor.ink)
@@ -169,6 +172,7 @@ struct NextTrainWidgetView: View {
 
         countdown(train)
             .font(TTFont.widgetCountdown)
+            .tracking(-0.3)
             .foregroundStyle(TTColor.accent)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -198,7 +202,6 @@ struct NextTrainWidgetView: View {
                     Text("widget.in").fixedSize()
                 }
                 WidgetCountdown(departure: train.departure)
-                    .monospacedDigit()
                     .contentTransition(.numericText())
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -233,6 +236,7 @@ struct NextTrainWidgetView: View {
                 EmptyView()
             }
         }
+        .tracking(-0.1)
         .lineLimit(1)
         .fixedSize()
     }
@@ -249,7 +253,7 @@ struct NextTrainWidgetView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(verbatim: message.title)
                 .font(TTFont.headline)
-                .tracking(-0.3)
+                .tracking(-0.4)
                 .foregroundStyle(TTColor.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail = message.detail {
@@ -339,12 +343,16 @@ struct DeparturesWidgetView: View {
             // The countdown, and on its baseline the trains after it.
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Link(destination: train.link) {
+                    // Proportional digits (the countdown is not a clock time), a point into the margin as on the board,
+                    // so "11 min" starts under the departure time.
+                    // A three-digit wait beside two 24-hour times shrinks rather than end in dots.
                     hero(train)
                         .font(TTFont.widgetHero)
                         .tracking(-1.4)
-                        .monospacedDigit()
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, -1)
                 }
                 if !train.later.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -373,6 +381,7 @@ struct DeparturesWidgetView: View {
     private func hero(_ train: DeparturesContent.Train) -> some View {
         if !showsCountdown {
             Text(verbatim: train.time)
+                .monospacedDigit()
                 .foregroundStyle(TTColor.ink)
         } else if train.isLeavingNow {
             Text("widget.now")

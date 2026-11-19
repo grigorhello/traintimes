@@ -186,6 +186,9 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertEqual(times(kept), ["08:00", "08:10", "08:40"])
         XCTAssertEqual(kept?.yourTrain, 2)
         XCTAssertEqual(kept?.earlier, 0)
+        // The train it took the place of, for Departures' plain "Next" line (TT-183).
+        XCTAssertEqual(times(kept.map { WidgetEntry.Trains(header: $0.header, trains: [$0.displaced].compactMap { $0 }) }), ["08:20"])
+        XCTAssertNil(trains(entry(wed, "08:25", file: busy))?.displaced)
     }
 
     func testArrivesFirst() {

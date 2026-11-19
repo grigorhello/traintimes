@@ -359,8 +359,8 @@ struct RootView: View {
                 if phase != .inactive { widgetFile?.update() }
             }
             .task(id: scenePhase) {
-                guard scenePhase == .active, widgetFile != nil else { return }
-                WidgetsPlacedCount().report(await SystemPlacedWidgets().widgets())
+                guard scenePhase == .active, widgetFile != nil, let placed = await SystemPlacedWidgets().widgets() else { return }
+                WidgetsPlacedCount().report(placed)
             }
             .onReceive(NotificationCenter.default.publisher(for: .timetableImported)) { _ in widgetFile?.update() }
     }

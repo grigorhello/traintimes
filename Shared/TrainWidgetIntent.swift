@@ -5,6 +5,8 @@ import Foundation
 /// Departures. In `Shared/` so the app reads each placed widget's stations from WidgetKit (`SystemPlacedWidgets`).
 struct TrainWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "widget.edit.title"
+    /// Edit widget only: not an action in Shortcuts or Spotlight.
+    static let isDiscoverable = false
 
     @Parameter(title: "widget.edit.from", query: FromStationQuery())
     var from: StationEntity?

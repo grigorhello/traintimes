@@ -105,7 +105,7 @@ struct LineTile: View {
     /// Where iOS draws a widget in one colour (a tinted or clear Home Screen, TT-183): the code in an outline, no fill.
     var isOutline = false
 
-    static let size: CGFloat = 32
+    nonisolated static let size: CGFloat = 32
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: kind.radius)

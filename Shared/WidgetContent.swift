@@ -88,10 +88,16 @@ struct WidgetMessage: Equatable, Sendable {
         case .noTrainsToday(_, let next):
             title = String(localized: "widget.no_trains.title")
             detail = next.map { train in
-                let time = "\(train.key.serviceDay.weekdayShort) \(formatter.time(train.departure))"
+                let time = Self.unbroken("\(train.key.serviceDay.weekdayShort) \(formatter.time(train.departure))")
                 return WidgetText(format: String(localized: "widget.no_trains.body"), strong: time)
             }
         }
+    }
+
+    /// A time with no-break spaces, so a line never ends between "5:43" and "AM" or "Mon" and its time; with the one after
+    /// "arrives" in the strings, a line that wraps breaks before "arrives".
+    private static func unbroken(_ time: String) -> String {
+        time.replacingOccurrences(of: " ", with: "\u{00A0}")
     }
 
     /// "First train 5:43 AM" (a later day's with its weekday); Departures: "First train tomorrow 5:43 AM, arrives 6:21 AM".
@@ -99,12 +105,12 @@ struct WidgetMessage: Equatable, Sendable {
         _ train: WidgetEntry.Train, after date: Date, formatter: any TimeFormatting, addsArrival: Bool
     ) -> WidgetText {
         let isTomorrow = train.key.serviceDay == ServiceDay(containing: date).adding(days: 1)
-        let time = formatter.time(train.departure)
-        let dayAndTime = isTomorrow ? time : "\(train.key.serviceDay.weekdayShort) \(time)"
+        let time = unbroken(formatter.time(train.departure))
+        let dayAndTime = isTomorrow ? time : unbroken("\(train.key.serviceDay.weekdayShort) \(time)")
         guard addsArrival else {
             return WidgetText(format: String(localized: "widget.first_train"), strong: dayAndTime)
         }
-        let arrival = formatter.time(train.arrival)
+        let arrival = unbroken(formatter.time(train.arrival))
         return isTomorrow
             ? WidgetText(format: String(localized: "widget.first_train_tomorrow"), strong: time, arrival)
             : WidgetText(format: String(localized: "widget.first_train_arrives"), strong: dayAndTime, arrival)
@@ -160,7 +166,8 @@ struct NextTrainContent: Equatable, Sendable {
 
     struct Footer: Equatable, Sendable {
         enum Label: Equatable, Sendable {
-            /// The train after the big slot's; the one that leaves before Your train; tomorrow's first under the last train.
+            /// The train after the big slot's, the same day; the one that leaves before Your train; the next day's first
+            /// under the day's last train.
             case then, earlier, first
         }
 
@@ -194,9 +201,15 @@ struct NextTrainContent: Equatable, Sendable {
             footer = Footer(label: .earlier, time: formatter.time(trains.trains[earlier].departure), mark: nil)
         } else if trains.trains.indices.contains(index + 1) {
             let then = trains.trains[index + 1]
-            footer = Footer(
-                label: .then, time: formatter.time(then.departure), mark: then.isAlerted ? .alert : then.isExpress ? .express : nil
-            )
+            if then.key.serviceDay == train.key.serviceDay {
+                footer = Footer(
+                    label: .then, time: formatter.time(then.departure),
+                    mark: then.isAlerted ? .alert : then.isExpress ? .express : nil
+                )
+            } else {
+                // The day's last train before 10 PM (a morning-only line): the train after it is another day's first.
+                footer = Footer(label: .first, time: formatter.time(then.departure), mark: nil)
+            }
         } else {
             footer = nil
         }
@@ -241,7 +254,8 @@ struct DeparturesContent: Equatable, Sendable {
         let isLeavingNow: Bool
         /// Trip details for the train.
         let link: URL
-        /// The "Next" line: the two trains after it (one, or none after the last train).
+        /// The "Next" line: the two trains that leave after it on its service day, in time order whatever has an alert
+        /// (one, or none after the day's last train; another day's trains are never "Next").
         let later: [Later]
     }
 
@@ -261,11 +275,15 @@ struct DeparturesContent: Equatable, Sendable {
             body = .message(message ?? WidgetMessage(title: String(localized: "widget.not_loaded.title"), detail: nil))
             return
         }
+        // The second train, then the third to leave: the one Your train displaced, else the third of the three.
+        let following = [trains.trains.dropFirst().first, trains.displaced ?? trains.trains.dropFirst(2).first]
+            .compactMap { $0 }
+            .filter { $0.key.serviceDay == train.key.serviceDay }
         body = .train(
             Train(
                 departure: train.departure, time: formatter.railTime(train.departure), arrival: formatter.railTime(train.arrival),
                 isLeavingNow: entry.isLeaving(train), link: WidgetLink.tagged(train.link, from: .departures),
-                later: trains.trains.dropFirst().prefix(2).map {
+                later: following.map {
                     Later(time: formatter.railTime($0.departure), link: WidgetLink.tagged($0.link, from: .departures))
                 }
             )
@@ -283,7 +301,7 @@ extension WidgetEntry {
             let key = TripKey(serviceDay: day, tripId: "sample-\(hour)\(minute)")
             return Train(
                 key: key, departure: day.date(hour: hour, minute: minute), arrival: day.date(hour: arrives.0, minute: arrives.1),
-                isExpress: express, isAlerted: false, link: WidgetLink.route(route)
+                isExpress: express, isAlerted: false, link: WidgetLink.trip(key, route: route)
             )
         }
         let header = Header(

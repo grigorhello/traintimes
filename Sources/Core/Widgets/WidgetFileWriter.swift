@@ -3,7 +3,8 @@ import Foundation
 /// The routes of the widgets placed on the Home and Lock Screens: `PlacedWidgetRoutes` reads their From and To from
 /// WidgetKit (TT-183).
 protocol WidgetRoutesProviding: Sendable {
-    func routes() async -> [Route]
+    /// Throws when the widgets cannot be read: that write is skipped and the last file stays.
+    func routes() async throws -> [Route]
 }
 
 struct NoWidgetRoutes: WidgetRoutesProviding {
@@ -89,7 +90,7 @@ final class WidgetFileWriter {
         let days = firstDay <= lastDay ? (0...firstDay.days(to: lastDay)).map { firstDay.adding(days: $0) } : []
 
         let open = routeStore.route
-        let placed = await widgetRoutes.routes()
+        let placed = try await widgetRoutes.routes()
         var routes: [Route] = []
         for route in [open].compactMap({ $0 }) + placed where !routes.contains(where: { $0.joinsSameStations(as: route) }) {
             routes.append(route)

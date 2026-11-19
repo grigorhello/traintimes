@@ -92,7 +92,7 @@ enum TTFont {
     static let widgetCountdown = Font.system(size: 16, weight: .semibold)                     // Next train: "in 11 min"
     static let widgetTo = Font.system(size: 14, weight: .regular)                             // Next train: "to"
     static let widgetStation = Font.system(size: 14, weight: .semibold)                       // Next train: "Union"
-    static let widgetFooterTime = Font.system(size: 13, weight: .bold)                        // Next train: the footer's time
+    static let widgetFooterTime = Font.system(size: 13, weight: .semibold)                    // Next train: the footer's and a message's time
     static let widgetYourTrain = Font.system(size: 12, weight: .semibold)                     // Next train: "Your train"
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }

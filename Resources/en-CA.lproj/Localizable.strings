@@ -398,8 +398,8 @@
 "widget.none_tonight.title" = "No more trains tonight";
 "widget.none_today.title" = "No more trains today";
 "widget.first_train" = "First train %@";
-"widget.first_train_tomorrow" = "First train tomorrow %1$@, arrives %2$@";
-"widget.first_train_arrives" = "First train %1$@, arrives %2$@";
+"widget.first_train_tomorrow" = "First train tomorrow %1$@, arrives\U00A0%2$@";
+"widget.first_train_arrives" = "First train %1$@, arrives\U00A0%2$@";
 "widget.no_trains.title" = "No trains today";
 "widget.no_trains.body" = "Next %@";
 "widget.to" = "to";

@@ -27,6 +27,17 @@ final class WidgetContentTests: XCTestCase {
         if case .message(let message) = body { message } else { nil }
     }
 
+    /// A detail with ordinary spaces: its times, and "arrives" with its time, are held together by no-break spaces.
+    private func plain(_ text: WidgetText?) -> String? {
+        text?.plain.replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
+    private func pieces(_ text: WidgetText?) -> [WidgetText.Piece] {
+        (text?.pieces ?? []).map {
+            WidgetText.Piece(text: $0.text.replacingOccurrences(of: "\u{00A0}", with: " "), isStrong: $0.isStrong)
+        }
+    }
+
     // MARK: - Next train
 
     func testNextTrainShowsTheTimeAndThenTheExpressAfterIt() {
@@ -79,6 +90,18 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(before?.footer, NextTrainContent.Footer(label: .then, time: "11:47 PM", mark: nil))
     }
 
+    /// The day's last train before 10 PM (a line with morning trains only): the next one is another day's first, not "Then".
+    func testATrainOnAnotherDayIsFirstNotThen() {
+        let tomorrow = WidgetFixtures.day.adding(days: 1)
+        let list = WidgetEntry.Trains(
+            header: WidgetFixtures.header(), trains: [WidgetFixtures.train(10, 30), WidgetFixtures.train(6, 10, on: tomorrow)]
+        )
+        let footer = smallTrain(WidgetFixtures.entry(WidgetFixtures.at(10, 0), .trains(list)))?.footer
+        XCTAssertEqual(footer?.label, .first)
+        XCTAssertEqual(footer?.time, "6:10 AM")
+        XCTAssertNil(footer?.mark)
+    }
+
     func testATrainWithNoneAfterItHasNoFooter() {
         let state = WidgetEntry.State.trains(WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(21, 30)]))
         XCTAssertNil(smallTrain(WidgetFixtures.entry(WidgetFixtures.at(21, 0), state))?.footer)
@@ -110,6 +133,35 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(mediumTrain(WidgetFixtures.lastTrain)?.later, [])
     }
 
+    /// The builder's three run on into the next service day; "Next" never does.
+    func testTheNextLineStopsAtTheDaysLastTrain() {
+        let tomorrow = WidgetFixtures.day.adding(days: 1)
+        let list = WidgetEntry.Trains(
+            header: WidgetFixtures.header(),
+            trains: [WidgetFixtures.train(22, 47), WidgetFixtures.train(23, 47), WidgetFixtures.train(5, 43, on: tomorrow)]
+        )
+        XCTAssertEqual(mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(21, 30), .trains(list)))?.later.map(\.time), ["11:47"])
+        let last = WidgetEntry.Trains(
+            header: WidgetFixtures.header(),
+            trains: [WidgetFixtures.train(23, 47), WidgetFixtures.train(5, 43, on: tomorrow), WidgetFixtures.train(6, 13, on: tomorrow)]
+        )
+        XCTAssertEqual(mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(21, 30), .trains(last)))?.later, [])
+    }
+
+    /// Your train takes the third slot of the three for the small widget; "Next" still lists the plain next two.
+    func testTheNextLineSkipsNoTrainWhenYourTrainIsFurtherOff() {
+        var list = WidgetEntry.Trains(
+            header: WidgetFixtures.header(),
+            trains: [WidgetFixtures.train(8, 0), WidgetFixtures.train(8, 10), WidgetFixtures.train(8, 40, alerted: true)]
+        )
+        list.yourTrain = 2
+        list.earlier = 0
+        list.displaced = WidgetFixtures.train(8, 20)
+        let train = mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(7, 55), .trains(list)))
+        XCTAssertEqual(train?.time, "8:00")
+        XCTAssertEqual(train?.later.map(\.time), ["8:10", "8:20"])
+    }
+
     func testDeparturesLinks() {
         let content = DeparturesContent(WidgetFixtures.nextTrain())
         let train = mediumTrain(WidgetFixtures.nextTrain())
@@ -132,13 +184,15 @@ final class WidgetContentTests: XCTestCase {
         let small = NextTrainContent(WidgetFixtures.afterLastTrain)
         XCTAssertEqual(small.header?.to, "Union")
         XCTAssertEqual(message(small.body)?.title, "No more trains tonight")
-        XCTAssertEqual(message(small.body)?.detail?.pieces, [
+        XCTAssertEqual(pieces(message(small.body)?.detail), [
             WidgetText.Piece(text: "First train ", isStrong: false), WidgetText.Piece(text: "5:43 AM", isStrong: true),
         ])
         XCTAssertEqual(small.link.absoluteString, "traintimes://route?destinationId=UN&originId=OA&source=widget&widget=next_train")
         let medium = DeparturesContent(WidgetFixtures.afterLastTrain)
-        XCTAssertEqual(message(medium.body)?.detail?.plain, "First train tomorrow 5:43 AM, arrives 6:21 AM")
-        XCTAssertEqual(message(medium.body)?.detail?.pieces.filter(\.isStrong).map(\.text), ["5:43 AM"])
+        XCTAssertEqual(plain(message(medium.body)?.detail), "First train tomorrow 5:43 AM, arrives 6:21 AM")
+        XCTAssertEqual(pieces(message(medium.body)?.detail).filter(\.isStrong).map(\.text), ["5:43 AM"])
+        // A line that wraps breaks before "arrives", never inside a time.
+        XCTAssertEqual(message(medium.body)?.detail?.plain, "First train tomorrow 5:43\u{00A0}AM, arrives\u{00A0}6:21\u{00A0}AM")
     }
 
     func testTheLastTrainBefore6PMSaysTodayAndALaterDayItsWeekday() {
@@ -148,8 +202,8 @@ final class WidgetContentTests: XCTestCase {
             .noMoreTrainsTonight(header: WidgetFixtures.header(), since: WidgetFixtures.at(16, 40), next: friday)
         )
         XCTAssertEqual(message(NextTrainContent(entry).body)?.title, "No more trains today")
-        XCTAssertEqual(message(NextTrainContent(entry).body)?.detail?.plain, "First train Fri 6:10 AM")
-        XCTAssertEqual(message(DeparturesContent(entry).body)?.detail?.plain, "First train Fri 6:10 AM, arrives 6:50 AM")
+        XCTAssertEqual(plain(message(NextTrainContent(entry).body)?.detail), "First train Fri 6:10 AM")
+        XCTAssertEqual(plain(message(DeparturesContent(entry).body)?.detail), "First train Fri 6:10 AM, arrives 6:50 AM")
         // From 6 PM it is tonight, after midnight too.
         let late = WidgetFixtures.entry(
             WidgetFixtures.at(0, 50), .noMoreTrainsTonight(header: WidgetFixtures.header(), since: WidgetFixtures.at(0, 40), next: nil)
@@ -162,7 +216,7 @@ final class WidgetContentTests: XCTestCase {
         let content = NextTrainContent(WidgetFixtures.noTrainsToday)
         XCTAssertEqual(content.header?.to, "Oakville")
         XCTAssertEqual(message(content.body)?.title, "No trains today")
-        XCTAssertEqual(message(content.body)?.detail?.pieces, [
+        XCTAssertEqual(pieces(message(content.body)?.detail), [
             WidgetText.Piece(text: "Next ", isStrong: false), WidgetText.Piece(text: "Mon 6:10 AM", isStrong: true),
         ])
     }
@@ -212,7 +266,9 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(train?.footer?.mark, .express)
         let header = DeparturesContent(.sample).header
         XCTAssertEqual([header?.from, header?.to], ["Oakville", "Union"])
-        XCTAssertEqual(mediumTrain(.sample)?.later.count, 2)
+        // Each train has its own link: the Next line's times are told apart by it.
+        XCTAssertEqual(mediumTrain(.sample)?.later.map(\.time), ["8:06", "8:28"])
+        XCTAssertEqual(Set(mediumTrain(.sample)?.later.map(\.id) ?? []).count, 2)
     }
 
     // MARK: - Links
@@ -306,10 +362,21 @@ final class WidgetContentTests: XCTestCase {
             // A station the feed no longer lists.
             PlacedWidget(kind: .departures, route: WidgetFile.RouteKey(fromId: "XX", toId: "UN")),
         ])
-        let routes = await PlacedWidgetRoutes(widgets: placed, stations: stations).routes()
-        XCTAssertEqual(routes.map { [$0.from.id, $0.to.id] }, [["CL", "UN"]])
-        let none = await PlacedWidgetRoutes(widgets: FakePlacedWidgets(list: []), stations: stations).routes()
+        let routes = try? await PlacedWidgetRoutes(widgets: placed, stations: stations).routes()
+        XCTAssertEqual(routes?.map { [$0.from.id, $0.to.id] }, [["CL", "UN"]])
+        let none = try? await PlacedWidgetRoutes(widgets: FakePlacedWidgets(list: []), stations: stations).routes()
         XCTAssertEqual(none, [])
+    }
+
+    /// Widgets that cannot be read are not "no widgets": the routes throw, so the writer keeps the last file.
+    func testUnreadableWidgetsAreNotNoWidgets() async {
+        let unreadable = PlacedWidgetRoutes(widgets: FakePlacedWidgets(list: nil), stations: FakeStations())
+        do {
+            _ = try await unreadable.routes()
+            XCTFail("Expected the routes to throw")
+        } catch {
+            XCTAssertTrue(error is PlacedWidgetRoutes.Unreadable)
+        }
     }
 
     @MainActor
@@ -355,8 +422,8 @@ final class WidgetContentTests: XCTestCase {
 }
 
 private struct FakePlacedWidgets: PlacedWidgetsProviding {
-    let list: [PlacedWidget]
-    func widgets() async -> [PlacedWidget] { list }
+    let list: [PlacedWidget]?
+    func widgets() async -> [PlacedWidget]? { list }
 }
 
 private struct FakeStations: StationRepository {

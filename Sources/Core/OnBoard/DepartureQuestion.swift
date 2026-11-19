@@ -18,6 +18,7 @@ enum DepartureQuestion {
     }
 
     /// No: kept for today, and counted.
+    @MainActor
     static func decline(_ key: TripKey, in defaults: UserDefaults?, surface: Surface) {
         if let defaults { DetectionStore.silence([key], in: defaults) }
         Analytics.track(.departureQuestionAnswered(yes: false, surface: surface))

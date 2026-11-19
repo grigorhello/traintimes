@@ -8,9 +8,8 @@ import XCTest
 final class DepartureQuestionTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
-    override func tearDown() {
+    override func tearDown() async throws {
         Analytics.tracker = nil
-        super.tearDown()
     }
 
     private func live(at time: Date) -> LiveDeparture? {

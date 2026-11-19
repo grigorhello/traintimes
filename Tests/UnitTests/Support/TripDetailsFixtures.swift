@@ -286,3 +286,86 @@ struct DepartureRig {
         model.tick()
     }
 }
+
+/// A repository whose live feed a test replaces between loads, as a poll does (TT-233).
+private actor PolledScheduleRepository: ScheduleRepository {
+    private let tripList: [Trip]
+    private let stopList: [TripStop]
+    private var live: LiveSnapshot
+
+    init(tripList: [Trip], live: LiveSnapshot, stopList: [TripStop]) {
+        self.tripList = tripList
+        self.live = live
+        self.stopList = stopList
+    }
+
+    func set(_ live: LiveSnapshot) {
+        self.live = live
+    }
+
+    func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] { tripList }
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { live }
+    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
+    func stops(for trip: TripKey, on route: Route) async throws -> [TripStop] { stopList }
+}
+
+/// Boarding at the platform in Trip details (TT-233, D114): one fixture train's sheet on Thu Nov 5, with no alert and no
+/// ride, on a clock and a feed the test moves. Each poll is fresh live data at that moment: the 7:32 AM and 7:58 AM trains
+/// on time, Platform 2 and Platform 3 posted, and GO's train feed placing the sheet's train `metres` from Oakville 10 s
+/// before (nil: no position, so the train follows the clock).
+@MainActor
+struct TripBoardingRig {
+    /// The 7:32 AM train, the next one until it leaves.
+    nonisolated static let nextTrain = "LW-0732-20261105"
+    /// The 7:58 AM express train.
+    nonisolated static let laterTrain = "LW-0758-20261105"
+
+    let model: TripDetailsViewModel
+    private let day: ServiceDay
+    private let tripId: String
+    private let clock: TestClock
+    private let feed: PolledScheduleRepository
+
+    /// The sheet on `tripId` opened at `hour`:`minute`:`second` with its first poll, loaded.
+    static func opened(
+        _ tripId: String, hour: Int, minute: Int, second: Int = 0, metres: Double?,
+        boardingShown: BoardingShown = BoardingShown(defaults: nil)
+    ) async throws -> TripBoardingRig {
+        let fixture = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
+        let day = fixture.serviceDay
+        let key = TripKey(serviceDay: day, tripId: tripId)
+        let now = day.date(hour: hour, minute: minute).addingTimeInterval(TimeInterval(second))
+        let clock = TestClock(now: now)
+        let feed = PolledScheduleRepository(
+            tripList: try await fixture.trips(for: fixture.route, on: day),
+            live: poll(day: day, tripId: tripId, metres: metres, now: now),
+            stopList: try await fixture.stops(for: key, on: fixture.route)
+        )
+        let model = TripDetailsViewModel(route: fixture.route, key: key, repository: feed, clock: clock, boardingShown: boardingShown)
+        await model.load()
+        return TripBoardingRig(model: model, day: day, tripId: tripId, clock: clock, feed: feed)
+    }
+
+    /// A later poll at `hour`:`minute`:`second`: the clock moves there and the sheet reloads, as its refresh does.
+    func sight(metres: Double?, hour: Int, minute: Int, second: Int = 0) async {
+        let now = day.date(hour: hour, minute: minute).addingTimeInterval(TimeInterval(second))
+        clock.set(now)
+        await feed.set(Self.poll(day: day, tripId: tripId, metres: metres, now: now))
+        await model.load()
+    }
+
+    /// What the feeds say at `now`.
+    private nonisolated static func poll(day: ServiceDay, tripId: String, metres: Double?, now: Date) -> LiveSnapshot {
+        var updates: [String: LiveTripUpdate] = [:]
+        for (id, hour, minute) in [(nextTrain, 7, 32), (laterTrain, 7, 58)] {
+            updates[id] = LiveTripUpdate(expectedDeparture: day.date(hour: hour, minute: minute), reportedAt: now)
+        }
+        var live = LiveSnapshot(
+            updatedAt: now, hasPlatformSource: true, updates: updates, platforms: [nextTrain: "2", laterTrain: "3"]
+        )
+        if let metres {
+            live.originFixes[tripId] = OriginFix(metres: metres, reportedAt: now.addingTimeInterval(-10))
+        }
+        return live
+    }
+}

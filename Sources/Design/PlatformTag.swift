@@ -16,6 +16,9 @@ struct PlatformTag: View {
     var isStacked = false
     /// The Express bolt in the accent before the label (Trip details' hero card, TT-207).
     var showsExpress = false
+    /// The number's pill filled: the number in on-accent on an accent ground, while the train is Boarding at that platform
+    /// (TT-233, D114). The dash pill is never filled.
+    var isFilled = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,8 +56,8 @@ struct PlatformTag: View {
     private var palette: PlatformBadge.Palette {
         let dark = colorScheme == .dark
         return PlatformBadge.Palette(
-            numberInk: TTColor.accent,
-            numberFill: TTColor.accent.opacity(dark ? 0.18 : 0.12),
+            numberInk: isFilled ? TTColor.onAccent : TTColor.accent,
+            numberFill: isFilled ? TTColor.accent : TTColor.accent.opacity(dark ? 0.18 : 0.12),
             dashInk: dark ? TTColor.inkSecondary : TTColor.inkTertiary,
             dashFill: TTColor.inkTertiary.opacity(dark ? 0.25 : 0.14)
         )

@@ -3,7 +3,8 @@
 //
 // A cycle stays inside the Workers Free plan (D43): it reads only the rules whose watch window is open, the watched
 // trips' part of the feed and today's timetable (the coming week's only when the usual train is missing today), reads
-// the watches in one query, and makes at most MAX_SENDS calls to APNs.
+// the watches in one query, and makes at most MAX_SENDS calls to APNs. GO's train positions are read once, and only
+// while an alerted train is in its Live Activity window; a station's board only while one stands at it (TT-233, D114).
 
 import {
   decide,
@@ -18,9 +19,14 @@ import {
   type SentKind,
 } from './alerts.ts';
 import {
+  asksIn,
   askTitle,
+  BOARDING_RADIUS_M,
   contentState,
+  DEPART_LEAD_MS,
   endPayload,
+  hasSighting,
+  leaves,
   LINE_COLORS,
   phaseAt,
   shortName,
@@ -33,16 +39,24 @@ import {
 import { deleteInstallation } from './api.ts';
 import type { LiveActivityPush, Push, PushResult } from './apns.ts';
 import { alertNotice, reviewNotice, type Direction } from './copy.ts';
-import { liveStatus, tripUpdatesOn, type Call, type Feed, type LiveStatus } from './realtime.ts';
+import { platformFor, type PlatformBoard } from './platforms.ts';
+import { hasLeftOrigin, liveStatus, tripUpdatesOn, type Call, type Feed, type LiveStatus, type TrainPosition, type TripUpdate } from './realtime.ts';
+import { STATIONS } from './stations.ts';
 import { resolveUsualTrain, type Timetable } from './timetable.ts';
 import { addDays, DAY, gtfsInstant, gtfsSeconds, isoWeekday, MINUTE, serviceDate, type TimeFormat } from './time.ts';
 import type { ApnsEnvironment } from './apns.ts';
 
 /**
- * APNs calls per cycle: the Free plan allows 50 outside requests per run and the feed takes one. The rest are decided
- * again the next minute. On Workers Paid (10,000 per run) this can be raised.
+ * APNs calls per cycle. The Free plan allows 50 outside requests per run, and the Cache API's calls share that quota
+ * with fetch(). Reading something through a relay costs 3 at worst (the cache's match, the call to GO, the cache's
+ * put): TripUpdates 3, the train positions 3 and BOARD_STATIONS station boards 3 each (TT-233) make 12, which leaves 38
+ * for APNs; 36 keeps 2 spare, as 45 did beside the feed's 3. The rest are decided again the next minute. On Workers Paid
+ * (10,000 per run) this can be raised.
  */
-export const MAX_SENDS = 45;
+export const MAX_SENDS = 36;
+
+/** Station boards read per cycle at most (TT-233): each can cost 3 outside requests, counted in MAX_SENDS. */
+export const BOARD_STATIONS = 2;
 
 export interface Sender {
   send(push: Push, now: number): Promise<PushResult>;
@@ -149,11 +163,53 @@ export interface MonitorDeps {
   apns: Sender;
   /** The latest TripUpdates feed, decoded for these trips only; null when there is none (no key yet, or the fetch failed). */
   feed: (trips: ReadonlySet<string>) => Promise<Feed | null>;
+  /**
+   * GO's train positions, from the VehiclePosition snapshot the relay holds (TT-233); null when there is none. Called at
+   * most once a cycle, and only when an alerted train is in its activity window. Left out, every train follows the clock.
+   */
+  positions?: () => Promise<{ timestamp?: number; trains: TrainPosition[] } | null>;
+  /**
+   * A station's departures board, for its posted platforms (TT-225); null while GO fails. Called for BOARD_STATIONS
+   * stations a cycle at most, and only for one where an alerted train stands. Left out, no train boards by its position.
+   */
+  platforms?: (stop: string) => Promise<PlatformBoard | null>;
   now: number;
 }
 
+/** What GO's train feed and the origin's board say about one alerted train (TT-233): `Departure.position` and `platform`. */
+interface Sighting {
+  origin: string;
+  tripId: string;
+  position: { metres: number; at: number } | null;
+  platform: string | null;
+}
+
+/**
+ * Metres between two places, on a flat frame at their mean latitude, as the app measures a train against its station
+ * (`TrackShape.distance`), so both put the 350 m line in the same place.
+ */
+export function metresBetween(a: readonly [latitude: number, longitude: number], b: readonly [latitude: number, longitude: number]): number {
+  const metresPerDegree = 111_195.08;
+  const latitude = (((a[0] + b[0]) / 2) * Math.PI) / 180;
+  return Math.hypot((b[1] - a[1]) * metresPerDegree * Math.cos(latitude), (b[0] - a[0]) * metresPerDegree);
+}
+
+/** The train's departure for the activity, before anything is known of where it is. */
+function departureOf(watch: Watch, status: LiveStatus | null): Departure {
+  return {
+    scheduled: watch.departure,
+    scheduledArrival: watch.call.arrivals[watch.call.to],
+    status,
+    origin: watch.rule.origin_name,
+    destination: watch.rule.destination_name,
+  };
+}
+
+/** One train at one origin station, whoever watches it. */
+const trainKey = (watch: Watch) => `${watch.date}|${watch.tripId}|${watch.rule.origin_id}`;
+
 /** Runs one cycle and returns the notifications APNs accepted, for logs and tests. */
-export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): Promise<Push[]> {
+export async function monitor({ db, apns, feed: loadFeed, positions: loadPositions, platforms: loadPlatforms, now }: MonitorDeps): Promise<Push[]> {
   const sent: Push[] = [];
   const gone = new Set<string>();
   let sends = 0;
@@ -276,20 +332,21 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   const queue = watches
     .map((watch) => {
       const key = `${watch.date}|${watch.tripId}|${watch.rule.origin_id}|${watch.rule.destination_id}`;
-      return { ...watch, key, watch: watchRows.get(`${watch.rule.installation_id}|${key}`) ?? null };
+      const update: TripUpdate | undefined = updatesByDate.get(watch.date)?.get(watch.tripId);
+      const status = update && fresh ? liveStatus(update, watch.call, feedTime!) : null;
+      // The Live Activity runs on past the train's departure, when departure alerts stop.
+      const activity = activities.get(`${watch.rule.installation_id}|${key}`) ?? null;
+      return { ...watch, key, watch: watchRows.get(`${watch.rule.installation_id}|${key}`) ?? null, update, status, activity };
     })
     .sort((a, b) => (a.watch?.sent_at ?? 0) - (b.watch?.sent_at ?? 0));
+  const sightings = await sight(queue);
 
-  for (const { rule, date, tripId, departure, call, key, watch } of queue) {
+  for (const { rule, date, tripId, departure, call, key, watch, update, status, activity } of queue) {
     // A This-trip rule and a Repeat rule for the same train share one watch, so the rider gets one message.
     if (seen.has(`${rule.installation_id}|${key}`) || gone.has(rule.installation_id)) continue;
     seen.add(`${rule.installation_id}|${key}`);
-    const update = updatesByDate.get(date)?.get(tripId);
-    const status = update && fresh ? liveStatus(update, call, feedTime!) : null;
-    // The Live Activity runs on past the train's departure, when departure alerts stop.
-    const activity = activities.get(`${rule.installation_id}|${key}`) ?? null;
     // With no push-to-start token the activity never starts, but the question still goes, as a notification (TT-231).
-    await followActivity({ rule, date, tripId, departure, call, key }, status, activity);
+    await followActivity({ rule, date, tripId, departure, call, key }, status, activity, update);
     if (watch?.done) continue;
     const version = watch?.version ?? 0;
 
@@ -317,22 +374,94 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
   return sent;
 
   /**
+   * Boarding at the platform (TT-233, D114): where GO's train feed places the alerted trains that are in their activity
+   * window, by `trainKey`, and the platform the origin's board posts for the ones standing there. The positions are read
+   * once, and only when such a train exists. A board is read only for a station where one stands within 350 m, for
+   * BOARD_STATIONS stations at most: the ones where most riders wait, so the same stations are read from one minute to the
+   * next. A train at a station left out, or missing from `STATIONS`, does not board; `boardingPhase` says what it does.
+   */
+  async function sight(trains: (Watch & { status: LiveStatus | null; activity: ActivityRow | null })[]): Promise<Map<string, Sighting>> {
+    const found = new Map<string, Sighting>();
+    if (!loadPositions) return found;
+    const live = trains.filter((train) => {
+      // `followActivity` does nothing more for these, and a card that asks stays the question wherever the train is.
+      if (train.activity && train.activity.state !== 'started' && train.activity.state !== 'asked') return false;
+      if (asksIn(train.activity?.shown ?? null) && now >= leaves(departureOf(train, train.status)) - DEPART_LEAD_MS) return false;
+      // The window is the clock's and the live status's alone: no position opens or closes it.
+      const phase = phaseAt(departureOf(train, train.status), now);
+      return phase !== 'before' && phase !== 'over';
+    });
+    if (live.length === 0) return found;
+    let vehicles: { timestamp?: number; trains: TrainPosition[] } | null = null;
+    try {
+      vehicles = await loadPositions();
+    } catch (error) {
+      console.warn('Train positions failed', error);
+    }
+    if (!vehicles) return found;
+
+    const stands = (sighting: Sighting) => sighting.position !== null && hasSighting(sighting, now) && sighting.position.metres <= BOARDING_RADIUS_M;
+    // Riders by origin station whose train stands at it.
+    const waiting = new Map<string, number>();
+    for (const train of live) {
+      const id = trainKey(train);
+      let sighting = found.get(id);
+      if (!sighting) {
+        const origin = train.rule.origin_id;
+        // The rule's station id is the app's text: only GO's own station codes have a place, and so a board to read.
+        const place = Object.hasOwn(STATIONS, origin) ? STATIONS[origin] : undefined;
+        // A vehicle that names a start date must be on the train's service date.
+        const vehicle = place && vehicles.trains.find((v) => v.tripId === train.tripId && (v.startDate === undefined || v.startDate === train.date));
+        // With no time of its own a position is as old as the feed, as the app reads it (`RelayTrainPositions`).
+        const position = place && vehicle ? { metres: metresBetween(place, [vehicle.latitude, vehicle.longitude]), at: vehicle.timestamp ?? vehicles.timestamp ?? 0 } : null;
+        sighting = { origin, tripId: train.tripId, position, platform: null };
+        found.set(id, sighting);
+      }
+      if (stands(sighting)) waiting.set(sighting.origin, (waiting.get(sighting.origin) ?? 0) + 1);
+    }
+    if (!loadPlatforms || waiting.size === 0) return found;
+
+    const boardOf = loadPlatforms;
+    const stations = [...waiting.keys()].sort((a, b) => waiting.get(b)! - waiting.get(a)! || (a < b ? -1 : 1)).slice(0, BOARD_STATIONS);
+    const boards = await Promise.all(
+      stations.map(async (stop) => {
+        try {
+          return await boardOf(stop);
+        } catch (error) {
+          console.warn(`Board ${stop} failed`, error);
+          return null;
+        }
+      }),
+    );
+    for (const sighting of found.values()) {
+      const board = boards[stations.indexOf(sighting.origin)];
+      if (board && stands(sighting)) sighting.platform = platformFor(board, sighting.tripId);
+    }
+    return found;
+  }
+
+  /**
    * The watched train's before-departure Live Activity (TT-178, D74): started once at T−30 with a push-to-start, updated
    * when what it shows changes, turned into the question once the train has left, with an alert (TT-231), and ended 10 min
    * later or at the rider's stop (at once when it is cancelled or skips a stop). With no card to reach, the question goes as
-   * a notification. Nothing once the app's ride took it over or the rider said No.
+   * a notification. Nothing once the app's ride took it over or the rider said No. Boarding and the moment it has left
+   * come from where the train is (TT-233, `sight`, `boardingPhase`), the clock when nothing places it.
    */
-  async function followActivity(watch: Watch & { key: string }, status: LiveStatus | null, activity: ActivityRow | null) {
+  async function followActivity(watch: Watch & { key: string }, status: LiveStatus | null, activity: ActivityRow | null, update: TripUpdate | undefined) {
     const { rule, call, key, date } = watch;
     if (activity && activity.state !== 'started' && activity.state !== 'asked') return;
+    const sighting = sightings.get(trainKey(watch));
     const train: Departure = {
-      scheduled: watch.departure,
-      scheduledArrival: call.arrivals[call.to],
-      status,
-      origin: rule.origin_name,
-      destination: rule.destination_name,
+      ...departureOf(watch, status),
+      position: sighting?.position,
+      platform: sighting?.platform,
+      hasLeftOrigin: update !== undefined && hasLeftOrigin(update, call),
     };
-    const phase = phaseAt(train, now);
+    let phase = phaseAt(train, now);
+    // The question is asked once (TT-231): a card that asks stays the question, though a later position puts the train
+    // back at the station or the feed that said it had left is gone. Not once its expected time has moved on (a delay
+    // reported after the question): then it counts down again and asks when it leaves, as before TT-233.
+    if ((phase === 'countingDown' || phase === 'boarding') && asksIn(activity?.shown ?? null) && now >= leaves(train) - DEPART_LEAD_MS) phase = 'asking';
     if (phase === 'before') return;
     const expiration = staleDate(train);
 
@@ -341,7 +470,9 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
         await askByNotification(watch, train, null);
         return;
       }
-      if (phase === 'over' || !rule.start_token || sends >= MAX_SENDS) return;
+      // No card starts once the train's time has come, as none did before the boarding rule (TT-233): the start's alert
+      // says "departs in". A train still standing there is asked about, by notification, when it leaves.
+      if (phase === 'over' || !rule.start_token || sends >= MAX_SENDS || now >= leaves(train)) return;
       // Claim the start first: an overlapping cycle finds the row and starts nothing.
       const state = contentState(train, phase, now, rule.time_format);
       const claimed = await db
@@ -403,7 +534,9 @@ export async function monitor({ db, apns, feed: loadFeed, now }: MonitorDeps): P
     // Claim the update first, as a watch's send is claimed.
     if (!(await setActivity(activity, { shown }))) return;
     sends++;
-    const payload = updatePayload(train, state, now, rule.time_format, silent);
+    // The alert goes with the update that turns the card into the question, not with a later one that only moves its
+    // time (the expected departure moves once the feed drops the station, D89).
+    const payload = updatePayload(train, state, now, rule.time_format, silent || asksIn(activity.shown));
     const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload, expiration }, now);
     if (result === 'unregistered' || result === 'badToken') {
       // The rider swiped it away, or it ended: nothing more to send.

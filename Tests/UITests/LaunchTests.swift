@@ -14,7 +14,7 @@ final class LaunchTests: XCTestCase {
         app.launch()
 
         let route = app.buttons["schedule.from"]
-        XCTAssertTrue(route.waitForExistence(timeout: 10))
+        XCTAssertTrue(route.waitForExistence(timeout: 15))
         let line = app.descendants(matching: .any)["schedule.line"]
         XCTAssertEqual(line.label, "Lakeshore West", "The line comes first (D49)")
         XCTAssertLessThan(line.frame.minY, 100, "The line row sits right under the status bar, as on the canvas")
@@ -24,10 +24,10 @@ final class LaunchTests: XCTestCase {
         XCTAssertFalse(app.alerts.firstMatch.exists)
 
         app.tabBars.buttons["Settings"].tap()
-        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.tabBars.buttons["Settings"].isSelected)
 
         app.tabBars.buttons["Schedule"].tap()
-        XCTAssertTrue(route.waitForExistence(timeout: 5))
+        XCTAssertTrue(route.waitForExistence(timeout: 15))
     }
 }

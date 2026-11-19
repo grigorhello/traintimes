@@ -81,6 +81,12 @@ struct LiveSnapshot: Hashable, Sendable {
     var updates: [String: LiveTripUpdate] = [:]
     /// The platform GO posts at the route's origin, keyed by feed trip id (TT-225).
     var platforms: [String: String] = [:]
+    /// How far each train stood from the route's origin when GO's train feed last placed it, keyed by feed trip id
+    /// (TT-233, D114): only the trains near their time that the feed carries. Empty without the train feed.
+    var originFixes: [String: OriginFix] = [:]
+    /// The trips whose update no longer lists the route's origin, only stops after it: GO drops a stop once the train has
+    /// left it (D89), so these trains have left the origin (TT-233, D114).
+    var leftOrigin: Set<String> = []
 
     static let empty = LiveSnapshot(updatedAt: nil)
 }

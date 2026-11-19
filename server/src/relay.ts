@@ -126,7 +126,26 @@ interface TrainJSON {
   timestamp?: number;
 }
 
-const decoded = new WeakMap<Snapshot, { timestamp?: number; trains: TrainPosition[] }>();
+export interface Vehicles {
+  /** When GO wrote the feed, epoch milliseconds. */
+  timestamp?: number;
+  trains: TrainPosition[];
+}
+
+const decoded = new WeakMap<Snapshot, Vehicles>();
+
+/**
+ * A VehiclePosition snapshot's trains, decoded once per snapshot: `GET /v1/trains` and the minute cycle (TT-233) read the
+ * same snapshot in an isolate, so whichever comes second pays nothing.
+ */
+export function vehiclesOf(snapshot: Snapshot): Vehicles {
+  let vehicles = decoded.get(snapshot);
+  if (!vehicles) {
+    vehicles = decodeVehicles(snapshot.bytes);
+    decoded.set(snapshot, vehicles);
+  }
+  return vehicles;
+}
 
 /** The line a train runs on: its route id's suffix ("09261126-LW"), else its trip id's middle part ("20261109-LW-1713"). */
 function lineOf(train: TrainPosition): string | undefined {
@@ -155,11 +174,7 @@ export async function handleLive(request: Request, relay: FeedRelay): Promise<Re
   if (feed !== 'VehiclePosition') {
     return new Response(snapshot.bytes, { headers: { 'content-type': 'application/x-protobuf', 'cache-control': cacheControl } });
   }
-  let vehicles = decoded.get(snapshot);
-  if (!vehicles) {
-    vehicles = decodeVehicles(snapshot.bytes);
-    decoded.set(snapshot, vehicles);
-  }
+  const vehicles = vehiclesOf(snapshot);
   const line = url.searchParams.get('line');
   const trains: TrainJSON[] = vehicles.trains
     .filter((train) => !line || lineOf(train) === line)

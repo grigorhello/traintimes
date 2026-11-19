@@ -12,6 +12,9 @@ enum TripStatus: Hashable, Sendable {
     case offline
     /// Trip details after the train has left (TT-163): a display state of the sheet, not a domain status (D12).
     case departed
+    /// The train stands at the rider's station with its platform posted (TT-233, D114, `BoardingRule`): a display state of
+    /// the timeline card, like `departed`. Its dot pings on `StatusLine`.
+    case boarding
 
     var text: String {
         switch self {
@@ -23,6 +26,7 @@ enum TripStatus: Hashable, Sendable {
         case .lastReported(let time): String(format: String(localized: "status.last_reported"), time)
         case .offline: String(localized: "status.offline")
         case .departed: String(localized: "trip.departed")
+        case .boarding: String(localized: "status.boarding")
         }
     }
 
@@ -34,6 +38,7 @@ enum TripStatus: Hashable, Sendable {
         case .scheduled, .lastReported: "clock"
         case .offline: "wifi.slash"
         case .departed: "checkmark.circle"
+        case .boarding: "figure.walk.circle.fill"
         }
     }
 
@@ -44,6 +49,7 @@ enum TripStatus: Hashable, Sendable {
         case .cancelled, .stopSkipped: TTColor.cancelInk
         case .scheduled, .lastReported, .offline: TTColor.scheduledInk
         case .departed: TTColor.inkSecondary
+        case .boarding: TTColor.accent
         }
     }
 
@@ -53,13 +59,14 @@ enum TripStatus: Hashable, Sendable {
         case .delayed: TTColor.delayFill
         case .cancelled, .stopSkipped: TTColor.cancelFill
         case .scheduled, .lastReported, .offline, .departed: TTColor.scheduledFill
+        case .boarding: TTColor.accentSoft
         }
     }
 
     /// Live information (TT-157, D50): a filled dot on the card's status line. Scheduled, stale and offline get a ring.
     var isLive: Bool {
         switch self {
-        case .onTime, .delayed, .cancelled, .stopSkipped, .departed: true
+        case .onTime, .delayed, .cancelled, .stopSkipped, .departed, .boarding: true
         case .scheduled, .lastReported, .offline: false
         }
     }
@@ -88,7 +95,7 @@ struct StatusBadge: View {
 }
 
 /// The timeline card's status (TT-157, D50): a 10 pt dot and the word, 15 pt semibold, in the status colour. Filled for
-/// live information, a ring for Scheduled, Last reported and Offline. No pill, no icon.
+/// live information, a ring for Scheduled, Last reported and Offline. No pill, no icon. Boarding's dot pings (TT-233).
 struct StatusLine: View {
     let status: TripStatus
 
@@ -106,6 +113,9 @@ struct StatusLine: View {
                 }
             }
             .frame(width: Self.dot, height: Self.dot)
+            .background {
+                if status == .boarding { BoardingPing(colour: status.ink, dot: Self.dot) }
+            }
             .accessibilityHidden(true)
             Text(status.text)
                 .monospacedDigit()
@@ -114,6 +124,40 @@ struct StatusLine: View {
         }
         .font(TTFont.badgeLarge)
         .foregroundStyle(status.ink)
+    }
+}
+
+/// The Boarding dot's ping (TT-233, D114): a halo that grows from the dot to 7 pt out while it fades, every 1.6 s, drawn
+/// from the clock so every Boarding dot on screen pings together and a redraw never restarts it. No halo with Reduce
+/// Motion, or when Schedule's motion is off (`\.playsScheduleMotion`, the unit test host), so snapshots are still.
+struct BoardingPing: View {
+    @Environment(\.playsScheduleMotion) private var playsMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let colour: Color
+    /// The dot's diameter; the halo starts at its edge.
+    let dot: CGFloat
+
+    static let period = 1.6
+    /// How far past the dot's edge the halo reaches.
+    static let reach: CGFloat = 7
+    /// The halo's strength as it starts.
+    static let strength = 0.6
+
+    var body: some View {
+        if playsMotion, !reduceMotion {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
+                let progress = UnitCurve.easeOut.value(at: phase)
+                let size = dot + 2 * Self.reach * progress
+                Circle()
+                    .fill(colour)
+                    .frame(width: size, height: size)
+                    .opacity(Self.strength * (1 - progress))
+                    // The halo grows past the dot's own box without moving the row.
+                    .frame(width: dot, height: dot)
+            }
+            .allowsHitTesting(false)
+        }
     }
 }
 

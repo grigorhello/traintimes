@@ -6,6 +6,11 @@ import XCTest
 final class TripDetailsViewModelTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
 
+    override func tearDown() async throws {
+        Analytics.tracker = nil
+        try await super.tearDown()
+    }
+
     func testOnTimeJourneyCard() async throws {
         let model = try await TripDetailsViewModel.loadedFixture()
         let details = try XCTUnwrap(model.details(formatter))
@@ -222,6 +227,109 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertNil(cancelled.departureHero(formatter))
         let departed = try await TripDetailsViewModel.departedFixture()
         XCTAssertNil(departed.departureHero(formatter))
+    }
+
+    // MARK: Boarding at the platform (TT-233, D114)
+
+    /// A train standing at its platform shows the Boarding hero, alerted or not, next or not: "7:58 AM boarding now" over
+    /// what the hero showed before (a later train's clock time, the next train's minutes).
+    func testATrainStandingAtItsPlatformShowsTheBoardingHero() async throws {
+        let rig = try await TripBoardingRig.opened(TripBoardingRig.laterTrain, hour: 7, minute: 29, metres: 120)
+        XCTAssertFalse(rig.model.hasAlert)
+        XCTAssertNotEqual(rig.model.nextDepartureId, rig.model.key, "the 7:32 AM train is the next one")
+        let hero = try XCTUnwrap(rig.model.departureHero(formatter))
+        XCTAssertTrue(hero.isBoarding)
+        XCTAssertFalse(hero.boardsByClock)
+        XCTAssertEqual(hero.line, "7:58 AM boarding now")
+        XCTAssertEqual(hero.number, "7:58 AM", "a later train keeps its clock time")
+        XCTAssertNil(hero.countdown)
+        XCTAssertEqual(hero.platform, "3")
+        XCTAssertFalse(rig.model.followsClock, "a clock time does not tick")
+
+        let next = try await TripBoardingRig.opened(TripBoardingRig.nextTrain, hour: 7, minute: 24, metres: 120)
+        let counting = try XCTUnwrap(next.model.departureHero(formatter))
+        XCTAssertTrue(counting.isBoarding)
+        XCTAssertEqual(counting.line, "7:32 AM boarding now")
+        XCTAssertEqual(counting.countdown, "8 min")
+    }
+
+    /// It stays while the train stands there past its time: no Departed by the clock, the number reads "Departing", and the
+    /// alert button and the Directions link stay.
+    func testTheBoardingHeroStaysPastItsTimeAndReadsDeparting() async throws {
+        let rig = try await TripBoardingRig.opened(TripBoardingRig.laterTrain, hour: 7, minute: 29, metres: 120)
+        await rig.sight(metres: 140, hour: 7, minute: 58, second: 40)
+
+        let hero = try XCTUnwrap(rig.model.departureHero(formatter), "40 s past its time and still at the platform")
+        XCTAssertTrue(hero.isBoarding)
+        XCTAssertEqual(hero.line, "7:58 AM boarding now")
+        XCTAssertEqual(hero.number, "Departing")
+        XCTAssertEqual(hero.countdown, "Departing")
+        XCTAssertEqual(rig.model.nextDepartureId, rig.model.key, "the 7:32 AM train left by the clock; this one has not left")
+        XCTAssertTrue(rig.model.followsClock)
+        XCTAssertFalse(rig.model.hasDeparted)
+        let details = try XCTUnwrap(rig.model.details(formatter))
+        XCTAssertEqual(details.status, .onTime)
+        XCTAssertEqual(details.alertButton, "Alert me")
+        XCTAssertTrue(details.showsDirections)
+    }
+
+    /// A later poll places the train 900 m down the line: it has left, the hero gives way to the trip and the sheet says
+    /// Departed, with no alert button and no Directions link.
+    func testTheHeroGoesWhenTheTrainMovesOff() async throws {
+        let rig = try await TripBoardingRig.opened(TripBoardingRig.laterTrain, hour: 7, minute: 58, second: 40, metres: 140)
+        XCTAssertNotNil(rig.model.departureHero(formatter))
+
+        await rig.sight(metres: 900, hour: 7, minute: 59, second: 10)
+
+        XCTAssertNil(rig.model.departureHero(formatter))
+        XCTAssertTrue(rig.model.hasDeparted)
+        let details = try XCTUnwrap(rig.model.details(formatter))
+        XCTAssertEqual(details.status, .departed)
+        XCTAssertNil(details.alertButton)
+        XCTAssertFalse(details.showsDirections)
+        XCTAssertNil(details.countdown)
+        XCTAssertFalse(rig.model.followsClock)
+    }
+
+    /// With no position the hero is the clock's, as before (D69): "boarding now" for the last 2 min of a counting train,
+    /// without the Boarding look, and no hero from its time on. With a position nothing is guessed: a train still 2 km away
+    /// 80 s before its time is not boarding.
+    func testWithNoPositionTheHeroFollowsTheClock() async throws {
+        let rig = try await TripBoardingRig.opened(TripBoardingRig.nextTrain, hour: 7, minute: 30, second: 30, metres: nil)
+        let hero = try XCTUnwrap(rig.model.departureHero(formatter))
+        XCTAssertEqual(hero.line, "7:32 AM boarding now")
+        XCTAssertEqual(hero.countdown, "1 min")
+        XCTAssertTrue(hero.boardsByClock)
+        XCTAssertFalse(hero.isBoarding, "no outline and no filled pill on a guess")
+
+        await rig.sight(metres: 2_000, hour: 7, minute: 30, second: 40)
+        let away = try XCTUnwrap(rig.model.departureHero(formatter))
+        XCTAssertEqual(away.line, "7:32 AM departs in")
+        XCTAssertFalse(away.boardsByClock)
+        XCTAssertFalse(away.isBoarding)
+
+        await rig.sight(metres: nil, hour: 7, minute: 32)
+        XCTAssertNil(rig.model.departureHero(formatter), "departed at its time, by the clock")
+        XCTAssertTrue(rig.model.hasDeparted)
+    }
+
+    /// `boarding_shown` goes once per train per day from Trip details, however often the sheet ticks, reloads or opens
+    /// again, and never for the clock's last 2 min.
+    func testBoardingShownIsCountedOnceFromTripDetails() async throws {
+        let recorder = RecordingAnalytics.install()
+        let counted = BoardingShown(defaults: .ephemeral())
+        let rig = try await TripBoardingRig.opened(
+            TripBoardingRig.laterTrain, hour: 7, minute: 29, metres: 120, boardingShown: counted
+        )
+        rig.model.tick()
+        await rig.sight(metres: 130, hour: 7, minute: 30)
+        XCTAssertEqual(recorder.events, [.boardingShown(station: "OA", minutesBefore: 29, surface: .trip)])
+
+        _ = try await TripBoardingRig.opened(TripBoardingRig.laterTrain, hour: 7, minute: 31, metres: 120, boardingShown: counted)
+        _ = try await TripBoardingRig.opened(
+            TripBoardingRig.nextTrain, hour: 7, minute: 31, metres: nil, boardingShown: BoardingShown(defaults: .ephemeral())
+        )
+        XCTAssertEqual(recorder.names, ["boarding_shown"])
     }
 
     /// Timetable only: ink times, the Scheduled ring and the service day, "Platform —", the Express bolt on express trains.

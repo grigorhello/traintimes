@@ -51,6 +51,11 @@ struct Departure: Hashable, Sendable, Identifiable {
     /// Only set while the status rests on fresh live data; otherwise the card sits at its scheduled time.
     let expectedDeparture: Date?
     let expectedArrival: Date?
+    /// Where GO's train feed last placed the train against the route's origin (TT-233, D114); nil with no position, on
+    /// another day and offline.
+    var originFix: OriginFix?
+    /// The origin has dropped out of the trip's TripUpdates: the train has left it (TT-233, D114).
+    var hasLeftOrigin = false
 
     var id: TripKey { trip.key }
     /// Where the card sits on the timeline: expected when known, else scheduled.
@@ -58,12 +63,15 @@ struct Departure: Hashable, Sendable, Identifiable {
 
     /// Resolves every trip's status and sorts by expected departure, else scheduled. Offline, a cached platform may
     /// have changed since, so every card reads "Platform pending" (TT-115); otherwise today's trains take the platform
-    /// GO posts (TT-225).
+    /// GO posts (TT-225), where the train feed places them and whether the feed says they have left (TT-233): offline and
+    /// on another day those say nothing, so the train follows the clock (`BoardingRule`).
     static func resolve(_ trips: [Trip], live: LiveSnapshot, freshness: Freshness, isToday: Bool) -> [Departure] {
         trips.map { scheduled in
             var trip = scheduled
+            var isSeen = isToday
             if case .offline = freshness {
                 trip.platform = .pending
+                isSeen = false
             } else if isToday, let platform = live.platforms[trip.key.tripId] {
                 trip.platform = .published(platform)
             }
@@ -77,7 +85,9 @@ struct Departure: Hashable, Sendable, Identifiable {
                 trip: trip,
                 status: status,
                 expectedDeparture: hasEstimate ? update?.expectedDeparture : nil,
-                expectedArrival: hasEstimate ? update?.expectedArrival : nil
+                expectedArrival: hasEstimate ? update?.expectedArrival : nil,
+                originFix: isSeen ? live.originFixes[trip.key.tripId] : nil,
+                hasLeftOrigin: isSeen && live.leftOrigin.contains(trip.key.tripId)
             )
         }
         .sorted { ($0.departureTime, $0.trip.key.tripId) < ($1.departureTime, $1.trip.key.tripId) }

@@ -20,6 +20,9 @@ final class ScheduleStatesSnapshotTests: XCTestCase {
     /// TT-206 (board 6, could not load): no timetable on device and the download failed.
     @MainActor func testFailedLight() async throws { snap(try await failed(), .light) }
     @MainActor func testFailedDark() async throws { snap(try await failed(), .dark) }
+    /// TT-233 (D114, board 3): the next train Boarding at its platform, under a train that has left.
+    @MainActor func testBoardingLight() async throws { snap(try await .boardingFixture(), .light) }
+    @MainActor func testBoardingDark() async throws { snap(try await .boardingFixture(), .dark) }
 
     @MainActor
     private func failed() async throws -> ScheduleViewModel {

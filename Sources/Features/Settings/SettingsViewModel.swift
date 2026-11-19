@@ -285,6 +285,7 @@ extension MockLive {
         case .mixed: "settings.live_data.mixed"
         case .changing: "settings.live_data.changing"
         case .stale: "settings.live_data.stale"
+        case .boarding: "settings.live_data.boarding"
         }
     }
 }

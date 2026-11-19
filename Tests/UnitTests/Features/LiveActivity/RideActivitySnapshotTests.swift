@@ -11,6 +11,7 @@ import XCTest
 /// so content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made.
 /// Before departure (TT-178): the Lock Screen card pending, late, boarding, the departure question (TT-231, boards 31 and
 /// 32: "On board?" with Yes and No once the train has left) and stale; the island compact and expanded, and asking.
+/// Boarding at the platform (TT-233, D114): the card of a train the feed places at its station, before and past its time.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -21,6 +22,10 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testDepartureLockScreenDark() throws { snap(try departureLockScreen(), .dark) }
     @MainActor func testDepartureIslandLight() throws { snap(try departureIsland(), .light) }
     @MainActor func testDepartureIslandDark() throws { snap(try departureIsland(), .dark) }
+    // Boarding at the platform (TT-233, D114, board 5 of the Boarding boards): "boarding now" while the train stands at
+    // the station, "Departing" past its time, the Platform number mint.
+    @MainActor func testBoardingLockScreenLight() throws { snap(try boardingLockScreen(), .light) }
+    @MainActor func testBoardingLockScreenDark() throws { snap(try boardingLockScreen(), .dark) }
     // The arrival wish (TT-229, D108, board 23 on the Live Activity).
     @MainActor func testArrivalWishLight() async throws { snap(try await arrivalWish(), .light) }
     @MainActor func testArrivalWishDark() async throws { snap(try await arrivalWish(), .dark) }
@@ -59,6 +64,31 @@ final class RideActivitySnapshotTests: XCTestCase {
         let day = DepartureRig.day
         let session = DemoDeparture.Session(day: day, clock: TestClock(now: time))
         let live = try XCTUnwrap(session.departure(at: time).flatMap { LiveDeparture($0, now: time) })
+        let state = RideActivityAttributes.ContentState(
+            departure: live, now: time, deviceNow: Self.deviceNow, formatter: TimeFormatter(format: .twelveHour)
+        )
+        let attributes = RideActivityAttributes(ride: DemoRide.ride(on: day), plan: DemoRide.plan(on: day), line: DemoRide.line)
+        return Moment(attributes: attributes, state: state)
+    }
+
+    /// The 5:13 PM train standing at its platform at `time` (TT-233, D114): GO's train feed places it 150 m from the
+    /// station 10 s ago, Platform 7 posted, `delay` min late. Boarding, also past its time.
+    @MainActor
+    private func standing(_ time: Date, delay: Int = 0) throws -> Moment {
+        let day = DepartureRig.day
+        let scheduled = DepartureRig.time(17, 13)
+        let expected = scheduled.addingTimeInterval(TimeInterval(delay * 60))
+        let train = Departure(
+            trip: Trip(
+                key: TripKey(serviceDay: day, tripId: DemoRide.tripId), scheduledDeparture: scheduled,
+                scheduledArrival: scheduled.addingTimeInterval(30 * 60), platform: .published("7"), tags: []
+            ),
+            status: delay > 0 ? .delayed(minutes: delay, reportedAt: time) : .onTime,
+            expectedDeparture: expected,
+            expectedArrival: expected.addingTimeInterval(30 * 60),
+            originFix: OriginFix(metres: 150, reportedAt: time.addingTimeInterval(-10))
+        )
+        let live = try XCTUnwrap(LiveDeparture(train, now: time))
         let state = RideActivityAttributes.ContentState(
             departure: live, now: time, deviceNow: Self.deviceNow, formatter: TimeFormatter(format: .twelveHour)
         )
@@ -121,6 +151,28 @@ final class RideActivitySnapshotTests: XCTestCase {
             Spacer()
         }
         .padding(.top, 120)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    /// Boarding at the platform (TT-233, D114): on the Lock Screen at its platform 15 min before ("14 min"), past its time
+    /// ("Departing") and late past its time ("Departing" beside "3 min late", the widest row); then "Departing" in the
+    /// compact island and the late card in the expanded island, the narrowest. The Platform number is mint in each card.
+    @MainActor
+    private func boardingLockScreen() throws -> some View {
+        let early = try standing(DepartureRig.time(16, 58, 10))
+        let departing = try standing(DepartureRig.time(17, 14, 10))
+        let late = try standing(DepartureRig.time(17, 17, 10), delay: 3)
+        return VStack(spacing: 14) {
+            lockCard(early, isStale: false)
+            lockCard(departing, isStale: false)
+            lockCard(late, isStale: false)
+            compact(departing)
+            expanded(late)
+            Spacer()
+        }
+        .padding(.top, 60)
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Wallpaper())

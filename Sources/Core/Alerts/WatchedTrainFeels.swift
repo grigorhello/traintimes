@@ -46,6 +46,8 @@ struct WatchedTrainFeels {
         case .onTime: .none
         case .stopSkipped, .scheduled, .stale, .offline: old?.trouble ?? .none
         }
-        return Mark(trouble: trouble, boarding: LiveDeparture(departure, now: now)?.phase == .boarding)
+        // Once boarding it stays marked: a position that goes stale for a poll and comes back does not play it again (TT-233).
+        let boarding = old?.boarding == true || LiveDeparture(departure, now: now)?.phase == .boarding
+        return Mark(trouble: trouble, boarding: boarding)
     }
 }

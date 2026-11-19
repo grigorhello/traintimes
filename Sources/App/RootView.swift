@@ -67,7 +67,8 @@ struct RootView: View {
         )
         let schedule = schedule ?? ScheduleViewModel(
             route: routeStore.route, repository: dependencies.repository, clock: dependencies.clock, routeStore: routeStore,
-            recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules, routeCount: RouteCount()
+            recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules, routeCount: RouteCount(),
+            boardingShown: BoardingShown()
         )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
@@ -198,6 +199,8 @@ struct RootView: View {
         .environment(\.timeFormatter, settings.timeFormatter)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
+        // Live data (TT-195), Board included (TT-233): the made-up feed shows at once too, not at the next poll.
+        .onChange(of: settings.mockLive) { Task { await schedule.refresh() } }
         // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
         // ride asks its question first (TT-175) and plays from the Yes; the demo departure plays from 5:01 PM. Leaving
         // Departure also stops the ride it handed over to.
@@ -443,7 +446,7 @@ struct RootView: View {
         // capsule shows in the sheet, never on Schedule under it.
         tripDetails = TripDetailsViewModel(
             route: route, key: key, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
-            bells: bells.sibling()
+            bells: bells.sibling(), boardingShown: BoardingShown()
         )
         router.present(.tripDetails)
     }

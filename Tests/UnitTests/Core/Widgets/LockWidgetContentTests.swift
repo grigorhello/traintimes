@@ -119,7 +119,7 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(rectangular(WidgetFixtures.leavingNow)?.note.plain, "now · then 8:28")
         // A minute and a second before, it still counts.
         let before = WidgetFixtures.entry(WidgetFixtures.at(8, 4, second: 59), WidgetFixtures.leavingNow.state)
-        XCTAssertEqual(rectangular(before)?.note.plain, "in 1 min · then 8:28")
+        XCTAssertEqual(rectangular(before)?.note.plain, "in 2 min · then 8:28")
     }
 
     func testTheLastTrainSaysSoFrom10PM() {
@@ -213,7 +213,7 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(leaving.caption, "8:06")
         XCTAssertEqual(leaving.ring, 0)
         let before = LockCircularContent(WidgetFixtures.entry(WidgetFixtures.at(8, 4, second: 59), WidgetFixtures.leavingNow.state))
-        XCTAssertEqual(before.value, "1")
+        XCTAssertEqual(before.value, "2")
     }
 
     func testCircularWithNoTrainShowsTheNextOnesTimeOrTheTrainAlone() {

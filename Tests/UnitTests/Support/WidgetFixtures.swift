@@ -13,6 +13,10 @@ enum WidgetFixtures {
     /// class, 158 and 338 × 158 pt). The snapshots draw them to the pixel.
     static let small = CGSize(width: 493.0 / 3, height: 493.0 / 3)
     static let medium = CGSize(width: 1049.0 / 3, height: 493.0 / 3)
+    /// The Lock Screen sizes there, measured the same way: the rectangular's plate is 443 × 216 px and the circular's
+    /// disc 175 px across (the boards drew 160 × 72 and 72 pt).
+    static let lockRectangular = CGSize(width: 443.0 / 3, height: 72)
+    static let lockCircular = CGSize(width: 175.0 / 3, height: 175.0 / 3)
 
     static func at(_ hour: Int, _ minute: Int, second: Int = 0, on day: ServiceDay = day) -> Date {
         day.date(hour: hour, minute: minute).addingTimeInterval(TimeInterval(second))

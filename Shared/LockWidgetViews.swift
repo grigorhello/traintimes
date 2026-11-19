@@ -33,7 +33,8 @@ private func lockLine(_ text: WidgetText) -> AttributedString {
 
 // MARK: - Rectangular
 
-/// Rectangular (160 × 72 pt on the boards): the route, the time with the bolt, and the countdown with the train after.
+/// Rectangular (160 × 72 pt on the boards, about 148 × 72 pt on the iPhone 17 Pro, TT-185): the route, the time with the bolt,
+/// and the countdown with the train after.
 struct LockRectangularView<Plate: View>: View {
     let content: LockRectangularContent
     /// The Always-On display: no plate.
@@ -176,6 +177,10 @@ struct LockRectangularView<Plate: View>: View {
 
 // MARK: - Circular
 
+/// The boards' circle. The iPhone 17 Pro's is smaller (about 58 pt, TT-185), where the 72 pt face ran into its own ring:
+/// the face is laid out at this size and scaled to the circle iOS gives.
+private let lockCircleSide: CGFloat = 72
+
 /// Circular (72 pt on the boards): the train or the bell, the minutes and "min", inside the ring.
 struct LockCircularView<Disc: View>: View {
     let content: LockCircularContent
@@ -184,6 +189,15 @@ struct LockCircularView<Disc: View>: View {
     @ViewBuilder var disc: () -> Disc
 
     var body: some View {
+        GeometryReader { box in
+            face
+                .frame(width: lockCircleSide, height: lockCircleSide)
+                .scaleEffect(min(box.size.width, box.size.height) / lockCircleSide)
+                .frame(width: box.size.width, height: box.size.height)
+        }
+    }
+
+    private var face: some View {
         ZStack {
             if !isDimmed {
                 disc().clipShape(Circle())
@@ -193,8 +207,6 @@ struct LockCircularView<Disc: View>: View {
             }
             centre
         }
-        .aspectRatio(1, contentMode: .fit)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

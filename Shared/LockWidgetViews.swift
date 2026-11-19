@@ -218,16 +218,16 @@ struct LockCircularView<Disc: View>: View {
                     .frame(width: 48, height: 26)
                 // The caption's row stays when there is none, so a clock time sits where the minutes do, across the
                 // disc's widest part: a row lower its corners touched the ring. Down here the ring's inside is 29 pt
-                // wide, so "11:47" under "now" shrinks to 28 pt (for width only, as above).
+                // wide, so "11:47" under "now" (33 pt) shrinks to 26 pt (for width only, as above).
                 Text(verbatim: content.caption ?? " ")
                     .font(TTFont.lockUnit)
                     .tracking(0.1)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.6)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: 28, height: 13)
+                    .frame(width: 26, height: 13)
             }
             .foregroundStyle(.primary)
         } else {

@@ -111,8 +111,10 @@ struct LockRectangularView<Plate: View>: View {
         .tracking(-0.1)
         .foregroundStyle(.secondary)
         .lineLimit(1)
-        .minimumScaleFactor(0.75)
+        .minimumScaleFactor(0.65)
         .frame(height: 16)
+        // A long name ("West Harbour → Niagara Falls") may run 6 pt into the right margin before it is cut.
+        .padding(.trailing, -6)
     }
 
     /// "8:06 AM" and the bolt of an express, level with the middle of the digits.
@@ -202,6 +204,7 @@ struct LockCircularView<Disc: View>: View {
                 Image(systemName: content.glyph.symbol)
                     .font(LockWidgetSymbol.glyph)
                     .frame(height: 14)
+                    .padding(.bottom, 1)
                 // A clock time is wider than the ring's inside: it shrinks for width only (its own height, so the
                 // 26 pt row does not shrink it too).
                 Text(verbatim: value)
@@ -212,16 +215,19 @@ struct LockCircularView<Disc: View>: View {
                     .minimumScaleFactor(0.6)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.numericText())
-                    .frame(width: 50, height: 26)
-                if let caption = content.caption {
-                    Text(verbatim: caption)
-                        .font(TTFont.lockUnit)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .frame(height: 13)
-                }
+                    .frame(width: 48, height: 26)
+                // The caption's row stays when there is none, so a clock time sits where the minutes do, across the
+                // disc's widest part: a row lower its corners touched the ring. Down here the ring's inside is 29 pt
+                // wide, so "11:47" under "now" shrinks to 28 pt (for width only, as above).
+                Text(verbatim: content.caption ?? " ")
+                    .font(TTFont.lockUnit)
+                    .tracking(0.1)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 28, height: 13)
             }
             .foregroundStyle(.primary)
         } else {

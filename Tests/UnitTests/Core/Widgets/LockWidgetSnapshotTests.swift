@@ -29,6 +29,13 @@ final class LockWidgetSnapshotTests: XCTestCase {
         return WidgetFixtures.entry(WidgetFixtures.at(21, 17), .trains(late))
     }
 
+    /// 11:46:30 PM: the 11:47 leaves in the minute. The widest clock time under "now" in the circle.
+    private var leavingLate: WidgetEntry {
+        var late = WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(23, 47)])
+        late.lastTrain = 0
+        return WidgetFixtures.entry(WidgetFixtures.at(23, 46, second: 30), .trains(late))
+    }
+
     /// 3:02 PM on the 24-hour clock, long station names: Your train, the 16:58, in 116 min, the 15:13 before it. The
     /// widest first and third rows.
     private var longYourTrain: WidgetEntry {
@@ -78,7 +85,7 @@ final class LockWidgetSnapshotTests: XCTestCase {
     private func circular(_ style: UIUserInterfaceStyle, isDimmed: Bool = false, testName: String = #function, line: UInt = #line) {
         let far = [
             ("far-train", WidgetFixtures.farTrain()), ("far-24-hour", WidgetFixtures.farTrain(format: .twentyFourHour)),
-            ("late-express", lateExpress),
+            ("late-express", lateExpress), ("leaving-late", leavingLate),
         ]
         let entries = states.filter { !["hand-over", "no-route", "out-of-date"].contains($0.0) } + far
         let cells = entries.map { name, entry in

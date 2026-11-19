@@ -31,12 +31,6 @@ struct Route: Hashable, Sendable {
     let line: Line?
 }
 
-/// A trip's identity (D9): service date plus the feed's trip id, never departure time.
-struct TripKey: Hashable, Sendable {
-    let serviceDay: ServiceDay
-    let tripId: String
-}
-
 enum Platform: Hashable, Sendable {
     case published(String)
     case pending

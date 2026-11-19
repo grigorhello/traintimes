@@ -44,6 +44,11 @@ final class OnBoard {
     private let requestNotifications: @MainActor () async -> Void
     /// The arrival wish of the ride on screen and its analytics (TT-223, D103).
     let wishes: ArrivalWishes
+    /// The ride screen's Tick and Tap and its watch time (TT-224, D106).
+    let screen: RideScreen
+
+    /// The detection question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
+    private let haptics: any HapticPlaying
 
     init(
         app: RideEngine?,
@@ -58,8 +63,11 @@ final class OnBoard {
         nudge: ArrivalNudge? = nil,
         makeDemoNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
         requestNotifications: @escaping @MainActor () async -> Void = {},
-        wishes: ArrivalWishes? = nil
+        wishes: ArrivalWishes? = nil,
+        haptics: any HapticPlaying = TTHaptics.shared,
+        screen: RideScreen? = nil
     ) {
+        self.haptics = haptics
         self.app = app
         self.detector = detector
         self.liveActivity = liveActivity
@@ -70,7 +78,8 @@ final class OnBoard {
         self.nudge = nudge
         self.makeDemoNudge = makeDemoNudge
         self.requestNotifications = requestNotifications
-        self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: TTHaptics.shared)
+        self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: haptics)
+        self.screen = screen ?? RideScreen(haptics: haptics)
     }
 
     /// The demo's engine while it plays, else the app's.
@@ -280,6 +289,7 @@ final class OnBoard {
     func accept(_ train: TrainCandidate) async -> Bool {
         // A second tap while the first starts the ride does nothing.
         guard !isAccepting else { return false }
+        haptics.play(.onBoard)
         isAccepting = true
         defer { isAccepting = false }
         if let question = demoDetector {
@@ -304,6 +314,7 @@ final class OnBoard {
 
     /// No on the question: its trains are not asked about again today.
     func decline() {
+        haptics.play(.undo)
         Analytics.track(.detectionAnswered(yes: false))
         (demoDetector ?? detector)?.decline()
     }

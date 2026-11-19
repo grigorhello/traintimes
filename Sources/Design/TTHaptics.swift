@@ -27,6 +27,8 @@ enum HapticFeel: String, CaseIterable, Sendable {
     case fail
     /// The arriving nudge (TT-173, D66), about a minute before your stop.
     case arriving
+    /// One light, crisp transient (0.5, 0.7) as the first launch's tiles pop (TT-215). First launch only.
+    case bloom
 
     /// The nine feels of the Haptics page, in the canvas's order (the wait tap is felt in its slow bell).
     static let listed: [HapticFeel] = [.tick, .tap, .click, .drop, .railJoint, .done, .warning, .fail, .arriving]
@@ -46,6 +48,75 @@ enum HapticFeel: String, CaseIterable, Sendable {
         ],
         fade: .init(time: 0.1, points: [.init(time: 0, value: 1), .init(time: 0.06, value: 0)])
     )
+
+    /// Bloom: one transient at 0.5 intensity and 0.7 sharpness.
+    static let bloomPattern = ArrivingHaptics.Pattern(events: [.init(kind: .transient, time: 0, intensity: 0.5, sharpness: 0.7)])
+}
+
+/// The haptics map (TT-215, D100): each everyday moment, its feel and when it plays after the tap or the event. Call sites
+/// read their feel and delay here, and Settings › Testing › Haptics › Moments plays each one.
+enum HapticMoment: String, CaseIterable, Sendable {
+    /// A tab bar tap, and the Schedule tab tapped again to go back to Now (Grigor, 2026-11-18: tabs give feedback).
+    case tab
+    /// A day on the day strip, or a line picked on the welcome.
+    case day
+    /// Swap: when the names first reach their rows, 310 ms in (the cross spring settles later).
+    case swap
+    /// Remove alert on the Alerts tab.
+    case remove
+    /// Undo or Try again on a capsule; No on the detection question; End ride.
+    case undo
+    /// Feedback sent, or notifications turned back on.
+    case confirmed
+    /// A train you watch turns late or is cancelled with the app open.
+    case late
+    /// Your first trains on first launch: the station tap is silent, Rail joint 260 ms in as the first card lands.
+    case firstTrains
+    /// "I’m on board", or Yes on the detection question.
+    case onBoard
+    /// Boarding now for a train you watch (its alert on, or its Trip details open), app open.
+    case boarding
+    /// The first launch's tiles popping (Bloom).
+    case tiles
+
+    var feel: HapticFeel {
+        switch self {
+        case .tab, .day: .tick
+        case .swap, .undo: .tap
+        case .remove: .drop
+        case .confirmed: .done
+        case .late: .warning
+        case .firstTrains, .onBoard, .boarding: .railJoint
+        case .tiles: .bloom
+        }
+    }
+
+    /// After the tap or the event.
+    var delay: Duration {
+        switch self {
+        case .swap: .milliseconds(310)
+        case .firstTrains: .milliseconds(260)
+        // Bloom's quick pace; the welcome plays it at `LaunchMotion.timing.tileStart` (D102).
+        case .tiles: .milliseconds(600)
+        default: .zero
+        }
+    }
+
+    /// The Haptics page's row title and the line under it.
+    var titleKey: String { "haptics.moment.\(rawValue)" }
+    var detailKey: String { "haptics.moment.\(rawValue).detail" }
+}
+
+extension HapticPlaying {
+    /// Plays the moment's feel at its time; at once when it has no delay.
+    @discardableResult
+    func play(_ moment: HapticMoment) -> Task<Void, Never>? {
+        guard moment.delay > .zero else {
+            play(moment.feel)
+            return nil
+        }
+        return play(moment.feel, after: moment.delay)
+    }
 }
 
 /// Plays the feels: `TTHaptics.shared` in the app, a fake in tests.
@@ -94,6 +165,7 @@ final class TTHaptics: HapticPlaying {
         case .fail: UINotificationFeedbackGenerator().notificationOccurred(.error)
         case .railJoint: play(HapticFeel.railJointPattern)
         case .arriving: play(ArrivingHaptics.arriving)
+        case .bloom: play(HapticFeel.bloomPattern)
         }
     }
 

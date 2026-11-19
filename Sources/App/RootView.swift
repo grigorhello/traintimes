@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Three icon-only tabs, Schedule, Alerts and Settings (D48, D49), and nothing else at the top level. Tapping the Schedule
@@ -32,6 +33,8 @@ struct RootView: View {
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
     private let backgroundDetection: BackgroundDetection?
+    /// The widget file (TT-182, D107); nil in fixture runs.
+    private let widgetFile: WidgetFileWriter?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -104,6 +107,9 @@ struct RootView: View {
         )
         self.liveActivity = liveActivity
         backgroundDetection = detection
+        widgetFile = dependencies.widgetData.flatMap {
+            WidgetFileWriter.app(data: $0, routeStore: routeStore, rules: rules, settings: settings, recents: schedule.recents)
+        }
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -111,7 +117,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        detectsTrains(tabs)
+        writesWidgetFile(detectsTrains(tabs))
             // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
     }
@@ -166,10 +172,16 @@ struct RootView: View {
         .onChange(of: router.pendingLink, initial: true) { _, link in
             guard let link else { return }
             router.pendingLink = nil
-            Task { await open(link) }
+            let source = router.pendingLinkSource
+            Task { await open(link, source: source) }
         }
-        // The first route saved on device, with a light haptic (TT-120).
-        .sensoryFeedback(.impact(weight: .light), trigger: schedule.route) { old, new in old == nil && new != nil }
+        // The first route saved on device: Rail joint as the first trains land, 260 ms in (TT-215, D100); the station tap
+        // that set it is silent.
+        .onChange(of: schedule.route) { old, new in
+            if old == nil, new != nil { TTHaptics.shared.play(.firstTrains) }
+        }
+        // Schedule leaves the open trip's feels to its sheet (TT-215).
+        .onChange(of: openTripKey, initial: true) { _, key in schedule.openTrip = key }
         .environment(\.timeFormatter, settings.timeFormatter)
         // Demo trains (D49): the timeline shows the new scenario at once.
         .onChange(of: settings.demoTrains) { Task { await schedule.refresh() } }
@@ -230,7 +242,8 @@ struct RootView: View {
                     router.dismissSheet()
                 }
             case nil:
-                break
+                // A widget's train or header (TT-182); a cold launch takes the pending-link path.
+                if let link = NotificationLink(url: url, today: ServiceDay(containing: clock.now)) { router.open(link, source: .link) }
             }
         }
         .onChange(of: onBoard.activeRide) {
@@ -325,12 +338,34 @@ struct RootView: View {
             }
     }
 
+    /// The widget file (TT-182, D107) is written at launch, after a route, alert, Time format or timetable change, and when
+    /// the app goes to the background; the widgets reload only when its bytes changed.
+    private func writesWidgetFile(_ content: some View) -> some View {
+        content
+            .task { widgetFile?.update() }
+            .onChange(of: schedule.route) { widgetFile?.update() }
+            .onChange(of: alerts.rules) { widgetFile?.update() }
+            .onChange(of: settings.timeFormat) { widgetFile?.update() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { widgetFile?.update() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .timetableImported)) { _ in widgetFile?.update() }
+    }
+
+    /// The trip whose Trip details is open.
+    private var openTripKey: TripKey? {
+        router.presentedSheet == .tripDetails ? tripDetails?.key : nil
+    }
+
     /// Tapping the Schedule tab while Schedule shows scrolls the timeline back to Now, on today (D49): there is no Now
     /// button. SwiftUI calls the setter on every tap of a tab, also the selected one.
     private var tabSelection: Binding<AppTab> {
         Binding(
             get: { router.selectedTab },
             set: { tab in
+                // A tab tap, and Schedule tapped again to go back to Now, tick (Grigor, 2026-11-18; TT-215, D100). Another
+                // tab tapped again changes nothing and stays silent.
+                if tab != router.selectedTab || tab == .schedule { TTHaptics.shared.play(.tab) }
                 if tab == .schedule, router.selectedTab == .schedule {
                     Analytics.track(.backToNow(.tab))
                     Task { await schedule.backToNow() }
@@ -491,6 +526,13 @@ struct RootView: View {
         switch link.target(today: ServiceDay(containing: clock.now)) {
         case .alerts:
             router.showAlerts()
+        case .schedule:
+            // A widget's header (TT-182): nothing over Schedule, its route at Today and Now; no stations, the tab only.
+            router.dismissSheet()
+            router.showSchedule()
+            guard link.hasStations, let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            await schedule.backToNow()
         case .trip(let key):
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
             router.showSchedule()

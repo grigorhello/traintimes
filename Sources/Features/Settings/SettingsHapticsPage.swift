@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Settings › Testing › Haptics (TT-214, D95; TestFlight and Debug builds): every feel to try on the phone, the bell turning
-/// on with a fast and a slow save, a glass switch, and Cold start, which throws the haptic engine away before each Rail
+/// Settings › Testing › Haptics (TT-214, D95; TestFlight and Debug builds): every feel to try on the phone, the app's moments
+/// with their feel at their time (TT-215, D100: the feel only, not the screen's motion), the bell turning on with a fast and
+/// a slow save, a glass switch, and Cold start, which throws the haptic engine away before each Rail
 /// joint to feel the slowest first beat. The simulator has no haptics.
 struct SettingsHapticsPage: View {
     @State private var coldStart = false
@@ -12,6 +13,8 @@ struct SettingsHapticsPage: View {
             VStack(alignment: .leading, spacing: TTSpace.s2) {
                 header("haptics.feels").settingsRise(order: 0)
                 feelsCard.settingsRise(order: 0)
+                header("haptics.moments").settingsRise(order: 1)
+                momentsCard.settingsRise(order: 1)
                 header("haptics.bell").settingsRise(order: 1)
                 bellCard.settingsRise(order: 1)
                 header("haptics.switch").settingsRise(order: 2)
@@ -53,6 +56,24 @@ struct SettingsHapticsPage: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("haptics.feel.\(feel.rawValue)")
+            }
+        }
+    }
+
+    /// A row per moment of the map; a tap plays its feel at its time after the tap.
+    private var momentsCard: some View {
+        SettingsCard {
+            ForEach(Array(HapticMoment.allCases.enumerated()), id: \.element) { index, moment in
+                if index > 0 { SettingsHairline() }
+                Button { haptics.play(moment) } label: {
+                    SettingsRow(title: LocalizedStringKey(moment.titleKey)) {
+                        SettingsValue(text: Text(LocalizedStringKey(moment.detailKey)))
+                    }
+                }
+                .buttonStyle(SettingsRowButtonStyle())
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("haptics.moment.\(moment.rawValue)")
             }
         }
     }

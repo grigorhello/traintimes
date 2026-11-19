@@ -123,15 +123,21 @@ final class ScheduleViewModel {
     @ObservationIgnored private var loaded: (day: ServiceDay, trips: [Trip], live: LiveSnapshot)?
     /// Measured card sizes, reported by the view; the layout keeps cards 16 pt apart with them.
     @ObservationIgnored private var cardSizes: [TripKey: TimelineCardSize] = [:]
+    /// The feels of a day tap, a swap and an alerted train turning late or boarding (TT-215, D100).
+    private let haptics: any HapticPlaying
+    @ObservationIgnored private var watchedFeels = WatchedTrainFeels()
+    /// The train whose Trip details is open, set by RootView: the sheet plays its feels, so Schedule leaves it out.
+    @ObservationIgnored var openTrip: TripKey?
 
     init(
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
         recents: RecentRoutes = RecentRoutes(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
         watchedTrips: any WatchedTripsProviding = NoWatchedTrips(), routeCount: RouteCount = RouteCount(defaults: nil),
-        weather: WeatherTileModel? = nil
+        weather: WeatherTileModel? = nil, haptics: any HapticPlaying = TTHaptics.shared
     ) {
         self.route = route
         self.weather = weather ?? .app(clock: clock, station: route?.from)
+        self.haptics = haptics
         self.routeCount = routeCount
         self.repository = repository
         self.clock = clock
@@ -479,6 +485,12 @@ final class ScheduleViewModel {
         requestScroll(jumping: true)
     }
 
+    /// A day tile tapped: Tick at the tap (TT-215, D100), then `select(_:)`.
+    func dayTapped(_ day: ServiceDay) async {
+        haptics.play(.day)
+        await select(day)
+    }
+
     /// Tapping the Schedule tab while Schedule shows: back to today and the present in one tap (D49), and the Now dot
     /// pulses (TT-164).
     func backToNow() async {
@@ -529,12 +541,13 @@ final class ScheduleViewModel {
     /// "Show Monday" on a day with no direct trains.
     func showNextDayWithTrains() async {
         guard let nextDayWithTrains else { return }
-        await select(nextDayWithTrains)
+        await dayTapped(nextDayWithTrains)
     }
 
     /// Swap is explicit, never automatic. The new direction is remembered.
     func swap() async {
         guard let route else { return }
+        haptics.play(.swap)
         let swapped = Route(from: route.to, to: route.from, line: route.line)
         self.route = swapped
         routeStore?.save(swapped)
@@ -638,7 +651,23 @@ final class ScheduleViewModel {
         }
         let hasPlatformSource = isToday && loaded.live.hasPlatformSource
         if hasPlatformSource != self.hasPlatformSource { self.hasPlatformSource = hasPlatformSource }
+        playWatchedFeels()
         relayout(playsDepartures: playsDepartures)
+    }
+
+    /// An alerted train on Today's timeline turning late or cancelled plays Warning, reaching Boarding now Rail joint
+    /// (TT-215, D100); not the train whose Trip details is open, which plays its own.
+    private func playWatchedFeels() {
+        guard isToday, let route else {
+            watchedFeels = WatchedTrainFeels()
+            return
+        }
+        let watched = watchedTrips
+        let open = openTrip
+        let moment = watchedFeels.moment(for: departures, now: now) {
+            $0.id != open && watched.isAlerted($0.trip, on: route)
+        }
+        if let moment { haptics.play(moment) }
     }
 
     private static func isOffline(_ freshness: Freshness?) -> Bool {

@@ -44,6 +44,8 @@ final class SettingsViewModel {
     private let clock: any AppClock
     /// "Detect my train" (TT-176), the switch on the Notifications page; nil hides it (fixture runs, most tests).
     private let detection: BackgroundDetection?
+    /// Done when "Turn on notifications" turned them on (TT-215, D100).
+    private let haptics: any HapticPlaying
 
     init(
         settings: AppSettings,
@@ -52,8 +54,10 @@ final class SettingsViewModel {
         showsTesting: Bool = BuildChannel.showsTesting,
         clock: any AppClock = SystemClock(),
         alerts: AlertRules? = nil,
-        detection: BackgroundDetection? = nil
+        detection: BackgroundDetection? = nil,
+        haptics: any HapticPlaying = TTHaptics.shared
     ) {
+        self.haptics = haptics
         self.settings = settings
         self.showsTesting = showsTesting
         self.permissions = permissions
@@ -140,7 +144,9 @@ final class SettingsViewModel {
         } else {
             _ = await permissions.request()
         }
+        let was = permission
         await refreshPermission()
+        if permission == .allowed, was != .allowed { haptics.play(.confirmed) }
     }
 
     // MARK: Detect my train (TT-176)

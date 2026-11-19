@@ -38,7 +38,7 @@ struct ScheduleView: View {
     @State private var pulseWaits = false
     /// The early-stage Feedback pill at the end of the line row (TT-202, D85).
     @Environment(\.showsFeedbackPill) private var showsFeedbackPill
-    /// The app's feedback nudge (TT-228, D106) and whether a sheet or another tab covers Schedule (from `RootView`).
+    /// The app's feedback nudge (TT-228, D107) and whether a sheet or another tab covers Schedule (from `RootView`).
     @Environment(\.feedbackNudge) private var feedbackNudge
     @Environment(\.scheduleCovered) private var scheduleCovered
     /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
@@ -133,7 +133,7 @@ struct ScheduleView: View {
             }
     }
 
-    // MARK: Feedback nudge (TT-228, D106)
+    // MARK: Feedback nudge (TT-228, D107)
 
     /// What the Feedback button's wait needs from Schedule: its trains on screen and nothing over or in front of them.
     private var nudgeStillness: FeedbackNudge.Stillness {

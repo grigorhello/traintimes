@@ -8,7 +8,7 @@ struct FeedbackPill: View {
 
     /// Icon only, so the line's name keeps its room next to the Notice chip.
     var compact = false
-    /// Where it is in asking (TT-228, D106): at rest unless the nudge plays.
+    /// Where it is in asking (TT-228, D107): at rest unless the nudge plays.
     var pose = FeedbackNudgeMotion.Pose.rest
     let action: () -> Void
 
@@ -72,7 +72,7 @@ private struct BubbleReplace: ViewModifier {
 
 /// The pill with the sheet it opens, so Schedule only places it. Icon only while the Notice chip shows, and whenever the
 /// labelled pill would cut the line's name short (Lakeshore West): the name is laid out first (`layoutPriority`). It asks
-/// each time the app's `FeedbackNudge` says so (TT-228, D106).
+/// each time the app's `FeedbackNudge` says so (TT-228, D107).
 struct ScheduleFeedbackEntry: View {
     var compact = false
     @State private var showsSheet = false

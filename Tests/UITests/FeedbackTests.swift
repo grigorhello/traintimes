@@ -32,7 +32,7 @@ final class FeedbackTests: XCTestCase {
         XCTAssertTrue(pill.waitForExistence(timeout: 15))
     }
 
-    /// The Feedback button asks after 4 s of a still Schedule (TT-228, D106), forced by the launch argument; a tap opens the
+    /// The Feedback button asks after 4 s of a still Schedule (TT-228, D107), forced by the launch argument; a tap opens the
     /// sheet as always.
     @MainActor
     func testButtonAsksAndOpensTheSheet() {

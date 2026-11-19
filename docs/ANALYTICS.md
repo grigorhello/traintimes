@@ -51,7 +51,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
-| `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D106) | `count` (which showing, 1 to 5) |
+| `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D107) | `count` (which showing, 1 to 5) |
 | `feedback_opened` | The feedback sheet opened (TT-228) | `source`: `schedule`, `settings`; `after_nudge` (within 60 s of the button asking); `nudges_seen` (0 to 5) |
 | `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
 | `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |

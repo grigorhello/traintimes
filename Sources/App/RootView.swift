@@ -29,7 +29,7 @@ struct RootView: View {
     @State private var onBoard: OnBoard
     /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
     @State private var opensRide = false
-    /// Schedule's Feedback button asking now and then (TT-228, D106); Settings opens the sheet through it too.
+    /// Schedule's Feedback button asking now and then (TT-228, D107); Settings opens the sheet through it too.
     @State private var feedbackNudge: FeedbackNudge
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.

@@ -484,6 +484,16 @@
 "widget.arrives" = "Arrives";
 "widget.next" = "Next";
 
+/* Next train on the Lock Screen (TT-184) */
+"widget.lock.in" = "in %@";
+"widget.lock.then" = "then %@";
+"widget.lock.earlier" = "earlier %@";
+"widget.lock.min" = "min";
+"widget.lock.no_trains" = "No trains";
+"widget.lock.tonight" = "tonight";
+"widget.lock.today" = "today";
+"widget.lock.inline" = "%1$@ to %2$@";
+
 /* Edit widget (TT-183) */
 "widget.edit.title" = "Route";
 "widget.edit.from" = "From";

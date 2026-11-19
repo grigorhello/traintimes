@@ -101,6 +101,11 @@ enum TTFont {
     static let widgetStation = Font.system(size: 14, weight: .semibold)                       // Next train: "Union"
     static let widgetFooterTime = Font.system(size: 13, weight: .semibold)                    // Next train: the footer's and a message's time
     static let widgetYourTrain = Font.system(size: 12, weight: .semibold)                     // Next train: "Your train"
+    // Next train on the Lock Screen (TT-184). iOS draws it in one tint, so these go with the primary and secondary styles.
+    static let lockTime = Font.system(size: 22, weight: .bold)                                // rectangular: the time, "No trains"
+    static let lockPeriod = Font.system(size: 14, weight: .semibold)                          // rectangular: "AM", "tonight"
+    static let lockNumber = Font.system(size: 24, weight: .bold)                              // circular: the minutes, "now"
+    static let lockUnit = Font.system(size: 11, weight: .semibold)                            // circular: "min", the time under "now"
     static let weatherTemperature = Font.system(size: 48, weight: .semibold)                  // the weather sheet's temperature (TT-226)
     // Times use monospaced digits: .monospacedDigit() on every time label.
 }

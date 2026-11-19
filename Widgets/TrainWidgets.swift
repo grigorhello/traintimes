@@ -2,8 +2,9 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Next train, small (TT-183, D101): the next train on the widget's route, how long until it leaves and the one after it,
-/// on the Home Screen and in StandBy.
+/// Next train (TT-183, D101): the next train on the widget's route, how long until it leaves and the one after it, small
+/// on the Home Screen and in StandBy, and rectangular, circular and inline on the Lock Screen (TT-184, D115), all on the
+/// same timeline and Edit widget settings.
 struct NextTrainWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: WidgetKind.nextTrain.kind, intent: TrainWidgetIntent.self, provider: TrainWidgetProvider()) {
@@ -11,7 +12,7 @@ struct NextTrainWidget: Widget {
         }
         .configurationDisplayName("widget.next.name")
         .description("widget.next.description")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .accessoryRectangular, .accessoryCircular, .accessoryInline])
         .contentMarginsDisabled()
         .awayFromCarPlay(.systemSmall)
     }
@@ -81,29 +82,50 @@ struct TrainWidgetProvider: AppIntentTimelineProvider {
 }
 
 /// The widget on screen: its view from `Shared/`, told how iOS shows it here (in one colour on a tinted or clear Home
-/// Screen, without its background in StandBy), on the surface colour, with its tap.
+/// Screen, without its background in StandBy), on the surface colour, with its tap. Next train on the Lock Screen is one
+/// of its three accessory views, on iOS's own plate or disc, which go on the Always-On display (TT-184).
 struct TrainWidgetEntryView: View {
     let entry: TrainWidgetEntry
     let widget: WidgetKind
+    @Environment(\.widgetFamily) private var family
     @Environment(\.widgetRenderingMode) private var renderingMode
     @Environment(\.showsWidgetContainerBackground) private var showsBackground
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
     var body: some View {
-        content
-            .environment(\.widgetLook, WidgetLook(isFullColor: renderingMode == .fullColor, showsBackground: showsBackground))
-            .containerBackground(TTColor.surface, for: .widget)
+        switch family {
+        case .accessoryRectangular:
+            let model = LockRectangularContent(entry.entry)
+            LockRectangularView(content: model, isDimmed: isLuminanceReduced) { AccessoryWidgetBackground() }
+                .widgetURL(model.link)
+                .containerBackground(for: .widget) { Color.clear }
+        case .accessoryCircular:
+            let model = LockCircularContent(entry.entry)
+            LockCircularView(content: model, isDimmed: isLuminanceReduced) { AccessoryWidgetBackground() }
+                .widgetURL(model.link)
+                .containerBackground(for: .widget) { Color.clear }
+        case .accessoryInline:
+            let model = LockInlineContent(entry.entry)
+            LockInlineView(content: model)
+                .widgetURL(model.link)
+                .containerBackground(for: .widget) { Color.clear }
+        default:
+            home
+                .environment(\.widgetLook, WidgetLook(isFullColor: renderingMode == .fullColor, showsBackground: showsBackground))
+                .containerBackground(TTColor.surface, for: .widget)
+        }
     }
 
+    /// The Home Screen and StandBy.
     @ViewBuilder
-    private var content: some View {
-        switch widget {
-        case .nextTrain:
-            let model = NextTrainContent(entry.entry)
-            NextTrainWidgetView(content: model)
-                .widgetURL(model.link)
-        case .departures:
+    private var home: some View {
+        if widget == .departures {
             let model = DeparturesContent(entry.entry)
             DeparturesWidgetView(content: model)
+                .widgetURL(model.link)
+        } else {
+            let model = NextTrainContent(entry.entry)
+            NextTrainWidgetView(content: model)
                 .widgetURL(model.link)
         }
     }

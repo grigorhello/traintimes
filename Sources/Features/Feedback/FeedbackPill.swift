@@ -24,7 +24,7 @@ struct FeedbackPill: View {
                         .tracking(-0.2)
                 }
             }
-            .foregroundStyle(pose.filled ? TTColor.onAccent : TTColor.accent)
+            .foregroundStyle(pose.onAccent ? TTColor.onAccent : TTColor.accent)
             .padding(.leading, compact ? 0 : 10)
             .padding(.trailing, compact ? 0 : TTSpace.s3)
             .frame(width: compact ? 30 : nil, height: 30)
@@ -123,7 +123,13 @@ struct ScheduleFeedbackEntry: View {
                 guard !Task.isCancelled else { return }
                 var next = pose
                 step.apply(&next)
-                withAnimation(step.animation) { pose = next }
+                if let animation = step.animation {
+                    withAnimation(animation) { pose = next }
+                } else {
+                    var now = Transaction()
+                    now.disablesAnimations = true
+                    withTransaction(now) { pose = next }
+                }
             }
         }
     }

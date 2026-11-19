@@ -186,6 +186,7 @@ final class BackgroundDetection {
     @ObservationIgnored private var detector: TrainDetector?
     @ObservationIgnored private var deadline: Date?
     @ObservationIgnored private var loop: Task<Void, Never>?
+    @ObservationIgnored private var following: Task<Void, Never>?
 
     /// `tickInterval` nil runs no timer: tests call `tick()`. `makeDetector` makes each check's matcher, on the GPS that
     /// runs in the background. `isInForeground` is true while the app is not in the background (in front, or inactive at
@@ -286,6 +287,26 @@ final class BackgroundDetection {
         guard !offered, !isOn, !offerDue else { return }
         offerDue = true
         defaults.set(true, forKey: DetectionStore.offerDueKey)
+    }
+
+    /// Follows the app's ride engine from launch, so a ride that reaches your stop while the app is in the background (the
+    /// phone locked in a pocket, as most arrivals are) still makes the offer due (TT-230). A view's `onChange` missed it:
+    /// SwiftUI does not update a background scene, and the ride has ended (D103) by the time the app comes back.
+    func follow(_ engine: RideEngine) {
+        following?.cancel()
+        let events = engine.events()
+        following = Task { [weak self] in
+            for await event in events {
+                guard let self else { return }
+                if case .update(let state) = event, Self.reachedYourStop(state) { self.rideReachedYourStop() }
+                if case .phase(.atYourStop) = event { self.rideReachedYourStop() }
+            }
+        }
+    }
+
+    /// At your stop, or ended there.
+    static func reachedYourStop(_ state: RideState) -> Bool {
+        state.phase == .atYourStop || (state.phase == .ended && state.endReason == .arrived)
     }
 
     /// The offer showed: never again, whatever the answer.

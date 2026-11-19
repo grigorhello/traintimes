@@ -150,7 +150,15 @@ struct GTFSTimetable: Sendable {
             let shape = TrackShape(flat: shapes[index].points)
             track = RidePlan.Track(shape: shape, stopDistances: shape.distances(of: places))
         }
-        return RidePlan(stops: stops, track: track)
+        // The stations it passes without stopping, and the Schedule card's express tag for this stretch (TT-232, D111).
+        var stationPlaces: [String: GeoPoint] = [:]
+        for stop in feed.stops {
+            if let place = stop.place { stationPlaces[stop.id] = place }
+        }
+        let skipped = RidePlan.skipped(stops: stops, track: track, lineId: feed.lines[trip.line].id, places: stationPlaces)
+        let isExpress = trips(from: ride.originId, to: ride.destinationId, on: day)
+            .first { $0.key.tripId == ride.tripId }?.tags.contains(.express) ?? false
+        return RidePlan(stops: stops, track: track, skipped: skipped, isExpress: isExpress)
     }
 
     /// A direct trip's whole calling pattern with its scheduled times, which live estimates are matched against (TT-131).

@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().setNotificationCategories([DetectionNotice.notificationCategory])
         nudge.follow(ride)
+        detection?.follow(ride)
         detection?.resume()
         Task {
             await ride.restore()

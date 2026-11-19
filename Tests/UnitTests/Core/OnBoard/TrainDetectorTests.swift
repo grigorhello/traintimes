@@ -41,6 +41,22 @@ final class TrainDetectorTests: XCTestCase {
         XCTAssertEqual(location.requests, 0)
     }
 
+    /// TT-230: the question sends `detection_asked` once, with where it was asked and what made the matcher sure.
+    func testAskingSendsDetectionAsked() async throws {
+        let recorder = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
+        let clock = startClock()
+        let location = FakeLocation(authorized: true)
+        let detector = makeDetector(location: location, clock: clock, defaults: nil, askedWhere: "app")
+        _ = await detector.start(on: DemoRide.route)
+
+        await ride(detector, location: location, clock: clock)
+        await detector.tick()
+
+        XCTAssertTrue(detector.isAsking)
+        XCTAssertEqual(recorder.events, [.detectionAsked(where: "app", evidence: "stops")])
+    }
+
     func testNoIsKeptForTheDay() async throws {
         let defaults = UserDefaults.ephemeral()
         let clock = startClock()
@@ -145,7 +161,9 @@ final class TrainDetectorTests: XCTestCase {
     }
 
     /// A detector on the demo train, placed by GO's train feed, against a phone the test moves.
-    private func makeDetector(location: FakeLocation, clock: TestClock, defaults: UserDefaults?) -> TrainDetector {
+    private func makeDetector(
+        location: FakeLocation, clock: TestClock, defaults: UserDefaults?, askedWhere: String? = nil
+    ) -> TrainDetector {
         TrainDetector(
             candidates: DemoCandidates(train: DemoRide.candidate(on: day)),
             location: location,
@@ -153,7 +171,8 @@ final class TrainDetectorTests: XCTestCase {
             clock: clock,
             defaults: defaults,
             tickInterval: nil,
-            feedInterval: 0
+            feedInterval: 0,
+            askedWhere: askedWhere
         )
     }
 

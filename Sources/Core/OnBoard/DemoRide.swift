@@ -20,6 +20,12 @@ enum DemoRide {
     static let detectInterval: Duration = .milliseconds(250)
     /// How long the train stands at each station between the two ends.
     static let dwell: TimeInterval = 40
+    /// Settings › Testing › Express (TT-232, D111): the demo ride is the same train as an express, Union to Clarkson without
+    /// stopping, 5:13 to 5:39 PM. Stored on device like Demo trains; the question before it is still the stopping train's.
+    static let expressKey = "settings.demoExpress"
+    static var playsExpress: Bool { UserDefaults.standard.bool(forKey: expressKey) }
+    /// The express reaches Clarkson at 5:39 PM, in minutes after 5:00 PM.
+    static let expressArrivalMinute = 39
 
     private struct Call {
         let station: Station
@@ -55,9 +61,25 @@ enum DemoRide {
         Ride(trip: TripKey(serviceDay: day, tripId: tripId), from: route.from.id, to: route.to.id)
     }
 
-    /// The six stops with their times on `day`, and the track through them.
-    static func plan(on day: ServiceDay) -> RidePlan {
+    /// The six stops with their times on `day`, and the track through them. `express`: the two ends only, on the same
+    /// track, with the four stations between passed without stopping (TT-232).
+    static func plan(on day: ServiceDay, express: Bool = false) -> RidePlan {
         let last = calls.count - 1
+        if express {
+            let ends = [calls[0], calls[last]]
+            let minutes = [calls[0].minute, expressArrivalMinute]
+            let stops = zip(ends, minutes).map { call, minute -> RidePlan.Stop in
+                let time = day.gtfsTime(17 * 3600 + minute * 60)
+                let station = Station(id: call.station.id, name: call.station.name, place: call.place)
+                return RidePlan.Stop(station: station, arrival: time, departure: time)
+            }
+            let shape = demoShape
+            let track = RidePlan.Track(shape: shape, stopDistances: shape.distances(of: ends.map(\.place)))
+            var places: [String: GeoPoint] = [:]
+            for call in calls { places[call.station.id] = call.place }
+            let skipped = RidePlan.skipped(stops: stops, track: track, lineId: line.id, places: places)
+            return RidePlan(stops: stops, track: track, skipped: skipped, isExpress: true)
+        }
         let stops = calls.enumerated().map { index, call -> RidePlan.Stop in
             let arrival = day.gtfsTime(17 * 3600 + call.minute * 60)
             let stands = index == 0 || index == last ? 0 : dwell
@@ -65,13 +87,18 @@ enum DemoRide {
             let station = Station(id: call.station.id, name: call.station.name, place: call.place)
             return RidePlan.Stop(station: station, arrival: arrival, departure: arrival.addingTimeInterval(stands))
         }
+        let shape = demoShape
+        return RidePlan(stops: stops, track: RidePlan.Track(shape: shape, stopDistances: shape.distances(of: calls.map(\.place))))
+    }
+
+    /// The demo track: through the six stations, with a bend between each pair.
+    private static var demoShape: TrackShape {
         var points: [GeoPoint] = []
         for (index, call) in calls.enumerated() {
             points.append(call.place)
             if index < bends.count { points.append(bends[index]) }
         }
-        let shape = TrackShape(points: points)
-        return RidePlan(stops: stops, track: RidePlan.Track(shape: shape, stopDistances: shape.distances(of: calls.map(\.place))))
+        return TrackShape(points: points)
     }
 
     /// Where the demo train is at `time`, in metres along its track: standing at each station from its arrival to its
@@ -86,10 +113,12 @@ enum DemoRide {
     }
 
     /// The demo's engine on `day`, read against `clock`. `tickInterval` nil runs no timer and sends one fix, at the start
-    /// (tests and snapshots).
+    /// (tests and snapshots). `express` rides the express plan (TT-232).
     @MainActor
-    static func engine(on day: ServiceDay, clock: any AppClock, tickInterval: Duration? = .seconds(1)) -> RideEngine {
-        let ridePlan = plan(on: day)
+    static func engine(
+        on day: ServiceDay, clock: any AppClock, tickInterval: Duration? = .seconds(1), express: Bool = false
+    ) -> RideEngine {
+        let ridePlan = plan(on: day, express: express)
         return RideEngine(
             data: DemoRideData(plan: ridePlan),
             location: DemoLocation(plan: ridePlan, clock: clock, interval: tickInterval),
@@ -102,18 +131,22 @@ enum DemoRide {
     /// The demo ride as Settings › Testing plays it: today, six times as fast, from `moment` (where the question's Yes
     /// left the demo clock), else from 5:32 PM.
     @MainActor
-    static func session(startingAt realStart: Date = Date(), from moment: Date? = nil) -> (engine: RideEngine, ride: Ride) {
+    static func session(
+        startingAt realStart: Date = Date(), from moment: Date? = nil, express: Bool = DemoRide.playsExpress
+    ) -> (engine: RideEngine, ride: Ride) {
         let day = moment.map { ServiceDay(calendarDayContaining: $0) } ?? ServiceDay(calendarDayContaining: realStart)
         let clock = DemoRideClock(start: moment ?? day.gtfsTime(startSeconds), realStart: realStart, speed: speed)
-        return (engine(on: day, clock: clock), ride(on: day))
+        return (engine(on: day, clock: clock, express: express), ride(on: day))
     }
 
     /// The demo departure's "I’m on board" (TT-177): the same train, ridden from the departure demo's time on, six times as
     /// fast.
     @MainActor
-    static func session(continuing departure: DemoDeparture.Session, realStart: Date = Date()) -> (engine: RideEngine, ride: Ride) {
+    static func session(
+        continuing departure: DemoDeparture.Session, realStart: Date = Date(), express: Bool = DemoRide.playsExpress
+    ) -> (engine: RideEngine, ride: Ride) {
         let clock = DemoRideClock(start: departure.now, realStart: realStart, speed: speed)
-        return (engine(on: departure.day, clock: clock), ride(on: departure.day))
+        return (engine(on: departure.day, clock: clock, express: express), ride(on: departure.day))
     }
 
     /// The question's detector on `day`, read against `clock`: the demo train placed as GO's train feed would place it

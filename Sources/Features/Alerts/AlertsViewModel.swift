@@ -108,12 +108,16 @@ final class AlertsViewModel {
         case restore(AlertRule)
     }
 
+    /// Remove's Drop, Undo's and Try again's Tap, a failed save's Fail, Done when notifications are back (TT-215, D100).
+    private let haptics: any HapticPlaying
+
     /// A capsule with an action shows for 5 s, one without for 2.5 s (D71).
     init(
         rules: AlertRules, updates: AlertUpdates, nextTrains: any NextTrainsProviding = NoNextTrains(), clock: any AppClock,
         actionDuration: Duration = .seconds(5), plainDuration: Duration = .milliseconds(2500),
-        notificationsOnDelay: Duration = .milliseconds(300)
+        notificationsOnDelay: Duration = .milliseconds(300), haptics: any HapticPlaying = TTHaptics.shared
     ) {
+        self.haptics = haptics
         self.rules = rules
         self.updates = updates
         self.nextTrains = nextTrains
@@ -257,6 +261,7 @@ final class AlertsViewModel {
         openID = nil
         wantedDays[id] = nil
         let task = rules.deleteInBackground(id)
+        haptics.play(.remove)
         Analytics.track(.alertRemoved(source: .alertsTab))
         show(.removed)
         removed = rule
@@ -267,6 +272,7 @@ final class AlertsViewModel {
     /// Undo on "Alert removed": the alert back with the same id, days and switch, once its delete is done.
     func undo() async {
         guard capsule?.kind == .removed, let rule = removed else { return }
+        haptics.play(.undo)
         dismissCapsule()
         await removeTask?.value
         await restore(rule)
@@ -275,6 +281,7 @@ final class AlertsViewModel {
     /// Try again on "Couldn't …": the same change once more.
     func tryAgain() async {
         guard let retry else { return }
+        haptics.play(.undo)
         dismissCapsule()
         switch retry {
         case let .setOn(isOn, id):
@@ -346,6 +353,7 @@ final class AlertsViewModel {
         notificationsOnTask = Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
+            self.haptics.play(.confirmed)
             self.show(.notificationsOn)
         }
     }
@@ -424,6 +432,7 @@ final class AlertsViewModel {
     }
 
     private func show(_ kind: Capsule.Kind, retry: Retry? = nil) {
+        if case .failed = kind { haptics.play(.fail) }
         capsuleCount += 1
         let next = Capsule(id: capsuleCount, kind: kind)
         capsule = next

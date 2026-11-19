@@ -19,6 +19,7 @@ struct SettingsTestingPage: View {
                     liveCard.settingsRise(order: 1)
                     header("settings.testing.time").settingsRise(order: 2)
                     mockTimeCard.settingsRise(order: 2)
+                    demoWeatherCard.settingsRise(order: 2)
                     SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
                     hapticsCard.settingsRise(order: 3)
                 }
@@ -160,6 +161,22 @@ struct SettingsTestingPage: View {
             }
             .padding(TTSpace.s3)
         }
+    }
+
+    // MARK: Demo weather
+
+    /// Demo weather (TT-226): fixture weather on the weather tile, for the simulator and screenshots.
+    private var demoWeatherCard: some View {
+        SettingsCard {
+            Toggle(isOn: $viewModel.isDemoWeatherOn) {
+                Text("settings.demo_weather").font(TTFont.body).foregroundStyle(TTColor.ink)
+            }
+            .tint(TTColor.accent)
+            .padding(.horizontal, TTSpace.s4)
+            .frame(minHeight: SettingsMetrics.rowHeight)
+            .accessibilityIdentifier("settings.demoWeather")
+        }
+        .padding(.top, TTSpace.s3)
     }
 
     // MARK: Mock time

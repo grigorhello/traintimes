@@ -19,8 +19,9 @@ struct BoardingShown {
         self.defaults = defaults
     }
 
-    /// `departure` shows Boarding at `station` (the route's origin id) on `surface` at `now`.
-    func shown(_ departure: Departure, station: String, surface: Surface, now: Date) {
+    /// `departure` shows Boarding on `surface` at `now`. The station is not sent (TT-234, D116): with Automatic
+    /// direction the From station says where the rider is.
+    func shown(_ departure: Departure, surface: Surface, now: Date) {
         guard let defaults else { return }
         let day = "\(departure.id.serviceDay.dateKey)/"
         let entry = day + departure.id.tripId
@@ -29,6 +30,6 @@ struct BoardingShown {
         guard !seen.contains(entry) else { return }
         defaults.set(seen + [entry], forKey: Self.key)
         let minutes = Int((departure.trip.scheduledDeparture.timeIntervalSince(now) / 60).rounded(.down))
-        Analytics.track(.boardingShown(station: station, minutesBefore: minutes, surface: surface))
+        Analytics.track(.boardingShown(minutesBefore: minutes, surface: surface))
     }
 }

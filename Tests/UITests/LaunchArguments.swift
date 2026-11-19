@@ -16,6 +16,21 @@ enum LaunchArguments {
     static let noDismissedNotices = ["-notices.dismissed", ""]
     /// No alert rules (TT-141), so every bell starts off.
     static let noAlerts = ["-alerts.rules", ""]
+    /// No Undo hour (TT-234, D116), so Automatic direction may turn the route between any two stations.
+    static let noDirectionUndo = ["-direction.undo", ""]
+    /// No route chosen by hand lately, so Automatic direction's look runs.
+    static let noDirectionChoice = ["-direction.byHand", ""]
+    /// The rider has not turned Automatic direction off.
+    static let noDirectionOff = ["-direction.off", ""]
+    /// Nothing holds Automatic direction back: no Undo hour, no choice by hand and no "off", whatever an earlier run left.
+    /// A test that checks the Undo hour relaunches without `noDirectionUndo`.
+    static let noDirectionHolds = noDirectionUndo + noDirectionChoice + noDirectionOff
+
+    /// Settings › Testing › Demo place at one of the route's two stations, by id: the phone reads as standing there, with
+    /// location allowed (TT-234, D116). Fixture runs have no location reader, so this is how a UI test turns the route.
+    static func demoPlace(_ station: String) -> [String] {
+        ["-settings.demoPlace", station]
+    }
 }
 
 extension XCUIApplication {

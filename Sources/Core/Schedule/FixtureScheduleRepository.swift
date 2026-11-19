@@ -129,13 +129,17 @@ struct FixtureScheduleRepository: ScheduleRepository {
             ? LiveSnapshot(updatedAt: try at(file.offlineScenario.lastUpdated), isOffline: true, updates: updates)
             : LiveSnapshot(updatedAt: updatedAt, updates: updates)
         self.notices = notices
+        // A station in the list carries the place of its stop where the file gives one (the fixture line's stops), so
+        // Automatic direction can read the route's two places from the list, as it does from the GTFS feed's (TT-234, D116).
+        let places = file.stops.reduce(into: [String: GeoPoint]()) { found, stop in
+            if let lat = stop.lat, let lon = stop.lon { found[stop.id] = GeoPoint(latitude: lat, longitude: lon) }
+        }
         let stationList = file.stations
-            .map { Station(id: $0.id, name: $0.name, lines: $0.lines) }
+            .map { Station(id: $0.id, name: $0.name, lines: $0.lines, place: places[$0.id]) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         self.stationList = stationList
         self.lineStops = try file.stops.map { stop in
-            guard var station = stationList.first(where: { $0.id == stop.id }) else { throw FixtureError.invalid(stop.id) }
-            station.place = stop.lat.flatMap { lat in stop.lon.map { GeoPoint(latitude: lat, longitude: $0) } }
+            guard let station = stationList.first(where: { $0.id == stop.id }) else { throw FixtureError.invalid(stop.id) }
             return LineStop(station: station, minutes: stop.minutes)
         }
     }
@@ -200,7 +204,7 @@ struct FixtureScheduleRepository: ScheduleRepository {
 
 /// Previews and tests list the illustrative stations in `Fixtures.json` (TT-121, D29); the app lists the GTFS feed's
 /// stations (TT-130).
-/// Only the fixture route's pair has a line and trips.
+/// Only the fixture route's pair has a line and trips, and only the fixture line's stops have a place (TT-234, D116).
 extension FixtureScheduleRepository: StationRepository {
     func stations() async throws -> [Station] {
         stationList

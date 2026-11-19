@@ -30,6 +30,7 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testLateDark() { snap(late, .dark) }
     @MainActor func testEntryLight() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .light) }
     @MainActor func testEntryDark() async throws { snap(TripDetailsView(viewModel: try await .onBoardFixture(hasAlert: true)), .dark) }
+    /// The location sheet. Its line is three sentences since TT-234 (D116), on three rows in a sheet one row taller.
     @MainActor func testPermissionLight() { snap(permission, .light) }
     @MainActor func testPermissionDark() { snap(permission, .dark) }
     /// Live-Always (TT-176, cut down by TT-205): "Detect my train next time?", after the first completed ride.

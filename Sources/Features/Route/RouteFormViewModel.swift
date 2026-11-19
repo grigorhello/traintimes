@@ -214,7 +214,8 @@ final class RouteFormViewModel {
         return pick(row.station)
     }
 
-    /// Swap is explicit, never automatic.
+    /// The route form's swap button: the rider's own tap. Only Schedule's saved route may turn by itself (Automatic
+    /// direction, TT-234, D116).
     func swap() {
         Analytics.track(.routeSwapped)
         haptics.play(.swap)

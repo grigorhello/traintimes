@@ -211,6 +211,24 @@ final class ScheduleRepositoryTests: XCTestCase {
         XCTAssertTrue(stations.allSatisfy { !$0.lines.isEmpty })
     }
 
+    /// TT-234 (D116): a station in the list carries the place of its stop where the file gives one, so Automatic direction
+    /// reads the fixture route's two places from the list (Demo place in fixture runs). The other stations have none.
+    func testStationsOnTheFixtureLineCarryTheirStopsPlaces() async throws {
+        let repo = try repository(.normal)
+        let stations = try await repo.stations()
+        let oakville = try XCTUnwrap(stations.first { $0.id == repo.route.from.id })
+        let union = try XCTUnwrap(stations.first { $0.id == repo.route.to.id })
+        XCTAssertEqual(oakville.place, GeoPoint(latitude: 43.455594, longitude: -79.682242))
+        XCTAssertEqual(union.place, GeoPoint(latitude: 43.645195, longitude: -79.3806))
+        XCTAssertEqual(Set(stations.filter { $0.place != nil }.map(\.id)), ["OA", "CL", "PO", "LO", "MO", "EX", "UN"])
+
+        // The trip's stops keep the same places (Directions on Trip details, TT-188).
+        let stops = try await repo.stops(for: TripKey(serviceDay: day, tripId: "LW-0732-20261105"), on: repo.route)
+        XCTAssertEqual(stops.first?.station.place, oakville.place)
+        XCTAssertEqual(stops.last?.station.place, union.place)
+        XCTAssertTrue(stops.allSatisfy { $0.station.place != nil })
+    }
+
     // MARK: Stops (TT-118)
 
     func testStopsRunFromOriginToDestinationInTheRouteDirection() async throws {

@@ -510,6 +510,6 @@ final class TripDetailsViewModel {
     /// the demo departure's train is made up and has no position.
     private func countBoardingShown() {
         guard !isRiding, let departure, departure.isBoarding(at: now) else { return }
-        boardingShown.shown(departure, station: route.from.id, surface: .trip, now: now)
+        boardingShown.shown(departure, surface: .trip, now: now)
     }
 }

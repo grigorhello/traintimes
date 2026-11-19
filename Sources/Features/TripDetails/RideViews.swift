@@ -823,18 +823,20 @@ private struct TrainMarker: View {
 // MARK: Permission sheet
 
 /// The first "I'm on board" (*Live-Permission*; one straight ask since TT-205, D93, board 5): "Train Times needs your
-/// location", one line, Allow location (on to the iOS prompt) and Not now (starts nothing). Shown only while the app still
+/// location", its line, Allow location (on to the iOS prompt) and Not now (starts nothing). Shown only while the app still
 /// has to ask iOS.
 struct RideIntroSheet: View {
     var onContinue: () -> Void = {}
     var onNotNow: () -> Void = {}
 
-    static let height: CGFloat = PermissionAsk.height
+    /// One row taller than the shape's 400 pt: the line is three sentences since Automatic direction reads the location
+    /// too (TT-234, D116), which take three rows at the iPhone 17 Pro's width where the shape's 400 pt holds two.
+    static let height: CGFloat = PermissionAsk.height + PermissionAsk.rowHeight
 
     var body: some View {
         PermissionAsk(
             title: "loc.title", line: "loc.subtitle", action: "loc.allow",
-            actionID: "onboard.intro.continue", laterID: "onboard.intro.later",
+            actionID: "onboard.intro.continue", laterID: "onboard.intro.later", sheetHeight: Self.height,
             onAction: onContinue, onLater: onNotNow
         )
         .accessibilityIdentifier("sheet.onboardIntro")
@@ -842,17 +844,23 @@ struct RideIntroSheet: View {
 }
 
 /// The two location asks' one shape (TT-205, boards 5 and 16): the pin in its soft tile, a title, one line, the accent
-/// button and Not now. No bullets, no footnote.
+/// button and Not now. No bullets, no footnote. The sheet is `sheetHeight` tall: 400 pt for a line of two rows, and a
+/// longer line says how tall it needs (TT-234, D116).
 struct PermissionAsk: View {
     let title: LocalizedStringKey
     let line: LocalizedStringKey
     let action: LocalizedStringKey
     let actionID: String
     let laterID: String
+    /// The sheet's height: `height` unless the caller's line needs more rows.
+    var sheetHeight: CGFloat = PermissionAsk.height
     var onAction: () -> Void = {}
     var onLater: () -> Void = {}
 
+    /// The sheet's height with the line on two rows.
     static let height: CGFloat = 400
+    /// What each further row of the line adds: the 15 pt line's row.
+    static let rowHeight: CGFloat = 18
 
     var body: some View {
         VStack(spacing: 14) {
@@ -896,7 +904,7 @@ struct PermissionAsk: View {
         .padding(.top, 30)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(TTColor.canvas)
-        .presentationDetents([.height(Self.height)])
+        .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(TTRadius.sheet)
         .presentationBackground(TTColor.canvas)

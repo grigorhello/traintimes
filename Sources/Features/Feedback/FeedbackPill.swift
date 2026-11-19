@@ -75,6 +75,8 @@ private struct BubbleReplace: ViewModifier {
 /// each time the app's `FeedbackNudge` says so (TT-228, D112).
 struct ScheduleFeedbackEntry: View {
     var compact = false
+    /// The sheet opened or closed, for Schedule, which counts it as something over it (TT-234).
+    var onSheet: (Bool) -> Void = { _ in }
     @State private var showsSheet = false
     @State private var pose = FeedbackNudgeMotion.Pose.rest
     @State private var playing: Task<Void, Never>?
@@ -98,6 +100,7 @@ struct ScheduleFeedbackEntry: View {
         .onChange(of: nudge?.playRequest) { play() }
         // Back at rest when the sheet closes, even if it was opened mid-play.
         .onChange(of: showsSheet) { _, shows in
+            onSheet(shows)
             guard !shows else { return }
             playing?.cancel()
             pose = .rest

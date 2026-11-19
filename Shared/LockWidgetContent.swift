@@ -194,7 +194,7 @@ struct LockCircularContent: Equatable, Sendable {
             caption = formatter.railTime(departure)
             ring = 0
         } else if lead <= LockWidget.minutesLead {
-            value = String(max(0, Int(lead / 60)))
+            value = String(WidgetCountdown.wholeMinutes(from: entry.date, to: departure))
             caption = String(localized: "widget.lock.min")
             ring = min(1, lead / LockWidget.ringSpan)
         } else {

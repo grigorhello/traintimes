@@ -4,10 +4,10 @@ import XCTest
 @testable import TrainTimes
 
 /// The Home Screen widgets (TT-183) against the Widgets canvas: every state of Next train (board Widgets-States) and
-/// Departures (Widgets-Home-Lean and -Dark), light and dark, each at its size from the boards (158 pt square and
-/// 338 × 158 pt, until TT-185 measures the simulator's), with the countdown stopped at the entry's moment. The surface
-/// colour stands for the background iOS gives the widget. Also where iOS takes the colours away (the outline tile) and
-/// StandBy (no background, on black). One reference per state, named after it.
+/// Departures (Widgets-Home-Lean and -Dark), light and dark, each at its size on the iPhone 17 Pro (`WidgetFixtures.small`
+/// and `.medium`, measured by TT-185; the boards drew 158 pt and 338 × 158 pt), with the countdown stopped at the entry's
+/// moment. The surface colour stands for the background iOS gives the widget. Also where iOS takes the colours away (the
+/// outline tile) and StandBy (no background, on black). One reference per state, named after it.
 final class WidgetSnapshotTests: XCTestCase {
     @MainActor func testNextTrainLight() { snap(.nextTrain, trains, .light) }
     @MainActor func testNextTrainDark() { snap(.nextTrain, trains, .dark) }
@@ -81,7 +81,7 @@ final class WidgetSnapshotTests: XCTestCase {
         _ widget: WidgetKind, _ entry: WidgetEntry, _ name: String, _ style: UIUserInterfaceStyle, look: WidgetLook = WidgetLook(),
         testName: String = #function, line: UInt = #line
     ) {
-        let size = widget == .nextTrain ? CGSize(width: 158, height: 158) : CGSize(width: 338, height: 158)
+        let size = widget == .nextTrain ? WidgetFixtures.small : WidgetFixtures.medium
         let content = widget == .nextTrain
             ? AnyView(NextTrainWidgetView(content: NextTrainContent(entry)))
             : AnyView(DeparturesWidgetView(content: DeparturesContent(entry)))

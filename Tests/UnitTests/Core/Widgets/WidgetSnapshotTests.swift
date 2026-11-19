@@ -6,8 +6,8 @@ import XCTest
 /// The Home Screen widgets (TT-183) against the Widgets canvas: every state of Next train (board Widgets-States) and
 /// Departures (Widgets-Home-Lean and -Dark), light and dark, each at its size from the boards (158 pt square and
 /// 338 × 158 pt, until TT-185 measures the simulator's), with the countdown stopped at the entry's moment. The surface
-/// colour stands for the background iOS gives the widget. Also where iOS takes the colours away (the outline tile),
-/// StandBy (no background, on black) and iOS 17 (no countdown). One reference per state, named after it.
+/// colour stands for the background iOS gives the widget. Also where iOS takes the colours away (the outline tile) and
+/// StandBy (no background, on black). One reference per state, named after it.
 final class WidgetSnapshotTests: XCTestCase {
     @MainActor func testNextTrainLight() { snap(.nextTrain, trains, .light) }
     @MainActor func testNextTrainDark() { snap(.nextTrain, trains, .dark) }
@@ -26,13 +26,6 @@ final class WidgetSnapshotTests: XCTestCase {
         snap(.nextTrain, WidgetFixtures.nextTrain(), "outline", .dark, look: outline)
         snap(.departures, WidgetFixtures.nextTrain(), "outline", .dark, look: outline)
         snap(.nextTrain, WidgetFixtures.nextTrain(), "stand-by", .dark, look: standBy)
-    }
-
-    /// Before iOS 18 no text counts down by itself: the clock time only.
-    @MainActor func testWithoutTheCountdown() {
-        snap(.nextTrain, WidgetFixtures.nextTrain(), "next-train", .light, countsDown: false)
-        snap(.nextTrain, WidgetFixtures.lastTrain, "last-train", .light, countsDown: false)
-        snap(.departures, WidgetFixtures.nextTrain(), "next-train", .light, countsDown: false)
     }
 
     /// The widest lines: an express at 11:47 PM that is the last train, 150 min away; the 24-hour clock; and Departures'
@@ -82,11 +75,11 @@ final class WidgetSnapshotTests: XCTestCase {
         }
     }
 
-    /// One widget at its size, at the entry's moment, on the surface colour (on black where iOS removes the background).
+    /// One widget at its size, on the surface colour (on black where iOS removes the background).
     @MainActor
     private func snap(
         _ widget: WidgetKind, _ entry: WidgetEntry, _ name: String, _ style: UIUserInterfaceStyle, look: WidgetLook = WidgetLook(),
-        countsDown: Bool = true, testName: String = #function, line: UInt = #line
+        testName: String = #function, line: UInt = #line
     ) {
         let size = widget == .nextTrain ? CGSize(width: 158, height: 158) : CGSize(width: 338, height: 158)
         let content = widget == .nextTrain
@@ -94,8 +87,6 @@ final class WidgetSnapshotTests: XCTestCase {
             : AnyView(DeparturesWidgetView(content: DeparturesContent(entry)))
         let view = content
             .environment(\.widgetLook, look)
-            .environment(\.widgetCountdownFixedAt, entry.date)
-            .environment(\.widgetShowsCountdown, countsDown)
             .frame(width: size.width, height: size.height)
             .background(look.showsBackground ? TTColor.surface : Color.black)
         let traits = ViewImageConfig.iPhone17Pro.traits.modifyingTraits { $0.userInterfaceStyle = style }

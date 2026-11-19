@@ -247,11 +247,11 @@ final class WidgetEntryBuilderTests: XCTestCase {
     func testTimelineEntriesUntil3AM() {
         let now = at(wed, "09:00")
         let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now)
-        XCTAssertEqual(timeline.reloadAt, at(thu, "03:00"))
         let dates = timeline.entries.map(\.date)
         XCTAssertEqual(dates.first, now)
         XCTAssertEqual(dates, dates.sorted())
-        XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < timeline.reloadAt })
+        XCTAssertEqual(Set(dates).count, dates.count)
+        XCTAssertTrue(dates.allSatisfy { $0 >= now && $0 < at(thu, "03:00") })
         for time in ["09:30", "09:45", "10:15", "11:00", "11:30", "12:00", "12:15", "17:00", "22:00", "23:00"] {
             XCTAssertTrue(dates.contains(at(wed, time)), time)
         }
@@ -262,6 +262,38 @@ final class WidgetEntryBuilderTests: XCTestCase {
         // A usual time adds the moment 30 min before it.
         let usual = file(usual: [WidgetFile.UsualTime(route: oakvilleToUnion.reversed, minutesIntoDay: 17 * 60 + 40, weekdays: [3])])
         XCTAssertTrue(WidgetEntryBuilder.timeline(file: usual, route: nil, turnsAround: true, now: now).entries.map(\.date).contains(at(wed, "17:10")))
+    }
+
+    /// The countdown is text in each entry (TT-183, D112): an entry each minute for 2 h, and iOS is asked again in 1 h.
+    func testACountdownGetsAnEntryEachMinuteAndAnHourlyReload() {
+        let now = at(wed, "09:00")
+        let timeline = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now)
+        XCTAssertEqual(timeline.reloadAt, at(wed, "10:00"))
+        let dates = timeline.entries.map(\.date)
+        for time in ["09:01", "09:02", "09:59", "10:00", "10:59", "11:00"] {
+            XCTAssertTrue(dates.contains(at(wed, time)), time)
+        }
+        XCTAssertFalse(dates.contains(at(wed, "11:01")))
+        XCTAssertEqual(dates.filter { $0 <= at(wed, "11:00") }.count, 121)
+        // From a moment between two minutes, the first one is the next whole minute.
+        let late = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: now.addingTimeInterval(20))
+        XCTAssertEqual(Array(late.entries.map(\.date).prefix(2)), [now.addingTimeInterval(20), at(wed, "09:01")])
+        XCTAssertEqual(late.reloadAt, at(wed, "10:00").addingTimeInterval(20))
+    }
+
+    /// No countdown, no minutes: after the last train the timeline waits for 3 AM, and before a turn-around that brings
+    /// trains back it asks again when they start.
+    func testNoCountdownHasNoMinuteEntries() {
+        let night = WidgetEntryBuilder.timeline(file: file(), route: nil, turnsAround: true, now: at(wed, "00:10"))
+        XCTAssertEqual(night.entries.map(\.date), [at(wed, "00:10")])
+        XCTAssertEqual(night.reloadAt, at(thu, "03:00"))
+
+        var morningOnly = file()
+        morningOnly.routes[0].outbound = [departure(wed, "08:00")]
+        let waiting = WidgetEntryBuilder.timeline(file: morningOnly, route: nil, turnsAround: true, now: at(wed, "09:00"))
+        XCTAssertFalse(waiting.entries.first?.showsCountdown ?? true)
+        XCTAssertFalse(waiting.entries.map(\.date).contains(at(wed, "09:01")))
+        XCTAssertEqual(waiting.reloadAt, at(wed, "12:00"))
     }
 
     func testNotLoadedTimelineIsOneEntry() {

@@ -16,69 +16,6 @@ struct WidgetLook: Equatable, Sendable {
 
 extension EnvironmentValues {
     @Entry var widgetLook = WidgetLook()
-    /// A fixed moment for the countdown: snapshot tests and the gallery's sample draw "11 min" from it, not from the clock.
-    @Entry var widgetCountdownFixedAt: Date? = nil
-    /// False before iOS 18, where no text counts down by itself: the widgets show the clock time only.
-    @Entry var widgetShowsCountdown: Bool = WidgetCountdown.isAvailable
-}
-
-/// The minutes to a departure, "11 min", the one view that counts down (TT-183). On iOS 18 and later iOS redraws the text
-/// each minute by itself, with no timeline entry or reload; the last minute is the widget's own "now" (an entry of its
-/// own, `WidgetEntryBuilder.leavingLead`). The unit is iOS's abbreviation, kept at "min" as the app writes it (Canadian
-/// English would say "mins").
-struct WidgetCountdown: View {
-    let departure: Date
-    @Environment(\.widgetCountdownFixedAt) private var fixedAt
-
-    nonisolated static var isAvailable: Bool {
-        if #available(iOS 18, *) { true } else { false }
-    }
-
-    private static let unitLocale = Locale(identifier: "en_US")
-
-    /// Whole minutes, rounded down: "11 min", "187 min", never hours or seconds.
-    private static var format: Date.ComponentsFormatStyle {
-        Date.ComponentsFormatStyle.components(style: .abbreviated, fields: [.minute]).locale(unitLocale)
-    }
-
-    var body: some View {
-        if let fixedAt {
-            Text(verbatim: Self.minutes(from: fixedAt, to: departure))
-        } else if #available(iOS 18, *) {
-            // In a widget this text takes the width it is offered, so its container places it.
-            Text(.dateRange(endingAt: departure), format: Self.format)
-                .multilineTextAlignment(.leading)
-                .environment(\.locale, Self.unitLocale)
-        }
-    }
-
-    /// The same words at a fixed moment: whole minutes left, rounded down like iOS's.
-    nonisolated static func minutes(from now: Date, to departure: Date) -> String {
-        String(format: String(localized: "widget.minutes"), max(0, Int(departure.timeIntervalSince(now) / 60)))
-    }
-}
-
-/// A message's second line, its time strong.
-private struct WidgetMessageDetail: View {
-    let text: WidgetText
-    let font: Font
-    let strongFont: Font
-
-    var body: some View {
-        Text(attributed)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var attributed: AttributedString {
-        var result = AttributedString()
-        for piece in text.pieces {
-            var run = AttributedString(piece.text)
-            run.font = piece.isStrong ? strongFont : font
-            run.foregroundColor = piece.isStrong ? TTColor.ink : TTColor.inkSecondary
-            result += run
-        }
-        return result
-    }
 }
 
 // MARK: - Next train, small
@@ -87,7 +24,6 @@ private struct WidgetMessageDetail: View {
 struct NextTrainWidgetView: View {
     let content: NextTrainContent
     @Environment(\.widgetLook) private var look
-    @Environment(\.widgetShowsCountdown) private var showsCountdown
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -188,12 +124,12 @@ struct NextTrainWidgetView: View {
         }
     }
 
-    /// "in 11 min", "Last train · 32 min" or "now"; before iOS 18 nothing, or "Last train" alone.
+    /// "in 11 min", "Last train · 32 min" or "now".
     @ViewBuilder
     private func countdown(_ train: NextTrainContent.Train) -> some View {
         if train.isLeavingNow {
             Text("widget.now")
-        } else if showsCountdown {
+        } else {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if train.isLastTrain {
                     Text("widget.last_train").fixedSize()
@@ -201,14 +137,10 @@ struct NextTrainWidgetView: View {
                 } else {
                     Text("widget.in").fixedSize()
                 }
-                WidgetCountdown(departure: train.departure)
+                Text(verbatim: train.countdown)
                     .contentTransition(.numericText())
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } else if train.isLastTrain {
-            Text("widget.last_train")
-        } else {
-            Color.clear
         }
     }
 
@@ -271,7 +203,6 @@ struct NextTrainWidgetView: View {
 struct DeparturesWidgetView: View {
     let content: DeparturesContent
     @Environment(\.widgetLook) private var look
-    @Environment(\.widgetShowsCountdown) private var showsCountdown
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -317,15 +248,13 @@ struct DeparturesWidgetView: View {
             // The next train's block opens its Trip details: the departure and the arrival, level with each other.
             Link(destination: train.link) {
                 HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    if showsCountdown {
-                        Text(verbatim: train.time)
-                            .font(TTFont.widgetTime)
-                            .tracking(-0.8)
-                            .monospacedDigit()
-                            .foregroundStyle(TTColor.ink)
-                            .contentTransition(.numericText())
-                            .fixedSize()
-                    }
+                    Text(verbatim: train.time)
+                        .font(TTFont.widgetTime)
+                        .tracking(-0.8)
+                        .monospacedDigit()
+                        .foregroundStyle(TTColor.ink)
+                        .contentTransition(.numericText())
+                        .fixedSize()
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: 1) {
                         Text("widget.arrives")
@@ -376,19 +305,15 @@ struct DeparturesWidgetView: View {
         }
     }
 
-    /// "11 min" in accent, "now" in the last minute; before iOS 18 the departure time, in ink.
+    /// "11 min" in accent; "now" in the last minute.
     @ViewBuilder
     private func hero(_ train: DeparturesContent.Train) -> some View {
-        if !showsCountdown {
-            Text(verbatim: train.time)
-                .monospacedDigit()
-                .foregroundStyle(TTColor.ink)
-        } else if train.isLeavingNow {
+        if train.isLeavingNow {
             Text("widget.now")
                 .foregroundStyle(TTColor.accent)
                 .widgetAccentable()
         } else {
-            WidgetCountdown(departure: train.departure)
+            Text(verbatim: train.countdown)
                 .foregroundStyle(TTColor.accent)
                 .contentTransition(.numericText())
                 .widgetAccentable()

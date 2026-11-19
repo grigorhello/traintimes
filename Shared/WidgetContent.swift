@@ -157,6 +157,8 @@ struct NextTrainContent: Equatable, Sendable {
         let isExpress: Bool
         /// The countdown's end.
         let departure: Date
+        /// "11 min", at the entry's moment.
+        let countdown: String
         /// The last minute: "now" in the countdown's place.
         let isLeavingNow: Bool
         /// The day's last train from 10 PM: "Last train · " before the countdown.
@@ -216,8 +218,9 @@ struct NextTrainContent: Equatable, Sendable {
         body = .train(
             Train(
                 isYourTrain: trains.yourTrain == index, time: WidgetClock(train.departure, formatter: formatter),
-                isExpress: train.isExpress, departure: train.departure, isLeavingNow: entry.isLeaving(train), isLastTrain: isLast,
-                footer: footer
+                isExpress: train.isExpress, departure: train.departure,
+                countdown: WidgetCountdown.minutes(from: entry.date, to: train.departure), isLeavingNow: entry.isLeaving(train),
+                isLastTrain: isLast, footer: footer
             )
         )
         link = WidgetLink.tagged(train.link, from: .nextTrain)
@@ -247,6 +250,8 @@ struct DeparturesContent: Equatable, Sendable {
     struct Train: Equatable, Sendable {
         /// The countdown's end.
         let departure: Date
+        /// "11 min", at the entry's moment.
+        let countdown: String
         /// "7:58".
         let time: String
         /// "8:38".
@@ -281,13 +286,23 @@ struct DeparturesContent: Equatable, Sendable {
             .filter { $0.key.serviceDay == train.key.serviceDay }
         body = .train(
             Train(
-                departure: train.departure, time: formatter.railTime(train.departure), arrival: formatter.railTime(train.arrival),
+                departure: train.departure, countdown: WidgetCountdown.minutes(from: entry.date, to: train.departure),
+                time: formatter.railTime(train.departure), arrival: formatter.railTime(train.arrival),
                 isLeavingNow: entry.isLeaving(train), link: WidgetLink.tagged(train.link, from: .departures),
                 later: following.map {
                     Later(time: formatter.railTime($0.departure), link: WidgetLink.tagged($0.link, from: .departures))
                 }
             )
         )
+    }
+}
+
+/// The minutes to a departure as the widgets write them (TT-183, D112): "11 min", whole minutes rounded down, never hours
+/// or seconds. Each entry carries its own, and the timeline has an entry a minute while one shows
+/// (`WidgetEntryBuilder.countdownSpan`); the last minute is "now" (`WidgetEntryBuilder.leavingLead`).
+enum WidgetCountdown {
+    static func minutes(from now: Date, to departure: Date) -> String {
+        String(format: String(localized: "widget.minutes"), max(0, Int(departure.timeIntervalSince(now) / 60)))
     }
 }
 

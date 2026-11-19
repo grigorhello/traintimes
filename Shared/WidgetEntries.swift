@@ -59,9 +59,15 @@ struct WidgetEntry: Equatable, Sendable {
         /// trains (TT-183).
         var displaced: Train?
     }
+
+    /// True while the widgets write a countdown: a train is still to leave today.
+    var showsCountdown: Bool {
+        if case .trains(let trains) = state { !trains.trains.isEmpty } else { false }
+    }
 }
 
-/// A widget's whole timeline: its entries until the next 3 AM, when WidgetKit asks again.
+/// A widget's whole timeline: its entries until the next 3 AM, and when WidgetKit asks again (after an hour while a
+/// countdown shows, else at 3 AM).
 struct WidgetTimeline: Equatable, Sendable {
     let entries: [WidgetEntry]
     let reloadAt: Date
@@ -79,14 +85,30 @@ enum WidgetEntryBuilder {
     static let trainCount = 3
     /// The last minute before a departure, when the countdown reads "now" (TT-183).
     static let leavingLead: TimeInterval = 60
+    /// The countdown is text in each entry, so the timeline has an entry a minute while one shows (TT-183, D112: in a
+    /// placed widget iOS did not redraw a counting text by itself). The minutes are written for the next 2 h and
+    /// WidgetKit is asked again after 1 h, well inside its daily budget, so an hour of them is in hand when it asks late.
+    static let countdownSpan: TimeInterval = 2 * 60 * 60
+    static let countdownReload: TimeInterval = 60 * 60
 
     static func timeline(file: WidgetFile?, route: WidgetFile.RouteKey?, turnsAround: Bool, now: Date) -> WidgetTimeline {
-        let reloadAt = ServiceDay(containing: now).adding(days: 1).date(hour: ServiceDay.cutoffHour, minute: 0)
-        let moments = [now] + changes(file: file, route: route, turnsAround: turnsAround, after: now, before: reloadAt)
-        return WidgetTimeline(
-            entries: moments.map { entry(file: file, route: route, turnsAround: turnsAround, at: $0) },
-            reloadAt: reloadAt
-        )
+        let cutoff = ServiceDay(containing: now).adding(days: 1).date(hour: ServiceDay.cutoffHour, minute: 0)
+        func make(_ date: Date) -> WidgetEntry {
+            entry(file: file, route: route, turnsAround: turnsAround, at: date)
+        }
+        let moments = [now] + changes(file: file, route: route, turnsAround: turnsAround, after: now, before: cutoff)
+        // Each whole minute of the next 2 h that is not a change already, kept where a countdown shows.
+        let known = Set(moments)
+        let firstMinute = (now.timeIntervalSince1970 / 60).rounded(.down) * 60 + 60
+        let lastMinute = min(cutoff, now.addingTimeInterval(countdownSpan)).timeIntervalSince1970
+        let minutes = stride(from: firstMinute, through: lastMinute, by: 60)
+            .map { Date(timeIntervalSince1970: $0) }
+            .filter { $0 < cutoff && !known.contains($0) }
+        let entries = (moments.map(make) + minutes.map(make).filter(\.showsCountdown)).sorted { $0.date < $1.date }
+        // Asked again an hour on while a countdown shows (or when the first one starts, if later), else at 3 AM.
+        let firstCountdown = entries.first(where: \.showsCountdown)?.date
+        let reloadAt = firstCountdown.map { min(cutoff, max($0, now.addingTimeInterval(countdownReload))) } ?? cutoff
+        return WidgetTimeline(entries: entries, reloadAt: reloadAt)
     }
 
     /// The entry at one moment.

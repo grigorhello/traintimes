@@ -42,10 +42,9 @@ private extension WidgetConfiguration {
     }
 }
 
-/// One moment of either widget: TT-182's entry, and whether it is the gallery's fixed sample.
+/// One moment of either widget: TT-182's entry.
 struct TrainWidgetEntry: TimelineEntry {
     let entry: WidgetEntry
-    var isSample = false
 
     var date: Date { entry.date }
 
@@ -54,11 +53,12 @@ struct TrainWidgetEntry: TimelineEntry {
     }
 
     /// The gallery and the placeholder: the fixed sample, 7:58 AM from Oakville to Union in 11 min.
-    static let sample = TrainWidgetEntry(entry: .sample, isSample: true)
+    static let sample = TrainWidgetEntry(entry: .sample)
 }
 
 /// Both widgets' timeline (TT-183): the widget file as the app last wrote it (TT-182), the widget's From and To (none
-/// follows the route open in the app) and "Turn around at 12 PM", as TT-182's entries until 3 AM, when iOS asks again.
+/// follows the route open in the app) and "Turn around at 12 PM", as TT-182's entries until 3 AM, with one a minute
+/// while a countdown shows; iOS is asked again each hour then, else at 3 AM.
 /// The real clock and the real timetable, never Settings › Testing.
 struct TrainWidgetProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> TrainWidgetEntry {
@@ -91,7 +91,6 @@ struct TrainWidgetEntryView: View {
     var body: some View {
         content
             .environment(\.widgetLook, WidgetLook(isFullColor: renderingMode == .fullColor, showsBackground: showsBackground))
-            .environment(\.widgetCountdownFixedAt, entry.isSample ? entry.date : nil)
             .containerBackground(TTColor.surface, for: .widget)
     }
 

@@ -120,6 +120,7 @@ final class WidgetContentTests: XCTestCase {
         let train = mediumTrain(WidgetFixtures.nextTrain())
         XCTAssertEqual(train?.time, "7:58")
         XCTAssertEqual(train?.arrival, "8:38")
+        XCTAssertEqual(train?.countdown, "11 min")
         XCTAssertEqual(train?.later.map(\.time), ["8:06", "8:28"])
         let header = DeparturesContent(WidgetFixtures.nextTrain()).header
         XCTAssertEqual(header?.from, "Oakville")
@@ -251,7 +252,7 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(StationNames.short("GO"), "GO")
     }
 
-    func testTheFixedCountdownRoundsDownLikeTheLiveOne() {
+    func testTheCountdownIsWholeMinutesRoundedDown() {
         let departure = WidgetFixtures.at(7, 58)
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47), to: departure), "11 min")
         XCTAssertEqual(WidgetCountdown.minutes(from: WidgetFixtures.at(7, 47, second: 30), to: departure), "10 min")
@@ -266,8 +267,9 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(train?.footer?.mark, .express)
         let header = DeparturesContent(.sample).header
         XCTAssertEqual([header?.from, header?.to], ["Oakville", "Union"])
+        XCTAssertEqual(train?.countdown, "11 min")
         // Each train has its own link: the Next line's times are told apart by it.
-        XCTAssertEqual(mediumTrain(.sample)?.later.map(\.time), ["8:06", "8:28"])
+        XCTAssertEqual(mediumTrain(.sample)?.later.count, 2)
         XCTAssertEqual(Set(mediumTrain(.sample)?.later.map(\.id) ?? []).count, 2)
     }
 

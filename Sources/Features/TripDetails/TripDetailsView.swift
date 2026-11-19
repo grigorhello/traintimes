@@ -77,7 +77,10 @@ struct TripDetailsView: View {
                 ScrollView {
                     Group {
                         if let ride {
-                            RideContent(ride: ride, risesIn: !viewModel.ridesInPlace, wishes: viewModel.onBoard?.wishes)
+                            RideContent(
+                                ride: ride, risesIn: !viewModel.ridesInPlace, wishes: viewModel.onBoard?.wishes,
+                                screen: viewModel.onBoard?.screen, engine: viewModel.onBoard?.engine
+                            )
                         } else if let hero, let details {
                             departureContent(hero, details: details)
                         } else if let details {

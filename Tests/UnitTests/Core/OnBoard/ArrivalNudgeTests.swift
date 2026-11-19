@@ -344,11 +344,4 @@ final class ArrivalNudgeTests: XCTestCase {
         XCTAssertEqual(fade.points.map(\.time), [0, 0.6])
         XCTAssertNoThrow(try ArrivingHaptics.pattern(pattern))
     }
-
-    func testYourStopIsOneMediumTap() {
-        XCTAssertEqual(ArrivingHaptics.atYourStop.events.count, 1)
-        XCTAssertEqual(ArrivingHaptics.atYourStop.events.first?.kind, .transient)
-        XCTAssertNil(ArrivingHaptics.atYourStop.fade)
-        XCTAssertNoThrow(try ArrivingHaptics.pattern(ArrivingHaptics.atYourStop))
-    }
 }

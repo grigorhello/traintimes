@@ -45,9 +45,6 @@ enum ArrivingHaptics {
         fade: Fade(time: 0.45, points: [Fade.Point(time: 0, value: 0.8), Fade.Point(time: 0.6, value: 0.3)])
     )
 
-    /// At your stop: one medium tap, as `UIImpactFeedbackGenerator(style: .medium)` gives.
-    static let atYourStop = Pattern(events: [Event(kind: .transient, time: 0, intensity: 0.75, sharpness: 0.5)])
-
     static func pattern(_ pattern: Pattern) throws -> CHHapticPattern {
         let events = pattern.events.map { event in
             let parameters = [
@@ -77,7 +74,7 @@ enum ArrivingHaptics {
 protocol ArrivalFeedback: AnyObject {
     /// About a minute before your stop: the taps, the rumble and `arrive.caf`.
     func arriving()
-    /// At your stop: one tap.
+    /// At your stop: Done, as the check draws on (TT-224, D106).
     func atYourStop()
 }
 
@@ -96,9 +93,11 @@ final class SystemArrivalFeedback: ArrivalFeedback {
         playChime()
     }
 
+    /// Done 450 ms after the train reached your stop, with the check on the ride screen (TT-224 took it over from TT-215;
+    /// before it, one medium tap).
     func atYourStop() {
         guard UIApplication.shared.applicationState == .active else { return }
-        play(ArrivingHaptics.atYourStop)
+        TTHaptics.shared.play(.done, after: .milliseconds(Int(RideMotion.arrivalDelay * 1000)))
     }
 
     /// On the app's one shared engine (TT-214, D95).

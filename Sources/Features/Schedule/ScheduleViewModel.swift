@@ -742,8 +742,10 @@ final class ScheduleViewModel {
         keep(leaving)
         requestScroll(jumping: true)
         if isToday { nowPulse += 1 }
+        let made = turns
         await load()
-        fillsLive = false
+        // A newer turn still waits for its own status.
+        if turns == made { fillsLive = false }
         return true
     }
 
@@ -822,6 +824,8 @@ final class ScheduleViewModel {
     private func loadNewTrains() async {
         newTrainsTicket += 1
         let ticket = newTrainsTicket
+        // The cards a turn has just replaced are over: hidden cards wait as a cascade's first frame, which would draw them whole.
+        if outgoing != nil { outgoing = nil }
         awaitsNewTrains = true
         let slow = Task {
             try? await Task.sleep(for: Self.slowNewTrains)

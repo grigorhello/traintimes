@@ -94,6 +94,8 @@ struct ScheduleTimeline: View {
                             y: place.railY - Self.railWidth / 2 + shift
                         )
                     DepartureCardView(card: card, bell: outgoingBell(card.id), onOpen: {}, onSize: { _ in })
+                        // The timeline scales a departed card (0.96): as it stood.
+                        .scaleEffect(DeparturePlay.Card.rest(departed: card.isDeparted).scale)
                         .padding(.leading, Self.cardX)
                         .padding(.trailing, TTSpace.s5)
                         .offset(y: place.top + shift)

@@ -55,6 +55,8 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `detection_answered` | Yes or No on Schedule's "On the 5:13 PM train?" | `answer`: `yes`, `no` |
 | `directions_opened` | The Directions link in Trip details | none |
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
+| `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D112) | `count` (which showing, 1 to 5) |
+| `feedback_opened` | The feedback sheet opened (TT-228) | `source`: `schedule`, `settings`; `after_nudge` (within 60 s of the button asking); `nudges_seen` (0 to 5) |
 | `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
 | `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |
 
@@ -137,7 +139,10 @@ calendar day) with this dictionary, mostly through `execute-sql` on `events`, an
 5. **Arrival wishes (TT-223):** the leading wish, the one with the highest share of `arrival_wish_closed` with `taps` 1 or
    more or `seconds` 3 or more (`demo` false), among wishes shown 30 times or more, counted over all time, not only yesterday; "not enough data yet" until one has.
    One line, not a finding, unless a wish is clearly ahead or behind.
-6. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
+6. **Feedback button (TT-228):** `feedback_opened` with `after_nudge` true, against installs that saw
+   `feedback_nudge_shown`, and against opens with `nudges_seen` 0. One line; with today's number of testers it is a hint,
+   not proof.
+7. **Data health:** `$exception` events; an event or property not in this dictionary, or one missing a property it should
    carry (`$screen` without `$screen_name`, `route_set` without `from`/`to`); an event seen every day that stopped.
 
 Rides with `demo: true` are left out. It posts in that thread: one line of totals (installs, opens), then up to three

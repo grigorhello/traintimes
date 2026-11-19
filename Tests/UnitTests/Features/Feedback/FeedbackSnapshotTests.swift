@@ -18,7 +18,33 @@ final class FeedbackSnapshotTests: XCTestCase {
     /// With the Notice chip, the pill is icon only.
     @MainActor func testSchedulePillWithNoticeDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark) }
 
+    /// The button as it asks (TT-228, D112), frozen about 1000 ms in: solid fill, the question bubble, tilted and grown.
+    @MainActor func testPillAsksLight() async throws { try await snapSchedule(.loadedFixture(), .light, asks: true) }
+    @MainActor func testPillAsksDark() async throws { try await snapSchedule(.loadedFixture(), .dark, asks: true) }
+    @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }
+    @MainActor func testRoundButtonAsksDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark, asks: true) }
+
+    /// The labelled pill, which a short line name leaves room for, at rest and as it asks (grown to 1.06, label on accent).
+    @MainActor func testLabelledPillAsksLight() { snapPill(.light) }
+    @MainActor func testLabelledPillAsksDark() { snapPill(.dark) }
+
     // MARK: Helpers
+
+    @MainActor
+    private func snapPill(_ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        let view = HStack(spacing: TTSpace.s5) {
+            FeedbackPill {}
+            FeedbackPill(pose: .asking) {}
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TTColor.canvas)
+        assertSnapshot(
+            of: view,
+            as: .image(perceptualPrecision: 0.98, layout: .fixed(width: 330, height: 80), traits: UITraitCollection(userInterfaceStyle: style)),
+            testName: testName,
+            line: line
+        )
+    }
 
     @MainActor
     private func model(_ sender: any FeedbackSending = RecordingFeedbackSender()) -> FeedbackViewModel {
@@ -64,9 +90,12 @@ final class FeedbackSnapshotTests: XCTestCase {
     }
 
     @MainActor
-    private func snapSchedule(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+    private func snapSchedule(
+        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, testName: String = #function, line: UInt = #line
+    ) {
         let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
             .environment(\.showsFeedbackPill, true)
+            .environment(\.feedbackNudgeFrozen, asks)
         layOutOnce(view)
         assertSnapshot(
             of: view,

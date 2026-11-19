@@ -2,7 +2,9 @@ import SnapshotTesting
 import UIKit
 import XCTest
 
-/// `comparedAsRecorded` against RideSnapshotTests' light permission sheet reference. A copy one pixel off, in the encoding a
+/// `comparedAsRecorded` against a recorded key-window snapshot: RideSnapshotTests' light permission sheet reference as CI
+/// recorded it before TT-234, kept beside this file as `ReferenceEncodingSample.png` so recording that snapshot again
+/// (its sheet grew in TT-234) never moves the pixels these tests paint over. A copy one pixel off, in the encoding a
 /// key-window capture has, fails swift-snapshot-testing's plain comparison the way testPermissionLight did on CI, and
 /// passes once re-encoded; a real colour change still fails.
 final class ReferenceEncodingTests: XCTestCase {
@@ -34,12 +36,12 @@ final class ReferenceEncodingTests: XCTestCase {
         XCTAssertNotNil(diffing.diffV2(reference, recorded(capture, diffing))?.0)
     }
 
-    /// RideSnapshotTests' light permission sheet reference, loaded as the snapshot library loads it.
+    /// The sample beside this file, loaded as the snapshot library loads a reference. It is read from the source tree
+    /// (`*.png` stays out of the test bundle) and sits outside `__Snapshots__`, so CI never records over it.
     private func permissionReference(_ diffing: Diffing<UIImage>) throws -> UIImage {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Features/TripDetails/__Snapshots__/RideSnapshotTests/testPermissionLight.1.png")
+            .appendingPathComponent("ReferenceEncodingSample.png")
         return diffing.fromData(try Data(contentsOf: url))
     }
 

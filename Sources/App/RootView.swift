@@ -32,11 +32,16 @@ struct RootView: View {
     @State private var opensRide = false
     /// Schedule's Feedback button asking now and then (TT-228, D112); Settings opens the sheet through it too.
     @State private var feedbackNudge: FeedbackNudge
+    /// Automatic direction's look (TT-234, D116): one per app, fed by Schedule.
+    @State private var direction: DirectionLook
     private let liveActivity: RideLiveActivity?
     /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
     private let backgroundDetection: BackgroundDetection?
-    /// The widget file (TT-182, D107); nil in fixture runs.
-    private let widgetFile: WidgetFileWriter?
+    /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
+    /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
+    /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
+    /// until the next launch (TT-185, D117).
+    @State private var widgetFile: WidgetFileWriter?
     private let stations: any StationRepository
     private let repository: any ScheduleRepository
     private let clock: any AppClock
@@ -59,7 +64,8 @@ struct RootView: View {
         nudge: ArrivalNudge? = nil,
         liveActivity: RideLiveActivity? = nil,
         detection: BackgroundDetection? = nil,
-        feedbackNudge: FeedbackNudge = .app()
+        feedbackNudge: FeedbackNudge = .app(),
+        direction: DirectionDependencies = .app()
     ) {
         let bells = bells ?? AlertBellModel(
             rules: alertDependencies.rules(settings: settings), actionDuration: alertDependencies.capsuleActionDuration,
@@ -70,6 +76,23 @@ struct RootView: View {
             recents: recents, dismissedNotices: dismissedNotices, watchedTrips: bells.rules, routeCount: RouteCount(),
             boardingShown: BoardingShown()
         )
+        // Automatic direction (TT-234, D116): the look reads the location through its own reader, with Demo place over it
+        // in TestFlight and Debug builds, and follows each route the rider chooses.
+        let location: any DirectionLocating = BuildChannel.showsTesting
+            ? DemoPlaceLocation(
+                base: direction.location, stations: dependencies.stations, route: { [weak schedule] in schedule?.route }
+            )
+            : direction.location
+        let look = DirectionLook(
+            schedule: schedule, location: location, stations: dependencies.stations, store: direction.store,
+            clock: dependencies.clock, ride: ride, offerDue: { detection?.offerDue == true }, track: direction.track,
+            capsule: DirectionCapsuleModel(
+                actionDuration: alertDependencies.capsuleActionDuration, plainDuration: alertDependencies.capsulePlainDuration
+            ),
+            quick: direction.quick
+        )
+        schedule.choices = look
+        _direction = State(initialValue: look)
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
@@ -78,7 +101,8 @@ struct RootView: View {
         _settingsModel = State(
             initialValue: SettingsViewModel(
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
-                detection: detection
+                detection: detection, direction: location, directionStore: direction.store, look: look,
+                route: { [weak schedule] in schedule?.route }
             )
         )
         _welcome = State(
@@ -113,9 +137,14 @@ struct RootView: View {
         _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
         backgroundDetection = detection
-        widgetFile = dependencies.widgetData.flatMap {
-            WidgetFileWriter.app(data: $0, routeStore: routeStore, rules: rules, settings: settings, recents: schedule.recents)
-        }
+        _widgetFile = State(
+            initialValue: dependencies.widgetData.flatMap {
+                WidgetFileWriter.app(
+                    data: $0, routeStore: routeStore, rules: rules, settings: settings, recents: schedule.recents,
+                    direction: direction.store
+                )
+            }
+        )
         stations = dependencies.stations
         repository = dependencies.repository
         clock = dependencies.clock
@@ -153,6 +182,7 @@ struct RootView: View {
                 tabView
                     .environment(\.launchCovers, splashCovers)
                     .environment(\.feedbackNudge, feedbackNudge)
+                    .environment(\.directionLook, direction)
                     .environment(\.scheduleCovered, router.presentedSheet != nil || router.selectedTab != .schedule)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
@@ -434,7 +464,7 @@ struct RootView: View {
         Task {
             let link = NotificationLink.trip(key, originId: rule.origin.id, destinationId: rule.destination.id)
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
-            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            await showTrainRoute(route)
             if schedule.selectedDay != schedule.today { await schedule.select(schedule.today) }
         }
     }
@@ -598,14 +628,17 @@ struct RootView: View {
             router.dismissSheet()
             router.showSchedule()
             guard link.hasStations, let route = await link.route(stations: stations, saved: schedule.route) else { return }
-            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            // A widget's route is not the rider's choice by hand: Automatic direction may still turn it (TT-234, D116).
+            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true {
+                await schedule.show(route, chosen: .widgetRoute)
+            }
             await schedule.backToNow()
         case .trip(let key):
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
             router.showSchedule()
             // The sheet first; the timeline behind it follows without holding it up.
             openTrip(key, on: route, source: source)
-            if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true { await schedule.show(route) }
+            await showTrainRoute(route)
             // A service date before Schedule's Today (a late train's alert between 12:00 and 3:00 AM, D52) is not in the strip.
             if schedule.selectedDay != key.serviceDay, key.serviceDay >= schedule.today { await schedule.select(key.serviceDay) }
         }
@@ -618,16 +651,40 @@ struct RootView: View {
         Analytics.track(.launchSplashEnded(scheduleReady: schedule.content != .loading, full: LaunchMotion.pace == .full))
     }
 
-    /// "Show trains" on first use.
+    /// One train's link (a notification, the Live Activity, a widget's train row, "Pick a new train") puts its route on
+    /// Schedule: Automatic direction keeps it as it keeps a choice by hand and ends this visit's look, also when the route
+    /// already shows (TT-234, D116).
+    private func showTrainRoute(_ route: Route) async {
+        if schedule.route.map({ !$0.isSameDirection(as: route) }) ?? true {
+            await schedule.show(route, chosen: .trainLink)
+        } else {
+            direction.chose(route, by: .trainLink)
+        }
+    }
+
+    /// "Show trains" on first use: the rider's own choice.
     private func show(_ route: Route) {
         Task { await schedule.show(route) }
     }
 }
 
-/// Train detection's run: the route while Schedule shows in the foreground (nil stops it), and Demo trains › Ride.
+/// Train detection's run: the route while Schedule shows in the foreground (nil stops it), and Demo trains › Ride. Two
+/// routes that join the same two stations are one run (TT-234, D116): a route that turns round keeps the running matcher,
+/// which watches the trains both ways.
 private struct DetectionRun: Hashable {
     let route: Route?
     let demo: Bool
+
+    private var pair: [String]? { route.map { [$0.from.id, $0.to.id].sorted() } }
+
+    static func == (lhs: DetectionRun, rhs: DetectionRun) -> Bool {
+        lhs.pair == rhs.pair && lhs.demo == rhs.demo
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(pair)
+        hasher.combine(demo)
+    }
 }
 
 #Preview {

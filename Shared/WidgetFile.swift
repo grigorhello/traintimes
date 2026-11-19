@@ -11,8 +11,9 @@ struct WidgetFile: Codable, Equatable, Sendable {
     /// The service day the file starts on and the last one it covers: 14 days, or to the feed's end.
     var firstDay: ServiceDay
     var lastDay: ServiceDay
-    /// The route open in the app, in its morning way (as shown when written before 12 PM, reversed after); a widget with no
-    /// route of its own shows it. Nil before the first route.
+    /// The route open in the app, in its morning way: the way the rider last chose it by hand (as chosen before 12 PM,
+    /// reversed after), kept by `DirectionStore` so a turn the app makes by itself leaves it (TT-234, D116); a widget with
+    /// no route of its own shows it. Nil before the first route.
     var openRoute: RouteKey?
     /// The open route and each placed widget's route, both ways, once per pair of stations.
     var routes: [Timetable]

@@ -3,20 +3,33 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Settings after the redesign (TT-168, D57) against design/frames/settings*.png, light and dark: the main view, the three
-/// Notifications states, About and Testing. Drawn in the key window so the safe areas render as on the simulator; the tab
-/// bar is in the app shell snapshots. Glass is drawn as its solid fallback and the springs are not played (`\.rendersGlass`
-/// and `\.playsSettingsMotion` off), so every image is the settled page, and a dark glass control cannot differ between runs.
+/// Settings after the redesign (TT-168, D57) against design/frames/settings*.png, light and dark: the main view with the
+/// Automatic direction card in each of its states (TT-234, D116), the three Notifications states, About and Testing. Drawn
+/// in the key window so the safe areas render as on the simulator; the tab bar is in the app shell snapshots. Glass is
+/// drawn as its solid fallback and the springs are not played (`\.rendersGlass` and `\.playsSettingsMotion` off), so every
+/// image is the settled page, and a dark glass control cannot differ between runs.
 final class SettingsSnapshotTests: XCTestCase {
     // MARK: Main view
 
-    /// settings.png: notifications on, Testing off (a TestFlight build).
-    @MainActor func testMainLight() { snapMain(.allowed, .light, showsTesting: true) }
-    /// settings-dark.png: notifications off, Delays and Mock time on.
-    @MainActor func testMainDark() { snapMain(.off, .dark, showsTesting: true, testingOn: true) }
-    /// settings-store.png: the App Store build, four rows, never asked.
-    @MainActor func testMainStoreLight() { snapMain(.notAsked, .light) }
-    @MainActor func testMainStoreDark() { snapMain(.notAsked, .dark) }
+    /// settings.png with the Automatic direction card on (board 17): notifications on, Testing off (a TestFlight build).
+    @MainActor func testMainLight() { snapMain(.allowed, .light, showsTesting: true, direction: FakeDirectionLocation()) }
+    /// settings-dark.png: notifications off, Delays and Mock time on, Automatic direction on.
+    @MainActor func testMainDark() {
+        snapMain(.off, .dark, showsTesting: true, testingOn: true, direction: FakeDirectionLocation())
+    }
+    /// settings-store.png: the App Store build, six rows, nothing asked yet: Automatic direction off with its plain note.
+    @MainActor func testMainStoreLight() { snapMain(.notAsked, .light, direction: FakeDirectionLocation(permission: .notAsked)) }
+    @MainActor func testMainStoreDark() { snapMain(.notAsked, .dark, direction: FakeDirectionLocation(permission: .notAsked)) }
+    /// Location refused: Automatic direction off, "Needs your location. Allow it in iOS Settings."
+    @MainActor func testMainNeedsLocationLight() {
+        snapMain(.allowed, .light, direction: FakeDirectionLocation(permission: .refused))
+    }
+    @MainActor func testMainNeedsLocationDark() {
+        snapMain(.allowed, .dark, direction: FakeDirectionLocation(permission: .refused))
+    }
+    /// Precise Location off: Automatic direction off, "Needs Precise Location. Turn it on in iOS Settings."
+    @MainActor func testMainNeedsPreciseLight() { snapMain(.allowed, .light, direction: FakeDirectionLocation(isPrecise: false)) }
+    @MainActor func testMainNeedsPreciseDark() { snapMain(.allowed, .dark, direction: FakeDirectionLocation(isPrecise: false)) }
 
     // MARK: Notifications
 
@@ -39,15 +52,23 @@ final class SettingsSnapshotTests: XCTestCase {
 
     @MainActor func testAboutLight() { snap(SettingsAboutPage(viewModel: model(.allowed)), .light) }
     @MainActor func testAboutDark() { snap(SettingsAboutPage(viewModel: model(.allowed)), .dark) }
-    /// settings-testing.png without Mock time: everything off.
-    @MainActor func testTestingOffLight() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true)), .light) }
-    @MainActor func testTestingOffDark() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true)), .dark) }
+    /// settings-testing.png without Mock time: everything off, Demo place with the route's two stations and no look yet
+    /// (TT-234, D116).
+    @MainActor func testTestingOffLight() { snap(SettingsTestingPage(viewModel: testingModel()), .light) }
+    @MainActor func testTestingOffDark() { snap(SettingsTestingPage(viewModel: testingModel()), .dark) }
     /// settings-testing.png: Delays and Mock time at 11:58 PM on Thu Nov 5 (TT-158, D51).
-    @MainActor func testTestingMockTimeLight() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .light, waits: true) }
-    @MainActor func testTestingMockTimeDark() { snap(SettingsTestingPage(viewModel: model(.allowed, showsTesting: true, testingOn: true)), .dark, waits: true) }
+    @MainActor func testTestingMockTimeLight() {
+        snap(SettingsTestingPage(viewModel: testingModel(testingOn: true)), .light, waits: true)
+    }
+    @MainActor func testTestingMockTimeDark() {
+        snap(SettingsTestingPage(viewModel: testingModel(testingOn: true)), .dark, waits: true)
+    }
     /// TT-195: Live data on Mixed (Demo trains off, as choosing it turns Delays off).
     @MainActor func testTestingLiveDataLight() { snap(SettingsTestingPage(viewModel: liveModel()), .light) }
     @MainActor func testTestingLiveDataDark() { snap(SettingsTestingPage(viewModel: liveModel()), .dark) }
+    /// TT-234, D116: Demo place at Union, the route's To station.
+    @MainActor func testTestingDemoPlaceLight() { snap(SettingsTestingPage(viewModel: demoPlaceModel()), .light) }
+    @MainActor func testTestingDemoPlaceDark() { snap(SettingsTestingPage(viewModel: demoPlaceModel()), .dark) }
 
     // MARK: Haptics (TT-214)
 
@@ -56,17 +77,32 @@ final class SettingsSnapshotTests: XCTestCase {
 
     // MARK: Helpers
 
+    /// The Testing page's model on the fixture route, Oakville to Union, so Demo place shows its two stations.
+    @MainActor
+    private func testingModel(testingOn: Bool = false) -> SettingsViewModel {
+        model(.allowed, showsTesting: true, testingOn: testingOn, route: AlertFixtures.route)
+    }
+
     @MainActor
     private func liveModel() -> SettingsViewModel {
-        let page = model(.allowed, showsTesting: true)
+        let page = testingModel()
         page.mockLive = .mixed
         return page
     }
 
     @MainActor
+    private func demoPlaceModel() -> SettingsViewModel {
+        let page = testingModel()
+        page.demoPlace = AlertFixtures.route.to.id
+        return page
+    }
+
+    /// `direction` is Automatic direction's location reader, with nothing stored; nil is no reader, which reads off.
+    /// Demo place is kept in defaults of its own, never the app's.
+    @MainActor
     private func model(
         _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil,
-        detection: BackgroundRig? = nil
+        detection: BackgroundRig? = nil, direction: (any DirectionLocating)? = nil, route: Route? = nil
     ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
         if testingOn {
@@ -77,7 +113,8 @@ final class SettingsSnapshotTests: XCTestCase {
         }
         let model = SettingsViewModel(
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
-            showsTesting: showsTesting, alerts: alerts, detection: detection?.detection
+            showsTesting: showsTesting, alerts: alerts, detection: detection?.detection, direction: direction,
+            directionStore: DirectionStore(defaults: nil), route: { route }, defaults: .ephemeral()
         )
         model.permission = permission
         return model
@@ -92,9 +129,11 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor
     private func snapMain(
         _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, showsTesting: Bool = false, testingOn: Bool = false,
-        testName: String = #function, line: UInt = #line
+        direction: (any DirectionLocating)? = nil, testName: String = #function, line: UInt = #line
     ) {
-        let view = SettingsView(viewModel: model(permission, showsTesting: showsTesting, testingOn: testingOn))
+        let view = SettingsView(
+            viewModel: model(permission, showsTesting: showsTesting, testingOn: testingOn, direction: direction)
+        )
         snap(view, style, testName: testName, line: line)
     }
 

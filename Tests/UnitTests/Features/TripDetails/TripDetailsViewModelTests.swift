@@ -323,7 +323,7 @@ final class TripDetailsViewModelTests: XCTestCase {
         )
         rig.model.tick()
         await rig.sight(metres: 130, hour: 7, minute: 30)
-        XCTAssertEqual(recorder.events, [.boardingShown(station: "OA", minutesBefore: 29, surface: .trip)])
+        XCTAssertEqual(recorder.events, [.boardingShown(minutesBefore: 29, surface: .trip)])
 
         _ = try await TripBoardingRig.opened(TripBoardingRig.laterTrain, hour: 7, minute: 31, metres: 120, boardingShown: counted)
         _ = try await TripBoardingRig.opened(

@@ -183,7 +183,7 @@ final class ScheduleBoardingTests: XCTestCase {
         rig.model.tick()
         XCTAssertEqual(
             recorder.events.filter { $0.name == "boarding_shown" },
-            [.boardingShown(station: "OA", minutesBefore: 8, surface: .schedule)]
+            [.boardingShown(minutesBefore: 8, surface: .schedule)]
         )
     }
 }

@@ -15,14 +15,22 @@ struct AppInfo: Equatable, Sendable {
     }
 }
 
-/// Settings (TT-105, redesigned in TT-168, D57): the two on-device choices, the Notifications row and page, About and the
-/// Testing page of TestFlight and Debug builds.
+/// One station on Settings › Testing › Demo place's switch (TT-234, D116): its id and its short name.
+struct DemoPlaceStation: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+}
+
+/// Settings (TT-105, redesigned in TT-168, D57): the two on-device choices, the Notifications row and page, the Automatic
+/// direction switch (TT-234, D116), About and the Testing page of TestFlight and Debug builds.
 @Observable @MainActor
 final class SettingsViewModel {
     /// Pages on traintimes.ca (TT-151) and the official GO service updates page, opened in Safari.
     static let dataURL = URL(string: "https://traintimes.ca/data")!
     static let privacyURL = URL(string: "https://traintimes.ca/privacy")!
     static let officialUpdatesURL = URL(string: "https://www.gotransit.com/en/service-updates")!
+    /// The app's page in the Settings app, where location and Precise Location are allowed (TT-234, D116).
+    static let locationSettingsURL = URL(string: UIApplication.openSettingsURLString)!
 
     /// The Notifications row's dot: green while notifications are allowed, red once the rider turned them off in iOS
     /// Settings, grey while the app has never asked.
@@ -46,6 +54,23 @@ final class SettingsViewModel {
     private let detection: BackgroundDetection?
     /// Done when "Turn on notifications" turned them on (TT-215, D100).
     private let haptics: any HapticPlaying
+    /// Automatic direction's location reader and what it keeps on device (TT-234, D116). With either missing (previews,
+    /// most tests) the switch reads off and a tap does nothing, as with a reader that is `.unavailable` (fixture runs).
+    private let direction: (any DirectionLocating)?
+    private let directionStore: DirectionStore?
+    /// The look, for Settings › Testing › Last look.
+    private let look: DirectionLook?
+    /// Schedule's route: Demo place is one of its two stations.
+    private let route: @MainActor () -> Route?
+    /// Where Demo place is stored: the app's defaults, as `AppSettings` stores Demo trains; tests pass their own.
+    private let defaults: UserDefaults
+    /// Opens a page of the Settings app, as the Notifications page does with `openURL`; tests record the page instead.
+    private let openSettings: @MainActor (URL) -> Void
+    /// Bumped when the location permission, the stored "off" or Demo place may have changed. The reader is not observed,
+    /// so the Automatic direction switch and its note read this to be drawn again.
+    private var directionReads = 0
+    /// The stored Demo place, whichever route shows.
+    private var storedDemoPlace: String?
 
     init(
         settings: AppSettings,
@@ -55,7 +80,13 @@ final class SettingsViewModel {
         clock: any AppClock = SystemClock(),
         alerts: AlertRules? = nil,
         detection: BackgroundDetection? = nil,
-        haptics: any HapticPlaying = TTHaptics.shared
+        haptics: any HapticPlaying = TTHaptics.shared,
+        direction: (any DirectionLocating)? = nil,
+        directionStore: DirectionStore? = nil,
+        look: DirectionLook? = nil,
+        route: @escaping @MainActor () -> Route? = { nil },
+        defaults: UserDefaults = .standard,
+        openSettings: @escaping @MainActor (URL) -> Void = { UIApplication.shared.open($0, options: [:], completionHandler: nil) }
     ) {
         self.haptics = haptics
         self.settings = settings
@@ -65,6 +96,13 @@ final class SettingsViewModel {
         self.clock = clock
         self.alerts = alerts
         self.detection = detection
+        self.direction = direction
+        self.directionStore = directionStore
+        self.look = look
+        self.route = route
+        self.defaults = defaults
+        self.openSettings = openSettings
+        storedDemoPlace = defaults.string(forKey: DemoPlace.key).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     var timeFormat: TimeFormat {
@@ -141,8 +179,13 @@ final class SettingsViewModel {
         URL(string: UIApplication.openNotificationSettingsURLString)!
     }
 
+    /// Reads the notification permission, and has the Automatic direction switch read the location permission again
+    /// (TT-234): at once, and once more after the wait, when iOS has had a moment to hand over a change made in the
+    /// Settings app.
     func refreshPermission() async {
+        directionReads += 1
         permission = await permissions.current()
+        directionReads += 1
     }
 
     /// "Turn on notifications": the iOS prompt, once, through the alert rules (D41, revised by D57); the page and the row
@@ -181,9 +224,87 @@ final class SettingsViewModel {
     var detectionWasTurnedOff: Bool { detection?.wasTurnedOff ?? false }
 
     func turnOnDetection() async {
-        guard let detection, await detection.turnOn() else { return }
+        guard let detection else { return }
+        let staysOn = await detection.turnOn()
+        // Turning it on can show the iOS location prompt, and Automatic direction reads its answer too (TT-234, D116).
+        directionReads += 1
+        guard staysOn else { return }
         if let alerts { await alerts.requestPermission() }
         await refreshPermission()
+    }
+
+    // MARK: Automatic direction (TT-234, D116)
+
+    /// The reader and the store, where Automatic direction can work; nil in fixture runs, previews and the unit test host.
+    private var directionReader: (location: any DirectionLocating, store: DirectionStore)? {
+        guard let direction, let directionStore, direction.permission != .unavailable else { return nil }
+        return (direction, directionStore)
+    }
+
+    /// The Automatic direction switch. It reads on while location is allowed with Precise Location, unless the rider
+    /// turned it off: only that "off" is stored. Setting it is the rider's tap (`tapAutoDirection(_:)`).
+    var autoDirection: Bool {
+        get {
+            _ = directionReads
+            guard let reader = directionReader else { return false }
+            return reader.location.readsOn(reader.store)
+        }
+        set { tapAutoDirection(newValue) }
+    }
+
+    /// The note under the switch, as its key in the strings file: what the switch does, or what it needs from the
+    /// Settings app while iOS keeps it off.
+    var autoDirectionNote: String {
+        _ = directionReads
+        guard let location = directionReader?.location else { return "settings.auto_direction.note" }
+        switch location.permission {
+        case .refused: return "settings.auto_direction.needs_location"
+        case .allowed where !location.isPrecise: return "settings.auto_direction.needs_precise"
+        case .allowed, .notAsked, .unavailable: return "settings.auto_direction.note"
+        }
+    }
+
+    /// The rider's tap on the switch. Off stores the "off". On clears it, and then: location never asked (or Allow Once
+    /// ran out) shows the iOS prompt at once; location refused, or Precise Location off, opens the app's page in the
+    /// Settings app and the switch stays off. Everything but the prompt is done before the switch is drawn again, so it
+    /// never jumps back under the finger. Returns the task that waits for the prompt's answer, nil when none was shown.
+    @discardableResult
+    func tapAutoDirection(_ on: Bool) -> Task<Void, Never>? {
+        guard let reader = directionReader else {
+            autoDirectionSettled(from: false)
+            return nil
+        }
+        let was = reader.location.readsOn(reader.store)
+        var prompt: Task<Void, Never>?
+        if on {
+            reader.store.isOff = false
+            switch reader.location.permission {
+            case .notAsked:
+                prompt = Task {
+                    _ = await self.direction?.requestWhenInUse()
+                    self.autoDirectionSettled(from: was)
+                }
+            case .refused:
+                openSettings(Self.locationSettingsURL)
+            case .allowed:
+                if !reader.location.isPrecise { openSettings(Self.locationSettingsURL) }
+            case .unavailable:
+                break
+            }
+        } else if was {
+            reader.store.isOff = true
+        }
+        if prompt == nil { autoDirectionSettled(from: was) }
+        return prompt
+    }
+
+    /// A tap is done. `setting_changed` is sent only when it left the switch changed: not when iOS refuses, not when the
+    /// tap only opened the Settings app, and never when the permission alone changes the switch. The switch is drawn
+    /// again either way, so one the tap could not change goes back.
+    private func autoDirectionSettled(from was: Bool) {
+        directionReads += 1
+        let isOn = autoDirection
+        if isOn != was { Analytics.track(.settingChanged("auto_direction", value: isOn ? "on" : "off")) }
     }
 
     // MARK: Testing
@@ -219,9 +340,54 @@ final class SettingsViewModel {
         settings.mockTime = MockTimeSetting(start: moment ?? mockTimeStart, setAt: Date())
     }
 
+    /// Settings › Testing › Demo place (TT-234, D116): the station Automatic direction reads the phone as at, by id; nil
+    /// is Off. It is stored under `DemoPlace.key`, where `DemoPlaceLocation` reads it; a stored id that is neither of the
+    /// route's two stations reads Off.
+    var demoPlace: String? {
+        get { DemoPlace.station(on: route(), stored: storedDemoPlace) }
+        set {
+            storedDemoPlace = newValue
+            if let newValue {
+                defaults.set(newValue, forKey: DemoPlace.key)
+            } else {
+                defaults.removeObject(forKey: DemoPlace.key)
+            }
+            // A demo place counts as location allowed, so the Automatic direction switch reads again.
+            directionReads += 1
+        }
+    }
+
+    /// The stations on the Demo place switch: the route's two, From first, by their short names; none without a route.
+    var demoPlaceStations: [DemoPlaceStation] {
+        guard let route = route() else { return [] }
+        return [route.from, route.to].map { DemoPlaceStation(id: $0.id, name: StationNames.short($0.name)) }
+    }
+
+    /// Settings › Testing › Last look (TT-234, D116): how long the last look waited and what it did.
+    var lastLookText: String {
+        Self.lastLookText(look?.lastLook)
+    }
+
+    /// A look in words: the seconds it waited, with one decimal, and what it did, with the reason when it did nothing.
+    /// Never a place.
+    static func lastLookText(_ last: DirectionLook.LastLook?) -> String {
+        guard let last else { return String(localized: "settings.last_look.none") }
+        let seconds = String(format: "%.1f", last.waited)
+        switch last.outcome {
+        case .turn:
+            return String(format: String(localized: "settings.last_look.turn"), seconds)
+        case .ask:
+            return String(format: String(localized: "settings.last_look.ask"), seconds)
+        case .nothing(let reason):
+            let key = "settings.last_look.reason." + reason.rawValue
+            let why = String(localized: String.LocalizationValue(key))
+            return String(format: String(localized: "settings.last_look.nothing"), seconds, why)
+        }
+    }
+
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
-        demoTrains != .off || mockLive != .off || isMockTimeOn || isDemoWeatherOn
+        demoTrains != .off || mockLive != .off || demoPlace != nil || isMockTimeOn || isDemoWeatherOn
     }
 
     /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
@@ -239,16 +405,18 @@ final class SettingsViewModel {
             let word = String(localized: String.LocalizationValue(live))
             parts.append(String(format: String(localized: "settings.live_data.value"), word))
         }
+        if demoPlace != nil { parts.append(String(localized: "settings.demo_place")) }
         if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
         if isDemoWeatherOn { parts.append(String(localized: "settings.demo_weather")) }
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
     }
 
-    /// "Reset": Demo trains and Live data off and the real time.
+    /// "Reset": Demo trains, Live data and Demo place off and the real time.
     func resetTesting() {
         demoTrains = .off
         demoExpress = false
         mockLive = .off
+        if storedDemoPlace != nil { demoPlace = nil }
         settings.mockTime = nil
         isDemoWeatherOn = false
     }

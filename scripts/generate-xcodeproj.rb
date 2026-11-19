@@ -121,9 +121,12 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSceneManifest_Generation' => 'YES',
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
-    # TT-171: asked only when a ride starts (On board; words from TT-205, D93); the background session also needs UIBackgroundModes location.
+    # TT-171, TT-234: asked when a ride starts (On board), or when the rider turns on Automatic direction or Detect my
+    # train in Settings, never at launch (D60 rule 4 as revised by D116; the words are TT-234's). A ride's background
+    # session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
-      'Your location shows which station is next while you ride, and tells you before your stop.',
+      'Your location shows trains from the station you’re closer to when you open the app, shows which station is ' \
+      'next while you ride, and tells you before your stop. It stays on the phone.',
     # TT-176: asked only when the rider turns on "Detect my train" (the offer after the first completed ride, or Settings).
     'INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription' =>
       'Train Times asks when you get on a GO train. Your location stays on the phone.',
@@ -176,6 +179,8 @@ widgets.build_configurations.each do |config|
     'APPLICATION_EXTENSION_API_ONLY' => 'YES',
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks'],
     'SWIFT_EMIT_LOC_STRINGS' => 'YES',
+    # TT-185 (D117): Edit widget draws its values ("Choose", a station) in the extension's accent, iOS blue without this.
+    'ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME' => 'Accent',
     'EXCLUDED_SOURCE_FILE_NAMES' => '.gitkeep'
   )
 end

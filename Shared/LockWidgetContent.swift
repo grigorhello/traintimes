@@ -1,6 +1,6 @@
 import Foundation
 
-// What Next train writes on the Lock Screen (TT-184, D114): the rectangular, circular and inline sizes of the same entry,
+// What Next train writes on the Lock Screen (TT-184, D115): the rectangular, circular and inline sizes of the same entry,
 // as words, times and links, made here so the rules are unit tested and the views only lay them out. Every tap opens
 // Schedule on the widget's route. Times come from the one formatter with the file's Time format (D17).
 

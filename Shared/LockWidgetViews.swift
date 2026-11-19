@@ -1,7 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-// Next train's Lock Screen sizes (TT-184, D114; boards Widgets-Lock and the "Lock Screen" row of Widgets-States), in
+// Next train's Lock Screen sizes (TT-184, D115; boards Widgets-Lock and the "Lock Screen" row of Widgets-States), in
 // `Shared/` so the app's unit tests snapshot what the extension draws. iOS draws the Lock Screen in one tint: the primary
 // and secondary styles only, no token colours and no line tile; the glyph, the bolt, the bell and the words carry the
 // meaning. Every word comes from `LockRectangularContent`, `LockCircularContent` and `LockInlineContent`.

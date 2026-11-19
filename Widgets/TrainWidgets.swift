@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 /// Next train (TT-183, D101): the next train on the widget's route, how long until it leaves and the one after it, small
-/// on the Home Screen and in StandBy, and rectangular, circular and inline on the Lock Screen (TT-184, D114), all on the
+/// on the Home Screen and in StandBy, and rectangular, circular and inline on the Lock Screen (TT-184, D115), all on the
 /// same timeline and Edit widget settings.
 struct NextTrainWidget: Widget {
     var body: some WidgetConfiguration {

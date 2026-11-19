@@ -2,7 +2,7 @@ import WidgetKit
 import XCTest
 @testable import TrainTimes
 
-/// What Next train writes and opens on the Lock Screen (TT-184, D114), at fixed Toronto times, from the board states in
+/// What Next train writes and opens on the Lock Screen (TT-184, D115), at fixed Toronto times, from the board states in
 /// `WidgetFixtures`.
 final class LockWidgetContentTests: XCTestCase {
     private func rectangular(_ entry: WidgetEntry, file: StaticString = #filePath, line: UInt = #line) -> LockRectangularContent.Train? {

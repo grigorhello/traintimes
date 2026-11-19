@@ -216,7 +216,7 @@ struct RootView: View {
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).
         .task {
-            liveActivity?.connect(reporter: alerts) { departureForActivity() }
+            liveActivity?.connect(reporter: alerts, wishes: onBoard) { departureForActivity() }
         }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
         // Before departure (TT-178) a tap opens the train's Trip details and "I’m on board" starts the ride there.

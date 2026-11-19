@@ -99,6 +99,7 @@ final class ArrivalWishes {
         var shownAt: Date?
         var taps = 0
         var closed = false
+        var onLockScreen = false
     }
 
     private let defaults: UserDefaults?
@@ -141,6 +142,15 @@ final class ArrivalWishes {
         Analytics.track(.arrivalWishShown(current.wish, demo: current.demo))
     }
 
+    /// The wish went onto the Live Activity (TT-229, D108): `arrival_wish_lock_screen`, once per ride, whether or not the
+    /// app showed it too.
+    func reachedLockScreen() {
+        guard var current = session, !current.onLockScreen else { return }
+        current.onLockScreen = true
+        session = current
+        Analytics.track(.arrivalWishLockScreen(current.wish, demo: current.demo))
+    }
+
     /// A tap on the wish: it pops, with a Tick, and nothing else happens.
     func tapped() {
         haptics.play(.tick)
@@ -156,5 +166,21 @@ final class ArrivalWishes {
         session = current
         let seconds = min(Self.maxSeconds, max(0, Int(now.timeIntervalSince(shownAt))))
         Analytics.track(.arrivalWishClosed(current.wish, close: close, seconds: seconds, taps: current.taps, demo: current.demo))
+    }
+}
+
+/// Where the Live Activity reads the ride's wish (TT-229, D108): `OnBoard`, so the Lock Screen shows the wish the ride screen
+/// shows.
+@MainActor
+protocol ArrivalWishSource: AnyObject {
+    /// The wish once it is due, 5 s after your stop; nil before.
+    var arrivalWish: ArrivalWish? { get }
+    /// The wish went onto the Live Activity.
+    func wishReachedLockScreen()
+}
+
+extension OnBoard: ArrivalWishSource {
+    func wishReachedLockScreen() {
+        wishes.reachedLockScreen()
     }
 }

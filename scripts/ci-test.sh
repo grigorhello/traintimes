@@ -26,15 +26,18 @@ if wanted:
     runtimes = [r for r in runtimes if r["version"] == wanted or r["version"].startswith(wanted + ".")]
 if not runtimes:
     sys.exit("No iOS %s simulator runtime installed" % wanted)
-runtime = max(runtimes, key=key)
+# Some runtimes serve one new device only (Xcode 27.2's iOS-27-2-iPhone19-4): take the newest that runs this device.
+fits = [r for r in runtimes if any(t["name"] == preferred for t in r.get("supportedDeviceTypes", []))]
+if not fits:
+    names = sorted({t["name"] for r in runtimes for t in r.get("supportedDeviceTypes", []) if t["name"].startswith("iPhone")})
+    sys.exit("No iOS %s runtime runs %s. Its iPhones: %s" % (wanted or "simulator", preferred, ", ".join(names)))
+runtime = max(fits, key=key)
 devices = [d for d in simctl("devices", "available")["devices"].get(runtime["identifier"], []) if d["name"] == preferred]
 if devices:
     udid = devices[0]["udid"]
 else:
-    kinds = [t["identifier"] for t in runtime.get("supportedDeviceTypes", []) if t["name"] == preferred]
-    if not kinds:
-        sys.exit("iOS %s has no %s device type" % (runtime["version"], preferred))
-    udid = subprocess.check_output(["xcrun", "simctl", "create", preferred, kinds[0], runtime["identifier"]], text=True).strip()
+    kind = next(t["identifier"] for t in runtime["supportedDeviceTypes"] if t["name"] == preferred)
+    udid = subprocess.check_output(["xcrun", "simctl", "create", preferred, kind, runtime["identifier"]], text=True).strip()
     print("Created", preferred, "on iOS", runtime["version"], file=sys.stderr)
 print("Simulator:", preferred, "iOS", runtime["version"], file=sys.stderr)
 print(udid, runtime["version"])

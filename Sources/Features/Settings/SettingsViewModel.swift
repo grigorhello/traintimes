@@ -81,6 +81,15 @@ final class SettingsViewModel {
         }
     }
 
+    /// Settings › Testing › Express (TT-232): the demo ride, from Ride's question or Depart's "I’m on board", is the express
+    /// that does not stop between Union and Clarkson. The switch shows with those two modes.
+    var demoExpress: Bool {
+        get { settings.demoExpress }
+        set { settings.demoExpress = newValue }
+    }
+
+    var showsDemoExpress: Bool { demoTrains == .ride || demoTrains == .departure }
+
     /// Settings › Testing › Live data (TT-195): choosing a feed turns off a Demo trains mode that makes its own.
     var mockLive: MockLive {
         get { settings.mockLive }
@@ -88,6 +97,12 @@ final class SettingsViewModel {
             settings.mockLive = newValue
             if newValue != .off, settings.demoTrains.makesLiveStatus { settings.demoTrains = .off }
         }
+    }
+
+    /// Settings › Testing › Demo weather (TT-226).
+    var isDemoWeatherOn: Bool {
+        get { settings.demoWeather }
+        set { settings.demoWeather = newValue }
     }
 
     // MARK: Notifications
@@ -206,7 +221,7 @@ final class SettingsViewModel {
 
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
-        demoTrains != .off || mockLive != .off || isMockTimeOn
+        demoTrains != .off || mockLive != .off || isMockTimeOn || isDemoWeatherOn
     }
 
     /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
@@ -225,14 +240,17 @@ final class SettingsViewModel {
             parts.append(String(format: String(localized: "settings.live_data.value"), word))
         }
         if isMockTimeOn { parts.append(String(localized: "settings.mock_time")) }
+        if isDemoWeatherOn { parts.append(String(localized: "settings.demo_weather")) }
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
     }
 
     /// "Reset": Demo trains and Live data off and the real time.
     func resetTesting() {
         demoTrains = .off
+        demoExpress = false
         mockLive = .off
         settings.mockTime = nil
+        isDemoWeatherOn = false
     }
 
     // MARK: About

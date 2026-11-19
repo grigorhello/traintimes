@@ -19,6 +19,11 @@ final class AppSettings {
         didSet { defaults.set(demoTrains.rawValue, forKey: DemoTrains.key) }
     }
 
+    /// Settings › Testing › Express (TT-232): the demo ride is an express (`DemoRide.playsExpress` reads the same key).
+    var demoExpress: Bool {
+        didSet { defaults.set(demoExpress, forKey: DemoRide.expressKey) }
+    }
+
     /// Settings › Testing › Live data (TT-195), shown in TestFlight and Debug builds only.
     var mockLive: MockLive {
         didSet { defaults.set(mockLive.rawValue, forKey: MockLive.key) }
@@ -34,6 +39,11 @@ final class AppSettings {
         }
     }
 
+    /// Settings › Testing › Demo weather (TT-226): fixture weather on the weather tile; TestFlight and Debug builds only.
+    var demoWeather: Bool {
+        didSet { demoWeather ? defaults.set("on", forKey: DemoWeather.key) : defaults.removeObject(forKey: DemoWeather.key) }
+    }
+
     /// The one formatter (D17), following the Time format setting.
     var timeFormatter: TimeFormatter { TimeFormatter(format: timeFormat) }
 
@@ -43,7 +53,9 @@ final class AppSettings {
         self.defaults = defaults
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
+        demoExpress = defaults.bool(forKey: DemoRide.expressKey)
         mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off
         mockTime = MockTime.read(from: defaults)
+        demoWeather = defaults.string(forKey: DemoWeather.key) == "on"
     }
 }

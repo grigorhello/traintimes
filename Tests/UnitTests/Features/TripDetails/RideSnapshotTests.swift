@@ -19,6 +19,12 @@ final class RideSnapshotTests: XCTestCase {
     /// TT-223, D103: 5 s after Clarkson (30 s on the demo's clock) "Now" has rolled into the wish, "Enjoy your evening".
     @MainActor func testWishLight() async throws { snap(await wish(), .light) }
     @MainActor func testWishDark() async throws { snap(await wish(), .dark) }
+    /// TT-232, D111 (Live view canvas, boards 36 and 38): the demo express, Union to Clarkson without stopping. At 5:29 PM
+    /// past Long Branch, the bolt by the train and the four stations between as disabled rows; then stopped at Clarkson.
+    @MainActor func testExpressRidingLight() async throws { snap(await express(at: DemoRideRig.time(17, 29)), .light) }
+    @MainActor func testExpressRidingDark() async throws { snap(await express(at: DemoRideRig.time(17, 29)), .dark) }
+    @MainActor func testExpressStoppedLight() async throws { snap(await express(at: DemoRideRig.time(17, 39, 5)), .light) }
+    @MainActor func testExpressStoppedDark() async throws { snap(await express(at: DemoRideRig.time(17, 39, 5)), .dark) }
     /// TT-204: 5 min late, "5 min late" under the minutes and the times ahead in the delay ink.
     @MainActor func testLateLight() { snap(late, .light) }
     @MainActor func testLateDark() { snap(late, .dark) }
@@ -35,6 +41,12 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor
     private func ride(at time: Date) async -> some View {
         let rig = await DemoRideRig.started(at: time)
+        return TripDetailsView(viewModel: rig.tripDetails())
+    }
+
+    @MainActor
+    private func express(at time: Date) async -> some View {
+        let rig = await DemoRideRig.express(at: time)
         return TripDetailsView(viewModel: rig.tripDetails())
     }
 

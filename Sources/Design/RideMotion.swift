@@ -94,6 +94,29 @@ enum RideMotion {
     /// The train creeping by the clock between two redraws a second apart.
     static var creep: Animation { .linear(duration: 1) }
 
+    // MARK: The express bolt (TT-232, D111; Live view canvas board 36, `express.css` `xb-zap`)
+
+    /// The bolt beside the train flashes at the start of each loop, in step with the halo: scale 1 to 1.35 at 6 % of the
+    /// loop, 0.94 at 13 %, back to 1 at 20 %, tilting 10° one way and 4° back; then its opacity dips to 0.55 at 60 % and
+    /// returns by the loop's end.
+    static let boltScaleFrames: [(at: Double, value: Double)] = [(0, 1), (0.06, 1.35), (0.13, 0.94), (0.20, 1)]
+    static let boltTiltFrames: [(at: Double, value: Double)] = [(0, 0), (0.06, -10), (0.13, 4), (0.20, 0)]
+    static let boltOpacityFrames: [(at: Double, value: Double)] = [(0.20, 1), (0.60, 0.55), (1, 1)]
+
+    static func boltScale(_ phase: Double) -> Double { value(at: phase, in: boltScaleFrames) }
+    static func boltTilt(_ phase: Double) -> Double { value(at: phase, in: boltTiltFrames) }
+    static func boltOpacity(_ phase: Double) -> Double { value(at: phase, in: boltOpacityFrames) }
+
+    /// The value at `x` between keyframes, straight from one to the next; the first's before it, the last's after it.
+    static func value(at x: Double, in frames: [(at: Double, value: Double)]) -> Double {
+        guard let first = frames.first, let last = frames.last else { return 0 }
+        guard x > first.at else { return first.value }
+        for (from, to) in zip(frames, frames.dropFirst()) where x <= to.at {
+            return from.value + (to.value - from.value) * progress(x, from: from.at, to: to.at)
+        }
+        return last.value
+    }
+
     /// Where `time` (seconds, the reference date's) falls in a loop of `loop` seconds, 0 to 1: every piece of the loop reads
     /// the same clock, so the halo, the glint and the answers stay in step without sharing state.
     static func loopPhase(at time: Double, loop: Double) -> Double {
@@ -122,6 +145,33 @@ enum RideMotion {
 extension EnvironmentValues {
     /// False in snapshot tests: the rows are drawn settled and the ripples still.
     @Entry var playsRideMotion: Bool = true
+}
+
+/// The express bolt that rides beside the train on the ride screen (TT-232, D111, board 36): the timeline card's own glyph
+/// (`ExpressBolt`: 16 pt in an 18 pt box, accent), no background. While the train moves it flashes once a loop, drawn from
+/// the loop's clock; at rest (`loop` nil: the train stands, Reduce Motion, snapshots) it is still at full opacity.
+struct RideBolt: View {
+    /// The loop's length while the train moves.
+    var loop: Double?
+
+    static let size: CGFloat = 18
+    private static let glyph: CGFloat = 16
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: nil, paused: loop == nil)) { context in
+            let phase = loop.map { RideMotion.loopPhase(at: context.date.timeIntervalSinceReferenceDate, loop: $0) }
+            Image(systemName: "bolt.fill")
+                .font(.system(size: Self.glyph, weight: .semibold))
+                .foregroundStyle(TTColor.accent)
+                .frame(width: Self.size, height: Self.size)
+                .scaleEffect(phase.map { RideMotion.boltScale($0) } ?? 1)
+                .rotationEffect(.degrees(phase.map { RideMotion.boltTilt($0) } ?? 0))
+                .opacity(phase.map { RideMotion.boltOpacity($0) } ?? 1)
+        }
+        .frame(width: Self.size, height: Self.size)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
 }
 
 /// The Live dot (Live-Spec): 8 pt in the accent, with two rings spreading from it 0.9 s apart while the train's position

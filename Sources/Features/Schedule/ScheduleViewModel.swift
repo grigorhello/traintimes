@@ -96,6 +96,8 @@ final class ScheduleViewModel {
         day: ServiceDay, route: Route?, present: Set<TripKey>, departed: Set<TripKey>, next: TripKey?
     )?
 
+    /// The weather tile beside the day strip and its sheet (TT-226), for the route's From station.
+    let weather: WeatherTileModel
     private let repository: any ScheduleRepository
     private let clock: any AppClock
     /// Keeps the route on device (TT-120); nil in previews and tests that do not check it.
@@ -131,9 +133,10 @@ final class ScheduleViewModel {
         route: Route?, repository: any ScheduleRepository, clock: any AppClock, routeStore: (any RouteStoring)? = nil,
         recents: RecentRoutes = RecentRoutes(defaults: nil), dismissedNotices: DismissedNotices = DismissedNotices(defaults: nil),
         watchedTrips: any WatchedTripsProviding = NoWatchedTrips(), routeCount: RouteCount = RouteCount(defaults: nil),
-        haptics: any HapticPlaying = TTHaptics.shared
+        weather: WeatherTileModel? = nil, haptics: any HapticPlaying = TTHaptics.shared
     ) {
         self.route = route
+        self.weather = weather ?? .app(clock: clock, station: route?.from)
         self.haptics = haptics
         self.routeCount = routeCount
         self.repository = repository

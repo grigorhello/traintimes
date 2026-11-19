@@ -176,34 +176,42 @@ struct DemoRideRig {
 
     let clock: TestClock
     let onBoard: OnBoard
-    let plan = DemoRide.plan(on: DemoRideRig.day)
+    var plan = DemoRide.plan(on: DemoRideRig.day)
 
     nonisolated static func time(_ hours: Int, _ minutes: Int, _ seconds: Int = 0) -> Date {
         DemoRideRig.day.gtfsTime(hours * 3600 + minutes * 60 + seconds)
     }
 
     /// The demo started at 5:32 PM and moved on to `moment`, with the arriving nudge `makeNudge` gives (none by default).
+    /// `express` (TT-232): the same train not stopping between Union and Clarkson (5:13 to 5:39 PM), started at `start`.
     static func started(
         at moment: Date = DemoRideRig.time(17, 32), makeNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
-        wishes: ArrivalWishes? = nil
+        wishes: ArrivalWishes? = nil, express: Bool = false, from start: Date = DemoRideRig.time(17, 32)
     ) async -> DemoRideRig {
         // The first wish of the pool, so the at-your-stop snapshots stay the same (TT-223).
         let wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
-        let start = DemoRideRig.time(17, 32)
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
         // No question first (TT-175): the ride starts as Demo trains › Ride turns on.
         let onBoard = OnBoard(
             app: nil,
-            makeDemo: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            makeDemo: { _ in
+                (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil, express: express), ride: DemoRide.ride(on: day))
+            },
             makeDemoDetector: nil,
             makeDemoNudge: makeNudge,
             wishes: wishes
         )
         await onBoard.setDemo(true)
-        let rig = DemoRideRig(clock: clock, onBoard: onBoard)
+        let rig = DemoRideRig(clock: clock, onBoard: onBoard, plan: DemoRide.plan(on: day, express: express))
         if moment != start { rig.drive(to: moment) }
         return rig
+    }
+
+    /// The demo express (TT-232) started at 5:20 PM and moved on to `moment`: Exhibition, Mimico, Long Branch and Port Credit
+    /// passed without stopping, about 13 %, 38 %, 57 % and 77 % of the way to Clarkson.
+    static func express(at moment: Date) async -> DemoRideRig {
+        await started(at: moment, express: true, from: DemoRideRig.time(17, 20))
     }
 
     var engine: RideEngine? { onBoard.engine }

@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // No on the departure question's card (TT-231, D110): iOS runs the intent here, which ended the card.
         DeclineDepartureIntent.declined = { [weak self] train in self?.declined(train, surface: .card) }
         nudge.follow(ride)
+        detection?.follow(ride)
         detection?.resume()
         Task {
             await ride.restore()

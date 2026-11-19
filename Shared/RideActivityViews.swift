@@ -64,6 +64,8 @@ struct RideActivityStyle {
     var tint: Color { isStale ? grey : isGreen ? .white : Self.mint }
     var track: Color { .white.opacity(isGreen ? 0.35 : 0.22) }
     var stopDot: Color { .white.opacity(isGreen ? 0.4 : 0.45) }
+    /// The ring of a station the train does not stop at, before it is passed.
+    var skippedDot: Color { .white.opacity(0.4) }
     var tileEdge: Color { .white.opacity(isGreen ? 0.4 : 0.16) }
 }
 
@@ -169,13 +171,20 @@ struct RideActivityCountdown: View {
 
 /// The stop line, no words (kept on the ride cards: Grigor asked for it back, TT-205): a dot for each stop (the origin's
 /// larger), your stop's pin at the end, mint behind the train; the train glyph alone on a disc of the background's colour,
-/// moving with a 0.6 s ease on each update.
+/// moving with a 0.6 s ease on each update. A station the train does not stop at is a hollow dot, mint once passed, and on
+/// an express the bolt sits above the train, centred on it, still (an activity does not loop) (TT-232, D111, board 40).
 struct RideActivityBar: View {
     let stopCount: Int
     let position: Double
+    /// The dots the train does not stop at.
+    var skipped: [Int] = []
+    var showsBolt = false
     let style: RideActivityStyle
 
     static let height: CGFloat = 20
+    /// The bolt's box above the train, its foot this far inside the train's.
+    private static let bolt: CGFloat = 16
+    private static let boltOverlap: CGFloat = 3
 
     var body: some View {
         GeometryReader { geometry in
@@ -194,10 +203,17 @@ struct RideActivityBar: View {
                     .position(x: layout.segmentStart(index) + layout.segment / 2, y: mid)
                 }
                 ForEach(0..<(layout.stops - 1), id: \.self) { stop in
-                    Circle()
-                        .fill(stop <= passed ? style.tint : style.stopDot)
-                        .frame(width: stop == 0 ? 9 : 7, height: stop == 0 ? 9 : 7)
-                        .position(x: layout.center(of: stop), y: mid)
+                    if skipped.contains(stop) {
+                        Circle()
+                            .strokeBorder(stop <= passed ? style.tint : style.skippedDot, lineWidth: 1.5)
+                            .frame(width: 7, height: 7)
+                            .position(x: layout.center(of: stop), y: mid)
+                    } else {
+                        Circle()
+                            .fill(stop <= passed ? style.tint : style.stopDot)
+                            .frame(width: stop == 0 ? 9 : 7, height: stop == 0 ? 9 : 7)
+                            .position(x: layout.center(of: stop), y: mid)
+                    }
                 }
                 RideActivityPin()
                     .fill(style.tint, style: FillStyle(eoFill: true))
@@ -208,6 +224,12 @@ struct RideActivityBar: View {
                     TrainGlyph()
                         .fill(style.tint, style: FillStyle(eoFill: true))
                         .frame(width: 24, height: 24)
+                }
+                .overlay(alignment: .top) {
+                    if showsBolt {
+                        RideActivityBolt(size: Self.bolt, color: style.tint)
+                            .offset(y: Self.boltOverlap - Self.bolt)
+                    }
                 }
                 .position(x: layout.x(at), y: mid)
                 .animation(.easeInOut(duration: 0.6), value: position)
@@ -244,6 +266,20 @@ struct RideActivityBar: View {
             guard index < stops - 1, fraction > 0.001 else { return center(of: min(index, stops - 1)) }
             return segmentStart(index) + segment * fraction
         }
+    }
+}
+
+/// The express bolt on the activity (TT-232): the Schedule card's glyph, no background, in a `size` box.
+struct RideActivityBolt: View {
+    let size: CGFloat
+    let color: Color
+
+    var body: some View {
+        Image(systemName: "bolt.fill")
+            .font(.system(size: size - 2, weight: .semibold))
+            .foregroundStyle(color)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
@@ -321,8 +357,12 @@ struct RideActivityCard: View {
             }
             .frame(height: 44)
             if !state.isDeparture {
-                RideActivityBar(stopCount: attributes.stopCount, position: state.position, style: style)
-                    .padding(.top, 4)
+                RideActivityBar(
+                    stopCount: state.stations ?? attributes.stopCount, position: state.position, skipped: state.skipped,
+                    showsBolt: state.express && state.phase != .atYourStop, style: style
+                )
+                // On an express the bolt stands above the train: 4 pt more, so it clears the number (160 pt in the island).
+                .padding(.top, state.express ? 8 : 4)
             }
         }
     }
@@ -389,6 +429,23 @@ struct RideActivityExpanded: View {
         RideActivityCard(attributes: attributes, state: state, style: style)
             .padding(.horizontal, 6)
             .padding(.bottom, 4)
+    }
+}
+
+/// The compact island's leading side: the line's tile, and on an express ride the bolt right after it, 14 pt in mint
+/// (TT-232, board 40).
+struct RideActivityCompactLeading: View {
+    let attributes: RideActivityAttributes
+    let state: RideActivityAttributes.ContentState
+    let style: RideActivityStyle
+
+    var body: some View {
+        HStack(spacing: 5) {
+            RideActivityTile(attributes: attributes, size: .compact)
+            if state.express, !state.isDeparture {
+                RideActivityBolt(size: 14, color: style.tint)
+            }
+        }
     }
 }
 

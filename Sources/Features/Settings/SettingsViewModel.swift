@@ -81,6 +81,15 @@ final class SettingsViewModel {
         }
     }
 
+    /// Settings › Testing › Express (TT-232): the demo ride, from Ride's question or Depart's "I’m on board", is the express
+    /// that does not stop between Union and Clarkson. The switch shows with those two modes.
+    var demoExpress: Bool {
+        get { settings.demoExpress }
+        set { settings.demoExpress = newValue }
+    }
+
+    var showsDemoExpress: Bool { demoTrains == .ride || demoTrains == .departure }
+
     /// Settings › Testing › Live data (TT-195): choosing a feed turns off a Demo trains mode that makes its own.
     var mockLive: MockLive {
         get { settings.mockLive }
@@ -231,6 +240,7 @@ final class SettingsViewModel {
     /// "Reset": Demo trains and Live data off and the real time.
     func resetTesting() {
         demoTrains = .off
+        demoExpress = false
         mockLive = .off
         settings.mockTime = nil
     }

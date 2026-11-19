@@ -169,8 +169,12 @@ extension AnalyticsEvent {
         Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
     }
 
-    static func rideStarted(source: RideStartSource, demo: Bool) -> Self {
-        Self("ride_started", ["source": .string(source.rawValue), "demo": .bool(demo)])
+    /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232).
+    static func rideStarted(source: RideStartSource, demo: Bool, plan: RidePlan? = nil) -> Self {
+        Self("ride_started", [
+            "source": .string(source.rawValue), "demo": .bool(demo),
+            "express": .bool(plan?.isExpress ?? false), "skipped_stations": .int(plan?.skipped.count ?? 0),
+        ])
     }
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not

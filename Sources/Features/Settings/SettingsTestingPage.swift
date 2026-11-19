@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// The Testing page (TT-168, D57; TestFlight and Debug builds only): Demo trains as a glass switch with one line describing
-/// the chosen mode, Mock time as a switch that opens the date and time and the quick choices, the Haptics page (TT-214),
-/// and Reset, which turns everything off and goes back to the real time. `DemoTrains` and `MockTime` behave as before.
+/// the chosen mode, Mock time as a switch that opens the date and time and the quick choices, Demo place with Automatic
+/// direction's last look under it (TT-234, D116), the Haptics page (TT-214), and Reset, which turns everything off and
+/// goes back to the real time. `DemoTrains` and `MockTime` behave as before.
 struct SettingsTestingPage: View {
     @Bindable var viewModel: SettingsViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -24,8 +25,9 @@ struct SettingsTestingPage: View {
                     mockTimeCard.settingsRise(order: 2)
                     demoWeatherCard.settingsRise(order: 2)
                     SettingsNote(text: "settings.testing.footnote").settingsRise(order: 3)
-                    hapticsCard.settingsRise(order: 3)
-                    feedbackNudgeCard.settingsRise(order: 3)
+                    // Under Time, so Mock time's rows stay where they were on the screen.
+                    demoPlaceSection.settingsRise(order: 3)
+                    toolCards.settingsRise(order: 4)
                 }
             }
         )
@@ -52,6 +54,14 @@ struct SettingsTestingPage: View {
             .allowsHitTesting(active)
             .accessibilityHidden(!active)
             .accessibilityIdentifier("settings.testing.reset")
+    }
+
+    /// The Haptics page and the Feedback animation, at the end of the page.
+    private var toolCards: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s2) {
+            hapticsCard
+            feedbackNudgeCard
+        }
     }
 
     /// Haptics (TT-214): the page where every feel can be tried on the phone.
@@ -188,6 +198,63 @@ struct SettingsTestingPage: View {
             }
             .padding(TTSpace.s3)
         }
+    }
+
+    // MARK: Demo place
+
+    /// Demo place and the last look (TT-234, D116).
+    private var demoPlaceSection: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s2) {
+            header("settings.demo_place")
+            demoPlaceCard
+            lastLook
+        }
+    }
+
+    /// Demo place: Automatic direction reads the phone as at one of the route's two stations, so a turn can be tried at a
+    /// desk; Off uses the real location.
+    private var demoPlaceCard: some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 10) {
+                GlassSwitch(selection: $viewModel.demoPlace, options: demoPlaceOptions)
+                Text("settings.demo_place.detail")
+                    .font(TTFont.footnote)
+                    .foregroundStyle(TTColor.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 2)
+            }
+            .padding(TTSpace.s3)
+        }
+    }
+
+    /// Off, then the route's two stations by their short names, each segment named by its station id.
+    private var demoPlaceOptions: [GlassSwitch<String?>.Option] {
+        let off = GlassSwitch<String?>.Option(
+            value: nil, label: .text("settings.demo_place.off"), name: "settings.demo_place.off",
+            identifier: "settings.demoPlace.off"
+        )
+        let stations = viewModel.demoPlaceStations.map { station -> GlassSwitch<String?>.Option in
+            // A station's name is no key of the strings file, so the switch shows it as it is.
+            let name = LocalizedStringKey(station.name)
+            return GlassSwitch<String?>.Option(
+                value: station.id, label: .text(name), name: name, identifier: "settings.demoPlace.\(station.id)"
+            )
+        }
+        return [off] + stations
+    }
+
+    /// The last look: how long it waited and what it did, kept for the run only, so the time a look takes can be read on
+    /// a phone. Information, so plain text under the card; never a place.
+    private var lastLook: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("settings.last_look").font(TTFont.footnote).foregroundStyle(TTColor.inkSecondary)
+            Text(verbatim: viewModel.lastLookText).monospacedDigit().font(TTFont.subhead).foregroundStyle(TTColor.ink)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TTSpace.s4)
+        .padding(.top, TTSpace.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("settings.lastLook")
     }
 
     // MARK: Demo weather

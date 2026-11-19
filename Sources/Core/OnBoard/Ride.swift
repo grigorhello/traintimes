@@ -96,8 +96,11 @@ struct LocationFix: Sendable, Equatable {
     var age: TimeInterval = 0
 }
 
-/// The phone's location during a ride (TT-171): When In Use permission, asked only when a ride starts, and updates with
-/// the background session while it lasts. `SystemLocationProvider` in the app, a fake in tests.
+/// The phone's location during a ride (TT-171), and the matcher's while Schedule is open (TT-175): When In Use
+/// permission, and updates with the background session while a ride lasts. Through this protocol When In Use is asked
+/// only when a ride starts; the Automatic direction and Detect my train switches ask it too, and nothing asks at launch
+/// (D60 rule 4 as revised by D116). Automatic direction's one look when the app opens has its own reader,
+/// `DirectionLocating`, which never asks by itself. `SystemLocationProvider` in the app, a fake in tests.
 @MainActor
 protocol LocationProviding: AnyObject {
     /// When In Use or Always is allowed. Reading it never asks.

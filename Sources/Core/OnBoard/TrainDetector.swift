@@ -98,7 +98,8 @@ final class TrainDetector {
         if !shouldGoOn() { reset() }
     }
 
-    /// Loads the trains and starts the phone's updates; false when location is not allowed.
+    /// Loads the trains and starts the phone's updates; false when location is not allowed. A new pair of stations starts
+    /// the matcher again; the same pair the other way keeps it.
     func start(on route: Route) async -> Bool {
         guard location.isAuthorized else { return false }
         // A Not me on the background question (TT-176) may have silenced trains since this detector was made.
@@ -112,7 +113,9 @@ final class TrainDetector {
             isWatching = false
             location.stopUpdates()
         }
-        if self.route != route {
+        // A route that joins the same two stations the other way keeps the running matcher, its state and its trains
+        // (TT-234, D116): Automatic direction turns the route round, and the matcher watches the trains both ways.
+        if !Self.joinsSameStations(self.route, route) {
             matcher = TrainMatcher(silenced: matcher.silenced)
             state = .idle
             lastCandidates = .distantPast
@@ -161,6 +164,12 @@ final class TrainDetector {
     /// Yes: the ride started, so the question goes.
     func accepted() {
         reset()
+    }
+
+    /// The two routes join the same two stations, either way round.
+    private static func joinsSameStations(_ first: Route?, _ second: Route) -> Bool {
+        guard let first else { return false }
+        return Set([first.from.id, first.to.id]) == Set([second.from.id, second.to.id])
     }
 
     /// A new matcher with the same No's; it gets the trains again on the next refresh.

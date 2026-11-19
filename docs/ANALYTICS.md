@@ -20,7 +20,13 @@ app sends and what each property means.
   PostHog's own and is never linked to the alert server's installation id.
 - **Never in an event:** a name, email, push token, installation id, location or GPS fix, or anything the rider typed
   (feedback text, search text).
-- Station and line ids (`OA`, `UN`, `LW`) are allowed: they are GO's public ids, not the rider's position.
+- Station and line ids (`OA`, `UN`, `LW`) are allowed on an event the rider caused: they are GO's public ids, not the
+  rider's position.
+- **Automatic direction (TT-234, D116):** the app turns the route to leave from the station the rider is at, so there
+  the From station says where the rider is. No event is sent when the route turns by itself (at an open, on a return or
+  after a ride), when that turn is undone, or when the capsule asks, is left or is answered with Switch: each would say
+  "this rider is at their station now". No event the rider did not cause carries a station id, because there a station
+  id is the rider's position, and no event carries where the rider is.
 - App Store privacy label: Identifiers › Device ID and Usage Data › Product Interaction, for Analytics, not linked to the
   user, not used for tracking, so no tracking prompt (`docs/APP-STORE.md`). A new kind of data needs a new label entry.
 
@@ -32,14 +38,14 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 |---|---|---|
 | `Application Installed` / `Application Updated` / `Application Opened` / `Application Backgrounded` | SDK lifecycle | `version`, `build`, `from_background` (Opened) |
 | `$screen` | A screen comes on top | `$screen_name`: `schedule`, `welcome` (first launch: the welcome, your line, your station; TT-206), `route_form` (first launch's "Search stations"), `alerts`, `settings`, `trip_details`, `line_notices`, `detect_offer` |
-| `route_set` | A route shows on Schedule (first use, the station picker, a Recent row, a swap applied) | `from`, `to` (station ids), `line` (line id, when known), `is_first` (the first route on this install); `restored` (true only on the launch count below) |
+| `route_set` | A route shows on Schedule by the rider's choice: first use, the station picker, a Recent row, the route form's "Show trains" (also after a swap there), or a link that opens another route. Never Schedule's swap button (`route_swapped`), and never when the route turns by itself, by the capsule's Undo or by Switch (TT-234, D116) | `from`, `to` (station ids), `line` (line id, when known), `is_first` (the first route on this install); `restored` (true only on the launch count below) |
 | `route_set` at launch (TT-217) | Once per install: a route saved on device before this install sent any `route_set` (an install from before analytics) is counted at the first launch with analytics, so it shows as activated. Any `route_set` from the app marks the install, so neither sends twice | as above, with `is_first: true` and `restored: true` |
 | `offline_shown` | Schedule turns to Offline (TT-217): once each time it turns into that state, never on each poll; a Try again that fails again counts again | `kind`: `live` (live status unreachable, the timetable shows marked Offline), `timetable` (the first timetable could not download: "Couldn’t load the timetable") |
 | `launch_splash_ended` | The Bloom splash lifts over Schedule on a cold start with a saved route (TT-227), as its mark begins to fade | `schedule_ready` (Schedule had its trains, or a final state, not "Loading timetable"), `full` (the slower pace of the first 8 launches) |
-| `route_swapped` | The swap button | none |
+| `route_swapped` | The swap button: on the route form, and on Schedule's route card (since TT-234; it sent nothing there before), also when that swap back counts as Undo. Never when the route turns by itself, by the capsule's Undo or by Switch (D116) | none |
 | `back_to_now` | Back to today, at Now: the Schedule tab tapped again, or the app back after more than 10 min away (TT-222) | `source`: `tab`, `reopen` |
 | `day_changed` | Another day picked on the day strip | `offset` (days from today, -1 is yesterday) |
-| `boarding_shown` | A train first shows Boarding: it stands at the From station with its platform posted (TT-233, D114). Once per train per day, from whichever screen has it first: Schedule (any Boarding train on Today's timeline, in view or not) or its Trip details | `station` (the From station's id), `minutes_before` (whole minutes before its scheduled time, negative once past it), `surface`: `schedule` (its card), `trip` (Trip details) |
+| `boarding_shown` | A train first shows Boarding: it stands at the From station with its platform posted (TT-233, D114). Once per train per day, from whichever screen has it first: Schedule (any Boarding train on Today's timeline, in view or not) or its Trip details | `minutes_before` (whole minutes before its scheduled time, negative once past it), `surface`: `schedule` (its card), `trip` (Trip details). No station id since TT-234 (D116): Schedule sends it with no tap, and after a turn the From station is where the rider is |
 | `train_departed` | Schedule's next train turned Departed on a minute tick or a 30 s poll with Schedule loaded (TT-233, D114). Once per train per app run; not on launch, the first tick or poll after coming back, or pull to refresh; a departure only the clock decided counts within 60 s of its time | `source`: `moved` (its position left the station), `feed` (the station dropped out of GO's updates), `clock` (its time came, with no position); `seconds_after` (whole seconds after its scheduled time; negative, down to -60, when the feed said so just before it) |
 | `weather_opened` | The weather sheet opens from the tile beside the day strip (TT-226) | `day_offset` (days from today, 0 is Today), `cue`: `rain`, `snow`, `cold`, `wind`, `none` (the sheet's first line) |
 | `weather_unavailable` | The weather tile shows grey, at most once per Schedule visit (TT-226) | `reason`: `past` (a day before today), `range` (more than 10 days ahead), `offline`, `failed` (the request failed, or the station has no place) |
@@ -62,7 +68,7 @@ Names are snake_case, `object_action`. PostHog's lifecycle events come from the 
 | `feedback_sent` | Feedback or a question sent | `kind`: `feedback`, `question`; `with_email` |
 | `feedback_nudge_shown` | Schedule's Feedback button started asking: the bubble draws a question mark and goes back (TT-228, D112) | `count` (which showing, 1 to 5) |
 | `feedback_opened` | The feedback sheet opened (TT-228) | `source`: `schedule`, `settings`; `after_nudge` (within 60 s of the button asking); `nudges_seen` (0 to 5) |
-| `setting_changed` | A setting changed | `setting`: `time_format`; `value`: `device`, `twelveHour`, `twentyFourHour` |
+| `setting_changed` | A setting changed | `setting`: `time_format`, with `value`: `device`, `twelveHour`, `twentyFourHour`; `auto_direction` (Settings › Automatic direction, TT-234, D116), with `value`: `on`, `off` and no other property, sent only when the rider's own tap leaves the switch changed: not when iOS refuses, not when the tap only opens iOS Settings, and never when the permission alone changes the switch |
 | `interest_tapped` | Text that is not a button tapped (TT-209): the rider wanted to know more. Taps on the same element, each within 2 s of the one before, are one event, sent once the run is over | `element` (below), `screen` (the `$screen_name` on top), `count` (taps in the run; 3 or more is a rage tap) |
 
 ### Interest elements (`interest_tapped.element`)
@@ -83,7 +89,7 @@ was tapped.
 | `trip.stop` | A stop row in Trip details |
 | `ride.minutes` | The ride screen's minutes to your stop |
 | `ride.stops` | The ride screen's stop rail |
-| `note.<key>` | A Settings note, by its string key: `note.settings.notifications.footnote`, `note.detect.setting.turnedOff`, `note.settings.no_account`, `note.settings.independent`, `note.settings.testing.footnote` |
+| `note.<key>` | A Settings note, by its string key: `note.settings.notifications.footnote`, `note.detect.setting.turnedOff`, `note.settings.no_account`, `note.settings.independent`, `note.settings.testing.footnote`, and the note under Automatic direction (TT-234): `note.settings.auto_direction.note`, `note.settings.auto_direction.needs_location`, `note.settings.auto_direction.needs_precise` (they say the permission's state, never a place) |
 | `about.tagline`, `about.version` | The tagline and the version pill on About |
 
 Demo rides (Settings › Testing) only exist in TestFlight and Debug builds, and their rides say `demo: true`; filter

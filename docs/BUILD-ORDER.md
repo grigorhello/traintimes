@@ -139,3 +139,8 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 102 | TT-228 · Feedback button asks: now and then the chat icon draws a question mark, then goes back | [#210](https://github.com/grigorhello/traintimes/issues/210) | P2 | 1 | Grigor, 2026-11-18, D112 |
 | 106 | TT-231 · Departure question: the Live Activity card asks "On board?" when an alerted train leaves | [#216](https://github.com/grigorhello/traintimes/issues/216) | P1 | 3 | Grigor, 2026-11-18, D110 |
 | 107 | TT-233 · Boarding at the platform: the card lights up while the train stands at your station, Departed only when it moves | [#219](https://github.com/grigorhello/traintimes/issues/219) | P1 | 5 | Grigor, 2026-11-19, D114 |
+| 108 | TT-234 · Automatic direction, part 1: the route turns to leave from the station you’re closer to (the rule, the capsules, the Settings switch) | [#224](https://github.com/grigorhello/traintimes/issues/224) | P1 | 8 | Grigor, 2026-11-19, D116. Blocked by TT-233 (#219, merged) |
+| 109 | TT-235 · Automatic direction, part 2: the turn in motion (the names trade places, an arrow marks From, the trains never go empty) | [#225](https://github.com/grigorhello/traintimes/issues/225) | P1 | 4 | Grigor, 2026-11-19, D116. Blocked by TT-234 (#224) |
+| 110 | TT-236 · Automatic direction, part 3: the one-time strip, and no capsule after the first 8 turns | [#226](https://github.com/grigorhello/traintimes/issues/226) | P1 | 2 | Grigor, 2026-11-19, D116. Blocked by TT-235 (#225) |
+
+TT-234, TT-235 and TT-236 go into the same TestFlight build: no build with only one or two of them.

@@ -18,7 +18,13 @@ struct WakeFix: Sendable, Equatable {
 protocol WakeLocationProviding: AnyObject {
     /// Always is allowed. Reading it never asks.
     var allowsAlways: Bool { get }
+    /// iOS has never asked for location, so `requestWhenInUse()` would show its prompt (TT-234, D116). Reading it never
+    /// asks.
+    var canAskWhenInUse: Bool { get }
+    /// Shows the iOS When In Use prompt if the rider has not answered it yet; true when location is allowed after it.
+    func requestWhenInUse() async -> Bool
     /// Shows the iOS Always dialog when iOS still can (it shows it once), and says whether Always is allowed after it.
+    /// Where location was never asked, `requestWhenInUse()` goes first.
     func requestAlways() async -> Bool
     /// Starts the wake-ups; each one calls `onWake`.
     func startWakes(_ onWake: @escaping @MainActor (WakeFix) async -> Void)
@@ -128,7 +134,8 @@ enum DetectionStore {
     }
 }
 
-/// "Detect my train" (TT-176, Live-Spec "Three doors into a ride", the third, and "When it runs"): opt-in, Always. While the
+/// "Detect my train" (TT-176, Live-Spec "Three doors into a ride", the third, and "When it runs"): opt-in, Always (asked
+/// from the rider's tap on the switch or the offer, When In Use first where location was never asked, TT-234, D116). While the
 /// switch is on, iOS wakes the app on significant location changes. On a wake-up between 5 AM and 1 AM, with the phone
 /// moving within 300 m of the track of a train on the saved route (either way, as Schedule's detection, D68), GPS runs the
 /// matcher for up to 12 minutes; otherwise the app sleeps again. A match posts "On the 5:13 PM train?" with Start On board
@@ -247,13 +254,21 @@ final class BackgroundDetection {
     }
 
     /// Turn on, on the offer or the switch: on at once, then iOS asks for Always (once); off again when Always is not
-    /// allowed. True when it stays on.
+    /// allowed. Where location was never asked, iOS asks for When In Use first, so the rider reads its sentence, and for
+    /// Always only once that is allowed (TT-234, D116); a rider who allows there has Automatic direction on too. True
+    /// when it stays on.
     @discardableResult
     func turnOn() async -> Bool {
         wasTurnedOff = false
         defaults.removeObject(forKey: DetectionStore.turnedOffKey)
         defaults.removeObject(forKey: DetectionStore.notMeKey)
         setOn(true)
+        if location.canAskWhenInUse {
+            guard await location.requestWhenInUse(), isOn else {
+                setOn(false)
+                return false
+            }
+        }
         guard await location.requestAlways(), isOn else {
             setOn(false)
             return false

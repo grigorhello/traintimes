@@ -6,7 +6,7 @@ final class SettingsTests: XCTestCase {
     }
 
     /// The main view's glass switch changes Time format in one tap (there is no Appearance row, D84), and Notifications, About and Testing open
-    /// and close (TT-105, TT-168), and Testing › Haptics (TT-214).
+    /// and close (TT-105, TT-168), and Testing › Haptics (TT-214). The Automatic direction row always shows (TT-234, D116).
     @MainActor
     func testChangeTimeFormatAndOpenThePages() {
         let app = XCUIApplication.onFixtures()
@@ -27,6 +27,16 @@ final class SettingsTests: XCTestCase {
         // Leave the simulator on the defaults for the next run.
         app.buttons["settings.timeFormat.device"].tap()
         XCTAssertTrue(app.buttons["settings.timeFormat.device"].isSelected)
+
+        // Automatic direction (TT-234, D116): a fixture run has no location reader, so the row reads off and a tap changes
+        // nothing; the iOS location prompt can never show in a UI test.
+        let direction = app.switches["settings.autoDirection"]
+        XCTAssertTrue(direction.waitForExistence(timeout: 15))
+        XCTAssertEqual(direction.value as? String, "0")
+        // The switch is labelled, so its element spans the row: tap at the trailing edge, where the switch is.
+        direction.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        wait(for: [expectation(for: NSPredicate(format: "value == '0'"), evaluatedWith: direction)], timeout: 15)
+        XCTAssertTrue(app.staticTexts["settings.title"].exists, "no prompt and no other page")
 
         // The app never asks before an alert is set or "Turn on notifications" is tapped (TT-142, TT-168), so a fresh install
         // reads Off with a grey dot, and the page offers to turn them on.
@@ -53,7 +63,12 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.testing"].tap()
         XCTAssertTrue(app.staticTexts["Demo trains"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["settings.demoTrains.off"].isSelected)
-        // Testing › Haptics opens (TT-214): a row per feel.
+        // Demo place (TT-234, D116) is off: no station of the route is chosen.
+        XCTAssertTrue(app.buttons["settings.demoPlace.off"].isSelected)
+        // Testing › Haptics opens (TT-214): a row per feel. With Demo place the page is longer than the screen, so the
+        // row is brought up first.
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["settings.haptics"].waitForExistence(timeout: 15))
         app.buttons["settings.haptics"].tap()
         XCTAssertTrue(app.buttons["haptics.feel.railJoint"].waitForExistence(timeout: 15))
         app.buttons["settings.back"].tap()

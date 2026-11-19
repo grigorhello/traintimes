@@ -467,7 +467,8 @@ final class RideEngineTests: XCTestCase {
         XCTAssertNil(rig.defaults.data(forKey: RideEngine.storageKey))
     }
 
-    /// Acceptance: no location request at launch, or anywhere but a ride start.
+    /// Acceptance: no location request at launch; the engine asks only at a ride's start (the Automatic direction and
+    /// Detect my train switches ask too, D116).
     func testLocationIsAskedOnlyWhenARideStarts() async throws {
         let rig = try rig(at: t(11, 10))
         await rig.engine.restore()
@@ -495,5 +496,165 @@ final class RideEngineTests: XCTestCase {
         XCTAssertEqual(rig.engine.state?.nextStop?.id, "MI")
         XCTAssertEqual(rig.engine.state?.expectedArrival, t(11, 54))
         XCTAssertEqual(rig.engine.state?.minutesToYourStop, 26)
+    }
+
+    // MARK: The ride's proof (TT-234, D116)
+
+    /// A ride the phone followed to your stop, ended by itself 2 min later: Automatic direction's proof, with the stop and
+    /// the moment the ride ended.
+    func testARideThePhoneFollowedToYourStopIsProofWhenItEndsByItself() async throws {
+        let rig = try rig(at: t(11, 45))
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 52))
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+        XCTAssertEqual(rig.engine.state?.source, .phone)
+        XCTAssertNil(rig.engine.arrival, "At your stop, the ride still runs")
+
+        rig.clock.set(t(11, 54, 30))
+        rig.engine.update()
+
+        XCTAssertEqual(rig.engine.state?.endReason, .arrived)
+        XCTAssertEqual(rig.engine.arrival, RideArrival(stopId: "CL", at: t(11, 54, 30)))
+        XCTAssertNil(rig.defaults.data(forKey: RideEngine.storageKey), "Kept in memory only")
+    }
+
+    /// Done, or End ride at your stop, is the same proof; the next ride starts without it.
+    func testEndRideAtYourStopIsProofUntilTheNextRide() async throws {
+        let rig = try rig(at: t(11, 45))
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 52))
+
+        rig.clock.set(t(11, 53))
+        rig.engine.end()
+
+        XCTAssertEqual(rig.engine.state?.endReason, .byRider)
+        XCTAssertEqual(rig.engine.arrival, RideArrival(stopId: "CL", at: t(11, 53)))
+
+        await rig.engine.start(ride)
+        XCTAssertNil(rig.engine.arrival, "A new ride: the old proof no longer says where the rider is")
+    }
+
+    /// A ride that ran on the timetable alone ends at your stop too, by itself or by the rider, but proves nothing.
+    func testARideOnTheTimetableAloneIsNoProof() async throws {
+        let byItself = try rig(at: t(11, 45), answer: false)
+        await byItself.engine.start(ride)
+        byItself.clock.set(t(11, 52))
+        byItself.engine.update()
+        XCTAssertEqual(byItself.engine.state?.phase, .atYourStop)
+        byItself.clock.set(t(11, 54, 30))
+        byItself.engine.update()
+        XCTAssertEqual(byItself.engine.state?.endReason, .arrived)
+        XCTAssertNil(byItself.engine.arrival)
+
+        let byRider = try rig(at: t(11, 45), answer: false)
+        await byRider.engine.start(ride)
+        byRider.clock.set(t(11, 52, 30))
+        byRider.engine.update()
+        XCTAssertEqual(byRider.engine.state?.phase, .atYourStop)
+        byRider.engine.end()
+        XCTAssertEqual(byRider.engine.state?.endReason, .byRider)
+        XCTAssertNil(byRider.engine.arrival)
+    }
+
+    /// The phone followed the ride, but the rider ended it before their stop.
+    func testARideEndedBeforeItsStopIsNoProof() async throws {
+        let rig = try rig(at: t(11, 20))
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 30))
+        XCTAssertEqual(rig.engine.state?.source, .phone)
+
+        rig.engine.end()
+
+        XCTAssertEqual(rig.engine.state?.phase, .ended)
+        XCTAssertNil(rig.engine.arrival)
+    }
+
+    /// The phone went silent before your stop and the timetable alone placed the arrival: no proof. Once the phone's own
+    /// fix is at your stop, it is one.
+    func testThePhoneNotTheTimetablePlacesTheProof() async throws {
+        let silent = try rig(at: t(11, 45))
+        await silent.engine.start(ride)
+        try drive(silent, to: t(11, 45))
+        silent.clock.set(t(11, 53))
+        silent.engine.update()
+        XCTAssertEqual(silent.engine.state?.source, .timetable)
+        XCTAssertEqual(silent.engine.state?.phase, .atYourStop)
+        silent.clock.set(t(11, 55))
+        silent.engine.update()
+        XCTAssertEqual(silent.engine.state?.endReason, .arrived)
+        XCTAssertNil(silent.engine.arrival, "Location was allowed, but no fix placed the phone at Clarkson")
+
+        let back = try rig(at: t(11, 45))
+        await back.engine.start(ride)
+        try drive(back, to: t(11, 45))
+        back.clock.set(t(11, 53))
+        back.engine.update()
+        XCTAssertEqual(back.engine.state?.source, .timetable)
+        try drive(back, to: t(11, 53, 20))
+        XCTAssertEqual(back.engine.state?.source, .phone)
+        back.clock.set(t(11, 54, 10))
+        back.engine.update()
+        XCTAssertEqual(back.engine.state?.endReason, .arrived)
+        XCTAssertEqual(back.engine.arrival, RideArrival(stopId: "CL", at: t(11, 54, 10)))
+    }
+
+    /// GO's train feed placed the train at your stop while the phone was silent: the train is there, the phone may not be.
+    func testAnArrivalTheTrainFeedPlacedIsNoProof() async throws {
+        let trains = FakeTrainPositions()
+        let rig = try rig(at: t(11, 45), trains: trains)
+        await rig.engine.start(ride)
+        try drive(rig, to: t(11, 45))
+
+        rig.clock.set(t(11, 52, 30))
+        let clarkson = try XCTUnwrap(rig.plan.track).stopDistances[5]
+        let place = try OnBoardFixtures.fix(along: clarkson, plan: rig.plan).coordinate
+        await trains.set(TrainPosition(coordinate: place, reportedAt: rig.clock.now))
+        await rig.engine.refresh()
+        XCTAssertEqual(rig.engine.state?.source, .trainFeed)
+        XCTAssertEqual(rig.engine.state?.phase, .atYourStop)
+
+        rig.clock.set(t(11, 54, 40))
+        rig.engine.update()
+
+        XCTAssertEqual(rig.engine.state?.endReason, .arrived)
+        XCTAssertNil(rig.engine.arrival)
+    }
+
+    /// A ride `restore()` brings back long after your stop ends at once, with no location: no proof, though the phone had
+    /// placed the train at your stop before the app was stopped.
+    func testARideRestoredAsAlreadyOverIsNoProof() async throws {
+        let defaults = UserDefaults.ephemeral()
+        let first = try rig(at: t(11, 45), defaults: defaults)
+        await first.engine.start(ride)
+        try drive(first, to: t(11, 52))
+        XCTAssertEqual(first.engine.state?.phase, .atYourStop)
+        XCTAssertNotNil(defaults.data(forKey: RideEngine.storageKey))
+
+        let later = try rig(at: t(13, 0), authorized: true, defaults: defaults)
+        await later.engine.restore()
+
+        XCTAssertEqual(later.engine.state?.phase, .ended)
+        XCTAssertEqual(later.engine.state?.endReason, .arrived)
+        XCTAssertNil(later.engine.arrival)
+    }
+
+    /// Automatic direction does not look while a ride runs, or while one is saved on device and not restored yet.
+    func testHoldsRideWhileARideRunsAndWhileOneWaitsToBeRestored() async throws {
+        let defaults = UserDefaults.ephemeral()
+        let first = try rig(at: t(11, 30), defaults: defaults)
+        XCTAssertFalse(first.engine.holdsRide, "No ride yet")
+        await first.engine.start(ride)
+        XCTAssertTrue(first.engine.holdsRide)
+
+        // iOS stopped the app and relaunches it: the ride is on device, and the launch's restore has not run yet.
+        let relaunched = try rig(at: t(11, 31), authorized: true, defaults: defaults)
+        XCTAssertNil(relaunched.engine.state)
+        XCTAssertTrue(relaunched.engine.holdsRide, "Saved, not restored yet")
+        await relaunched.engine.restore()
+        XCTAssertTrue(relaunched.engine.holdsRide)
+
+        relaunched.engine.end()
+        XCTAssertFalse(relaunched.engine.holdsRide, "An ended ride is not held")
+        XCTAssertFalse(try rig(at: t(11, 32), defaults: defaults).engine.holdsRide, "Nor kept on device")
     }
 }

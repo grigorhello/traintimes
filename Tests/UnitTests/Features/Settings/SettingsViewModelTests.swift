@@ -12,7 +12,8 @@ final class SettingsViewModelTests: XCTestCase {
             settings: settings ?? AppSettings(defaults: .ephemeral()),
             permissions: FakeNotificationPermission(permission),
             appInfo: AppInfo(version: "1.0", build: "1"),
-            showsTesting: showsTesting
+            showsTesting: showsTesting,
+            defaults: .ephemeral()
         )
     }
 

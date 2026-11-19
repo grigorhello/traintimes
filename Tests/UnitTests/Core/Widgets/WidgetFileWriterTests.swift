@@ -8,6 +8,8 @@ final class WidgetFileWriterTests: XCTestCase {
     private let union = Station(id: "UN", name: "Union")
     private let burlington = Station(id: "BU", name: "Burlington")
     private let line = Line(id: "LW", name: "Lakeshore West", colorHex: "#8B1A31")
+    private let toUnion = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
+    private let toOakville = WidgetFile.RouteKey(fromId: "UN", toId: "OA")
     private let fileURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         .appending(path: WidgetFile.fileName)
 
@@ -32,7 +34,9 @@ final class WidgetFileWriterTests: XCTestCase {
     }
 
     @MainActor
-    private func rig(lastDay: ServiceDay? = nil, widgetRoutes: [Route] = [], at time: (Int, Int) = (8, 0)) -> Rig {
+    private func rig(
+        lastDay: ServiceDay? = nil, widgetRoutes: [Route] = [], at time: (Int, Int) = (8, 0), direction: DirectionStore? = nil
+    ) -> Rig {
         let routeStore = UserDefaultsRouteStore(defaults: .ephemeral())
         let rules = AlertFixtures.rules(FakeAlertServer())
         let settings = AppSettings(defaults: .ephemeral())
@@ -42,7 +46,7 @@ final class WidgetFileWriterTests: XCTestCase {
         let writer = WidgetFileWriter(
             repository: timetable, stations: timetable, clock: FixedClock(now: wed.date(hour: time.0, minute: time.1)),
             fileURL: fileURL, widgetRoutes: FakeWidgetRoutes(list: widgetRoutes), routeStore: routeStore, rules: rules,
-            settings: settings, recents: recents, reload: { reloads.count += 1 }
+            settings: settings, recents: recents, direction: direction, reload: { reloads.count += 1 }
         )
         return Rig(writer: writer, reloads: reloads, routeStore: routeStore, rules: rules, settings: settings, recents: recents)
     }
@@ -90,6 +94,141 @@ final class WidgetFileWriterTests: XCTestCase {
         await rig.writer.write()
         XCTAssertEqual(try XCTUnwrap(written).openRoute, WidgetFile.RouteKey(fromId: "OA", toId: "UN"))
     }
+
+    // MARK: - The stored morning way (TT-234, D116)
+
+    /// A turn before 12 PM leaves the file's open route: the route on Schedule is saved the other way round, the stored
+    /// morning way is not touched.
+    @MainActor
+    func testATurnBeforeNoonLeavesTheMorningWay() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(direction: store)
+        // The rider chose Oakville to Union by hand at 8:00 AM.
+        let chosen = Route(from: oakville, to: union, line: line)
+        rig.routeStore.save(chosen)
+        store.setMorningWay(from: chosen, at: wed.date(hour: 8, minute: 0))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+
+        // The app turns the route at Union. By the clock alone the file would now say Union to Oakville.
+        rig.routeStore.save(Route(from: union, to: oakville, line: line))
+        await rig.writer.write()
+        let file = try XCTUnwrap(written)
+        XCTAssertEqual(file.routes.map(\.key), [toOakville])
+        XCTAssertEqual(file.openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+    }
+
+    /// A turn after 12 PM leaves it too: at 5:00 PM the route turns to leave from Union, and turns back at Oakville.
+    @MainActor
+    func testATurnAfterNoonLeavesTheMorningWay() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(at: (17, 0), direction: store)
+        let chosen = Route(from: oakville, to: union, line: line)
+        store.setMorningWay(from: chosen, at: wed.date(hour: 8, minute: 0))
+
+        rig.routeStore.save(Route(from: union, to: oakville, line: line))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+
+        // By the clock alone the file would now say Union to Oakville.
+        rig.routeStore.save(chosen)
+        await rig.writer.write()
+        let file = try XCTUnwrap(written)
+        XCTAssertEqual(file.routes.map(\.key), [toUnion])
+        XCTAssertEqual(file.openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+    }
+
+    /// An install from before the store has no morning way: the first write takes it from the open route by the clock and
+    /// stores it, and a turn after that leaves it.
+    @MainActor
+    func testWithNothingStoredTheMorningWayIsTakenOnceFromTheOpenRoute() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(at: (17, 0), direction: store)
+        rig.routeStore.save(Route(from: union, to: oakville, line: line))
+        XCTAssertNil(store.morningWay)
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+
+        rig.routeStore.save(Route(from: oakville, to: union, line: line))
+        await rig.writer.write()
+        let file = try XCTUnwrap(written)
+        XCTAssertEqual(file.routes.map(\.key), [toUnion])
+        XCTAssertEqual(file.openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+    }
+
+    /// It is stored before the schedule is read, so a write that fails still takes it, and a turn before the next write
+    /// leaves it.
+    @MainActor
+    func testTheMorningWayIsTakenAlsoWhenTheScheduleCannotBeRead() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(at: (17, 0), direction: store)
+        rig.routeStore.save(Route(from: union, to: oakville, line: line))
+        let failing = WidgetFileWriter(
+            repository: FailingTimetable(), stations: FailingTimetable(), clock: FixedClock(now: wed.date(hour: 17, minute: 0)),
+            fileURL: fileURL, routeStore: rig.routeStore, rules: rig.rules, settings: rig.settings, recents: rig.recents,
+            direction: store, reload: {}
+        )
+        let wrote = await failing.write()
+        XCTAssertFalse(wrote)
+        XCTAssertEqual(store.morningWay, toUnion)
+
+        rig.routeStore.save(Route(from: oakville, to: union, line: line))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+    }
+
+    /// A route chosen by hand moves it: the swap button at 8:00 AM stores the new direction as the morning way.
+    @MainActor
+    func testAChoiceByHandMovesTheMorningWay() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(direction: store)
+        let chosen = Route(from: oakville, to: union, line: line)
+        rig.routeStore.save(chosen)
+        store.setMorningWay(from: chosen, at: wed.date(hour: 7, minute: 30))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+
+        let swapped = Route(from: union, to: oakville, line: line)
+        rig.routeStore.save(swapped)
+        store.setMorningWay(from: swapped, at: wed.date(hour: 8, minute: 0))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toOakville)
+    }
+
+    /// A link that puts another route on Schedule sets no morning way. The stored one names other stations, so the file
+    /// takes it from the open route, once.
+    @MainActor
+    func testAMorningWayStoredForOtherStationsIsReplaced() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(direction: store)
+        store.setMorningWay(from: Route(from: burlington, to: union, line: line), at: wed.date(hour: 7, minute: 30))
+        rig.routeStore.save(Route(from: oakville, to: union, line: line))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+
+        // A turn then leaves the new one.
+        rig.routeStore.save(Route(from: union, to: oakville, line: line))
+        await rig.writer.write()
+        XCTAssertEqual(try XCTUnwrap(written).openRoute, toUnion)
+        XCTAssertEqual(store.morningWay, toUnion)
+    }
+
+    /// Before the first route the file has no open route and nothing is stored.
+    @MainActor
+    func testWithNoRouteNoMorningWayIsStored() async throws {
+        let store = DirectionStore(defaults: nil)
+        let rig = rig(direction: store)
+        await rig.writer.write()
+        XCTAssertNil(try XCTUnwrap(written).openRoute)
+        XCTAssertNil(store.morningWay)
+    }
+
+    // MARK: - The rest of the file
 
     @MainActor
     func testTheFeedsEndStopsTheFile() async throws {

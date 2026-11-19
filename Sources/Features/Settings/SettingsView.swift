@@ -7,8 +7,8 @@ enum SettingsPage: Hashable {
     case haptics
 }
 
-/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in three cards (Support
-/// since TT-202, D85), the Testing
+/// Settings, the third tab (TT-105, redesigned in TT-168, D57): the large title and single-line rows in four cards (Support
+/// since TT-202, D85; Automatic direction with one note under it since TT-234, D116), the Testing
 /// row in TestFlight and Debug builds only. Time format changes in one tap; Notifications, About and Testing open their own
 /// pages. No Appearance row: the app follows the iOS appearance (D84).
 /// Nothing here is needed to use the timetable; no login, payment, advertising or rating prompt (D5).
@@ -37,14 +37,16 @@ struct SettingsView: View {
                 }
         }
         // Reads the permission when Settings appears and again each time the app returns to the foreground, also from the
-        // iOS Settings app while the Notifications page is open.
+        // iOS Settings app while the Notifications page is open. The Automatic direction switch reads the location
+        // permission again at the same moments (TT-234).
         .task(id: scenePhase) {
             if scenePhase == .active { await viewModel.refreshPermission() }
         }
     }
 }
 
-/// The main view: title, then the two cards of design/frames/settings.png.
+/// The main view: title, then the cards of design/frames/settings.png with Automatic direction's between the first and
+/// Support (TT-234, D116).
 struct SettingsMainPage: View {
     @Bindable var viewModel: SettingsViewModel
     let open: (SettingsPage) -> Void
@@ -68,6 +70,7 @@ struct SettingsMainPage: View {
                     SettingsHairline()
                     notificationsRow
                 }
+                autoDirectionCard
                 SettingsCard {
                     feedbackRow
                     SettingsHairline()
@@ -136,6 +139,26 @@ struct SettingsMainPage: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("settings.notifications")
+    }
+
+    /// Automatic direction (TT-234, D116): the system switch in a card of its own, as Detect my train's, and one note under
+    /// the card: what the switch does, or what it needs from the Settings app while iOS keeps it off. The row always
+    /// shows; with no location reader (fixture runs) it reads off and a tap changes nothing. The note sits 8 pt under the
+    /// card and 14 pt above the next one.
+    private var autoDirectionCard: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s2) {
+            SettingsCard {
+                Toggle(isOn: Binding(get: { viewModel.autoDirection }, set: { viewModel.autoDirection = $0 })) {
+                    Text("settings.auto_direction").font(TTFont.body).foregroundStyle(TTColor.ink)
+                }
+                .tint(TTColor.accent)
+                .padding(.horizontal, TTSpace.s4)
+                .frame(minHeight: SettingsMetrics.rowHeight)
+                .accessibilityIdentifier("settings.autoDirection")
+            }
+            SettingsNote(text: viewModel.autoDirectionNote)
+        }
+        .padding(.bottom, 2)
     }
 
     /// Support (TT-202, D85): the feedback sheet, and the rider's mail app as the fallback.

@@ -4,7 +4,9 @@ import UIKit
 /// "Detect my train"'s location in the app (TT-176): the Always permission and the significant-change wake-ups. The
 /// location manager is made on first use; `BackgroundDetection.resume()` makes it at launch while the switch is on, which
 /// is what lets a relaunch for a wake-up deliver it. On iOS 18 a `CLServiceSession` asking for Always is held while the
-/// wake-ups run, as iOS 18 expects of an app that uses location in the background.
+/// wake-ups run, as iOS 18 expects of an app that uses location in the background. It asks only from the rider's tap on
+/// the switch or the offer: When In Use first where location was never asked, so the rider reads its sentence, then
+/// Always (TT-234, D116).
 @MainActor
 final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManagerDelegate {
     /// After the Always request, a dialog shows within this long or not at all (iOS shows it once).
@@ -15,6 +17,8 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
     /// The iOS 18 `CLServiceSession`, kept as `Any` so iOS 17 builds.
     private var serviceSession: Any?
     private var waiters: [CheckedContinuation<Void, Never>] = []
+    /// Waiting for the answer to the When In Use prompt.
+    private var whenInUseWaiters: [CheckedContinuation<Void, Never>] = []
     /// The status when Always was asked for: the delegate also hears the current status when the manager is made, which
     /// is no answer.
     private var askedFrom: CLAuthorizationStatus?
@@ -26,8 +30,29 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
         locationManager().authorizationStatus == .authorizedAlways
     }
 
+    var canAskWhenInUse: Bool {
+        locationManager().authorizationStatus == .notDetermined
+    }
+
+    func requestWhenInUse() async -> Bool {
+        let manager = locationManager()
+        guard manager.authorizationStatus == .notDetermined else { return Self.allows(manager.authorizationStatus) }
+        await withCheckedContinuation { continuation in
+            whenInUseWaiters.append(continuation)
+            manager.requestWhenInUseAuthorization()
+        }
+        // The prompt took the app inactive. The Always request that follows knows its own dialog by the app going
+        // inactive again, so it starts once the app is back.
+        await Self.waitUntilActive()
+        return Self.allows(manager.authorizationStatus)
+    }
+
     func requestAlways() async -> Bool {
         let manager = locationManager()
+        // Never asked: When In Use first, whoever calls (TT-234, D116).
+        if manager.authorizationStatus == .notDetermined {
+            guard await requestWhenInUse() else { return false }
+        }
         switch manager.authorizationStatus {
         case .authorizedAlways: return true
         case .denied, .restricted: return false
@@ -86,7 +111,9 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
         let status = manager.authorizationStatus
         Task { @MainActor in
             // The delegate also hears the current status when the manager is made; only a change, an answer, ends the wait.
-            guard status != .notDetermined, status != self.askedFrom else { return }
+            guard status != .notDetermined else { return }
+            self.finishWhenInUse()
+            guard status != self.askedFrom else { return }
             self.finishWaiting()
         }
     }
@@ -126,6 +153,24 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
         for waiter in waiting { waiter.resume() }
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []
+    }
+
+    /// The When In Use prompt was answered.
+    private func finishWhenInUse() {
+        let waiting = whenInUseWaiters
+        whenInUseWaiters = []
+        for waiter in waiting { waiter.resume() }
+    }
+
+    /// An iOS prompt takes the app inactive: waits until it is active again.
+    private static func waitUntilActive() async {
+        while UIApplication.shared.applicationState != .active {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    private static func allows(_ status: CLAuthorizationStatus) -> Bool {
+        status == .authorizedWhenInUse || status == .authorizedAlways
     }
 
     private func locationManager() -> CLLocationManager {

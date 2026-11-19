@@ -64,16 +64,22 @@ enum RideEvent: Equatable, Sendable {
 
 /// The On board ride engine (TT-171, Live-Spec "one position, two sources"). A ride starts for one trip, service date,
 /// origin and destination, only when the rider asks (the button or the matcher's question, TT-172 and TT-175): it never
-/// starts on its own, and it is the only place that asks for location.
+/// starts on its own. A ride's start asks for When In Use location; so do the Automatic direction and Detect my train
+/// switches, and nothing asks at launch (D60 rule 4 as revised by D116).
 ///
 /// Position, phone first: GPS about once a second, each fix placed along the trip's track. After 60 s with no fix, the
 /// train feed's position (TT-179), then the timetable corrected by the last measured offset or the feed's delay. Phases
 /// follow the position: at a station within 200 m of it, your stop next once the last station before it is behind, and
 /// arriving once your stop is a minute away. The ride ends with End ride, by itself 2 min after your stop (D103), 1 km off the
 /// line for 3 min, or when the trip is cancelled. It is saved on device and restored at launch, where the background
-/// location session is created again; location is used only during a ride and never leaves the phone.
+/// location session is created again. Location is used during a ride, by the matcher while Schedule is open, and for one
+/// look when the app opens to set the route's direction (TT-234, D116); no reading is kept past its use and none is
+/// uploaded.
+///
+/// A ride the phone itself placed at your stop, and that ended there, is Automatic direction's proof of where the rider
+/// is (`arrival`, TT-234, D116).
 @Observable @MainActor
-final class RideEngine {
+final class RideEngine: DirectionRideSource {
     static let fixTimeout: TimeInterval = 60
     /// A stationary fix holds this long, since iOS sends nothing while the phone does not move.
     static let stationaryTimeout: TimeInterval = 10 * 60
@@ -101,6 +107,11 @@ final class RideEngine {
     /// starts, so the arrival wish (TT-223) keeps its ride and its time while the sheet closes.
     @ObservationIgnored private(set) var startedAt: Date?
     @ObservationIgnored private(set) var arrivedAt: Date?
+    /// The last ride that ended at your stop after the phone's own fix placed the train there (TT-234, D116): proof of
+    /// where the rider is, with no new reading, for Automatic direction. Never a ride that ran on the timetable alone, one
+    /// whose arrival only the timetable or the train feed placed, or one `restore()` brings back already over. The next
+    /// ride clears it, and it is kept in memory only, never on device.
+    private(set) var arrival: RideArrival?
     /// How long and how often the ride screen was on screen during this ride, for `ride_ended` (TT-224, D106); the ride
     /// screen's `RideScreen` keeps it. A relaunch starts it again.
     @ObservationIgnored var watch = RideWatch()
@@ -126,6 +137,8 @@ final class RideEngine {
     /// The furthest along the track the phone or the feed placed the train. Ranks alone let a placement behind it reset
     /// the delay on a long stretch, such as Clarkson to Union with no stop between (TT-220).
     @ObservationIgnored private var measuredAlong = -Double.infinity
+    /// The phone's own fix placed the train at your stop in this ride: what makes its end there a proof (`arrival`).
+    @ObservationIgnored private var phoneReachedYourStop = false
     /// The last phase sent as `.phase`.
     @ObservationIgnored private var announcedPhase: RidePhase?
     @ObservationIgnored private var loop: Task<Void, Never>?
@@ -165,10 +178,18 @@ final class RideEngine {
     /// The engine's clock, which the ride's countdowns are read against (Mock time, or the demo ride's own clock).
     var now: Date { clock.now }
 
+    /// A ride runs, or one is saved on device and not restored yet (TT-234, D116): Automatic direction does not look
+    /// meanwhile.
+    var holdsRide: Bool {
+        if let state, state.phase != .ended { return true }
+        return SavedRide.read(from: defaults, key: Self.storageKey) != nil
+    }
+
     // MARK: Start, restore, end
 
-    /// Starts a ride the rider asked for. Asks for When In Use location here, and nowhere else; without it the ride runs
-    /// on the timetable. False when the trip does not run that day between those stations.
+    /// Starts a ride the rider asked for. Asks for When In Use location here, the engine's only ask (the Automatic
+    /// direction and Detect my train switches ask it too, D116; nothing asks at launch); without it the ride runs on the
+    /// timetable. False when the trip does not run that day between those stations.
     @discardableResult
     func start(_ ride: Ride) async -> Bool {
         guard let data, let plan = try? await data.ridePlan(for: ride), plan.stops.count >= 2 else { return false }
@@ -192,8 +213,8 @@ final class RideEngine {
         guard ride == nil, SavedRide.read(from: defaults, key: Self.storageKey) != nil else { return }
         // A ride 2 min past your stop is over: it ends at once on the timetable, and location does not start again.
         let offset = status.delay ?? saved.offset ?? 0
-        let arrival = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
-        let isOver = clock.now.timeIntervalSince(arrival) >= Self.endAfterArrival
+        let reachedAt = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
+        let isOver = clock.now.timeIntervalSince(reachedAt) >= Self.endAfterArrival
         begin(saved.ride, plan: plan, saved: saved, status: status, tracksLocation: location.isAuthorized && !isOver)
     }
 
@@ -234,6 +255,9 @@ final class RideEngine {
         rank = 0
         measuredRank = 0
         measuredAlong = -.infinity
+        phoneReachedYourStop = false
+        // A new ride: the last one's proof no longer says where the rider is.
+        arrival = nil
         announcedPhase = nil
         // Without a track a fix cannot place the train, so the phone is not used.
         self.tracksLocation = tracksLocation && plan.track != nil
@@ -254,6 +278,11 @@ final class RideEngine {
         ended.phase = .ended
         ended.endReason = reason
         state = ended
+        // Ended at your stop, by itself, by Done or by End ride there, after the phone's own fix placed the train at it:
+        // Automatic direction's proof (TT-234, D116). Tracking has stopped by now, so the ride remembered it.
+        if atStop, phoneReachedYourStop, let ride {
+            arrival = RideArrival(stopId: ride.destinationId, at: clock.now)
+        }
         Analytics.track(.rideEnded(reason, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
@@ -336,6 +365,10 @@ final class RideEngine {
             let isBehind = measured.along < measuredAlong - Self.behindTolerance
             let along = max(measured.along, measuredAlong)
             let placed = Self.rank(along: along, stops: track.stopDistances)
+            // The phone's own fix, not the train feed or the timetable, is at your stop: the ride's proof (TT-234, D116).
+            if source == .phone, Self.rank(along: measured.along, stops: track.stopDistances) >= 2 * last {
+                phoneReachedYourStop = true
+            }
             // Once the train was measured at your stop the offset stays what it was on arrival: standing there is not
             // running late (TT-172, the card's "On time · Ride complete").
             if !isBehind, placed >= measuredRank, saved.arrivedAt == nil || saved.arrivalGuessed == true {

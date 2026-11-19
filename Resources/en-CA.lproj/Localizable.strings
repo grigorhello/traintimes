@@ -414,6 +414,7 @@
 "settings.last_look.ask" = "Asked after %@ s";
 "settings.last_look.nothing" = "Nothing after %@ s: %@";
 "settings.last_look.reason.alreadyCloser" = "already at the closer station";
+"settings.last_look.reason.inBetween" = "between the stations or far from both";
 "settings.last_look.reason.noReading" = "no clear reading in 10 s";
 "settings.last_look.reason.covered" = "something was over Schedule";
 "settings.last_look.reason.noPlaces" = "no station places";

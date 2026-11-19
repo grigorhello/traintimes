@@ -633,8 +633,7 @@ final class ScheduleViewModel {
         guard hasLoaded else { return }
         await loadNewTrains()
         requestScroll(jumping: true)
-        // The launch's own play waits for its scroll to settle.
-        if isToday, !pulsesOnSettle { nowPulse += 1 }
+        if isToday { nowPulse += 1 }
     }
 
     /// A route to show, saved on device so the next launch opens it (TT-120), with who chose it (TT-234, D116): by hand

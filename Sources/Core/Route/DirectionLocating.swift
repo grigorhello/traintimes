@@ -108,3 +108,19 @@ final class DemoPlaceLocation: DirectionLocating {
         base.stop()
     }
 }
+
+/// A ride that ended at your stop while it followed the phone's location (TT-234, D116): proof of where the rider is, with
+/// no reading. Kept in memory only.
+struct RideArrival: Equatable, Sendable {
+    let stopId: String
+    let at: Date
+}
+
+/// What Automatic direction's look needs from the ride engine (`RideEngine`).
+@MainActor
+protocol DirectionRideSource: AnyObject {
+    /// A ride runs, or one is saved on device and not restored yet.
+    var holdsRide: Bool { get }
+    /// The last ride that ended at your stop following location; never a timetable-only, restored-as-over or demo ride.
+    var arrival: RideArrival? { get }
+}

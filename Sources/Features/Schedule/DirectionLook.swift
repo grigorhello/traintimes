@@ -29,22 +29,6 @@ protocol RouteTurning: AnyObject {
     func turn() async
 }
 
-/// A ride that ended at your stop while it followed the phone's location (TT-234, D116): proof of where the rider is, with
-/// no reading. Kept in memory only.
-struct RideArrival: Equatable, Sendable {
-    let stopId: String
-    let at: Date
-}
-
-/// What the look needs from the ride engine.
-@MainActor
-protocol DirectionRideSource: AnyObject {
-    /// A ride runs, or one is saved on device and not restored yet.
-    var holdsRide: Bool { get }
-    /// The last ride that ended at your stop following location; never a timetable-only, restored-as-over or demo ride.
-    var arrival: RideArrival? { get }
-}
-
 /// Automatic direction's capsule on Schedule (TT-234, D116), in the bell capsule's place when no bell capsule is up.
 struct DirectionCapsule: Equatable, Identifiable {
     enum Kind: Equatable {
@@ -379,11 +363,13 @@ final class DirectionLook: RouteChoiceFollowing {
             capsule.dismiss()
             turned = nil
         case .widgetRoute:
-            // Applied before the look, which may turn it: a look that ran for the old route starts again.
+            // Applied before the look, which may turn it: a look that ran for the old route starts again, and Schedule's
+            // arrival goes on waiting for the new one.
             guard run != nil else { return }
-            finish(.nothing(.restarted))
+            finish(.nothing(.restarted), keepsWaiters: true)
             visitDone = false
             startIfDue()
+            if run == nil { resumeWaiters() }
         }
     }
 
@@ -499,7 +485,8 @@ final class DirectionLook: RouteChoiceFollowing {
         finish(outcome)
     }
 
-    private func finish(_ outcome: DirectionRule.Outcome, run id: Int? = nil) {
+    /// `keepsWaiters`: the look starts again at once, so `cameBack(_:)` goes on waiting.
+    private func finish(_ outcome: DirectionRule.Outcome, run id: Int? = nil, keepsWaiters: Bool = false) {
         guard let run, id == nil || run.id == id else { return }
         self.run = nil
         isLooking = false
@@ -514,11 +501,16 @@ final class DirectionLook: RouteChoiceFollowing {
         }
         lastLook = LastLook(waited: Date().timeIntervalSince(run.startedAt), outcome: outcome)
         switch outcome {
-        case .turn: turn()
-        case .ask: capsule.show(.asks(station: StationNames.short(run.route.to.name)))
-        case .nothing: break
+        case .turn:
+            turn()
+        case .ask:
+            // Under the splash the question waits for the lift, as "Now from Union" does.
+            let question = DirectionCapsule.Kind.asks(station: StationNames.short(run.route.to.name))
+            if scene.launchCovers { pendingCapsule = question } else { capsule.show(question) }
+        case .nothing:
+            break
         }
-        resumeWaiters()
+        if !keepsWaiters { resumeWaiters() }
     }
 
     private func note(_ reason: DirectionRule.Reason) {

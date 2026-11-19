@@ -57,14 +57,17 @@ enum DirectionRule {
         /// The To station is the closer one, but the reading is on the track well before it: maybe on the train, so
         /// the route only asks.
         case maybeOnTrain
-        /// In between, far from both, or too wide a circle to tell: the look waits for the next reading.
+        /// In between the two stations or far from both, wherever in its circle the phone is: nothing to do, and the
+        /// look ends.
+        case nowhere
+        /// Too wide a circle to tell: the look waits for the next reading.
         case skipped
     }
 
     /// Why a look ended with nothing, for Settings › Testing › Last look.
     enum Reason: String, Equatable, Sendable {
-        case alreadyCloser, noReading, covered, noPlaces, left, off, riding, chosenByHand, chosenByLink, undone, noRoute
-        case restarted, rideProof
+        case alreadyCloser, inBetween, noReading, covered, noPlaces, left, off, riding, chosenByHand, chosenByLink, undone
+        case noRoute, restarted, rideProof
     }
 
     /// What a look did.
@@ -77,15 +80,18 @@ enum DirectionRule {
     /// Which end the reading is at. The closer station is the answer when the other is at least 1.5 times as far and the
     /// closer is within 15 km, or the reading is on its outer side (farther from the other station than the two are
     /// apart). The reading's circle grows by 42 m for each second of its age, and it counts only when the whole circle
-    /// gives that answer: the test runs with the radius added to the closer distance and taken off the farther.
+    /// gives one answer: a station when the test passes with the radius added to the closer distance and taken off the
+    /// farther; nowhere (in between, or far from both) when it fails even with the radius taken off the closer and added
+    /// to the farther; otherwise the reading is skipped.
     static func verdict(ends: Ends, reading: DirectionReading, track: Track?) -> Verdict {
         let radius = max(0, reading.radius) + max(0, reading.age) * speed
         let toFrom = TrackShape.distance(reading.place, ends.from)
         let toTo = TrackShape.distance(reading.place, ends.to)
         let apart = TrackShape.distance(ends.from, ends.to)
-        let near = min(toFrom, toTo) + radius
-        let far = max(0, max(toFrom, toTo) - radius)
-        guard far >= ratio * near, near <= reach || far > apart else { return .skipped }
+        guard names(near: min(toFrom, toTo) + radius, far: max(0, max(toFrom, toTo) - radius), apart: apart) else {
+            let atBest = names(near: max(0, min(toFrom, toTo) - radius), far: max(toFrom, toTo) + radius, apart: apart)
+            return atBest ? .skipped : .nowhere
+        }
         guard toTo < toFrom else { return .stays }
         // Within 300 m of the track and more than 1 km before the station, on the other station's side: maybe on the train.
         if let track, let station = track.along[ends.toId], let other = track.along[ends.fromId] {
@@ -96,11 +102,18 @@ enum DirectionRule {
         return .turns
     }
 
+    /// The test itself: the closer station is named when the other is at least 1.5 times as far and the closer is within
+    /// 15 km, or the place is on its outer side.
+    private static func names(near: Double, far: Double, apart: Double) -> Bool {
+        far >= ratio * near && (near <= reach || far > apart)
+    }
+
     /// What the look does with a verdict: the route turns by itself only while `mayTurn` (the answer came before the
-    /// trains could be read); later, or maybe on the train, it asks. Nil for a reading that says nothing.
+    /// trains could be read); later, or maybe on the train, it asks. Nil for a reading that is skipped.
     static func outcome(of verdict: Verdict, mayTurn: Bool) -> Outcome? {
         switch verdict {
         case .skipped: nil
+        case .nowhere: .nothing(.inBetween)
         case .stays: .nothing(.alreadyCloser)
         case .turns: mayTurn ? .turn : .ask
         case .maybeOnTrain: .ask

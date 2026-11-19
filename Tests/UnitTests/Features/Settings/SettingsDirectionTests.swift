@@ -1,3 +1,4 @@
+import Observation
 import UIKit
 import XCTest
 @testable import TrainTimes
@@ -323,13 +324,18 @@ final class SettingsDirectionTests: XCTestCase {
             SettingsViewModel.lastLookText(DirectionLook.LastLook(waited: 0, outcome: .nothing(.alreadyCloser))),
             "Nothing after 0.0 s: already at the closer station"
         )
+        // A reading in between the two stations, or far from both, ends the look at once.
+        XCTAssertEqual(
+            SettingsViewModel.lastLookText(DirectionLook.LastLook(waited: 0.2, outcome: .nothing(.inBetween))),
+            "Nothing after 0.2 s: between the stations or far from both"
+        )
     }
 
     /// Every reason a look ends with nothing has its words in the strings file.
     func testEveryReasonHasItsWords() {
         let reasons: [DirectionRule.Reason] = [
-            .alreadyCloser, .noReading, .covered, .noPlaces, .left, .off, .riding, .chosenByHand, .chosenByLink, .undone,
-            .noRoute, .restarted, .rideProof,
+            .alreadyCloser, .inBetween, .noReading, .covered, .noPlaces, .left, .off, .riding, .chosenByHand, .chosenByLink,
+            .undone, .noRoute, .restarted, .rideProof,
         ]
         for reason in reasons {
             let text = SettingsViewModel.lastLookText(DirectionLook.LastLook(waited: 1, outcome: .nothing(reason)))

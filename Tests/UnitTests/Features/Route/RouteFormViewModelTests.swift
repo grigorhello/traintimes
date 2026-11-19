@@ -197,8 +197,8 @@ final class RouteFormViewModelTests: XCTestCase {
     }
 
     /// TT-200 (D83): with Oakville GO chosen, the destination list opens on Lakeshore West, Union first and then
-    /// alphabetically (the fixture stations have no places), without Oakville itself; Other stations has every station on
-    /// another line.
+    /// alphabetically (the fixtures give a place to the stops of their route only, not to every station on the line),
+    /// without Oakville itself; Other stations has every station on another line.
     func testSameLineStationsComeFirst() async throws {
         let model = try await model()
         model.open(.from)

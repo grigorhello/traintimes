@@ -51,7 +51,7 @@ struct DirectionCapsule: Equatable, Identifiable {
         switch kind {
         case .turned(let station): Self.split(String(localized: "direction.capsule.turned"), around: station)
         case .asks(let station): Self.split(String(localized: "direction.capsule.ask"), around: station)
-        case .kept: (String(localized: "direction.capsule.kept"), "", "")
+        case .kept: (before: String(localized: "direction.capsule.kept"), name: "", after: "")
         }
     }
 
@@ -194,6 +194,9 @@ final class DirectionLook: RouteChoiceFollowing {
     /// The route the app turned to in this visit: the swap button back from it is the Undo.
     @ObservationIgnored private var turned: Route?
     @ObservationIgnored private var turnsMade = 0
+    /// `turnsMade` when this visit began, until the visit's first `cameBack(_:)` has read it: a turn that Schedule's own
+    /// `update(_:)` made before it (a ride's proof turns at once) is still that arrival's.
+    @ObservationIgnored private var turnsBeforeVisit: Int?
     @ObservationIgnored private var usedArrival: RideArrival?
     /// A capsule that waits for the splash to lift.
     @ObservationIgnored private var pendingCapsule: DirectionCapsule.Kind?
@@ -278,6 +281,7 @@ final class DirectionLook: RouteChoiceFollowing {
         if beginsVisit {
             beginsVisit = false
             hadRoute = schedule.route != nil
+            turnsBeforeVisit = turnsMade
         }
         proveIfDue()
         startIfDue()
@@ -309,8 +313,11 @@ final class DirectionLook: RouteChoiceFollowing {
     /// there is one arrival and one Now play. True when the route turned, whose own load, jump and Now play are then the
     /// arrival's. The cold start does not wait: its look runs under the splash.
     func cameBack(_ scene: Scene) async -> Bool {
-        let before = turnsMade
+        let made = turnsMade
         update(scene)
+        // Schedule's own `update(_:)` may have begun this visit first: a turn it made then is this arrival's too.
+        let before = turnsBeforeVisit ?? made
+        turnsBeforeVisit = nil
         if turnsMade != before { return true }
         guard !isCold, let run, run.mayTurn else { return false }
         await withCheckedContinuation { waiters.append($0) }
@@ -364,12 +371,17 @@ final class DirectionLook: RouteChoiceFollowing {
             turned = nil
         case .widgetRoute:
             // Applied before the look, which may turn it: a look that ran for the old route starts again, and Schedule's
-            // arrival goes on waiting for the new one.
-            guard run != nil else { return }
-            finish(.nothing(.restarted), keepsWaiters: true)
+            // arrival goes on waiting for the new one. What a finished look or a ride's proof said about the old route
+            // goes with it (the capsule, and the turn the swap button would undo), and the new route gets its own look.
+            let restarts = run != nil
+            if restarts { finish(.nothing(.restarted), keepsWaiters: true) }
+            capsuleTask?.cancel()
+            pendingCapsule = nil
+            capsule.dismiss()
+            turned = nil
             visitDone = false
             startIfDue()
-            if run == nil { resumeWaiters() }
+            if restarts, run == nil { resumeWaiters() }
         }
     }
 

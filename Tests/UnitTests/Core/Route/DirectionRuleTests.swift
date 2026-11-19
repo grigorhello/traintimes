@@ -2,8 +2,8 @@ import XCTest
 @testable import TrainTimes
 
 /// Automatic direction's rule (TT-234, D116), case by case, on Oakville GO to Union Station (about 32 km apart): which
-/// end a reading is at, the readings that say nothing, the circle and the old reading, the train check on the track, and
-/// turn or ask. No location code and no clock.
+/// end a reading is at, the readings in between or far from both, the circle too wide to tell and the old reading, the
+/// train check on the track, and turn or ask. No location code and no clock.
 final class DirectionRuleTests: XCTestCase {
     private let oakville = DirectionFixtures.oakvillePlace
     private let union = DirectionFixtures.unionPlace
@@ -88,12 +88,13 @@ final class DirectionRuleTests: XCTestCase {
         XCTAssertEqual(verdict(oakville, ends: turnedEnds), .turns)
     }
 
-    /// The other station must be at least 1.5 times as far: on these 32 km each end reaches 12.9 km toward the other.
-    func testInBetweenIsSkipped() {
-        XCTAssertEqual(verdict(rails.point(at: rails.length / 2)), .skipped)
+    /// The other station must be at least 1.5 times as far: on these 32 km each end reaches 12.9 km toward the other, and
+    /// the stretch between is nowhere.
+    func testInBetweenIsNowhere() {
+        XCTAssertEqual(verdict(rails.point(at: rails.length / 2)), .nowhere)
         // 14 km from one, 18 km from the other: 1.3 times as far.
-        XCTAssertEqual(verdict(place(fromUnion: 14_000)), .skipped)
-        XCTAssertEqual(verdict(place(fromOakville: 14_000)), .skipped)
+        XCTAssertEqual(verdict(place(fromUnion: 14_000)), .nowhere)
+        XCTAssertEqual(verdict(place(fromOakville: 14_000)), .nowhere)
         // 12 km from one, 20 km from the other: 1.7 times as far.
         XCTAssertEqual(verdict(place(fromUnion: 12_000)), .turns)
         XCTAssertEqual(verdict(place(fromOakville: 12_000)), .stays)
@@ -108,13 +109,13 @@ final class DirectionRuleTests: XCTestCase {
 
         XCTAssertEqual(verdict(line.point(at: line.length - 9_000), ends: ends), .turns)
         XCTAssertEqual(verdict(line.point(at: 9_000), ends: ends), .stays)
-        XCTAssertEqual(verdict(line.point(at: line.length - 11_000), ends: ends), .skipped)
-        XCTAssertEqual(verdict(line.point(at: 11_000), ends: ends), .skipped)
-        XCTAssertEqual(verdict(line.point(at: line.length / 2), ends: ends), .skipped)
+        XCTAssertEqual(verdict(line.point(at: line.length - 11_000), ends: ends), .nowhere)
+        XCTAssertEqual(verdict(line.point(at: 11_000), ends: ends), .nowhere)
+        XCTAssertEqual(verdict(line.point(at: line.length / 2), ends: ends), .nowhere)
     }
 
     /// The closer station is more than 15 km away, and the reading is not on its outer side: far from both.
-    func testCloserButBeyond15KmAndNotOnTheOuterSideIsSkipped() {
+    func testCloserButBeyond15KmAndNotOnTheOuterSideIsNowhere() {
         // 16 km due south of Union: Oakville is 24.9 km away, 1.55 times as far, and nearer than the two are apart.
         let south = moved(union, north: -16_000)
         let toUnion = TrackShape.distance(south, union)
@@ -122,12 +123,12 @@ final class DirectionRuleTests: XCTestCase {
         XCTAssertGreaterThan(toUnion, DirectionRule.reach)
         XCTAssertGreaterThanOrEqual(toOakville, DirectionRule.ratio * toUnion, "the ratio alone would give an answer")
         XCTAssertLessThan(toOakville, apart, "not on Union's outer side")
-        XCTAssertEqual(verdict(south, radius: 0), .skipped)
+        XCTAssertEqual(verdict(south, radius: 0), .nowhere)
         // 14 km on the same line is within reach.
         XCTAssertEqual(verdict(moved(union, north: -14_000), radius: 0), .turns)
 
         // The same at the From end.
-        XCTAssertEqual(verdict(moved(oakville, north: 16_000), radius: 0), .skipped)
+        XCTAssertEqual(verdict(moved(oakville, north: 16_000), radius: 0), .nowhere)
         XCTAssertEqual(verdict(moved(oakville, north: 14_000), radius: 0), .stays)
     }
 
@@ -146,22 +147,49 @@ final class DirectionRuleTests: XCTestCase {
     }
 
     /// 100 km out, the other station is only 1.2 times as far: far from both, even on the outer side.
-    func testFarFromBothIsSkipped() {
-        XCTAssertEqual(verdict(moved(union, north: 100_000)), .skipped)
-        XCTAssertEqual(verdict(moved(oakville, north: -100_000)), .skipped)
+    func testFarFromBothIsNowhere() {
+        XCTAssertEqual(verdict(moved(union, north: 100_000)), .nowhere)
+        XCTAssertEqual(verdict(moved(oakville, north: -100_000)), .nowhere)
     }
 
     // MARK: A usable reading
 
-    /// The whole circle must give the answer: the radius is added to the closer distance and taken off the farther.
+    /// The whole circle must give the answer: the radius is added to the closer distance and taken off the farther. A
+    /// circle that names a station at its best and none at its worst is too wide to tell: the reading is skipped.
     func testAWideCircleThatReachesTheMiddleIsSkipped() {
         let tenOut = place(fromUnion: 10_000)
         XCTAssertEqual(verdict(tenOut, radius: 100), .turns)
         XCTAssertEqual(verdict(tenOut, radius: 3_500), .skipped, "13.5 km and 18.7 km: 1.4 times as far")
 
         XCTAssertEqual(verdict(union, radius: 1_000), .turns)
+        XCTAssertEqual(verdict(union, radius: 12_000), .turns, "12 km and 20.2 km: still 1.7 times as far")
         XCTAssertEqual(verdict(union, radius: 14_000), .skipped)
         XCTAssertEqual(verdict(oakville, radius: 14_000), .skipped, "nor does it stay: the reading says nothing")
+    }
+
+    /// A circle that is in between or far from both wherever the phone is in it is nowhere, and the look ends; one that
+    /// also reaches where a station is named is skipped. The best case takes the radius off the closer distance and
+    /// adds it to the farther.
+    func testACircleThatNamesNoStationAnywhereIsNowhere() {
+        // Half way, 16.1 km from each.
+        let middle = rails.point(at: rails.length / 2)
+        XCTAssertEqual(verdict(middle, radius: 3_000), .nowhere, "13.1 km and 19.1 km at best: 1.46 times as far")
+        XCTAssertEqual(verdict(middle, radius: 5_000), .skipped, "11.1 km and 21.1 km at best: 1.9 times as far")
+
+        // 14 km before Union, 18.2 km from Oakville.
+        let fourteenOut = place(fromUnion: 14_000)
+        XCTAssertEqual(verdict(fourteenOut, radius: 1_000), .nowhere, "13 km and 19.2 km at best: 1.48 times as far")
+        XCTAssertEqual(verdict(fourteenOut, radius: 2_000), .skipped, "12 km and 20.2 km at best: 1.7 times as far")
+
+        // 16 km due south of Union: beyond reach until the circle comes within 15 km.
+        let south = moved(union, north: -16_000)
+        XCTAssertEqual(verdict(south, radius: 500), .nowhere)
+        XCTAssertEqual(verdict(south, radius: 2_000), .skipped)
+
+        // 100 km north of Union, on its outer side: 1.35 times as far at best with 5 km, 2.2 times with 30 km.
+        let north = moved(union, north: 100_000)
+        XCTAssertEqual(verdict(north, radius: 5_000), .nowhere)
+        XCTAssertEqual(verdict(north, radius: 30_000), .skipped)
     }
 
     /// An old reading may have moved at a train's speed since: its circle grows by 42 m for each second of its age.
@@ -171,6 +199,10 @@ final class DirectionRuleTests: XCTestCase {
         XCTAssertEqual(verdict(tenOut, age: 80), .skipped, "80 s is 3.4 km more")
         XCTAssertEqual(verdict(union, age: 5), .turns)
         XCTAssertEqual(verdict(union, age: 400), .skipped, "400 s is 16.8 km more")
+        // Half way: a minute old is still in between, five minutes old may have been at a station.
+        let middle = rails.point(at: rails.length / 2)
+        XCTAssertEqual(verdict(middle, age: 60), .nowhere, "60 s is 2.5 km more")
+        XCTAssertEqual(verdict(middle, age: 300), .skipped, "300 s is 12.6 km more")
 
         // An age reads exactly as that much more radius.
         let spots = [union, oakville, tenOut, place(fromOakville: 10_000), rails.point(at: rails.length / 2)]
@@ -187,9 +219,11 @@ final class DirectionRuleTests: XCTestCase {
     /// A radius or an age below zero widens nothing, and narrows nothing either.
     func testANegativeRadiusOrAgeCountsAsNone() {
         let middle = rails.point(at: rails.length / 2)
-        XCTAssertEqual(verdict(middle, radius: -10_000), .skipped)
-        XCTAssertEqual(verdict(middle, radius: 0, age: -300), .skipped)
+        XCTAssertEqual(verdict(middle, radius: -10_000), .nowhere)
+        XCTAssertEqual(verdict(middle, radius: 0, age: -300), .nowhere)
         XCTAssertEqual(verdict(union, radius: -1, age: -1), .turns)
+        // Half way with a real 5 km radius is skipped; an age below zero takes nothing off it.
+        XCTAssertEqual(verdict(middle, radius: 5_000, age: -300), .skipped)
     }
 
     // MARK: Maybe on the train
@@ -245,7 +279,7 @@ final class DirectionRuleTests: XCTestCase {
     /// The train check only stands between a reading and a turn.
     func testTheTrainCheckLeavesTheOtherAnswersAlone() {
         XCTAssertEqual(verdict(place(fromOakville: 5_000), track: track), .stays)
-        XCTAssertEqual(verdict(rails.point(at: rails.length / 2), track: track), .skipped)
+        XCTAssertEqual(verdict(rails.point(at: rails.length / 2), track: track), .nowhere)
         XCTAssertEqual(verdict(place(fromUnion: 5_000), radius: 9_000, track: track), .skipped)
     }
 
@@ -259,9 +293,16 @@ final class DirectionRuleTests: XCTestCase {
 
     // MARK: Turn or ask
 
-    func testAReadingThatSaysNothingHasNoOutcome() {
+    /// A skipped reading has no outcome: the look waits for the next one.
+    func testASkippedReadingHasNoOutcome() {
         XCTAssertNil(DirectionRule.outcome(of: .skipped, mayTurn: true))
         XCTAssertNil(DirectionRule.outcome(of: .skipped, mayTurn: false))
+    }
+
+    /// In between or far from both ends the look at once, with nothing said.
+    func testNowhereEndsTheLookWithNothing() {
+        XCTAssertEqual(DirectionRule.outcome(of: .nowhere, mayTurn: true), .nothing(.inBetween))
+        XCTAssertEqual(DirectionRule.outcome(of: .nowhere, mayTurn: false), .nothing(.inBetween))
     }
 
     func testFromAlreadyCloserEndsTheLookWithNothing() {

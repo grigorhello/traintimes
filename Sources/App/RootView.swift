@@ -85,7 +85,8 @@ struct RootView: View {
             clock: dependencies.clock, ride: ride, offerDue: { detection?.offerDue == true }, track: direction.track,
             capsule: DirectionCapsuleModel(
                 actionDuration: alertDependencies.capsuleActionDuration, plainDuration: alertDependencies.capsulePlainDuration
-            )
+            ),
+            quick: direction.quick
         )
         schedule.choices = look
         _direction = State(initialValue: look)
@@ -645,7 +646,6 @@ struct RootView: View {
         Analytics.track(.launchSplashEnded(scheduleReady: schedule.content != .loading, full: LaunchMotion.pace == .full))
     }
 
-    /// "Show trains" on first use.
     /// One train's link (a notification, the Live Activity, a widget's train row, "Pick a new train") puts its route on
     /// Schedule: Automatic direction keeps it as it keeps a choice by hand and ends this visit's look, also when the route
     /// already shows (TT-234, D116).
@@ -657,6 +657,7 @@ struct RootView: View {
         }
     }
 
+    /// "Show trains" on first use: the rider's own choice.
     private func show(_ route: Route) {
         Task { await schedule.show(route) }
     }

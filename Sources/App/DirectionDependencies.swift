@@ -10,12 +10,16 @@ struct DirectionDependencies {
     let store: DirectionStore
     /// The track between a route's two stations from a service day on, for the train check; nil leaves the check out.
     var track: @Sendable (Route, ServiceDay) async -> DirectionRule.Track? = { _, _ in nil }
+    /// How long after a look starts its answer still turns the route. UI tests get longer: a slow runner's launch can
+    /// keep the main thread busy past the rule's second, and the look would ask where the test expects the turn.
+    var quick: Duration = DirectionRule.quick
 
     static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> DirectionDependencies {
         if ScheduleDependencies.isFixtureRun(environment) {
             return DirectionDependencies(
                 location: NoDirectionLocation(),
-                store: DirectionStore(defaults: environment["TT_FIXTURES"] != nil ? .standard : nil)
+                store: DirectionStore(defaults: environment["TT_FIXTURES"] != nil ? .standard : nil),
+                quick: environment["TT_FIXTURES"] != nil ? .seconds(5) : DirectionRule.quick
             )
         }
         return DirectionDependencies(

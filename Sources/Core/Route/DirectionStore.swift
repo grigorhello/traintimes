@@ -11,6 +11,8 @@ final class DirectionStore {
     static let byHandKey = "direction.byHand"
     static let undoKey = "direction.undo"
     static let morningKey = "direction.morningWay"
+    /// A stored time may be this far ahead of the clock before it counts as kept under a later clock.
+    private static let clockSlack: TimeInterval = 60
 
     /// Nil keeps the values in memory only (previews, the unit test host).
     private let defaults: UserDefaults?
@@ -38,11 +40,13 @@ final class DirectionStore {
     }
 
     /// Whether a route chosen by hand still holds at `now`: until the app has been out of view for more than 10 min
-    /// since. Once it has, the choice is let go.
+    /// since. Once it has, the choice is let go; so is one kept under a later clock (Settings › Testing › Mock time, set
+    /// ahead and turned off again), which would otherwise hold until the real clock caught up.
     func holdsChoice(at now: Date) -> Bool {
         guard let chosen = value(Self.byHandKey) as? Double else { return false }
+        let time = now.timeIntervalSince1970
         let lastSeen = max(chosen, value(Self.inViewKey) as? Double ?? chosen)
-        if now.timeIntervalSince1970 - lastSeen > DirectionRule.handHold {
+        if chosen - time > Self.clockSlack || time - lastSeen > DirectionRule.handHold {
             set(nil, Self.byHandKey)
             return false
         }
@@ -55,12 +59,15 @@ final class DirectionStore {
         set("\(until)|\(Self.pair(route))", Self.undoKey)
     }
 
-    /// Whether the Undo hour for `route`'s two stations still runs at `now`.
+    /// Whether the Undo hour for `route`'s two stations still runs at `now`. An hour with more than an hour left was
+    /// started under a later clock (Mock time), and is over.
     func holdsUndo(for route: Route, at now: Date) -> Bool {
         guard let stored = value(Self.undoKey) as? String, let bar = stored.firstIndex(of: "|"),
             let until = Double(stored[..<bar])
         else { return false }
-        return stored[stored.index(after: bar)...] == Self.pair(route) && now.timeIntervalSince1970 < until
+        let left = until - now.timeIntervalSince1970
+        return stored[stored.index(after: bar)...] == Self.pair(route) && left > 0
+            && left <= DirectionRule.undoHold + Self.clockSlack
     }
 
     /// The widgets' morning way (D107): the direction a widget with no route of its own shows before 12 PM. Set only by

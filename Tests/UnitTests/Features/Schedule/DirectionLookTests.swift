@@ -38,15 +38,28 @@ final class DirectionLookTests: XCTestCase {
 
     private var atUnion: DirectionReading { DirectionFixtures.reading(at: DirectionFixtures.unionPlace) }
     private var atOakville: DirectionReading { DirectionFixtures.reading(at: DirectionFixtures.oakvillePlace) }
-    /// Half way between the two stations.
-    private var inBetween: DirectionReading {
+    /// Half way between the two stations, 16 km from each.
+    private var middle: GeoPoint {
         let oakville = DirectionFixtures.oakvillePlace
         let union = DirectionFixtures.unionPlace
-        return DirectionFixtures.reading(
-            at: GeoPoint(
-                latitude: (oakville.latitude + union.latitude) / 2, longitude: (oakville.longitude + union.longitude) / 2
-            )
+        return GeoPoint(
+            latitude: (oakville.latitude + union.latitude) / 2, longitude: (oakville.longitude + union.longitude) / 2
         )
+    }
+    /// In between, wherever in its small circle the phone is.
+    private var inBetween: DirectionReading { DirectionFixtures.reading(at: middle) }
+    /// Barrie, 104 km from Oakville and 86 km from Union: far from both.
+    private var farFromBoth: DirectionReading {
+        DirectionFixtures.reading(at: GeoPoint(latitude: 44.389, longitude: -79.69))
+    }
+    /// Circles too wide to tell: at Union within 14 km, which reaches in between; at Union 400 s ago, which 42 m for
+    /// each second makes wider still; and in between within 5 km, which reaches Union's end.
+    private var tooWide: [DirectionReading] {
+        [
+            DirectionFixtures.reading(at: DirectionFixtures.unionPlace, radius: 14_000),
+            DirectionFixtures.reading(at: DirectionFixtures.unionPlace, age: 400),
+            DirectionFixtures.reading(at: middle, radius: 5_000),
+        ]
     }
 
     override func tearDown() async throws {
@@ -384,13 +397,41 @@ final class DirectionLookTests: XCTestCase {
         XCTAssertTrue(rig.haptics.played.isEmpty)
     }
 
-    /// A reading that says nothing (in between, too wide a circle, too old) is skipped and the reader waits for the next.
-    func testAReadingThatSaysNothingWaitsForTheNext() async {
+    /// In between the two stations or far from both, wherever in its circle the phone is, is an answer: the look ends
+    /// at once with nothing changed and nothing said, and a later reading is not heard.
+    func testInBetweenOrFarFromBothEndsTheLook() async {
+        for reading in [inBetween, farFromBoth] {
+            let rig = Rig(now: evening)
+            rig.look.update(front)
+            rig.location.send(reading)
+            await eventually { rig.outcome == .nothing(.inBetween) }
+            XCTAssertFalse(rig.look.isLooking)
+            XCTAssertFalse(rig.location.isReading)
+            XCTAssertEqual(rig.location.stops, 1)
+
+            rig.location.send(atUnion)
+            rig.look.update(front)
+            await pause()
+            XCTAssertEqual(rig.location.starts, 1, "one look per visit")
+            XCTAssertEqual(rig.schedule.turnCount, 0)
+            XCTAssertEqual(rig.schedule.route, route)
+            XCTAssertNil(rig.capsule)
+            XCTAssertTrue(rig.haptics.played.isEmpty)
+        }
+    }
+
+    /// A circle too wide to tell (a rough reading, an old one, a rough one in between) is skipped: the reader waits for
+    /// the next, and a later good reading decides.
+    func testAReadingTooWideToTellWaitsForTheNext() async {
         let rig = Rig(now: evening)
         rig.look.update(front)
-        rig.location.send(inBetween)
-        rig.location.send(DirectionFixtures.reading(at: DirectionFixtures.unionPlace, radius: 14_000))
-        rig.location.send(DirectionFixtures.reading(at: DirectionFixtures.unionPlace, age: 400))
+        // The places are read in the look's own task: once they are in, each reading is judged as it comes.
+        await pause()
+        for reading in tooWide {
+            rig.location.send(reading)
+            XCTAssertTrue(rig.look.isLooking, "\(reading)")
+            XCTAssertTrue(rig.location.isReading, "\(reading)")
+        }
         await pause()
         XCTAssertTrue(rig.look.isLooking)
         XCTAssertTrue(rig.location.isReading)
@@ -488,11 +529,59 @@ final class DirectionLookTests: XCTestCase {
         XCTAssertEqual(rig.schedule.turnCount, 0)
     }
 
-    /// After the limit the reader stops and that visit is over, with nothing said.
+    /// A question decided while the splash still covers Schedule (the rider may be on the train) is not drawn under
+    /// it: it waits for the lift, as "Now from Union" does, and nothing has moved.
+    func testAQuestionDecidedUnderTheSplashWaitsForTheLift() async {
+        let shape = TrackShape(points: [DirectionFixtures.oakvillePlace, DirectionFixtures.unionPlace])
+        let rails = DirectionRule.Track(shape: shape, along: ["OA": 0, "UN": shape.length])
+        let rig = Rig(now: evening, track: { _, _ in rails }, playsSplash: true)
+        rig.look.update(underSplash)
+        rig.location.send(DirectionFixtures.reading(at: shape.point(at: shape.length - 5_000)))
+        await eventually { rig.outcome == .ask }
+        XCTAssertFalse(rig.look.isLooking)
+        XCTAssertFalse(rig.location.isReading)
+
+        await pause()
+        XCTAssertNil(rig.capsule, "the question waits under the splash")
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+
+        rig.look.update(front)
+        await eventually { rig.capsule != nil }
+        XCTAssertEqual(rig.capsule, .asks(station: "Union"))
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+        XCTAssertEqual(rig.schedule.route, route)
+        XCTAssertEqual(rig.location.starts, 1, "the lift starts no second look")
+    }
+
+    /// The same for an answer after a touch under the splash, and the question is shown once only: a later change of
+    /// the scene does not bring it back.
+    func testAQuestionHeldForTheLiftIsShownOnce() async {
+        let rig = Rig(now: evening, playsSplash: true)
+        rig.look.update(underSplash)
+        rig.look.touched()
+        rig.location.send(atUnion)
+        await eventually { rig.outcome == .ask }
+        await pause()
+        XCTAssertNil(rig.capsule)
+
+        rig.look.update(front)
+        await eventually { rig.capsule == .asks(station: "Union") }
+        rig.look.capsule.dismiss()
+
+        for cover in covers {
+            rig.look.update(cover)
+            rig.look.update(front)
+        }
+        await pause()
+        XCTAssertNil(rig.capsule)
+        XCTAssertEqual(rig.schedule.turnCount, 0)
+    }
+
+    /// After the limit the reader stops and that visit is over, with nothing said: no reading gave an answer.
     func testTheLimitStopsTheReaderWithNothing() async {
         let rig = Rig(now: evening, limit: .milliseconds(50))
         rig.look.update(front)
-        rig.location.send(inBetween)
+        rig.location.send(tooWide[0])
         await eventually { rig.outcome == .nothing(.noReading) }
 
         XCTAssertFalse(rig.look.isLooking)
@@ -582,31 +671,74 @@ final class DirectionLookTests: XCTestCase {
         rig.look.update(front)
         rig.look.wentToBackground()
 
-        let scene = front
-        let back = Task { await rig.look.cameBack(scene) }
+        let back = ComingBack(to: rig.look, front)
         await eventually { rig.location.isReading }
+        XCTAssertNil(back.didTurn, "Schedule waits for the look")
         rig.location.send(atUnion)
-        let didTurn = await back.value
+        await eventually { back.didTurn != nil }
 
-        XCTAssertTrue(didTurn)
+        XCTAssertEqual(back.didTurn, true)
         await eventually { rig.schedule.turnCount == 1 }
         XCTAssertEqual(rig.schedule.route, turned)
     }
 
-    /// False as soon as the look ends with nothing to do.
-    func testComingBackReturnsFalseWhenFromIsAlreadyCloser() async {
+    /// Schedule's own scene update usually reaches the look first and starts it: the wait joins that look.
+    func testComingBackJoinsTheLookTheSceneUpdateStarted() async {
         let rig = Rig(now: evening)
         rig.look.update(front)
         rig.look.wentToBackground()
 
-        let scene = front
-        let back = Task { await rig.look.cameBack(scene) }
-        await eventually { rig.location.isReading }
-        rig.location.send(atOakville)
-        let didTurn = await back.value
+        rig.look.update(front)
+        XCTAssertEqual(rig.location.starts, 2)
+        let back = ComingBack(to: rig.look, front)
+        await pause()
+        XCTAssertNil(back.didTurn, "Schedule waits for the look")
+        XCTAssertEqual(rig.location.starts, 2, "the same look")
 
-        XCTAssertFalse(didTurn)
-        XCTAssertEqual(rig.outcome, .nothing(.alreadyCloser))
+        rig.location.send(atUnion)
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, true)
+        await eventually { rig.schedule.turnCount == 1 }
+    }
+
+    /// False as soon as the look ends with nothing to do: From is already the closer station, or the rider is in
+    /// between.
+    func testComingBackReturnsFalseWhenTheLookEndsWithNothing() async {
+        let answers: [(DirectionReading, DirectionRule.Reason)] = [
+            (atOakville, .alreadyCloser), (inBetween, .inBetween),
+        ]
+        for (reading, reason) in answers {
+            let rig = Rig(now: evening)
+            rig.look.update(front)
+            rig.look.wentToBackground()
+
+            let back = ComingBack(to: rig.look, front)
+            await eventually { rig.location.isReading }
+            rig.location.send(reading)
+            await eventually { back.didTurn != nil }
+
+            XCTAssertEqual(back.didTurn, false, "\(reason)")
+            XCTAssertEqual(rig.outcome, .nothing(reason))
+            XCTAssertEqual(rig.schedule.turnCount, 0, "\(reason)")
+        }
+    }
+
+    /// A reading too wide to tell is no answer: Schedule goes on waiting, and the next reading ends the wait.
+    func testComingBackWaitsThroughAReadingTooWideToTell() async {
+        let rig = Rig(now: evening)
+        rig.look.update(front)
+        rig.look.wentToBackground()
+
+        let back = ComingBack(to: rig.look, front)
+        await eventually { rig.location.isReading }
+        rig.location.send(tooWide[0])
+        await pause()
+        XCTAssertNil(back.didTurn, "Schedule still waits")
+        XCTAssertTrue(rig.look.isLooking)
+
+        rig.location.send(atUnion)
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, true)
     }
 
     /// False at once when there is no look to wait for.
@@ -639,14 +771,63 @@ final class DirectionLookTests: XCTestCase {
         rig.look.update(front)
         rig.look.wentToBackground()
 
-        let scene = front
-        let back = Task { await rig.look.cameBack(scene) }
+        let back = ComingBack(to: rig.look, front)
         await eventually { rig.location.isReading }
         rig.look.touched()
-        let didTurn = await back.value
+        await eventually { back.didTurn != nil }
 
-        XCTAssertFalse(didTurn)
+        XCTAssertEqual(back.didTurn, false)
         XCTAssertTrue(rig.look.isLooking)
+    }
+
+    /// A widget's route link that changes the route while Schedule waits: the look starts again for the new route and
+    /// Schedule goes on waiting, until the new look answers.
+    func testAWidgetsRouteWhileScheduleWaitsKeepsItWaiting() async {
+        let rig = Rig(now: evening)
+        rig.look.update(front)
+        rig.look.wentToBackground()
+
+        let back = ComingBack(to: rig.look, front)
+        await eventually { rig.location.isReading }
+        XCTAssertEqual(rig.location.starts, 2)
+
+        rig.schedule.route = turned
+        rig.look.chose(turned, by: .widgetRoute)
+        XCTAssertEqual(rig.outcome, .nothing(.restarted))
+        XCTAssertEqual(rig.location.starts, 3)
+        XCTAssertTrue(rig.look.isLooking)
+        await pause()
+        XCTAssertNil(back.didTurn, "Schedule still waits, now for the new look")
+
+        // The widget's route is Union to Oakville: at Oakville the new look turns it, and that turn is the arrival.
+        rig.location.send(atOakville)
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, true)
+        await eventually { rig.schedule.turnCount == 1 }
+        XCTAssertEqual(rig.schedule.route, route)
+        XCTAssertEqual(rig.outcome, .turn)
+    }
+
+    /// When the look cannot start again for the widget's route (here that pair's Undo hour runs), the wait ends at
+    /// once with nothing turned.
+    func testAWidgetsRouteWithNoNewLookEndsTheWait() async {
+        let rig = Rig(now: evening)
+        rig.store.startUndoHour(for: picked, at: rig.clock.now)
+        rig.look.update(front)
+        rig.look.wentToBackground()
+
+        let back = ComingBack(to: rig.look, front)
+        await eventually { rig.location.isReading }
+
+        rig.schedule.route = picked
+        rig.look.chose(picked, by: .widgetRoute)
+        XCTAssertFalse(rig.look.isLooking)
+        XCTAssertFalse(rig.location.isReading)
+        XCTAssertEqual(rig.outcome, .nothing(.undone))
+        await eventually { back.didTurn != nil }
+        XCTAssertEqual(back.didTurn, false)
+        XCTAssertEqual(rig.location.starts, 2)
+        XCTAssertEqual(rig.schedule.turnCount, 0)
     }
 
     // MARK: A ride that ended at your stop
@@ -865,6 +1046,24 @@ final class DirectionLookTests: XCTestCase {
         await eventually { rig.schedule.turnCount == 1 }
     }
 
+    /// Schedule's own scene update can reach the look before its wait does: the turn the proof made there is still
+    /// that arrival's, and only that one's.
+    func testComingBackCountsATurnTheSceneUpdateMadeFirst() async {
+        let rig = Rig(now: evening)
+        rig.look.update(front)
+        rig.look.wentToBackground()
+        rig.ride.arrival = arrival()
+
+        rig.look.update(front)
+        XCTAssertEqual(rig.outcome, .turn)
+        let didTurn = await rig.look.cameBack(front)
+        XCTAssertTrue(didTurn)
+
+        let again = await rig.look.cameBack(front)
+        XCTAssertFalse(again, "the turn was the first arrival's")
+        await eventually { rig.schedule.turnCount == 1 }
+    }
+
     // MARK: The rider's choice
 
     /// A route chosen by hand ends a running look, starts the hold and sets the widgets' morning way.
@@ -1042,6 +1241,31 @@ final class DirectionLookTests: XCTestCase {
         rig.look.update(front)
         XCTAssertEqual(rig.location.starts, 1)
         XCTAssertTrue(rig.look.isLooking)
+    }
+
+    /// A widget's route that comes after this visit's look has answered: what the look said about the old route goes
+    /// with it, and the new route gets its own look, which may turn it.
+    func testAWidgetsRouteAfterTheLookGetsItsOwnLook() async {
+        let rig = Rig(now: evening)
+        await turnAtUnion(rig)
+        XCTAssertEqual(rig.location.starts, 1)
+
+        // The widget shows Oakville to Union again.
+        rig.schedule.route = route
+        rig.look.chose(route, by: .widgetRoute)
+        XCTAssertNil(rig.capsule, "Now from Union was about the old route")
+        XCTAssertEqual(rig.location.starts, 2)
+        XCTAssertTrue(rig.look.isLooking)
+        XCTAssertFalse(rig.store.holdsChoice(at: rig.clock.now))
+        XCTAssertFalse(rig.store.holdsUndo(for: route, at: rig.clock.now))
+        XCTAssertNil(rig.store.morningWay)
+
+        // Still at Union: the new look turns the widget's route.
+        rig.location.send(atUnion)
+        await eventually { rig.schedule.turnCount == 2 && rig.capsule != nil }
+        XCTAssertEqual(rig.schedule.route, turned)
+        XCTAssertEqual(rig.capsule, .turned(station: "Union"))
+        XCTAssertEqual(rig.outcome, .turn)
     }
 
     // MARK: Undo and Switch
@@ -1312,6 +1536,18 @@ private final class Rig {
     var capsule: DirectionCapsule.Kind? { look.capsule.shown?.kind }
     /// What the last look did.
     var outcome: DirectionRule.Outcome? { look.lastLook?.outcome }
+}
+
+/// Schedule's wait for the look on a return (`cameBack(_:)`), run beside the test as Schedule's own arrival runs beside
+/// the screen: `didTurn` is nil while the look keeps Schedule waiting, then its answer. A test polls it, so a wait the
+/// look never ends fails that test instead of holding up the whole run.
+@MainActor
+private final class ComingBack {
+    private(set) var didTurn: Bool?
+
+    init(to look: DirectionLook, _ scene: DirectionLook.Scene) {
+        Task { self.didTurn = await look.cameBack(scene) }
+    }
 }
 
 /// A station list that cannot be read: the first timetable is still downloading.

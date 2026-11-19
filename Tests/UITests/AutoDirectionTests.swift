@@ -37,6 +37,9 @@ final class AutoDirectionTests: XCTestCase {
         undo.tap()
         expect(from, value: "Oakville")
         expect(to, value: "Union")
+        // "Won’t switch by itself for an hour" takes the capsule's place, with no action.
+        XCTAssertTrue(undo.waitForNonExistence(timeout: Self.waitTime))
+        XCTAssertTrue(capsule.exists, "The line after Undo shows in the capsule's place")
 
         // A new launch inside the hour, still at Union, with no choice by hand and the setting on: only the Undo hour
         // keeps the route as it is.

@@ -94,6 +94,18 @@ final class DirectionStoreTests: XCTestCase {
         XCTAssertTrue(store.holdsChoice(at: at(9, 6)))
     }
 
+    /// A choice kept under a later clock (Mock time set ahead, then turned off) is let go, not held until the real clock
+    /// catches up.
+    func testAChoiceFromALaterClockIsLetGo() {
+        let store = DirectionStore(defaults: nil)
+        store.choseByHand(at: at(20))
+        XCTAssertFalse(store.holdsChoice(at: at(8)))
+        XCTAssertFalse(store.holdsChoice(at: at(20)), "it was let go")
+
+        store.choseByHand(at: at(8, 0, 30))
+        XCTAssertTrue(store.holdsChoice(at: at(8)), "half a minute ahead is the same clock")
+    }
+
     // MARK: The Undo hour
 
     func testNoUndoHoldsNothing() {
@@ -118,6 +130,16 @@ final class DirectionStoreTests: XCTestCase {
         XCTAssertFalse(store.holdsUndo(for: route, at: at(18, 30)))
         XCTAssertFalse(store.holdsUndo(for: turned, at: at(18, 30)))
         XCTAssertFalse(store.holdsUndo(for: route, at: at(20)))
+    }
+
+    /// An Undo hour started under a later clock (Mock time set ahead, then turned off) is over.
+    func testAnUndoHourFromALaterClockIsOver() {
+        let store = DirectionStore(defaults: nil)
+        store.startUndoHour(for: route, at: at(20))
+        XCTAssertFalse(store.holdsUndo(for: route, at: at(8)))
+        XCTAssertFalse(store.holdsUndo(for: route, at: at(18, 58)), "more than the hour left")
+        XCTAssertTrue(store.holdsUndo(for: route, at: at(19, 59, 30)), "half a minute ahead is the same clock")
+        XCTAssertTrue(store.holdsUndo(for: route, at: at(20, 30)))
     }
 
     func testTheUndoHourIsNotForAnotherPair() {

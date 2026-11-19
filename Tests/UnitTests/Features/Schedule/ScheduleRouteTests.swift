@@ -156,6 +156,50 @@ final class ScheduleRouteTests: XCTestCase {
         XCTAssertEqual(haptics.played, [.tap])
     }
 
+    /// The swap button back after the app turned the route is the Undo, with Automatic direction's look wired as
+    /// `RootView` wires it: the swap plays as any swap, `route_swapped` once and the swap feel, and the look starts the
+    /// Undo hour and says so. The turn before it sent nothing and played nothing.
+    func testSwapBackAfterTheAppsTurnIsTheUndoAndSendsRouteSwappedOnce() async throws {
+        let analytics = RecordingAnalytics.install()
+        let repository = try repository()
+        let clock = FixedClock(now: repository.now)
+        let haptics = FakeHaptics()
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock, haptics: haptics)
+        let location = FakeDirectionLocation()
+        let store = DirectionStore(defaults: nil)
+        let look = DirectionLook(
+            schedule: model, location: location, stations: DirectionFixtures.stations, store: store, clock: clock,
+            capsule: DirectionCapsuleModel(actionDuration: .seconds(300), plainDuration: .seconds(300)),
+            haptics: haptics, quick: .seconds(300), limit: .seconds(300), capsuleDelay: .zero, playsSplash: false
+        )
+        model.choices = look
+        await model.loadIfNeeded()
+        let sent = analytics.events.count
+
+        // The app opens at Union, the fixture route's To station: the look turns the route by itself.
+        look.update(DirectionLook.Scene(isActive: true, isInFront: true))
+        location.send(DirectionFixtures.reading(at: DirectionFixtures.unionPlace))
+        for _ in 0..<500 where model.turns == 0 || model.awaitsNewTrains || look.capsule.shown == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.route, reverse(of: repository.route))
+        XCTAssertEqual(look.capsule.shown?.kind, .turned(station: "Union"))
+        XCTAssertEqual(analytics.events.count, sent, "The turn sent nothing")
+        XCTAssertEqual(haptics.played, [], "and played nothing")
+
+        await model.swap()
+
+        XCTAssertEqual(model.route, repository.route)
+        XCTAssertEqual(Array(analytics.events.dropFirst(sent)), [AnalyticsEvent("route_swapped")])
+        XCTAssertEqual(look.capsule.shown?.kind, .kept, "The capsule says the route is left alone for an hour")
+        XCTAssertTrue(store.holdsUndo(for: repository.route, at: clock.now))
+        XCTAssertEqual(model.turns, 1, "The swap button's own turn is not counted")
+        for _ in 0..<300 where haptics.played.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(haptics.played, [.tap])
+    }
+
     /// `show` passes on who chose the route: by hand unless the caller says one train's link or a widget's route link did.
     func testShowPassesOnWhoChoseTheRoute() async throws {
         let repository = try repository()

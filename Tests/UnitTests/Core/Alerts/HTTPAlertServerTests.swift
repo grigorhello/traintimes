@@ -52,6 +52,7 @@ final class HTTPAlertServerTests: XCTestCase {
         XCTAssertEqual(fields["destinationId"] as? String, "CL")
         XCTAssertEqual(fields["token"] as? String, "ef")
         XCTAssertEqual(fields["handedOff"] as? Bool, false)
+        XCTAssertEqual(fields["removed"] as? Bool, false, "TT-240: true when the app ended the card because its alert was gone")
     }
 
     /// `GET …/rules` as the server answers it (server/src/api.ts `ruleJSON`, TT-143).

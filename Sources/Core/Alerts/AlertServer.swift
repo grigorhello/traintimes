@@ -24,6 +24,9 @@ struct LiveActivityReport: Codable, Hashable, Sendable {
     /// The app was in front as the train left (TT-231): the server asks "On board?" on the card with no alert, and sends
     /// no notification.
     var asked = false
+    /// The app ended the card because its alert was removed or switched off (TT-240): the server follows it no more, and
+    /// starts a fresh card once an alert between its stations is switched on again (Undo, the bell again).
+    var removed = false
 }
 
 /// The alert server's app API (TT-140, D38), keyed by the anonymous installation id (D5).
@@ -45,6 +48,8 @@ protocol LiveActivityReporting: AnyObject {
     /// True once the server has it, or when it needs nothing (no alert: the server watches no train); false to try again.
     @discardableResult
     func report(_ activity: LiveActivityReport) async -> Bool
+    /// A switched-on alert stands behind this train's before-departure card (TT-240): the card stays only while one does.
+    func hasAlert(for ride: Ride) -> Bool
 }
 
 extension AlertServer {

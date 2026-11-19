@@ -3,7 +3,8 @@
 // shows changes, and once the train has left turns it into the question "On board?" with Yes and No, with an alert (TT-231,
 // D110); with no card to update it sends the question as a notification instead. It ends 10 min after the train left, or
 // at the rider's stop if sooner, unless the app's ride took it over (the same activity becomes the ride) or the rider said
-// No. Every word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
+// No, and at once when its alert is removed, switched off or needs review (TT-240, D118: the minute cycle's sweep). Every
+// word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
 // looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes, "Platform" and the pill.
 //
 // Boarding at the platform (TT-233, D114): "boarding now" and the moment the train has left follow `boardingPhase`, the
@@ -300,4 +301,14 @@ export function askTitle(departure: Departure, timeFormat: TimeFormat): string {
 /** `event: end`, when the question ends (or at once for a cancelled train): it leaves the Lock Screen now. */
 export function endPayload(state: ContentState, now: number) {
   return { aps: { timestamp: seconds(now), event: 'end', 'content-state': state, 'dismissal-date': seconds(now) } };
+}
+
+/**
+ * The last look of a card that ends because no alert watches its train any more (TT-240, D118): the line it last showed,
+ * read back from its stored signature, as Departed. The rule that knew the train is gone, and the card leaves the Lock
+ * Screen with this push, so nothing more is worked out for it.
+ */
+export function sweptState(shown: string): ContentState {
+  const title = shown.split('|')[1] ?? '';
+  return { phase: 'departed', title, now: '', label: '', late: false, position: 0, isClose: false, updated: '' };
 }

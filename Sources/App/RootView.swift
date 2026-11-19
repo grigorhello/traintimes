@@ -155,6 +155,9 @@ struct RootView: View {
         writesWidgetFile(detectsTrains(tabs))
             // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
+            // A before-departure card lives only while its alert is switched on (TT-240, D118): a bell turned off, an
+            // alert removed or paused ends its card at the tap, and Undo brings it back.
+            .onChange(of: alerts.rules) { liveActivity?.alertsChanged() }
     }
 
     /// The screen on top: the presented sheet, else the selected tab (the welcome or its route form until a route is saved).

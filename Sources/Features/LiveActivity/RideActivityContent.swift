@@ -38,7 +38,6 @@ extension RideActivityAttributes.ContentState {
         case .arriving: .arriving
         case .atYourStop, .ended: .atYourStop
         }
-        let passed = phase == .atYourStop ? last : times.passed
         let countdownTo: Date? = phase == .atYourStop ? nil : times.time(at: last)
         // Arriving and at your stop the card says one thing: nothing at the right.
         let showsArrival = phase == .riding || phase == .atStation || phase == .yourStopNext
@@ -55,11 +54,13 @@ extension RideActivityAttributes.ContentState {
         delay = nil
         platformNumber = nil
         late = times.delayMinutes >= 1 && phase != .atYourStop
-        position = switch phase {
-        case .atYourStop, .countingDown, .boarding, .departed: Double(last)
-        case .atStation: Double(passed)
-        case .riding, .yourStopNext, .arriving: Double(passed) + times.fraction(from: passed, at: now)
-        }
+        // The ride screen's rail: every station from where you got on to your stop, the ones the train does not stop at
+        // hollow, and the train where the ride screen has it (TT-232, D111). On a train that stops everywhere, its stops.
+        position = details.railFill
+        let hollow = details.stops.filter(\.isSkipped).map(\.index)
+        stations = hollow.isEmpty ? nil : details.stops.count
+        skipped = hollow
+        express = plan.isExpress
         isClose = details.isClose
         updated = String(format: String(localized: "live.updated"), formatter.time(now))
     }

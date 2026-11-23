@@ -437,7 +437,7 @@ final class SettingsViewModel {
 
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
-        demoTrains != .off || demoAutoRide != .off || mockLive != .off || demoPlace != nil || isMockTimeOn || isDemoWeatherOn
+        demoTrains != .off || mockLive != .off || demoPlace != nil || isMockTimeOn || isDemoWeatherOn
     }
 
     /// The Testing row's value: "Off", or what is on, "Delays · Mock time".
@@ -451,7 +451,8 @@ final class SettingsViewModel {
         case .ride: parts.append(String(localized: "settings.demo_trains.ride"))
         case .departure: parts.append(String(localized: "settings.demo_trains.departure"))
         }
-        if demoAutoRide != .off { parts.append(String(localized: "settings.demo_auto_ride")) }
+        // Automatic ride counts only under Depart: with another mode its stored choice plays nothing.
+        if showsDemoAutoRide, demoAutoRide != .off { parts.append(String(localized: "settings.demo_auto_ride")) }
         if let live = mockLive.labelKey {
             let word = String(localized: String.LocalizationValue(live))
             parts.append(String(format: String(localized: "settings.live_data.value"), word))

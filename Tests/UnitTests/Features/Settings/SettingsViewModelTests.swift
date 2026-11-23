@@ -218,6 +218,11 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.testingValue, "Depart · Automatic ride")
         model.isMockTimeOn = true
         XCTAssertEqual(model.testingValue, "Depart · Automatic ride · Mock time")
+        model.isMockTimeOn = false
+        model.demoTrains = .off
+        XCTAssertFalse(model.isTestingActive, "Without Depart the stored Automatic ride plays nothing")
+        XCTAssertEqual(model.testingValue, "Off")
+        model.demoTrains = .departure
 
         model.resetTesting()
         XCTAssertEqual(settings.demoAutoRide, .off)

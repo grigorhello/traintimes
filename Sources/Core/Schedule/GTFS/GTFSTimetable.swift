@@ -161,6 +161,51 @@ struct GTFSTimetable: Sendable {
         return RidePlan(stops: stops, track: track, skipped: skipped, isExpress: isExpress)
     }
 
+    /// Every rail trip leaving a station on a service day, any line, by scheduled departure; trips that end there are left
+    /// out (TT-242, D120: `AutoRideRule`'s rivals, Y4). Each carries its track where the feed has one, and the station's
+    /// distance along it, placed as `ridePlan(for:)` places a ride's first stop, so the numbers agree with ride plans.
+    func departures(from station: String, on day: ServiceDay) -> [StationDeparture] {
+        let place = stopIndex[station].flatMap { feed.stops[$0].place }
+        // Many trips share a track: each is built and measured once.
+        var tracks: [Int: (shape: TrackShape, along: Double?)] = [:]
+        return leaving(station, on: day)
+            .map { match in
+                let trip = feed.trips[match.trip]
+                var track: (shape: TrackShape, along: Double?)?
+                if let index = trip.shape, let shapes = feed.shapes, index < shapes.count {
+                    if tracks[index] == nil {
+                        let shape = TrackShape(flat: shapes[index].points)
+                        tracks[index] = (shape: shape, along: place.flatMap { shape.distances(of: [$0]).first })
+                    }
+                    track = tracks[index]
+                }
+                return StationDeparture(
+                    trip: TripKey(serviceDay: day, tripId: trip.id),
+                    departure: day.gtfsTime(trip.departures[match.from]),
+                    shape: track?.shape,
+                    along: track?.along
+                )
+            }
+            .sorted { ($0.departure, $0.trip.tripId) < ($1.departure, $1.trip.tripId) }
+    }
+
+    /// The same trips as `departures(from:on:)`, each as a call that starts and ends at the station, so
+    /// `TripUpdate.live(on:feedTime:)` reads only what the live feed says there: cancelled, the stop skipped, or the
+    /// expected departure (TT-242).
+    func departureCalls(from station: String, on day: ServiceDay) -> [Call] {
+        leaving(station, on: day).map { match in
+            let trip = feed.trips[match.trip]
+            return Call(
+                tripId: trip.id,
+                stops: trip.stops.map { feed.stops[$0].id },
+                arrivals: trip.arrivals.map(day.gtfsTime),
+                departures: trip.departures.map(day.gtfsTime),
+                from: match.from,
+                to: match.from
+            )
+        }
+    }
+
     /// A direct trip's whole calling pattern with its scheduled times, which live estimates are matched against (TT-131).
     struct Call: Sendable {
         let tripId: String
@@ -197,4 +242,25 @@ struct GTFSTimetable: Sendable {
             return (trip: index, from: from, to: to)
         }
     }
+
+    /// The trips that run on the day and call at the station before their last stop, with its position.
+    private func leaving(_ station: String, on day: ServiceDay) -> [(trip: Int, from: Int)] {
+        guard let stop = stopIndex[station] else { return [] }
+        return (tripsByDate[day.dateKey] ?? []).compactMap { index in
+            let stops = feed.trips[index].stops
+            guard let from = stops.firstIndex(of: stop), from < stops.count - 1 else { return nil }
+            return (trip: index, from: from)
+        }
+    }
+}
+
+/// A rail trip leaving a station (TT-242, D120), from `GTFSTimetable.departures(from:on:)`.
+struct StationDeparture: Sendable, Equatable {
+    let trip: TripKey
+    /// Scheduled.
+    let departure: Date
+    /// The trip's whole track; nil where the feed gives it none.
+    let shape: TrackShape?
+    /// The station's distance along `shape`, in metres; nil with no shape or where the feed does not place the station.
+    let along: Double?
 }

@@ -62,6 +62,8 @@ final class SettingsViewModel {
     private let look: DirectionLook?
     /// Schedule's route: Demo place is one of its two stations.
     private let route: @MainActor () -> Route?
+    /// How the automatic ride's last watch ended (TT-242, D120), for Settings › Testing › Last check; nil before any.
+    private let autoRideCheck: @MainActor () -> AutoRideCheck?
     /// Where Demo place is stored: the app's defaults, as `AppSettings` stores Demo trains; tests pass their own.
     private let defaults: UserDefaults
     /// Opens a page of the Settings app, as the Notifications page does with `openURL`; tests record the page instead.
@@ -85,6 +87,7 @@ final class SettingsViewModel {
         directionStore: DirectionStore? = nil,
         look: DirectionLook? = nil,
         route: @escaping @MainActor () -> Route? = { nil },
+        autoRideCheck: @escaping @MainActor () -> AutoRideCheck? = { nil },
         defaults: UserDefaults = .standard,
         openSettings: @escaping @MainActor (URL) -> Void = { UIApplication.shared.open($0, options: [:], completionHandler: nil) }
     ) {
@@ -100,6 +103,7 @@ final class SettingsViewModel {
         self.directionStore = directionStore
         self.look = look
         self.route = route
+        self.autoRideCheck = autoRideCheck
         self.defaults = defaults
         self.openSettings = openSettings
         storedDemoPlace = defaults.string(forKey: DemoPlace.key).flatMap { $0.isEmpty ? nil : $0 }
@@ -127,6 +131,15 @@ final class SettingsViewModel {
     }
 
     var showsDemoExpress: Bool { demoTrains == .ride || demoTrains == .departure }
+
+    /// Settings › Testing › Demo trains › Depart › Automatic ride (TT-242, D120): the demo watch decides whether the phone
+    /// left with the demo departure's train. The switch shows with Depart only.
+    var demoAutoRide: DemoAutoRide {
+        get { settings.demoAutoRide }
+        set { settings.demoAutoRide = newValue }
+    }
+
+    var showsDemoAutoRide: Bool { demoTrains == .departure }
 
     /// Settings › Testing › Live data (TT-195): choosing a feed turns off a Demo trains mode that makes its own.
     var mockLive: MockLive {
@@ -387,6 +400,44 @@ final class SettingsViewModel {
         }
     }
 
+    /// Settings › Testing › Last check (TT-242, D120): how the automatic ride's last watch ended. The view passes the
+    /// formatter it reads from the environment, so a Time format change shows at once.
+    func lastCheckText(formatter: any TimeFormatting) -> String {
+        Self.lastCheckText(autoRideCheck(), formatter: formatter)
+    }
+
+    /// A check in words: the outcome, with the whole seconds after the train left (0 when it had not left) and, when it
+    /// could not tell, the reason; then, on a second line, when the hold reached the server. Never a place.
+    static func lastCheckText(_ check: AutoRideCheck?, formatter: any TimeFormatting) -> String {
+        guard let check else { return String(localized: "settings.last_check.none") }
+        let seconds = String(check.secondsAfter ?? 0)
+        var text: String
+        switch check.outcome {
+        case .started:
+            text = String(format: String(localized: "settings.last_check.started"), seconds)
+        case .notOnBoard:
+            text = String(format: String(localized: "settings.last_check.not_on_board"), seconds)
+        case .unsure:
+            if let reason = check.reason {
+                let why = String(localized: String.LocalizationValue("settings.last_check.reason." + reason.rawValue))
+                text = String(format: String(localized: "settings.last_check.unsure"), seconds, why)
+            } else {
+                // Ended with no verdict (a relaunch past its deadline, or a train that never read as left).
+                text = String(format: String(localized: "settings.last_check.unsure_plain"), seconds)
+            }
+        case .answered:
+            text = String(localized: "settings.last_check.answered")
+        case .stopped:
+            text = String(localized: "settings.last_check.stopped")
+        case .notArmed:
+            text = String(localized: "settings.last_check.not_armed")
+        }
+        if let hold = check.holdReachedAt {
+            text += "\n" + String(format: String(localized: "settings.last_check.hold"), formatter.time(hold))
+        }
+        return text
+    }
+
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.
     var isTestingActive: Bool {
         demoTrains != .off || mockLive != .off || demoPlace != nil || isMockTimeOn || isDemoWeatherOn
@@ -403,6 +454,8 @@ final class SettingsViewModel {
         case .ride: parts.append(String(localized: "settings.demo_trains.ride"))
         case .departure: parts.append(String(localized: "settings.demo_trains.departure"))
         }
+        // Automatic ride counts only under Depart: with another mode its stored choice plays nothing.
+        if showsDemoAutoRide, demoAutoRide != .off { parts.append(String(localized: "settings.demo_auto_ride")) }
         if let live = mockLive.labelKey {
             let word = String(localized: String.LocalizationValue(live))
             parts.append(String(format: String(localized: "settings.live_data.value"), word))
@@ -413,10 +466,11 @@ final class SettingsViewModel {
         return parts.isEmpty ? String(localized: "settings.testing.off") : parts.joined(separator: " · ")
     }
 
-    /// "Reset": Demo trains, Live data and Demo place off and the real time.
+    /// "Reset": Demo trains (with Express and Automatic ride), Live data and Demo place off and the real time.
     func resetTesting() {
         demoTrains = .off
         demoExpress = false
+        demoAutoRide = .off
         mockLive = .off
         if storedDemoPlace != nil { demoPlace = nil }
         settings.mockTime = nil

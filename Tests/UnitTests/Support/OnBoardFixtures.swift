@@ -73,10 +73,15 @@ enum OnBoardFixtures {
 @MainActor
 final class FakeLocation: LocationProviding {
     var isAuthorized: Bool
+    /// Precise Location (TT-242): on unless a test turns it off.
+    var isPrecise = true
     /// What the rider answers to the When In Use prompt.
     var answer = true
     private(set) var requests = 0
     private(set) var isUpdating = false
+    /// How many sessions were started: a start while updates run swaps the callback and keeps the session, as
+    /// `SystemLocationProvider` does (TT-242).
+    private(set) var sessionsStarted = 0
     private var onFix: (@MainActor @Sendable (LocationFix) -> Void)?
 
     init(authorized: Bool = false) {
@@ -93,6 +98,7 @@ final class FakeLocation: LocationProviding {
     }
 
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void) {
+        if !isUpdating { sessionsStarted += 1 }
         isUpdating = true
         self.onFix = onFix
     }
@@ -122,13 +128,35 @@ actor FakeRideData: RideDataProviding {
     func rideStatus(for ride: Ride) async -> RideStatus { status }
 }
 
-/// The train feed in tests (TT-179 stands in later).
+/// The train feed in tests (TT-179 stands in later): one position for every trip.
 actor FakeTrainPositions: TrainPositionProviding {
     private var position: TrainPosition?
 
     func set(_ value: TrainPosition?) { position = value }
 
     func position(of trip: TripKey) async -> TrainPosition? { position }
+}
+
+/// The train feed in automatic ride tests (TT-242): a position per trip id, which a test moves.
+actor FakeTripPositions: TrainPositionProviding {
+    private var positions: [String: TrainPosition] = [:]
+    private(set) var reads = 0
+
+    func set(_ value: TrainPosition?, for tripId: String) { positions[tripId] = value }
+
+    func position(of trip: TripKey) async -> TrainPosition? {
+        reads += 1
+        return positions[trip.tripId]
+    }
+}
+
+/// Other trains leaving the rider's station in automatic ride tests (TT-242).
+actor FakeRivalTrains: RivalTrainsProviding {
+    private var trains: [RivalTrain] = []
+
+    func set(_ value: [RivalTrain]) { trains = value }
+
+    func rivals(of ride: Ride, around departure: Date) async -> [RivalTrain] { trains }
 }
 
 /// Notification Center in nudge tests (TT-173): records every add and removal, and keeps what iOS would hold pending, where

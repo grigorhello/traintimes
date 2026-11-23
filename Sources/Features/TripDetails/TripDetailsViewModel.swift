@@ -119,7 +119,8 @@ final class TripDetailsViewModel {
         route: Route, key: TripKey, repository: any ScheduleRepository, clock: any AppClock, hasAlert: Bool = false,
         onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, bells: AlertBellModel? = nil,
         boardingShown: BoardingShown = BoardingShown(defaults: nil),
-        maps: any MapsOpening = SystemMapsOpener(), haptics: any HapticPlaying = TTHaptics.shared
+        maps: any MapsOpening = SystemMapsOpener(), haptics: any HapticPlaying = TTHaptics.shared,
+        ridesInPlace: Bool = false
     ) {
         self.haptics = haptics
         self.route = route
@@ -132,6 +133,7 @@ final class TripDetailsViewModel {
         self.bells = bells
         self.boardingShown = boardingShown
         followsRide = onBoard?.isRunning(key) ?? false
+        self.ridesInPlace = ridesInPlace
         self.maps = maps
         now = clock.now
     }
@@ -371,9 +373,11 @@ final class TripDetailsViewModel {
         if !asks { haptics.play(.onBoard) }
         // Set before the ride starts: the sheet shows the ride as soon as it runs, which can be before the start returns.
         ridesInPlace = liveDeparture != nil
+        isStartingRide = true
+        defer { isStartingRide = false }
         let started: Bool
         if demoDeparture != nil {
-            started = await onBoard.handOffDemo()
+            started = await onBoard.handOffDemo(source: source)
         } else {
             started = await onBoard.start(Ride(trip: key, from: route.from.id, to: route.to.id), on: route, source: source)
         }
@@ -382,9 +386,20 @@ final class TripDetailsViewModel {
         return started
     }
 
-    /// "I'm on board" was tapped on the departure card (TT-177, D69): the ride takes the card's place in the same update,
-    /// drawn at rest. Its rows rise only when the sheet opens on a ride or starts one from the journey card.
+    /// "I'm on board" was tapped on the departure card (TT-177, D69), the ride started by itself (TT-242, D120: the sheet
+    /// opened on it, or adopted it): the ride takes the card's place in the same update, drawn at rest. Its rows rise only
+    /// when the sheet opens on a ride or starts one from the journey card.
     private(set) var ridesInPlace = false
+    @ObservationIgnored private var isStartingRide = false
+
+    /// This train's ride started by itself while the sheet is open (TT-242, D120; the view calls it when `isRiding` turns
+    /// true): the sheet follows it as if "I’m on board" had been tapped here, drawn at rest, with no haptic. A ride this
+    /// sheet starts itself is left to `startRide(source:)`.
+    func adoptRide() {
+        guard isRiding, !isStartingRide, !followsRide else { return }
+        followsRide = true
+        ridesInPlace = true
+    }
 
     // MARK: Before departure (TT-177)
 

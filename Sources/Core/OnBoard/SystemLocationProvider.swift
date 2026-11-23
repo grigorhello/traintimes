@@ -42,11 +42,24 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
         return isAuthorized
     }
 
+    var isPrecise: Bool {
+        locationManager().accuracyAuthorization == .fullAccuracy
+    }
+
+    /// While updates run, `startUpdates(_:)` only swaps this: the automatic ride's watch hands its session over to the ride
+    /// engine (TT-242, D120), and a session created again from the background would not start.
+    private var onFix: (@MainActor @Sendable (LocationFix) -> Void)?
+    /// Tells a finished updates task from the one that replaced it.
+    private var generation = 0
+
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void) {
-        stopUpdates()
+        self.onFix = onFix
+        guard updates == nil else { return }
         session = keepsInBackground ? CLBackgroundActivitySession() : nil
+        generation += 1
+        let generation = generation
         // Read off the main actor; each fix is copied into a `LocationFix` before it goes back to the ride.
-        updates = Task.detached {
+        updates = Task.detached { [weak self] in
             do {
                 for try await update in CLLocationUpdate.liveUpdates(.otherNavigation) {
                     guard let location = update.location else { continue }
@@ -60,16 +73,30 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
                         isStationary: isStationary,
                         age: max(0, Date().timeIntervalSince(location.timestamp))
                     )
-                    await onFix(fix)
+                    await self?.deliver(fix)
                 }
             } catch {
                 // The updates stopped (the ride ended or location was turned off): the ride falls back to the timetable.
             }
+            await self?.finished(generation)
         }
     }
 
     func stopUpdates() {
         updates?.cancel()
+        updates = nil
+        session?.invalidate()
+        session = nil
+        onFix = nil
+    }
+
+    private func deliver(_ fix: LocationFix) {
+        onFix?(fix)
+    }
+
+    /// The stream ended by itself (location turned off): the next start creates the session again.
+    private func finished(_ ended: Int) {
+        guard ended == generation, updates != nil else { return }
         updates = nil
         session?.invalidate()
         session = nil

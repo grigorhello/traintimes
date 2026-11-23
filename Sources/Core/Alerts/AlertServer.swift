@@ -27,6 +27,10 @@ struct LiveActivityReport: Codable, Hashable, Sendable {
     /// The app ended the card because its alert was removed or switched off (TT-240): the server follows it no more, and
     /// starts a fresh card once an alert between its stations is switched on again (Undo, the bell again).
     var removed = false
+    /// The automatic ride's watch (TT-242, D120): true asks the server to hold the question's buzz while the app decides,
+    /// false lets it go (the server then asks with its alert in its next cycle). Nil leaves it out of the JSON, as every
+    /// report did before.
+    var holds: Bool?
 }
 
 /// The alert server's app API (TT-140, D38), keyed by the anonymous installation id (D5).

@@ -17,6 +17,9 @@ struct ScheduleDependencies {
     /// The widget file's schedule and stations (TT-182, D107): the GO feed as it is, never wrapped by `withTesting()`, so Demo
     /// trains and Mock time never reach the widgets; none in fixture runs, which write no widget file.
     var widgetData: (any ScheduleRepository & StationRepository)?
+    /// The trains leaving the rider's station close to an alerted one (TT-242, D120): the GO feed in the app; none in fixture
+    /// runs.
+    var rivals: (any RivalTrainsProviding)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -37,7 +40,7 @@ struct ScheduleDependencies {
         )
         let live = ScheduleDependencies(
             repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository,
-            trains: RelayTrainPositions.shared, widgetData: repository
+            trains: RelayTrainPositions.shared, widgetData: repository, rivals: repository
         )
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
@@ -57,7 +60,8 @@ struct ScheduleDependencies {
             rides: rides,
             candidates: candidates,
             trains: trains,
-            widgetData: widgetData
+            widgetData: widgetData,
+            rivals: rivals
         )
     }
 
@@ -77,15 +81,47 @@ struct ScheduleDependencies {
 
 extension RideEngine {
     /// The app's one ride engine (TT-171): the GO feed's trips and tracks, the phone's location and the schedule's clock, so
-    /// Mock time reaches rides too. Fixture runs keep no ride on device.
-    static func app(environment: [String: String] = ProcessInfo.processInfo.environment) -> RideEngine {
+    /// Mock time reaches rides too. Fixture runs keep no ride on device. `location` is `AppDelegate.location`, which the
+    /// automatic ride's watch shares (TT-242, D120), so a ride it starts keeps the watch's location session.
+    static func app(
+        location: any LocationProviding, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> RideEngine {
         let dependencies = ScheduleDependencies.app(environment: environment)
         return RideEngine(
             data: dependencies.rides,
-            location: SystemLocationProvider(),
+            location: location,
             trains: dependencies.trains,
             clock: dependencies.clock,
             defaults: dependencies.rides == nil ? nil : .standard
+        )
+    }
+}
+
+extension AutoRideWatch {
+    /// The app's automatic ride watch (TT-242, D120): the alerted train's live status from the GO feed as it is (never the
+    /// Demo or Mock time wrapper), GO's train positions, the other trains leaving the station, the shared location provider,
+    /// the Live Activity for the hold, and the device clock. None in fixture runs, previews and the unit test host.
+    static func app(
+        ride: RideEngine, location: any LocationProviding, liveActivity: RideLiveActivity?, nudge: ArrivalNudge,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AutoRideWatch? {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        guard let data = dependencies.widgetData, let trains = dependencies.trains else { return nil }
+        return AutoRideWatch(
+            ride: ride,
+            location: location,
+            departures: ScheduleDepartureReading(repository: data),
+            positions: trains,
+            rivals: dependencies.rivals ?? NoRivalTrains(),
+            holding: liveActivity,
+            clock: SystemClock(),
+            store: AutoRideStore(defaults: .standard),
+            replan: { nudge.replan() },
+            isDeclined: { DepartureQuestion.isDeclined($0, in: .standard) },
+            isTesting: {
+                MockTime.stored != nil || DemoTrains.stored == .ride || DemoTrains.stored == .departure
+            },
+            isActive: { UIApplication.shared.applicationState == .active }
         )
     }
 }

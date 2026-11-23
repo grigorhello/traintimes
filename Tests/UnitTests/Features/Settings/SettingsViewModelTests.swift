@@ -192,6 +192,109 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.testingValue, "Off")
     }
 
+    /// TT-242, D120: Automatic ride shows under Depart only. Its raw values are the launch argument (`-settings.demoAutoRide
+    /// noFeed`) and the end of the switch's identifiers; the choice is stored, the Testing row names it, and Reset turns it
+    /// off.
+    func testAutomaticRideShowsWithDepartAndResetTurnsItOff() {
+        XCTAssertEqual(DemoAutoRide.allCases, [.off, .boards, .stays, .noFeed])
+        XCTAssertEqual(DemoAutoRide.allCases.map(\.rawValue), ["off", "boards", "stays", "noFeed"])
+
+        let defaults = UserDefaults.ephemeral()
+        let settings = AppSettings(defaults: defaults)
+        let model = makeModel(settings: settings, showsTesting: true)
+        XCTAssertEqual(model.demoAutoRide, .off)
+        XCTAssertFalse(model.showsDemoAutoRide)
+        model.demoTrains = .ride
+        XCTAssertFalse(model.showsDemoAutoRide, "Ride has Express but no Automatic ride")
+        model.demoTrains = .departure
+        XCTAssertTrue(model.showsDemoAutoRide)
+        XCTAssertEqual(model.testingValue, "Depart")
+
+        model.demoAutoRide = .boards
+        XCTAssertEqual(settings.demoAutoRide, .boards)
+        XCTAssertEqual(defaults.string(forKey: DemoAutoRide.key), "boards")
+        XCTAssertEqual(AppSettings(defaults: defaults).demoAutoRide, .boards, "read back at the next launch")
+        XCTAssertTrue(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Depart · Automatic ride")
+        model.isMockTimeOn = true
+        XCTAssertEqual(model.testingValue, "Depart · Automatic ride · Mock time")
+        model.isMockTimeOn = false
+        model.demoTrains = .off
+        XCTAssertFalse(model.isTestingActive, "Without Depart the stored Automatic ride plays nothing")
+        XCTAssertEqual(model.testingValue, "Off")
+        model.demoTrains = .departure
+
+        model.resetTesting()
+        XCTAssertEqual(settings.demoAutoRide, .off)
+        XCTAssertEqual(settings.demoTrains, .off)
+        XCTAssertFalse(model.showsDemoAutoRide)
+        XCTAssertFalse(model.isTestingActive)
+        XCTAssertEqual(model.testingValue, "Off")
+    }
+
+    /// TT-242, D120: Last check in words: each outcome, the seconds after the train left (0 without them), the reason when
+    /// it could not tell, and the hold on a second line in the Time format the view passes.
+    func testLastCheckInWords() {
+        let twelve = TimeFormatter(format: .twelveHour)
+        func text(
+            _ outcome: AutoRideCheck.Outcome, _ reason: AutoRideCheck.Reason? = nil, seconds: Int? = nil, hold: Date? = nil,
+            formatter: TimeFormatter = TimeFormatter(format: .twelveHour)
+        ) -> String {
+            let check = AutoRideCheck(outcome: outcome, reason: reason, secondsAfter: seconds, holdReachedAt: hold)
+            return SettingsViewModel.lastCheckText(check, formatter: formatter)
+        }
+
+        XCTAssertEqual(SettingsViewModel.lastCheckText(nil, formatter: twelve), "None yet")
+        XCTAssertEqual(text(.started, seconds: 104), "Started 104 s after it left")
+        XCTAssertEqual(text(.started), "Started 0 s after it left", "no seconds read as 0")
+        XCTAssertEqual(text(.notOnBoard, seconds: 75), "Not on board after 75 s")
+        XCTAssertEqual(text(.unsure, .noFeed, seconds: 180), "Can’t tell after 180 s: no train position")
+        XCTAssertEqual(text(.unsure, .weakFixes, seconds: 180), "Can’t tell after 180 s: weak location")
+        XCTAssertEqual(text(.unsure, seconds: 180), "Can’t tell after 180 s", "no verdict, so no reason")
+        XCTAssertEqual(text(.answered, seconds: 40), "Answered first")
+        XCTAssertEqual(text(.stopped), "Stopped")
+        XCTAssertEqual(text(.notArmed), "Not armed")
+
+        // 5:14 PM in Toronto on Thu Nov 5 2026 (EST).
+        let hold = Date(timeIntervalSince1970: 1_793_916_840)
+        XCTAssertEqual(text(.started, seconds: 104, hold: hold), "Started 104 s after it left\nHold sent at 5:14 PM")
+        XCTAssertEqual(
+            text(.unsure, .rival, seconds: 180, hold: hold, formatter: TimeFormatter(format: .twentyFourHour)),
+            "Can’t tell after 180 s: another train beside it\nHold sent at 17:14"
+        )
+        XCTAssertEqual(text(.stopped, hold: hold), "Stopped\nHold sent at 5:14 PM")
+    }
+
+    /// Every reason the rule gives has its words in the strings file.
+    func testEveryLastCheckReasonHasWords() {
+        let reasons: [(AutoRideCheck.Reason, String)] = [
+            (.noFeed, "no train position"),
+            (.noStation, "never at the station"),
+            (.rival, "another train beside it"),
+            (.weakFixes, "weak location"),
+            (.short, "too close to your stop"),
+        ]
+        for (reason, words) in reasons {
+            let check = AutoRideCheck(outcome: .unsure, reason: reason, secondsAfter: 12, holdReachedAt: nil)
+            let text = SettingsViewModel.lastCheckText(check, formatter: TimeFormatter(format: .twelveHour))
+            XCTAssertEqual(text, "Can’t tell after 12 s: \(words)", reason.rawValue)
+            XCTAssertFalse(text.contains("settings.last_check"), "\(reason.rawValue) has no string")
+        }
+    }
+
+    /// The page reads the check through the closure RootView passes; none before any.
+    func testLastCheckReadsTheWatchsCheck() {
+        let formatter = TimeFormatter(format: .twelveHour)
+        XCTAssertEqual(makeModel(showsTesting: true).lastCheckText(formatter: formatter), "None yet")
+
+        let check = AutoRideCheck(outcome: .notOnBoard, reason: nil, secondsAfter: 62, holdReachedAt: nil)
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: FakeNotificationPermission(.allowed),
+            appInfo: AppInfo(version: "1.0", build: "1"), showsTesting: true, autoRideCheck: { check }, defaults: .ephemeral()
+        )
+        XCTAssertEqual(model.lastCheckText(formatter: formatter), "Not on board after 62 s")
+    }
+
     /// TT-168: "My alerts · N" counts every saved rule; none without alert rules.
     func testAlertCountIsTheNumberOfSavedRules() async {
         XCTAssertEqual(makeModel().alertCount, 0)

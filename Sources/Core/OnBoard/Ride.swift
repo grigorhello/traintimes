@@ -77,6 +77,9 @@ protocol RideDataProviding: Sendable {
 struct TrainPosition: Sendable, Equatable {
     let coordinate: GeoPoint
     let reportedAt: Date
+    /// `reportedAt` is the vehicle's own time; false where the feed gave none and the header's time stood in for it
+    /// (TT-242, D120): an automatic start (`AutoRideRule` Y3) never counts such a position.
+    var hasVehicleTime = true
 }
 
 /// The train feed's positions, the ride's second source when the phone has no fix (Live-Spec). A protocol only until
@@ -108,9 +111,14 @@ protocol LocationProviding: AnyObject {
     /// The rider has not answered the When In Use prompt yet, so `requestWhenInUse()` would show it: the first "I'm on
     /// board" shows the app's sheet before it (TT-172). Reading it never asks.
     var canAsk: Bool { get }
+    /// Precise Location is on (`accuracyAuthorization == .fullAccuracy`). Reading it never asks. An automatic start needs
+    /// it (TT-242, D120).
+    var isPrecise: Bool { get }
     /// Shows the iOS When In Use prompt if the rider has not answered it yet; true when location is allowed.
     func requestWhenInUse() async -> Bool
-    /// Starts the ride's updates, about one a second, which keep coming in the background until `stopUpdates()`.
+    /// Starts the ride's updates, about one a second, which keep coming in the background until `stopUpdates()`. Called
+    /// while updates already run, it only swaps the callback: the same session goes on (the automatic ride's watch hands its
+    /// updates over to the ride engine this way, TT-242, D120).
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void)
     func stopUpdates()
 }

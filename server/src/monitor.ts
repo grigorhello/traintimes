@@ -6,6 +6,7 @@
 // the watches in one query, and makes at most MAX_SENDS calls to APNs. GO's train positions are read once, and only
 // while an alerted train is in its Live Activity window; a station's board only while one stands at it (TT-233, D114).
 // Every cycle, idle ones too, also reads the Live Activity cards no rule watches any more and ends them (TT-240, D118).
+// A card the app holds (TT-242, D120) is followed like a started one, its question silent until the hold ends.
 
 import {
   decide,
@@ -27,6 +28,7 @@ import {
   DEPART_LEAD_MS,
   endPayload,
   hasSighting,
+  holdEnds,
   leaves,
   LINE_COLORS,
   phaseAt,
@@ -36,6 +38,7 @@ import {
   staleDate,
   sweptState,
   updatePayload,
+  withoutAsks,
   type Departure,
 } from './activity.ts';
 import { deleteInstallation } from './api.ts';
@@ -92,11 +95,19 @@ interface ActivityRow {
   token: string | null;
   /**
    * `asked`: the app was in front as the train left, so the question comes silently (TT-231); `notified`: it went as a
-   * notification; `removed`: the app ended the card because its alert was gone (TT-240), so nothing follows it.
+   * notification; `removed`: the app ended the card because its alert was gone (TT-240), so nothing follows it;
+   * `holding`: the app's automatic-ride watch is deciding whether the rider left with the train (TT-242, D120), so the
+   * card is followed as `started` but its question comes silently, and no notification goes, until the app lets go or
+   * `holdEnds`.
    */
-  state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified' | 'removed';
+  state: 'started' | 'ended' | 'handedOff' | 'asked' | 'notified' | 'removed' | 'holding';
   shown: string | null;
   version: number;
+}
+
+/** The cards a cycle follows: started by the server or the app, a silent question (TT-231), or held (TT-242). */
+function follows(activity: ActivityRow): boolean {
+  return activity.state === 'started' || activity.state === 'asked' || activity.state === 'holding';
 }
 
 /** A card the sweep may end (TT-240): its row with what a push to it needs. */
@@ -405,7 +416,8 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       .prepare(
         `SELECT a.installation_id, a.key, a.service_date, a.token, a.state, a.shown, a.version, i.environment FROM activities a
          JOIN installations i ON i.id = a.installation_id
-         WHERE a.service_date IN (?, ?) AND a.state IN ('started', 'asked') AND a.token IS NOT NULL AND a.shown IS NOT NULL`,
+         WHERE a.service_date IN (?, ?) AND a.state IN ('started', 'asked', 'holding') AND a.token IS NOT NULL
+           AND a.shown IS NOT NULL`,
       )
       .bind(...dates)
       .all<SweptRow>();
@@ -444,7 +456,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     if (!loadPositions) return found;
     const live = trains.filter((train) => {
       // `followActivity` does nothing more for these, and a card that asks stays the question wherever the train is.
-      if (train.activity && train.activity.state !== 'started' && train.activity.state !== 'asked') return false;
+      if (train.activity && !follows(train.activity)) return false;
       if (asksIn(train.activity?.shown ?? null) && now >= leaves(departureOf(train, train.status)) - DEPART_LEAD_MS) return false;
       // The window is the clock's and the live status's alone: no position opens or closes it.
       const phase = phaseAt(departureOf(train, train.status), now);
@@ -508,7 +520,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
    */
   async function followActivity(watch: Watch & { key: string }, status: LiveStatus | null, activity: ActivityRow | null, update: TripUpdate | undefined) {
     const { rule, call, key, date } = watch;
-    if (activity && activity.state !== 'started' && activity.state !== 'asked') return;
+    if (activity && !follows(activity)) return;
     const sighting = sightings.get(trainKey(watch));
     const train: Departure = {
       ...departureOf(watch, status),
@@ -579,8 +591,17 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       await setActivity(activity, { state: 'ended' });
       return;
     }
-    // The app was in front as the train left (it reported `asked`): the question comes with no alert and no notification.
-    const silent = activity.state === 'asked';
+    // The app's watch held the question's buzz (TT-242, D120) and has not let go by the hold's end: it died, was suspended
+    // or lost the network. The server lets go itself, as the app's `holds: false` does, and the cycle goes on with the
+    // card as started: the question with its alert, or the notification when there is no token.
+    if (activity.state === 'holding' && now >= holdEnds(train)) {
+      const released = { state: 'started' as const, shown: withoutAsks(activity.shown) };
+      if (!(await setActivity(activity, released))) return;
+      activity = { ...activity, ...released, version: activity.version + 1 };
+    }
+    // The app was in front as the train left (it reported `asked`), or its watch holds the question while it decides
+    // (TT-242): the question comes with no alert and no notification.
+    const silent = activity.state === 'asked' || activity.state === 'holding';
     // No token to reach the card (the app has not reported it): the question goes as a notification instead (TT-231).
     if (!activity.token && phase === 'asking') {
       if (!silent) await askByNotification(watch, train, activity);

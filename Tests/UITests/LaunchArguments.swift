@@ -36,6 +36,12 @@ enum LaunchArguments {
     static func demoPlace(_ station: String) -> [String] {
         ["-settings.demoPlace", station]
     }
+
+    /// Settings › Testing › Demo trains › Depart › Automatic ride (TT-242, D120), by its raw value: `boards`, `stays` or
+    /// `noFeed`. It plays only with Demo trains on Depart (`-settings.demoTrains departure`).
+    static func demoAutoRide(_ mode: String) -> [String] {
+        ["-settings.demoAutoRide", mode]
+    }
 }
 
 extension XCUIApplication {

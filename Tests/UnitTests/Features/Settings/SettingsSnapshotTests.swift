@@ -69,6 +69,10 @@ final class SettingsSnapshotTests: XCTestCase {
     /// TT-234, D116: Demo place at Union, the route's To station.
     @MainActor func testTestingDemoPlaceLight() { snap(SettingsTestingPage(viewModel: demoPlaceModel()), .light) }
     @MainActor func testTestingDemoPlaceDark() { snap(SettingsTestingPage(viewModel: demoPlaceModel()), .dark) }
+    /// TT-242, D120: Depart with Automatic ride on Boards, and Last check under the card: the ride started 104 s after the
+    /// train left, the hold reached the server at 5:14 PM.
+    @MainActor func testTestingDemoAutoRideLight() { snap(autoRidePage(), .light) }
+    @MainActor func testTestingDemoAutoRideDark() { snap(autoRidePage(), .dark) }
 
     // MARK: Haptics (TT-214)
 
@@ -97,12 +101,26 @@ final class SettingsSnapshotTests: XCTestCase {
         return page
     }
 
+    /// The Testing page with Depart and Automatic ride on Boards, its times in the 12-hour format so the hold reads 5:14 PM
+    /// on any simulator.
+    @MainActor
+    private func autoRidePage() -> some View {
+        let check = AutoRideCheck(
+            outcome: .started, reason: nil, secondsAfter: 104, holdReachedAt: Date(timeIntervalSince1970: 1_793_916_840)
+        )
+        let page = model(.allowed, showsTesting: true, route: AlertFixtures.route, autoRideCheck: check)
+        page.demoTrains = .departure
+        page.demoAutoRide = .boards
+        return SettingsTestingPage(viewModel: page).environment(\.timeFormatter, TimeFormatter(format: .twelveHour))
+    }
+
     /// `direction` is Automatic direction's location reader, with nothing stored; nil is no reader, which reads off.
-    /// Demo place is kept in defaults of its own, never the app's.
+    /// Demo place is kept in defaults of its own, never the app's. `autoRideCheck` is what Last check shows.
     @MainActor
     private func model(
         _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil,
-        detection: BackgroundRig? = nil, direction: (any DirectionLocating)? = nil, route: Route? = nil
+        detection: BackgroundRig? = nil, direction: (any DirectionLocating)? = nil, route: Route? = nil,
+        autoRideCheck: AutoRideCheck? = nil
     ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
         if testingOn {
@@ -114,7 +132,8 @@ final class SettingsSnapshotTests: XCTestCase {
         let model = SettingsViewModel(
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
             showsTesting: showsTesting, alerts: alerts, detection: detection?.detection, direction: direction,
-            directionStore: DirectionStore(defaults: nil), route: { route }, defaults: .ephemeral()
+            directionStore: DirectionStore(defaults: nil), route: { route }, autoRideCheck: { autoRideCheck },
+            defaults: .ephemeral()
         )
         model.permission = permission
         return model

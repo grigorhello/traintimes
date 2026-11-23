@@ -214,6 +214,10 @@ final class BackgroundFixes: NSObject, LocationProviding, CLLocationManagerDeleg
 
     var canAsk: Bool { false }
 
+    var isPrecise: Bool {
+        locationManager().accuracyAuthorization == .fullAccuracy
+    }
+
     func requestWhenInUse() async -> Bool { isAuthorized }
 
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void) {

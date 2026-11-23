@@ -1,11 +1,14 @@
 // The before-departure Live Activity (TT-178, D74): an alerted train's countdown on the Lock Screen and in the Dynamic
 // Island from 30 min before it leaves. The server starts it with a push-to-start (iOS 17.2+), updates it only when what it
 // shows changes, and once the train has left turns it into the question "On board?" with Yes and No, with an alert (TT-231,
-// D110); with no card to update it sends the question as a notification instead. It ends 10 min after the train left, or
-// at the rider's stop if sooner, unless the app's ride took it over (the same activity becomes the ride) or the rider said
-// No, and at once when its alert is removed, switched off or needs review (TT-240, D118: the minute cycle's sweep). Every
-// word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the app updates later
-// looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes, "Platform" and the pill.
+// D110); with no card to update it sends the question as a notification instead. While the app's automatic-ride watch
+// decides whether the rider left with the train (TT-242, D120), the app asks the server to hold that buzz: the question
+// comes silently and the notification waits, until the app lets go or the hold ends by itself (`holdEnds`). It ends 10 min
+// after the train left, or at the rider's stop if sooner, unless the app's ride took it over (the same activity becomes
+// the ride) or the rider said No, and at once when its alert is removed, switched off or needs review (TT-240, D118: the
+// minute cycle's sweep). Every word is the app's (`RideActivityAttributes.ContentState` in `Shared/`), so an activity the
+// app updates later looks the same: one card for every moment (TT-205, D93), "7:13 AM departs in" over the minutes,
+// "Platform" and the pill.
 //
 // Boarding at the platform (TT-233, D114): "boarding now" and the moment the train has left follow `boardingPhase`, the
 // port of the app's `BoardingRule` (`Sources/Core/Schedule/BoardingRule.swift`; change both together). The minute cycle
@@ -31,6 +34,10 @@ export const BOARDING_RADIUS_M = 350;
 export const POSITION_FRESH_MS = 2 * MINUTE;
 /** The feed's word that the train has left counts from this long before its time (`BoardingRule.departLead`). */
 export const DEPART_LEAD_MS = MINUTE;
+/** The app's hold on the question's buzz ends by itself this long after the expected departure at the latest (TT-242). */
+export const HOLD_MS = 7 * MINUTE;
+/** ...and this long before the question ends, if that is sooner (a short ride, TT-242). */
+export const HOLD_MARGIN_MS = 90 * 1000;
 
 /** The activity type's name in the app, which a push-to-start names (`attributes-type`). */
 export const ATTRIBUTES_TYPE = 'RideActivityAttributes';
@@ -131,6 +138,16 @@ export function arrives(departure: Departure): number {
 export function endsAt(departure: Departure): number {
   const leavesAt = leaves(departure);
   return Math.min(leavesAt + ASK_MS, Math.max(arrives(departure), leavesAt));
+}
+
+/**
+ * When the server lets go of the app's hold by itself (TT-242, D120): 7 min after the expected departure, or 90 s before
+ * the question ends if sooner, so the released question still comes inside a short ride's window. The app's watch lets
+ * go sooner (3 min after the train left, 6 min after its time at the latest); this covers an app that died, was suspended
+ * or lost the network.
+ */
+export function holdEnds(departure: Departure): number {
+  return Math.min(leaves(departure) + HOLD_MS, endsAt(departure) - HOLD_MARGIN_MS);
 }
 
 /** What said the train has left: its position is away from the station, the feed dropped the station, or its time came. */
@@ -249,6 +266,15 @@ export function signature(state: ContentState): string {
 /** The stored signature is the question's: `signature` of a state that asks, which carries no platform, so it ends there. */
 export function asksIn(shown: string | null): boolean {
   return shown?.endsWith('|asks') ?? false;
+}
+
+/**
+ * The stored signature with the question's mark taken off (TT-242, D120): a hold that ends with the question already on
+ * the card makes the next update its question again, and so it goes with its alert. Kept rather than set to NULL, so the
+ * sweep, which skips rows without `shown`, still sees the card. `releaseHold` in `src/api.ts` does the same in SQL.
+ */
+export function withoutAsks(shown: string | null): string | null {
+  return shown !== null && asksIn(shown) ? shown.slice(0, -'|asks'.length) : shown;
 }
 
 /** The activity becomes stale, and the app ends it, when the question ends (`endsAt`). */

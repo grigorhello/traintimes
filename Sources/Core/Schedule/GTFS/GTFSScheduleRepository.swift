@@ -138,6 +138,44 @@ extension GTFSScheduleRepository: TrainCandidatesProviding {
     }
 }
 
+extension GTFSScheduleRepository: RivalTrainsProviding {
+    /// The other rail trips with a track leaving the ride's origin on its service day within `AutoRideRule.rivalWindow` of
+    /// `departure` (TT-242, D120), each at the TripUpdates feed's expected departure there while the feed is fresh, else at
+    /// its scheduled one (offline, stale, or no live store), as Schedule's cards read it. A trip the feed cancels or that
+    /// skips the station stands beside no one there, so it is left out.
+    func rivals(of ride: Ride, around departure: Date) async -> [RivalTrain] {
+        guard let timetable = try? await store.timetable() else { return [] }
+        let day = ServiceDay(dateKey: ride.serviceDate)
+        let updates = await liveDepartures(from: ride.originId, on: day, timetable: timetable)
+        return timetable.departures(from: ride.originId, on: day).compactMap { train in
+            guard train.trip.tripId != ride.tripId, let shape = train.shape, let along = train.along else { return nil }
+            let update = updates[train.trip.tripId]
+            guard update?.isCancelled != true, update?.isStopSkipped != true else { return nil }
+            let leaves = update?.expectedDeparture ?? train.departure
+            guard abs(leaves.timeIntervalSince(departure)) <= AutoRideRule.rivalWindow else { return nil }
+            return RivalTrain(trip: train.trip, departure: leaves, shape: shape, originAlong: along)
+        }
+    }
+
+    /// The feed's word on each trip leaving the station that day, by trip id, read as `liveStatus` reads a route's
+    /// origin; the expected departure only while the feed is fresh (`Freshness.isLive`). Empty with no feed.
+    private func liveDepartures(from station: String, on day: ServiceDay, timetable: GTFSTimetable) async -> [String: LiveTripUpdate] {
+        guard let live else { return [:] }
+        let result = await live.latest()
+        guard let feed = result.feed, let fetchedAt = result.fetchedAt else { return [:] }
+        let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
+        let isFresh = Freshness(LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline), now: clock.now).isLive
+        let updates = feed.tripUpdates(on: day)
+        var departures: [String: LiveTripUpdate] = [:]
+        for call in timetable.departureCalls(from: station, on: day) {
+            guard var update = updates[call.tripId]?.live(on: call, feedTime: updatedAt) else { continue }
+            if !isFresh { update.expectedDeparture = nil }
+            departures[call.tripId] = update
+        }
+        return departures
+    }
+}
+
 /// Downloads the GO GTFS feed, imports its rail part and keeps the last good import on device, so the timetable works
 /// offline (TT-130, D35). The first use waits for the download; after that the copy on device answers at once and is
 /// refreshed in the background once it is a week old. A copy that no longer covers today waits for its refresh. A failed

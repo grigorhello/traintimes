@@ -142,5 +142,9 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 108 | TT-234 · Automatic direction, part 1: the route turns to leave from the station you’re closer to (the rule, the capsules, the Settings switch) | [#224](https://github.com/grigorhello/traintimes/issues/224) | P1 | 8 | Grigor, 2026-11-19, D116. Blocked by TT-233 (#219, merged) |
 | 109 | TT-235 · Automatic direction, part 2: the turn in motion (the names trade places, an arrow marks From, the trains never go empty) | [#225](https://github.com/grigorhello/traintimes/issues/225) | P1 | 4 | Grigor, 2026-11-19, D116. Blocked by TT-234 (#224, merged) |
 | 110 | TT-236 · Automatic direction, part 3: the one-time strip, and no capsule after the first 8 turns | [#226](https://github.com/grigorhello/traintimes/issues/226) | P1 | 2 | Grigor, 2026-11-19, D116. Blocked by TT-235 (#225, merged) |
+| 116 | TT-242 · Rides start by themselves, part 1: the ride starts when you leave with your alerted train (the rule, the watch, the server's hold, the Testing demo; real trains off) | [#238](https://github.com/grigorhello/traintimes/issues/238) | P1 | 8 | Grigor, 2026-11-23, D120 |
+| 117 | TT-243 · Rides start by themselves, part 2: on for real trains, Not on it, the switches, the app-closed tier; the any-train detection goes | [#239](https://github.com/grigorhello/traintimes/issues/239) | P1 | 7 | Grigor, 2026-11-23, D120. Blocked by TT-242 (#238) |
 
 TT-234, TT-235 and TT-236 go into the same TestFlight build: no build with only one or two of them.
+
+TT-242 and TT-243 go into the same TestFlight build. Real trains stay off behind `AutoRideWatch.isLive` until TT-243, so a build cut between the two merges is unchanged for riders.

@@ -30,6 +30,9 @@ struct RootView: View {
     @State private var onBoard: OnBoard
     /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
     @State private var opensRide = false
+    /// A ride that started by itself (TT-242, D120) whose ride mode has not opened yet: it opens once, at rest, as soon as
+    /// Schedule shows in the foreground with nothing over it.
+    @State private var opensAutoRide: AutoRideWatch.Started?
     /// Schedule's Feedback button asking now and then (TT-228, D112); Settings opens the sheet through it too.
     @State private var feedbackNudge: FeedbackNudge
     /// Automatic direction's look (TT-234, D116): one per app, fed by Schedule.
@@ -64,6 +67,7 @@ struct RootView: View {
         nudge: ArrivalNudge? = nil,
         liveActivity: RideLiveActivity? = nil,
         detection: BackgroundDetection? = nil,
+        autoRide: AutoRideWatch? = nil,
         feedbackNudge: FeedbackNudge = .app(),
         direction: DirectionDependencies = .app()
     ) {
@@ -93,6 +97,18 @@ struct RootView: View {
         )
         schedule.choices = look
         _direction = State(initialValue: look)
+        // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; a started ride
+        // asks for notifications through the alert rules, as the first bell tap does (D66). The automatic ride's watch
+        // (TT-242) is `AppDelegate`'s; the demo's is On board's own.
+        let rules = bells.rules
+        let onBoard = OnBoard(
+            app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
+            nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
+            requestNotifications: { await rules.requestPermission() },
+            wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared),
+            declines: ScheduleDependencies.isFixtureRun(ProcessInfo.processInfo.environment) ? nil : .standard,
+            autoRide: autoRide
+        )
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
@@ -102,7 +118,7 @@ struct RootView: View {
             initialValue: SettingsViewModel(
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
                 detection: detection, direction: location, directionStore: direction.store, look: look,
-                route: { [weak schedule] in schedule?.route }
+                route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck }
             )
         )
         _welcome = State(
@@ -122,18 +138,7 @@ struct RootView: View {
                 plainDuration: alertDependencies.capsulePlainDuration
             )
         )
-        // The arriving nudge (TT-173): the app engine's from `AppDelegate`, the demo ride's on its 6x clock; a started ride
-        // asks for notifications through the alert rules, as the first bell tap does (D66).
-        let rules = bells.rules
-        _onBoard = State(
-            initialValue: OnBoard(
-                app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
-                nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
-                requestNotifications: { await rules.requestPermission() },
-                wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared),
-                declines: ScheduleDependencies.isFixtureRun(ProcessInfo.processInfo.environment) ? nil : .standard
-            )
-        )
+        _onBoard = State(initialValue: onBoard)
         _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
         backgroundDetection = detection
@@ -152,12 +157,16 @@ struct RootView: View {
     }
 
     var body: some View {
-        writesWidgetFile(detectsTrains(tabs))
+        writesWidgetFile(watchesAutoRide(detectsTrains(tabs)))
             // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
             // A before-departure card lives only while its alert is switched on (TT-240, D118): a bell turned off, an
-            // alert removed or paused ends its card at the tap, and Undo brings it back.
-            .onChange(of: alerts.rules) { liveActivity?.alertsChanged() }
+            // alert removed or paused ends its card at the tap, and Undo brings it back. The automatic ride's watch stops
+            // with its alert too (TT-242).
+            .onChange(of: alerts.rules) {
+                liveActivity?.alertsChanged()
+                onBoard.autoRide?.alertsChanged(alerts)
+            }
     }
 
     /// The screen on top: the presented sheet, else the selected tab (the welcome or its route form until a route is saved).
@@ -409,6 +418,95 @@ struct RootView: View {
                     try? await Task.sleep(for: .seconds(1))
                 }
             }
+    }
+
+    /// The ride that starts by itself (TT-242, D120), apart from `tabs` so each chain type-checks in reasonable time. While
+    /// the app is in front, on any tab, the watch is offered the alerted trains on screen every few seconds (Schedule's and
+    /// the departure card's); Settings › Testing's demo watch follows its setting; and a ride that started by itself opens
+    /// ride mode once, at rest, on Schedule with nothing over it (an open Trip details on that train adopts it instead).
+    private func watchesAutoRide(_ content: some View) -> some View {
+        content
+            .task(id: scenePhase) {
+                guard scenePhase == .active, let watch = onBoard.autoRide else { return }
+                while !Task.isCancelled {
+                    if watch.mayArm { await watch.consider(await autoRideCandidates()) }
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
+            .task(id: demoAutoRide) { onBoard.setDemoAutoRide(demoAutoRide) }
+            // Decided once: in front, at once if Schedule is at rest, else the ride strip waits on Schedule; after a start in
+            // the background, at the next foreground on the same terms. Never later, so no sheet pops up mid-ride.
+            .onChange(of: onBoard.autoRideStarted) { _, started in
+                guard let started else { return }
+                if router.presentedSheet == .tripDetails, let details = tripDetails, details.key == started.ride.tripKey {
+                    details.adoptRide()
+                    return
+                }
+                opensAutoRide = started
+                if scenePhase == .active { openAutoRideIfAtRest() }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { openAutoRideIfAtRest() }
+            }
+    }
+
+    /// Ride mode for the ride that started by itself when Schedule is at rest; otherwise it is let go.
+    private func openAutoRideIfAtRest() {
+        guard opensAutoRide != nil else { return }
+        if autoRideAtRest {
+            Task { await openAutoRide() }
+        } else {
+            opensAutoRide = nil
+        }
+    }
+
+    /// Settings › Testing › Demo trains › Depart › Automatic ride, in a build that shows Settings › Testing.
+    private var demoAutoRide: DemoAutoRide {
+        BuildChannel.showsTesting ? settings.demoAutoRide : .off
+    }
+
+    /// A ride that started by itself opens ride mode only on Schedule in the foreground with nothing over it.
+    private var autoRideAtRest: Bool {
+        opensAutoRide != nil && scenePhase == .active && router.selectedTab == .schedule && router.presentedSheet == nil
+            && schedule.route != nil
+    }
+
+    /// Ride mode for the ride that started by itself, once: drawn at rest, with no `trip_opened` (nobody tapped).
+    private func openAutoRide() async {
+        guard let started = opensAutoRide else { return }
+        opensAutoRide = nil
+        guard onBoard.activeRide == started.ride, let route = await onBoard.rideRoute(stations: stations),
+              router.presentedSheet == nil else { return }
+        tripDetails = TripDetailsViewModel(
+            route: route, key: started.ride.tripKey, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
+            bells: bells.sibling(), boardingShown: BoardingShown(), ridesInPlace: true
+        )
+        router.present(.tripDetails)
+    }
+
+    /// The alerted trains the watch may arm for (TT-242, D120): Schedule's alerted train today, and the departure card's
+    /// train where it is another (an alert on another route), each only while an alert stands behind it.
+    private func autoRideCandidates() async -> [AutoRideWatch.Candidate] {
+        var candidates: [AutoRideWatch.Candidate] = []
+        let now = clock.now
+        if let route = schedule.route, let live = schedule.activityDeparture(at: now),
+           alerts.isAlerted(live.departure.trip, on: route) {
+            candidates.append(AutoRideWatch.Candidate(route: route, departure: live.departure))
+        }
+        guard let card = liveActivity?.departureRide, !candidates.contains(where: { $0.ride == card }),
+              let rule = alerts.rules.first(where: { $0.covers(card) }) else { return candidates }
+        let route = Route(
+            from: Station(id: rule.origin.id, name: rule.origin.name),
+            to: Station(id: rule.destination.id, name: rule.destination.name),
+            line: Line(id: rule.line, name: "", colorHex: nil)
+        )
+        let day = card.tripKey.serviceDay
+        guard let trip = (try? await repository.trips(for: route, on: day))?.first(where: { $0.key == card.tripKey }),
+              alerts.isAlerted(trip, on: route) else { return candidates }
+        let live = (try? await repository.liveStatus(for: route, on: day)) ?? .empty
+        let resolved = Departure.resolve([trip], live: live, freshness: Freshness(live, now: now), isToday: true)
+        if let departure = resolved.first { candidates.append(AutoRideWatch.Candidate(route: route, departure: departure)) }
+        return candidates
     }
 
     /// The widget file (TT-182, D107) is written at launch, each time the app comes to the front (a widget placed or edited

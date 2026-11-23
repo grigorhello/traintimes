@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// The Testing page (TT-168, D57; TestFlight and Debug builds only): Demo trains as a glass switch with one line describing
-/// the chosen mode, Mock time as a switch that opens the date and time and the quick choices, Demo place with Automatic
-/// direction's last look under it (TT-234, D116), the Haptics page (TT-214), and Reset, which turns everything off and
-/// goes back to the real time. `DemoTrains` and `MockTime` behave as before.
+/// the chosen mode, and under Depart the automatic ride's demo with its last check (TT-242, D120), Mock time as a switch
+/// that opens the date and time and the quick choices, Demo place with Automatic direction's last look under it (TT-234,
+/// D116), the Haptics page (TT-214), and Reset, which turns everything off and goes back to the real time. `DemoTrains` and
+/// `MockTime` behave as before.
 struct SettingsTestingPage: View {
     @Bindable var viewModel: SettingsViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.timeFormatter) private var formatter
     @Environment(\.feedbackNudge) private var feedbackNudge
     /// "Play on Schedule" was tapped: the Feedback button asks on the next still Schedule (TT-228).
     @State private var nudgeQueued = false
@@ -18,7 +20,7 @@ struct SettingsTestingPage: View {
             content: {
                 VStack(alignment: .leading, spacing: TTSpace.s2) {
                     header("settings.demo_trains").settingsRise(order: 0)
-                    demoCard.settingsRise(order: 0)
+                    demoSection.settingsRise(order: 0)
                     header("settings.live_data").settingsRise(order: 1)
                     liveCard.settingsRise(order: 1)
                     header("settings.testing.time").settingsRise(order: 2)
@@ -29,6 +31,8 @@ struct SettingsTestingPage: View {
                     demoPlaceSection.settingsRise(order: 3)
                     toolCards.settingsRise(order: 4)
                 }
+                // Depart's Automatic ride and its Last check come and go with the rows under them moving together.
+                .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoAutoRide)
             }
         )
     }
@@ -102,6 +106,16 @@ struct SettingsTestingPage: View {
 
     // MARK: Demo trains
 
+    /// The Demo trains card, and under Depart the automatic ride's Last check below it (TT-242, D120).
+    private var demoSection: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s2) {
+            demoCard
+            if viewModel.showsDemoAutoRide {
+                lastCheck
+            }
+        }
+    }
+
     private var demoCard: some View {
         SettingsCard {
             VStack(alignment: .leading, spacing: 10) {
@@ -144,10 +158,65 @@ struct SettingsTestingPage: View {
                     .padding(.horizontal, 2)
                     .accessibilityIdentifier("settings.demoExpress")
                 }
+                if viewModel.showsDemoAutoRide {
+                    autoRide
+                }
             }
             .padding(TTSpace.s3)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoExpress)
+    }
+
+    // MARK: Automatic ride (TT-242, D120)
+
+    /// Under Depart: the demo watch decides whether the phone left Union with the 5:16 PM train, on the demo's clock. Off,
+    /// Boards, Stays and No feed on the same switch as Demo trains, with one line for the chosen mode.
+    private var autoRide: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("settings.demo_auto_ride")
+                .font(TTFont.body)
+                .foregroundStyle(TTColor.ink)
+                .padding(.horizontal, 2)
+                .padding(.top, TTSpace.s1)
+            GlassSwitch(
+                selection: $viewModel.demoAutoRide,
+                options: DemoAutoRide.allCases.map { mode -> GlassSwitch<DemoAutoRide>.Option in
+                    GlassSwitch<DemoAutoRide>.Option(
+                        value: mode, label: .text(mode.switchLabel), name: mode.switchLabel,
+                        identifier: "settings.demoAutoRide.\(mode.rawValue)"
+                    )
+                }
+            )
+            ZStack(alignment: .topLeading) {
+                ForEach(DemoAutoRide.allCases, id: \.self) { mode in
+                    Text(mode.switchDetail)
+                        .font(TTFont.footnote)
+                        .foregroundStyle(TTColor.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .opacity(mode == viewModel.demoAutoRide ? 1 : 0)
+                        .accessibilityHidden(mode != viewModel.demoAutoRide)
+                }
+            }
+            .padding(.horizontal, 2)
+            .animation(.easeOut(duration: 0.15), value: viewModel.demoAutoRide)
+        }
+    }
+
+    /// The last check: how the automatic ride's last watch ended, the seconds after the train left and when the hold reached
+    /// the server, kept for the run only. Information, so plain text under the card, as Last look; never a place.
+    private var lastCheck: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("settings.last_check").font(TTFont.footnote).foregroundStyle(TTColor.inkSecondary)
+            Text(verbatim: viewModel.lastCheckText(formatter: formatter))
+                .monospacedDigit()
+                .font(TTFont.subhead)
+                .foregroundStyle(TTColor.ink)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TTSpace.s4)
+        .padding(.top, TTSpace.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("settings.lastCheck")
     }
 
     /// One line for the chosen mode. All of them are laid on top of each other, so the card keeps the height of the longest and
@@ -342,6 +411,28 @@ private extension DemoTrains {
         case .awaitingPlatform: "settings.demo_trains.platform_detail"
         case .ride: "settings.demo_trains.ride_detail"
         case .departure: "settings.demo_trains.departure_detail"
+        }
+    }
+}
+
+private extension DemoAutoRide {
+    /// The word on the switch.
+    var switchLabel: LocalizedStringKey {
+        switch self {
+        case .off: "settings.demo_auto_ride.off"
+        case .boards: "settings.demo_auto_ride.boards"
+        case .stays: "settings.demo_auto_ride.stays"
+        case .noFeed: "settings.demo_auto_ride.no_feed"
+        }
+    }
+
+    /// The line under the switch for this mode.
+    var switchDetail: LocalizedStringKey {
+        switch self {
+        case .off: "settings.demo_auto_ride.off_detail"
+        case .boards: "settings.demo_auto_ride.boards_detail"
+        case .stays: "settings.demo_auto_ride.stays_detail"
+        case .noFeed: "settings.demo_auto_ride.no_feed_detail"
         }
     }
 }

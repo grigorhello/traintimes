@@ -69,9 +69,11 @@ actor RelayTrainPositions: TrainPositionProviding {
             let feedTime = body.timestamp ?? 0
             var trains: [String: (startDate: Int?, position: TrainPosition)] = [:]
             for train in body.trains {
+                // A train with no time of its own takes the feed's (TT-242, D120: an automatic start never counts it).
                 let reportedAt = Date(timeIntervalSince1970: train.timestamp ?? feedTime)
                 let position = TrainPosition(
-                    coordinate: GeoPoint(latitude: train.latitude, longitude: train.longitude), reportedAt: reportedAt
+                    coordinate: GeoPoint(latitude: train.latitude, longitude: train.longitude), reportedAt: reportedAt,
+                    hasVehicleTime: train.timestamp != nil
                 )
                 trains[train.tripId] = (train.startDate.flatMap(Int.init), position)
             }

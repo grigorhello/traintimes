@@ -4,7 +4,8 @@ import XCTest
 /// Yes starts the ride from Union to Clarkson and opens Trip details in ride mode. Closing the sheet keeps the ride and the
 /// strip opens it again; Done at your stop closes it and the strip goes (TT-221). TT-177: Demo trains › Departure counts
 /// down to the same train; the Live Activity's link opens its hero card (TT-205: Schedule has no countdown strip), and
-/// "I’m on board" turns it into the ride.
+/// "I’m on board" turns it into the ride. TT-242 (D120): with Demo trains › Depart › Automatic ride, the ride starts by itself
+/// when the demo phone leaves Union with the train, and not when it stays.
 final class OnBoardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -99,5 +100,51 @@ final class OnBoardTests: XCTestCase {
         XCTAssertTrue(ride.waitForExistence(timeout: 15), "Yes lands in the ride")
         app.buttons["trip.endRide"].tap()
         XCTAssertTrue(ride.waitForNonExistence(timeout: 15))
+    }
+
+    /// TT-242 (D120): with Automatic ride on Boards the demo phone leaves Union with the train, and the ride starts by itself
+    /// with no tap: ride mode opens over Schedule, and behind it the ride strip has taken the question's place. The train
+    /// leaves 90 s after launch at 10×, and the start comes about 10 s later (the question shows only for those seconds, so
+    /// it is not asserted).
+    @MainActor
+    func testDemoRideStartsByItselfWhenThePhoneLeavesWithTheTrain() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "departure"]
+            + LaunchArguments.demoAutoRide("boards")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
+        let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
+        let ride = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
+        XCTAssertFalse(strip.exists, "no ride before the train leaves")
+        XCTAssertFalse(ride.exists)
+
+        // Nothing is tapped until ride mode is up.
+        XCTAssertTrue(ride.waitForExistence(timeout: 150), "the ride starts by itself and ride mode opens")
+
+        // Closing the sheet keeps the ride: the strip is on Schedule.
+        app.buttons["trip.close"].tap()
+        XCTAssertTrue(ride.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(strip.waitForExistence(timeout: 15), "the ride strip on Schedule")
+        XCTAssertTrue(strip.label.contains("Clarkson"), strip.label)
+    }
+
+    /// TT-242 (D120): with Automatic ride on Stays the demo phone stays at Union while the train moves off: Schedule asks
+    /// "On board?" once the train has left, and no ride starts.
+    @MainActor
+    func testDemoRideDoesNotStartWhenThePhoneStays() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "departure"]
+            + LaunchArguments.demoAutoRide("stays")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
+        let question = app.descendants(matching: .any).matching(identifier: "schedule.question").firstMatch
+        XCTAssertTrue(question.waitForExistence(timeout: 130), "asks once the train has left")
+
+        // With Boards the ride starts about 10 s after the train leaves; Stays is watched for three times as long.
+        let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
+        XCTAssertFalse(strip.waitForExistence(timeout: 30), "no ride starts: the phone stayed at Union")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch.exists)
     }
 }

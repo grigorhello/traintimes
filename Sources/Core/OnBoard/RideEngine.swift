@@ -63,9 +63,10 @@ enum RideEvent: Equatable, Sendable {
 }
 
 /// The On board ride engine (TT-171, Live-Spec "one position, two sources"). A ride starts for one trip, service date,
-/// origin and destination, only when the rider asks (the button or the matcher's question, TT-172 and TT-175): it never
-/// starts on its own. A ride's start asks for When In Use location; so do the Automatic direction and Detect my train
-/// switches, and nothing asks at launch (D60 rule 4 as revised by D116).
+/// origin and destination when the rider asks (the button, the departure question's Yes or the matcher's question, TT-172,
+/// TT-231 and TT-175), or by itself on an alerted train the phone left the station with (`AutoRideWatch`, TT-242, D120),
+/// which asks for nothing. A start the rider asked for asks for When In Use location; so do the Automatic direction and
+/// Detect my train switches, and nothing asks at launch (D60 rule 4 as revised by D116 and D120).
 ///
 /// Position, phone first: GPS about once a second, each fix placed along the trip's track. After 60 s with no fix, the
 /// train feed's position (TT-179), then the timetable corrected by the last measured offset or the feed's delay. Phases
@@ -82,7 +83,7 @@ enum RideEvent: Equatable, Sendable {
 final class RideEngine: DirectionRideSource {
     static let fixTimeout: TimeInterval = 60
     /// A stationary fix holds this long, since iOS sends nothing while the phone does not move.
-    static let stationaryTimeout: TimeInterval = 10 * 60
+    nonisolated static let stationaryTimeout: TimeInterval = 10 * 60
     static let feedTimeout: TimeInterval = 90
     /// A train this close to a station is at it: a GO train and its platform are about 300 m long.
     static let stationRadius = 200.0
@@ -115,6 +116,9 @@ final class RideEngine: DirectionRideSource {
     /// How long and how often the ride screen was on screen during this ride, for `ride_ended` (TT-224, D106); the ride
     /// screen's `RideScreen` keeps it. A relaunch starts it again.
     @ObservationIgnored var watch = RideWatch()
+    /// How this ride started (TT-242, D120), saved with it, so `ride_ended` says it after a relaunch; nil for a ride saved
+    /// before the app kept it. Not `source`: `RideState.source` is what placed the train.
+    private(set) var startSource: RideStartSource?
 
     private let data: (any RideDataProviding)?
     private let location: any LocationProviding
@@ -142,6 +146,9 @@ final class RideEngine: DirectionRideSource {
     /// The last phase sent as `.phase`.
     @ObservationIgnored private var announcedPhase: RidePhase?
     @ObservationIgnored private var loop: Task<Void, Never>?
+    /// A start is awaiting its plan: another one returns false, so the automatic start and the rider's Yes never both begin
+    /// a ride (TT-242).
+    @ObservationIgnored private var isStarting = false
     @ObservationIgnored private var subscribers: [UUID: AsyncStream<RideEvent>.Continuation] = [:]
 
     /// `tickInterval` nil runs no timer: tests call `update()` and `refresh()` themselves. `defaults` nil keeps no ride on
@@ -187,16 +194,24 @@ final class RideEngine: DirectionRideSource {
 
     // MARK: Start, restore, end
 
-    /// Starts a ride the rider asked for. Asks for When In Use location here, the engine's only ask (the Automatic
-    /// direction and Detect my train switches ask it too, D116; nothing asks at launch); without it the ride runs on the
-    /// timetable. False when the trip does not run that day between those stations.
+    /// Starts a ride. One the rider asked for (`asks`) asks for When In Use location here, the engine's only ask (the
+    /// Automatic direction and Detect my train switches ask it too, D116; nothing asks at launch); without it the ride runs
+    /// on the timetable. An automatic start (`asks` false, TT-242, D120) never asks: a prompt from the background would
+    /// never be answered, so it goes by what is allowed. False when the trip does not run that day between those stations,
+    /// or while another start awaits its plan.
     @discardableResult
-    func start(_ ride: Ride) async -> Bool {
+    func start(_ ride: Ride, source: RideStartSource = .onBoard, asks: Bool = true) async -> Bool {
+        guard !isStarting else { return false }
+        isStarting = true
+        defer { isStarting = false }
         guard let data, let plan = try? await data.ridePlan(for: ride), plan.stops.count >= 2 else { return false }
-        let allowed = await location.requestWhenInUse()
+        let allowed = asks ? await location.requestWhenInUse() : location.isAuthorized
         let status = await data.rideStatus(for: ride)
         stopTracking()
-        begin(ride, plan: plan, saved: SavedRide(ride: ride, startedAt: clock.now), status: status, tracksLocation: allowed)
+        begin(
+            ride, plan: plan, saved: SavedRide(ride: ride, startedAt: clock.now, startSource: source), status: status,
+            tracksLocation: allowed
+        )
         return true
     }
 
@@ -247,6 +262,7 @@ final class RideEngine: DirectionRideSource {
         self.status = status
         state = nil
         startedAt = saved.startedAt
+        startSource = saved.startSource
         watch = RideWatch()
         arrivedAt = saved.arrivedAt
         fix = nil
@@ -271,7 +287,8 @@ final class RideEngine: DirectionRideSource {
         startLoop()
     }
 
-    private func end(_ reason: RideEndReason) {
+    /// Ends the ride for `reason`; End ride is `end()`.
+    func end(_ reason: RideEndReason) {
         guard var ended = state, ended.phase != .ended else { return }
         stopTracking()
         let atStop = ended.phase == .atYourStop
@@ -283,7 +300,9 @@ final class RideEngine: DirectionRideSource {
         if atStop, phoneReachedYourStop, let ride {
             arrival = RideArrival(stopId: ride.destinationId, at: clock.now)
         }
-        Analytics.track(.rideEnded(reason, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens))
+        Analytics.track(.rideEnded(
+            reason, source: startSource, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens
+        ))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
         emit(.phase(.ended))
@@ -560,6 +579,8 @@ struct SavedRide: Codable, Equatable {
     var arrivalGuessed: Bool?
     var announcedArriving: Bool?
     var lastUpdate: Date?
+    /// How the ride started (TT-242); nil in a ride saved before it was kept.
+    var startSource: RideStartSource?
 
     static func read(from defaults: UserDefaults?, key: String) -> SavedRide? {
         defaults?.data(forKey: key).flatMap { try? JSONDecoder().decode(SavedRide.self, from: $0) }

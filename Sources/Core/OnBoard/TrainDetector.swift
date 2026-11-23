@@ -11,7 +11,8 @@ protocol TrainCandidatesProviding: Sendable {
 /// Train detection in the app (TT-175, Live-Spec "Three doors into a ride", the middle one): while Schedule or Trip details
 /// is open and When In Use is already allowed, the phone's fixes run `TrainMatcher` against the trains on the route, and
 /// the screen shows its checking strip and its question. It never asks for location, it stops when the screen goes, and it
-/// never starts a ride: the rider's Yes does (`OnBoard.accept`). No silences the question's trains for the day.
+/// never starts a ride: the rider's Yes does (`OnBoard.accept`). No silences the question's trains for the day. A ride
+/// also starts by itself, but only on an alerted train and through `AutoRideWatch`, never from here (TT-242, D120).
 @Observable @MainActor
 final class TrainDetector {
     static let silencedKey = DetectionStore.silencedKey

@@ -394,11 +394,11 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
     @discardableResult
     func report(_ activity: LiveActivityReport) async -> Bool {
         guard !rules.isEmpty else {
-            // No alert left: the server watches no train, so only a hand-off or a removed card still matters (TT-240).
-            // The server ends a card whose alert is gone, and a handed-off one is the ride now (or was answered No); a
-            // removed one must not stop a fresh card after Undo. An installation the server does not know has no card
-            // there, and is not registered for this.
-            guard activity.handedOff || activity.removed else { return true }
+            // No alert left: the server watches no train, so only a hand-off, a removed card or the automatic ride's hold
+            // still matters (TT-240, TT-242). The server ends a card whose alert is gone, and a handed-off one is the ride
+            // now (or was answered No); a removed one must not stop a fresh card after Undo. An installation the server does
+            // not know has no card there, and is not registered for this.
+            guard activity.handedOff || activity.removed || activity.holds != nil else { return true }
             do {
                 try await server.report(activity, installation: installation)
                 return true

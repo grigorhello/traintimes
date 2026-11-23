@@ -76,8 +76,8 @@ enum TripOpenSource: String, Sendable {
     case schedule, notification, ride, departure, detection, link
 }
 
-/// How a ride started.
-enum RideStartSource: String, Sendable {
+/// How a ride started. Saved with the ride (`SavedRide.startSource`), so `ride_ended` can say it after a relaunch.
+enum RideStartSource: String, Codable, Sendable {
     /// "I'm on board" in Trip details.
     case onBoard = "on_board"
     /// Yes on the train detection question on Schedule.
@@ -86,6 +86,8 @@ enum RideStartSource: String, Sendable {
     case notification
     /// Yes on the departure question: the Live Activity card, its notification or Schedule's strip (TT-231).
     case departure
+    /// By itself, on an alerted train the phone left the station with (TT-242, D120, `AutoRideWatch`).
+    case auto
 }
 
 /// Where an alert was removed.
@@ -199,9 +201,16 @@ extension AnalyticsEvent {
         Self("train_departed", ["source": .string(source.rawValue), "seconds_after": .int(secondsAfter)])
     }
 
-    /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232).
-    static func rideStarted(source: RideStartSource, demo: Bool, plan: RidePlan? = nil) -> Self {
-        Self("ride_started", [
+    /// `plan`: the ride's plan, for the express tag and how many stations it passes without stopping (TT-232). A ride that
+    /// started by itself (`auto`, TT-242, D120) carries `seconds_after` instead, the whole seconds from the train leaving to
+    /// the start, and nothing about the train.
+    static func rideStarted(source: RideStartSource, demo: Bool, plan: RidePlan? = nil, secondsAfter: Int? = nil) -> Self {
+        if source == .auto {
+            return Self("ride_started", [
+                "source": .string(source.rawValue), "demo": .bool(demo), "seconds_after": .int(secondsAfter ?? 0),
+            ])
+        }
+        return Self("ride_started", [
             "source": .string(source.rawValue), "demo": .bool(demo),
             "express": .bool(plan?.isExpress ?? false), "skipped_stations": .int(plan?.skipped.count ?? 0),
         ])
@@ -209,17 +218,32 @@ extension AnalyticsEvent {
 
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
     /// read as giving up (TT-221). `watchedSeconds` and `opens`: how long, in whole seconds, and how many times the ride
-    /// screen was on screen during the ride (TT-224, D106).
-    static func rideEnded(_ reason: RideEndReason, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0) -> Self {
+    /// screen was on screen during the ride (TT-224, D106). `source`: how the ride started (TT-242), left out for a ride
+    /// saved before the app kept it.
+    static func rideEnded(
+        _ reason: RideEndReason, source: RideStartSource? = nil, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0
+    ) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
         case .arrived: "arrived"
         case .leftTheLine: "left_the_line"
         case .cancelled: "cancelled"
         }
-        return Self("ride_ended", [
+        var properties: [String: AnalyticsValue] = [
             "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
-        ])
+        ]
+        if let source { properties["source"] = .string(source.rawValue) }
+        return Self("ride_ended", properties)
+    }
+
+    /// The automatic ride's watch on an alerted train finished (TT-242, D120), once per train and day: how (`outcome`), why
+    /// it could not tell (`reason`, on `unsure` only), the whole seconds after the train left (when it had left) and
+    /// whether it was the Testing demo. No station, line, trip or place.
+    static func autoRideChecked(_ check: AutoRideCheck, demo: Bool) -> Self {
+        var properties: [String: AnalyticsValue] = ["outcome": .string(check.outcome.rawValue), "demo": .bool(demo)]
+        if check.outcome == .unsure, let reason = check.reason { properties["reason"] = .string(reason.rawValue) }
+        if let seconds = check.secondsAfter { properties["seconds_after"] = .int(seconds) }
+        return Self("auto_ride_checked", properties)
     }
 
     /// The arrival wish on screen with the app active, once per ride (TT-223, D103).

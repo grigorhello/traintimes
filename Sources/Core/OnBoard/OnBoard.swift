@@ -55,6 +55,14 @@ final class OnBoard {
     private(set) var departureAsk: DepartureAsk?
     /// Demo departures declined while the app runs: the demo is not kept on device.
     @ObservationIgnored private var declinedDemo: Set<Ride> = []
+    /// The app's automatic ride watch (TT-242, D120, `AppDelegate.autoRide`); nil in fixture runs, previews and tests.
+    let autoRide: AutoRideWatch?
+    /// Settings › Testing › Demo trains › Depart › Automatic ride: the demo watch while the demo departure plays.
+    private(set) var autoRideDemo: AutoRideWatch?
+    private var demoAutoRideMode: DemoAutoRide = .off
+    private let makeAutoRideDemo: @MainActor (DemoDeparture.Session, DemoAutoRide, OnBoard) -> AutoRideWatch
+    /// Arms the demo watch on each play of the demo before its train leaves.
+    @ObservationIgnored private var autoRideDemoLoop: Task<Void, Never>?
 
     init(
         app: RideEngine?,
@@ -72,8 +80,14 @@ final class OnBoard {
         wishes: ArrivalWishes? = nil,
         haptics: any HapticPlaying = TTHaptics.shared,
         screen: RideScreen? = nil,
-        declines: UserDefaults? = nil
+        declines: UserDefaults? = nil,
+        autoRide: AutoRideWatch? = nil,
+        makeAutoRideDemo: @escaping @MainActor (DemoDeparture.Session, DemoAutoRide, OnBoard) -> AutoRideWatch = {
+            OnBoard.demoWatch(session: $0, mode: $1, onBoard: $2)
+        }
     ) {
+        self.autoRide = autoRide
+        self.makeAutoRideDemo = makeAutoRideDemo
         self.haptics = haptics
         self.declines = declines
         self.app = app
@@ -143,7 +157,7 @@ final class OnBoard {
             demoIsHandOff = false
         }
         guard let app, demo == nil else { return false }
-        let started = await app.start(ride)
+        let started = await app.start(ride, source: source)
         guard started else { return false }
         Analytics.track(.rideStarted(source: source, demo: false, plan: app.plan))
         self.route = route
@@ -198,9 +212,13 @@ final class OnBoard {
     /// its "I’m on board" started.
     func setDemoDeparture(_ isOn: Bool) {
         if isOn {
-            if departureDemo == nil { departureDemo = makeDeparture() }
+            if departureDemo == nil {
+                departureDemo = makeDeparture()
+                startAutoRideDemo()
+            }
         } else {
             departureDemo = nil
+            startAutoRideDemo()
             if demoIsHandOff {
                 dropDemoNudge()
                 demo?.end()
@@ -212,15 +230,15 @@ final class OnBoard {
 
     /// "I’m on board" in the demo departure: the demo ride starts from the demo's time. It takes the sheet over only once
     /// it runs, in one update, so the departure card turns into the ride with nothing between them. False when no demo
-    /// departure plays or the ride did not start.
+    /// departure plays or the ride did not start. `source`: how it started, `auto` for the demo watch (TT-242).
     @discardableResult
-    func handOffDemo() async -> Bool {
+    func handOffDemo(source: RideStartSource = .onBoard) async -> Bool {
         guard let session = departureDemo else { return false }
         let handOff = makeHandOff(session)
         // Its own arriving nudge (TT-173), following before the ride starts so it sees the first update.
         let handOffNudge = makeDemoNudge()
         handOffNudge?.follow(handOff.engine)
-        guard await handOff.engine.start(handOff.ride) else {
+        guard await handOff.engine.start(handOff.ride, source: source) else {
             handOffNudge?.stop()
             return false
         }
@@ -252,6 +270,68 @@ final class OnBoard {
         demo = session.engine
         demoIsHandOff = true
         return true
+    }
+
+    // MARK: Automatic ride (TT-242, D120)
+
+    /// The ride that started by itself, the demo's or the app's, and when: ride mode opens once for it (`RootView`).
+    var autoRideStarted: AutoRideWatch.Started? {
+        autoRideDemo?.started ?? autoRide?.started
+    }
+
+    /// Settings › Testing › Last check: the demo watch's while it plays, else the app's.
+    var autoRideCheck: AutoRideCheck? {
+        autoRideDemo?.lastCheck ?? autoRide?.lastCheck
+    }
+
+    /// Settings › Testing › Demo trains › Depart › Automatic ride changed (TT-242): the demo watch starts again with it.
+    func setDemoAutoRide(_ mode: DemoAutoRide) {
+        guard mode != demoAutoRideMode else { return }
+        demoAutoRideMode = mode
+        startAutoRideDemo()
+    }
+
+    /// The demo watch for the chosen mode while the demo departure plays, armed on each play before its train leaves and
+    /// while no ride runs; none otherwise.
+    private func startAutoRideDemo() {
+        autoRideDemoLoop?.cancel()
+        autoRideDemoLoop = nil
+        autoRideDemo?.stop()
+        autoRideDemo = nil
+        guard demoAutoRideMode != .off, let session = departureDemo else { return }
+        let watch = makeAutoRideDemo(session, demoAutoRideMode, self)
+        autoRideDemo = watch
+        armAutoRideDemo()
+        autoRideDemoLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                self?.armAutoRideDemo()
+            }
+        }
+    }
+
+    /// Arms the demo watch when it watches nothing, no ride runs and the demo's train has not left yet. A watch the demo's
+    /// clock went back on (its next play from 5:01 PM) ends as its question would have.
+    func armAutoRideDemo() {
+        guard let watch = autoRideDemo, let session = departureDemo else { return }
+        let now = session.now
+        if let watched = watch.watched, now < max(watched.armedAt, watched.lastLook ?? watched.armedAt) {
+            watch.questionEnded()
+        }
+        guard watch.watched == nil, activeRide == nil else { return }
+        guard let candidate = AutoRideDemo.candidate(session, at: now), now < candidate.departure else { return }
+        watch.watchDemo(candidate, plan: AutoRideDemo.plan(on: session.day))
+    }
+
+    /// The demo watch as Settings › Testing plays it: its start is the demo departure's hand-off.
+    static func demoWatch(session: DemoDeparture.Session, mode: DemoAutoRide, onBoard: OnBoard) -> AutoRideWatch {
+        AutoRideDemo.watch(
+            session: session, mode: mode,
+            start: { [weak onBoard] _ in await onBoard?.handOffDemo(source: .auto) ?? false },
+            rideRuns: { [weak onBoard] in onBoard?.activeRide != nil },
+            isDeclined: { [weak onBoard] key in onBoard?.declinedDemo.contains { $0.tripKey == key } ?? false }
+        )
     }
 
     // MARK: Train detection (TT-175)
@@ -307,7 +387,7 @@ final class OnBoard {
             let session = makeDemo(moment)
             demo = session.engine
             followDemo(session.engine)
-            let started = await session.engine.start(session.ride)
+            let started = await session.engine.start(session.ride, source: .detection)
             Analytics.track(.detectionAnswered(yes: true))
             if started { Analytics.track(.rideStarted(source: .detection, demo: true, plan: session.engine.plan)) }
             // The question stays until the ride shows, so the strip goes straight from one to the other.
@@ -362,7 +442,7 @@ final class OnBoard {
         Analytics.track(.departureQuestionAnswered(yes: true, surface: .schedule))
         let started: Bool
         if ask.isDemo {
-            started = await handOffDemo()
+            started = await handOffDemo(source: .departure)
             if started { Analytics.track(.rideStarted(source: .departure, demo: true)) }
         } else {
             started = await start(ask.ride, on: ask.route, source: .departure)

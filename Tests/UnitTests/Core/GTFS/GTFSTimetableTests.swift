@@ -120,6 +120,55 @@ final class GTFSTimetableTests: XCTestCase {
         XCTAssertTrue(try timetable().stops(of: "20261109-LW-1858", from: "OA", to: "UN", on: sunday).isEmpty)
     }
 
+    /// TT-242 (D120): every train leaving a station that day, either line and either way, by scheduled departure; trains
+    /// that end there, and the bus, are left out.
+    func testDeparturesFromAStation() throws {
+        let timetable = try timetable()
+        let union = timetable.departures(from: "UN", on: friday)
+        XCTAssertEqual(union.count, 88)
+        XCTAssertEqual(Set(union.map { $0.trip.tripId.split(separator: "-")[1] }), ["LW", "GT"], "Lakeshore West and Kitchener")
+        XCTAssertEqual(union.prefix(2).map(\.trip.tripId), ["20261127-LW-1005", "20261127-GT-3205"])
+        XCTAssertEqual(union.first?.departure, utc("2026-11-27T11:10:00Z")) // 6:10 AM
+        XCTAssertEqual(union.last?.trip, TripKey(serviceDay: friday, tripId: "20261127-LW-1641"))
+        XCTAssertEqual(union.last?.departure, utc("2026-11-28T05:47:00Z"), "24:47:00 is 12:47 AM the next morning")
+        XCTAssertEqual(union.map(\.departure), union.map(\.departure).sorted())
+        XCTAssertTrue(
+            Set(union.map(\.trip.tripId)).isDisjoint(with: ids(timetable.trips(from: "OA", to: "UN", on: friday))),
+            "Trains into Union end there"
+        )
+        XCTAssertTrue(union.allSatisfy { $0.shape == nil && $0.along == nil }, "The sample has no shapes.txt")
+
+        let oakville = timetable.departures(from: "OA", on: monday)
+        XCTAssertEqual(oakville.count, 88)
+        let morning = oakville.filter { $0.departure >= utc("2026-11-09T12:00:00Z") && $0.departure <= utc("2026-11-09T12:30:00Z") }
+        XCTAssertEqual(
+            morning.map(\.trip.tripId), ["20261109-LW-1256", "20261109-LW-1108", "20261109-LW-1605", "20261109-LW-1858"],
+            "7:00 to 7:30 AM both ways, the 7:00 bus left out, the two 7:21 trains by trip id"
+        )
+        let endingHere: Set = ["20261109-LW-1125", "20261109-LW-1127", "20261109-LW-1323", "20261109-LW-1325"]
+        XCTAssertFalse(oakville.contains { endingHere.contains($0.trip.tripId) }, "Union to Oakville trains end there")
+        XCTAssertTrue(timetable.departures(from: "OA", on: ServiceDay(year: 2026, month: 11, day: 10)).isEmpty)
+        XCTAssertTrue(timetable.departures(from: "XX", on: monday).isEmpty)
+    }
+
+    /// Each departure carries its trip's track, with the station placed on it as a ride plan places it (TT-242). The
+    /// sample has no shapes.txt, so On board's synthetic Lakeshore West track (shape UNAL) stands in.
+    func testDeparturesCarryTheTrackAsRidePlansPlaceTheStation() throws {
+        let timetable = try OnBoardFixtures.timetable()
+        let track = try XCTUnwrap(OnBoardFixtures.plan().track)
+        let friday = OnBoardFixtures.friday
+        let union = timetable.departures(from: "UN", on: friday)
+        let train = try XCTUnwrap(union.first { $0.trip == OnBoardFixtures.ride.tripKey })
+        XCTAssertEqual(train.shape, track.shape)
+        XCTAssertEqual(train.along, track.stopDistances.first)
+        let atClarkson = try XCTUnwrap(timetable.departures(from: "CL", on: friday).first { $0.trip == OnBoardFixtures.ride.tripKey })
+        XCTAssertEqual(atClarkson.shape, track.shape)
+        XCTAssertEqual(try XCTUnwrap(atClarkson.along), try XCTUnwrap(track.stopDistances.last), accuracy: 1)
+        let kitchener = try XCTUnwrap(union.first { $0.trip.tripId == "20261127-GT-3205" })
+        XCTAssertNil(kitchener.shape, "Its track is not in the shapes")
+        XCTAssertNil(kitchener.along)
+    }
+
     func testStoredFeedReadsBackTheSame() throws {
         let feed = try GTFSFeed(zip: Self.sampleZip(), importedAt: utc("2026-11-07T12:00:00Z"))
         XCTAssertEqual(try JSONDecoder().decode(GTFSFeed.self, from: JSONEncoder().encode(feed)), feed)

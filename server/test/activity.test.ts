@@ -505,6 +505,219 @@ describe('a card whose alert is gone (TT-240)', () => {
   });
 });
 
+describe('the hold while the app decides (TT-242)', () => {
+  const ASK_ALERT = { title: 'On the 7:13 AM train?', body: '', sound: 'default' };
+  /** The 7:13's question, as stored once it asked, and with the question's mark taken off. */
+  const ASKED = 'departed|7:13 AM departed||||asks';
+  const RELEASED = 'departed|7:13 AM departed|||';
+  const activity = () => db.prepare('SELECT token, state, shown FROM activities').first<{ token: string | null; state: string; shown: string | null }>();
+  const stateOf = async () => (await activity())?.state;
+  const rows = () => db.prepare('SELECT COUNT(*) AS n FROM activities').first<{ n: number }>().then((row) => row!.n);
+  const questions = () => apns.pushes.filter((push) => push.category === 'depart.question').length;
+
+  /** The server's card for the 7:13 is up with its token, and the app's watch armed with the card on the phone: it holds at once. */
+  async function held() {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    assert.equal((await report({ holds: true })).status, 204);
+    assert.equal(await stateOf(), 'holding');
+  }
+
+  test('held: the card is followed, and its question comes with no alert and no notification', async () => {
+    await held();
+    assert.equal((await cycle('6:44:00'))[0].event, 'update', 'The minutes go on');
+    const [boarding] = await cycle('7:11:30');
+    assert.equal(boarding['content-state'].phase, 'boarding');
+    const [asking] = await cycle('7:13:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal(asking.alert, undefined, 'No buzz while the app decides');
+    assert.equal(apns.pushes.length, 0, 'No notification');
+    assert.deepEqual(await cycle('7:19:30'), [], 'Nothing more before the hold ends');
+    assert.equal(await stateOf(), 'holding');
+  });
+
+  test('a token report during the hold (a relaunch in the background) keeps it held and silent', async () => {
+    await held();
+    assert.equal((await report({ token: ACTIVITY_TOKEN })).status, 204);
+    assert.equal((await report({})).status, 204, 'The app’s own card start');
+    assert.equal(await stateOf(), 'holding');
+    const [asking] = await cycle('7:13:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal(asking.alert, undefined);
+    assert.equal(apns.pushes.length, 0);
+  });
+
+  test('holds: false with no held row makes no row and changes nothing', async () => {
+    await setUp();
+    assert.equal((await report({ holds: false })).status, 204);
+    assert.equal(await rows(), 0, 'A row with no token would keep the server from starting the card');
+    assert.equal((await cycle('6:43:00'))[0].event, 'start');
+    await report({ token: ACTIVITY_TOKEN });
+    await report({ holds: false });
+    assert.equal(await stateOf(), 'started');
+    await report({ asked: true });
+    await report({ holds: false });
+    assert.equal(await stateOf(), 'asked', 'Only a held row is let go');
+    await report({ holds: true });
+    assert.equal(await stateOf(), 'asked', 'A hold never takes a silent question back');
+  });
+
+  test('let go: the question goes again at the next cycle, with its alert', async () => {
+    await held();
+    const [silent] = await cycle('7:13:30');
+    assert.equal(silent.alert, undefined);
+    assert.equal((await report({ holds: false })).status, 204, 'Can’t tell, with the app in the background');
+    assert.deepEqual(await activity(), { token: ACTIVITY_TOKEN, state: 'started', shown: RELEASED }, 'The question’s mark comes off; `shown` stays');
+    const [asking] = await cycle('7:14:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.deepEqual(asking.alert, ASK_ALERT, 'One buzz');
+    assert.equal(apns.pushes.length, 0, 'With a card, no notification');
+    assert.deepEqual(await cycle('7:15:30'), [], 'Asked once');
+    assert.equal((await activity())!.shown, ASKED);
+  });
+
+  test('let go, then the alert removed before the next cycle: the sweep still sees the card and ends it', async () => {
+    await held();
+    await cycle('7:13:30');
+    await report({ holds: false });
+    await deleteRule();
+    const [end] = await cycle('7:14:30');
+    assert.equal(end.event, 'end');
+    assert.equal(end['content-state'].title, '7:13 AM departed', 'The line it last showed');
+    assert.equal(await rows(), 0);
+    assert.equal(apns.pushes.length, 0);
+  });
+
+  test('the app never lets go: the hold ends by itself 7 min after the train left, and the question buzzes once', async () => {
+    await held();
+    assert.equal((await cycle('7:13:30'))[0].alert, undefined);
+    assert.deepEqual(await cycle('7:19:59'), []);
+    const [asking] = await cycle('7:20:00');
+    assert.equal(asking['content-state'].asks, true);
+    assert.deepEqual(asking.alert, ASK_ALERT);
+    assert.equal(await stateOf(), 'started');
+    assert.deepEqual(await cycle('7:21:00'), [], 'Once');
+    assert.equal((await cycle('7:23:00'))[0].event, 'end', 'The question still ends at its time');
+    assert.equal(apns.pushes.length, 0, 'With a card, no notification');
+  });
+
+  test('a late train: the hold ends 7 min after its expected departure', async () => {
+    await held();
+    const [silent] = await cycle('7:17:30', delayFeed('7:17', 4));
+    assert.equal(silent['content-state'].asks, true);
+    assert.equal(silent.alert, undefined);
+    assert.deepEqual(await cycle('7:23:59', delayFeed('7:23', 4)), []);
+    const [asking] = await cycle('7:24:00', delayFeed('7:24', 4));
+    assert.deepEqual(asking.alert, ASK_ALERT);
+  });
+
+  test('a 6 min ride: the hold ends 90 s before the question does', async () => {
+    // The 7:07 from Bronte to Oakville, the same train: the question ends at the rider's stop at 7:13.
+    const stations = { originId: 'BO', destinationId: 'OA' };
+    assert.equal((await call(api, 'PUT', `/v1/installations/${INSTALLATION}`, { deviceToken: TOKEN, timeFormat: '12h', startToken: START_TOKEN })).status, 204);
+    const bronte = { origin: { id: 'BO', name: 'Bronte GO' }, destination: { id: 'OA', name: 'Oakville GO' }, scheduledDeparture: new Date(at('7:07')).toISOString() };
+    assert.equal((await saveRule(bronte)).status, 200);
+    assert.equal((await cycle('6:37:00'))[0].event, 'start');
+    await report({ ...stations, token: ACTIVITY_TOKEN });
+    await report({ ...stations, holds: true });
+    const [silent] = await cycle('7:07:30');
+    assert.equal(silent['content-state'].asks, true);
+    assert.equal(silent.alert, undefined);
+    assert.equal(silent['stale-date'], at('7:13') / 1000);
+    assert.deepEqual(await cycle('7:11:29'), []);
+    const [asking] = await cycle('7:11:30');
+    assert.deepEqual(asking.alert, { title: 'On the 7:07 AM train?', body: '', sound: 'default' }, 'Inside the ride’s window');
+  });
+
+  test('the app asks itself during the hold (in front, or not on board): silent to the end', async () => {
+    await held();
+    assert.equal((await report({ asked: true })).status, 204);
+    assert.equal(await stateOf(), 'asked');
+    const [asking] = await cycle('7:13:30');
+    assert.equal(asking['content-state'].asks, true);
+    assert.equal(asking.alert, undefined);
+    assert.deepEqual(await cycle('7:20:00'), [], 'No hold left to end');
+    assert.equal((await cycle('7:23:00'))[0].event, 'end');
+    assert.equal(apns.pushes.length, 0);
+    assert.ok(apns.activityPushes.slice(1).every((push) => !(push.payload as { aps: { alert?: unknown } }).aps.alert), 'No buzz after the start');
+  });
+
+  test('the ride starts during the hold: nothing more is sent', async () => {
+    await held();
+    assert.equal((await cycle('7:13:30'))[0].alert, undefined);
+    assert.equal((await report({ handedOff: true })).status, 204);
+    assert.equal(await stateOf(), 'handedOff');
+    await report({ holds: false });
+    assert.equal(await stateOf(), 'handedOff', 'A late let-go changes nothing');
+    assert.deepEqual(await cycle('7:15:00'), []);
+    assert.deepEqual(await cycle('7:20:00'), [], 'No hold to end');
+    assert.deepEqual(await cycle('7:23:00'), [], 'No end: it is the ride’s card');
+    assert.equal(apns.pushes.length, 0);
+  });
+
+  test('a hold with no card to reach: no notification until the app lets go', async () => {
+    await setUp(INSTALLATION, null);
+    assert.equal((await report({ holds: true })).status, 204, 'From L − 120 s, with no card');
+    assert.deepEqual(await activity(), { token: null, state: 'holding', shown: null });
+    await cycle('7:13:30');
+    await cycle('7:15:30');
+    assert.equal(questions(), 0);
+    await report({ holds: false });
+    await cycle('7:16:30');
+    assert.equal(questions(), 1, 'The question as a notification');
+    await cycle('7:17:30');
+    assert.equal(questions(), 1, 'Once');
+  });
+
+  test('a hold with no card to reach, and the app never lets go: the notification at the hold’s end', async () => {
+    await setUp(INSTALLATION, null);
+    await report({ holds: true });
+    await cycle('7:13:30');
+    await cycle('7:19:59');
+    assert.equal(questions(), 0);
+    await cycle('7:20:00');
+    assert.equal(questions(), 1);
+    assert.equal(apns.pushes[0].title, 'On the 7:13 AM train?');
+    assert.equal(await stateOf(), 'notified');
+    await cycle('7:21:00');
+    assert.equal(questions(), 1, 'Once');
+  });
+
+  test('the alert removed during the hold, then Undo: a fresh card starts', async () => {
+    await held();
+    assert.equal((await report({ removed: true })).status, 204);
+    assert.deepEqual({ ...(await activity()), shown: undefined }, { token: null, state: 'removed', shown: undefined });
+    assert.deepEqual(await cycle('6:45:00'), [], 'Nothing follows the ended card');
+    await deleteRule();
+    assert.equal((await saveRule()).status, 200, 'Undo');
+    assert.equal(await rows(), 0, 'The removed card is forgotten');
+    const [start] = await cycle('6:46:00');
+    assert.equal(start.event, 'start');
+    assert.equal(apns.activityPushes.at(-1)!.token, START_TOKEN);
+  });
+
+  test('the alert gone during the hold: the sweep ends the held card', async () => {
+    await held();
+    await deleteRule();
+    const [end] = await cycle('6:45:00');
+    assert.equal(end.event, 'end');
+    assert.equal(await rows(), 0);
+
+    // A held card the app started that no cycle followed yet: the rule's DELETE releases it to the sweep too.
+    db = memoryD1();
+    apns = new FakeApns();
+    await saveSampleTimetables(db, ['20261109']);
+    await setUp();
+    await report({});
+    await report({ token: ACTIVITY_TOKEN });
+    await report({ holds: true });
+    await deleteRule();
+    assert.equal((await cycle('6:45:00'))[0].event, 'end');
+    assert.equal(await rows(), 0);
+  });
+});
+
 describe('the rules', () => {
   const train: Departure = { scheduled: at('7:13'), scheduledArrival: at('7:47'), status: null, origin: 'Oakville GO', destination: 'Union Station GO' };
 
@@ -581,6 +794,8 @@ describe('the API', () => {
     assert.deepEqual(await report({ serviceDate: 'today' }), { status: 400, json: { error: 'invalid', field: 'serviceDate' } });
     assert.deepEqual(await report({ handedOff: 'yes' }), { status: 400, json: { error: 'invalid', field: 'handedOff' } });
     assert.deepEqual(await report({ asked: 'yes' }), { status: 400, json: { error: 'invalid', field: 'asked' } });
+    assert.deepEqual(await report({ holds: 'yes' }), { status: 400, json: { error: 'invalid', field: 'holds' } });
+    assert.deepEqual(await report({ holds: null }), { status: 400, json: { error: 'invalid', field: 'holds' } });
     assert.equal((await call(api, 'GET', `/v1/installations/${INSTALLATION}/activities`)).status, 405);
   });
 

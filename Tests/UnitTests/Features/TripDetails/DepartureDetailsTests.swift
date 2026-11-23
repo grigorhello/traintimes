@@ -168,6 +168,31 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertEqual(onBoard.activeRide?.tripId, "LW-REAL")
     }
 
+    /// TT-242 (D120): the ride starts by itself while the train's Trip details is open: the sheet adopts it in place, at
+    /// rest, as if "I’m on board" had been tapped there; ride mode opened by the app for it is drawn at rest too.
+    func testARideThatStartsByItselfIsAdoptedInPlace() async throws {
+        let rig = DepartureRig.started(at: DepartureRig.time(17, 17))
+        let model = await rig.tripDetails()
+        XCTAssertFalse(model.isRiding)
+        XCTAssertFalse(model.ridesInPlace)
+        model.adoptRide()
+        XCTAssertFalse(model.ridesInPlace, "Nothing to adopt before a ride runs")
+
+        let started = await rig.onBoard.handOffDemo(source: .auto)
+        XCTAssertTrue(started)
+        XCTAssertTrue(model.isRiding)
+        model.adoptRide()
+        XCTAssertTrue(model.ridesInPlace)
+        rig.onBoard.engine?.end(.arrived)
+        XCTAssertTrue(model.isRiding, "The sheet follows the ride: Ride complete stays until it closes")
+
+        let opened = TripDetailsViewModel(
+            route: DemoRide.route, key: rig.key, repository: StubScheduleRepository(tripList: [], live: .empty, stopList: []),
+            clock: rig.clock, onBoard: rig.onBoard, ridesInPlace: true
+        )
+        XCTAssertTrue(opened.ridesInPlace)
+    }
+
     // MARK: Real trains
 
     /// The fixture route at 7:29 AM: the 7:32 AM and 7:58 AM trains are both in their window.

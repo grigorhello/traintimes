@@ -24,6 +24,11 @@ final class AppSettings {
         didSet { defaults.set(demoExpress, forKey: DemoRide.expressKey) }
     }
 
+    /// Settings › Testing › Automatic ride (TT-242, D120): the demo watch under Depart.
+    var demoAutoRide: DemoAutoRide {
+        didSet { defaults.set(demoAutoRide.rawValue, forKey: DemoAutoRide.key) }
+    }
+
     /// Settings › Testing › Live data (TT-195), shown in TestFlight and Debug builds only.
     var mockLive: MockLive {
         didSet { defaults.set(mockLive.rawValue, forKey: MockLive.key) }
@@ -54,6 +59,7 @@ final class AppSettings {
         timeFormat = defaults.string(forKey: Self.timeFormatKey).flatMap(TimeFormat.init(rawValue:)) ?? .device
         demoTrains = defaults.string(forKey: DemoTrains.key).flatMap(DemoTrains.init(rawValue:)) ?? .off
         demoExpress = defaults.bool(forKey: DemoRide.expressKey)
+        demoAutoRide = defaults.string(forKey: DemoAutoRide.key).flatMap(DemoAutoRide.init(rawValue:)) ?? .off
         mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off
         mockTime = MockTime.read(from: defaults)
         demoWeather = defaults.string(forKey: DemoWeather.key) == "on"

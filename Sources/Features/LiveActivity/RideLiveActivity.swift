@@ -46,6 +46,8 @@ final class RideLiveActivity: RideActivityFollowing {
     /// With the app in front this long before the train's time, or after it has left, the server asks without an alert
     /// (TT-231): told ahead of its minute cycle. Only on the clock: see `asksSilently(_:now:)`.
     static let silenceLead: TimeInterval = 75
+    /// A hand-off waits this long for the server's answer before the card turns into the ride (TT-242, D120).
+    nonisolated static let handOffWait: Duration = .seconds(5)
 
     private let app: RideEngine?
     private var demo: RideEngine?
@@ -90,6 +92,9 @@ final class RideLiveActivity: RideActivityFollowing {
     private var startToken: String?
     /// The trains the server was told to ask about silently: the app was in front as they left (TT-231).
     private var askedRides: Set<Ride> = []
+    /// The train the automatic ride's watch holds the question's buzz for (TT-242, D120): no silent `asked` goes for it
+    /// meanwhile, or the server would end the hold and a "can’t tell" would never buzz.
+    var heldRide: Ride?
     /// The ride's arrival wish, the one the ride screen shows (TT-229, D108): `OnBoard`, from `RootView`.
     private weak var wishes: (any ArrivalWishSource)?
     /// At your stop with no wish yet: a pass a second later, since no ride event comes when the wish is due.
@@ -243,18 +248,19 @@ final class RideLiveActivity: RideActivityFollowing {
         if let current {
             let shown = current.content.state
             guard Self.needsUpdate(from: shown, to: content, sentAt: shown.isDeparture ? nil : sentAt, now: deviceNow) else { return }
+            if shown.isDeparture {
+                // The hand-off: the same activity now shows the ride, and the server leaves it to the app. Ended later,
+                // the ride does not bring the countdown back. The server hears it first (TT-242, D120), for at most 5 s,
+                // so a cycle in flight cannot turn the ride card back into the question.
+                startedRide = ride
+                departureStarted.insert(ride)
+                await handOffFirst(LiveActivityReport(current.attributes, handedOff: true))
+            }
             sentAt = deviceNow
             let alerts = Self.alerts(from: shown, to: content) && alertedRide != ride
             if alerts { alertedRide = ride }
             await Self.update(current.id, content: content, staleDate: staleDate, alerts: alerts)
             if content.wish != nil { wishes?.wishReachedLockScreen() }
-            if shown.isDeparture {
-                // The hand-off: the same activity now shows the ride, and the server leaves it to the app. Ended later,
-                // the ride does not bring the countdown back.
-                startedRide = ride
-                departureStarted.insert(ride)
-                await handOff(LiveActivityReport(current.attributes, handedOff: true))
-            }
         } else {
             guard startedRide != ride, canStart(), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
             let line = await line(ride)
@@ -357,7 +363,8 @@ final class RideLiveActivity: RideActivityFollowing {
         // With the app in front as the train leaves, the question comes silently (TT-231, D110): Schedule asks with its own
         // strip. The server is told shortly before the departure, ahead of its minute cycle, and then sends the question
         // with no alert, and no notification. A train the feed places is told only once it has left (TT-233).
-        if canStart(), Self.asksSilently(source.live, now: source.now), askedRides.insert(ride).inserted {
+        // Not while the automatic ride's watch holds this train (TT-242, D120): its outcome says what the server does.
+        if canStart(), heldRide != ride, Self.asksSilently(source.live, now: source.now), askedRides.insert(ride).inserted {
             let silent = LiveActivityReport(
                 tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
                 destinationId: ride.destinationId, asked: true
@@ -450,6 +457,28 @@ final class RideLiveActivity: RideActivityFollowing {
     /// The hand-off must reach the server: kept until it does.
     private func handOff(_ activity: LiveActivityReport) async {
         if await !report(activity) { pendingHandOff = activity }
+    }
+
+    /// The hand-off before the card turns into the ride (TT-242, D120): the server's answer is awaited for at most
+    /// `handOffWait`; one that has not come is kept and sent again on each pass, as a failed one is.
+    private func handOffFirst(_ activity: LiveActivityReport) async {
+        let sent = await withTaskGroup(of: Bool?.self) { group in
+            group.addTask { await self.report(activity) }
+            group.addTask {
+                try? await Task.sleep(for: Self.handOffWait)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        if sent != true { pendingHandOff = activity }
+    }
+
+    /// The automatic ride's watch reports its hold and its outcome (TT-242, D120), through the alert rules once connected,
+    /// else straight to the server, as the card's own reports go. True once the server has it.
+    func reportHold(_ activity: LiveActivityReport) async -> Bool {
+        await report(activity)
     }
 
     // MARK: ActivityKit
@@ -642,3 +671,5 @@ extension RideLiveActivity {
         )
     }
 }
+
+extension RideLiveActivity: AutoRideHolding {}

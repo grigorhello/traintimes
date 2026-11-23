@@ -140,7 +140,8 @@ enum DetectionStore {
 /// moving within 300 m of the track of a train on the saved route (either way, as Schedule's detection, D68), GPS runs the
 /// matcher for up to 12 minutes; otherwise the app sleeps again. A match posts "On the 5:13 PM train?" with Start On board
 /// (which opens the app; the ride and its Live Activity start once it is in front) and Not me (the train is not asked about
-/// again today; three in a week turn the switch off). It never starts a ride by itself. One per app, made by `AppDelegate`.
+/// again today; three in a week turn the switch off). It never starts a ride by itself: a ride starts by itself only on an
+/// alerted train, through `AutoRideWatch` (TT-242, D120). One per app, made by `AppDelegate`.
 @Observable @MainActor
 final class BackgroundDetection {
     /// GPS stays on this long after a wake-up at most.

@@ -213,3 +213,14 @@ Checks for the Liquid Glass look and the Schedule changes of TestFlight 1.0 (5).
 - No train times in the left column; a time every 15 min; the Now line sits 5 min below the top when the app opens.
 - Cards read "Arrival", a green "On time" badge (grey "Scheduled" only offline) and a bigger bell that is easy to hit.
 - Settings › Testing › Demo trains (TestFlight): Delays shows a late train, a cancelled train and the Notice chip; Offline shows the Offline row; Off restores live data.
+
+## TT-242 · A ride that starts by itself (D120)
+
+Real trains stay off until TT-243 (`AutoRideWatch.isLive`), so the demo is the check. Simulator and CI: `AutoRideRuleTests`, `AutoRideWatchTests`, `AutoRideDemoTests`, the alert server's hold in `server/test/activity.test.ts`, `SettingsSnapshotTests.testTestingDemoAutoRideLight`/`Dark`, and the UI tests in `OnBoardTests` (`-settings.demoTrains departure -settings.demoAutoRide boards` and `stays`).
+
+- iPhone (TestFlight or Xcode build): Settings › Testing › Demo trains › Depart, Automatic ride **Boards**, then Schedule: after about 2 min the ride starts by itself, with no tap: the ride strip shows and ride mode opens once; no buzz, no haptic, no prompt. Last check reads "Started … s after it left".
+- Automatic ride **Stays**: Schedule's question ("On the train to Clarkson?") shows and stays, and no ride starts. Last check reads "Not on board after … s".
+- Automatic ride **No feed**: the question shows and no ride starts. Last check reads "Can’t tell after … s: no train position".
+- [ ] Boards
+- [ ] Stays
+- [ ] No feed

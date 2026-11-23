@@ -4,12 +4,17 @@
 //   PUT    /v1/installations/:installation                 { deviceToken, timeFormat, environment, startToken? }
 //   DELETE /v1/installations/:installation
 //   PUT    /v1/installations/:installation/activities      { tripId, serviceDate, originId, destinationId, token?,
-//                                                           handedOff?, asked?, removed? }
+//                                                           handedOff?, asked?, removed?, holds? }
 //   GET    /v1/installations/:installation/rules
 //   PUT    /v1/installations/:installation/rules/:rule     { kind, tripId, serviceDate, line, scheduledDeparture,
 //                                                           origin: { id, name }, destination: { id, name },
 //                                                           weekdays?, paused? }
 //   DELETE /v1/installations/:installation/rules/:rule
+//
+// `holds` on the activities PUT (TT-242, D120): the app's automatic-ride watch is deciding whether the rider left with the
+// train, so the departure question's buzz waits. `true` holds it (the row becomes `holding`: the question comes with no
+// alert and no notification goes); `false` lets it go (back to `started`, never a new row). A report with no `holds`,
+// such as a token report, leaves a hold as it is. The minute cycle lets go by itself at `holdEnds` (`src/activity.ts`).
 
 import { gtfsInstant, gtfsSeconds } from './time.ts';
 
@@ -98,8 +103,8 @@ function releaseActivities(db: D1Database, installation: string, originId: strin
   const stations = `|${originId}|${destinationId}`;
   return db
     .prepare(
-      `UPDATE activities SET shown = '' WHERE installation_id = ? AND shown IS NULL AND state IN ('started', 'asked')
-         AND substr(key, -length(?)) = ?`,
+      `UPDATE activities SET shown = '' WHERE installation_id = ? AND shown IS NULL
+         AND state IN ('started', 'asked', 'holding') AND substr(key, -length(?)) = ?`,
     )
     .bind(installation, stations, stations)
     .run();
@@ -123,6 +128,24 @@ function forgetRemovedActivities(db: D1Database, installation: string, rule: { k
   return db
     .prepare(`DELETE FROM activities WHERE installation_id = ? AND state = 'removed' AND substr(key, -length(?)) = ?`)
     .bind(installation, stations, stations)
+    .run();
+}
+
+/**
+ * The app's watch let go of its hold (TT-242, D120): a `holding` row goes back to `started`, and the question's mark comes
+ * off what it showed (`withoutAsks` in `src/activity.ts`), so the next cycle sends the question again, with its alert, or
+ * as the notification when the card has no token. `shown` is kept rather than cleared, so the sweep still sees the card.
+ * Never makes a row: one with no token would keep the server from starting the train's card.
+ */
+function releaseHold(db: D1Database, installation: string, key: string) {
+  return db
+    .prepare(
+      `UPDATE activities SET state = 'started',
+         shown = CASE WHEN substr(shown, -5) = '|asks' THEN substr(shown, 1, length(shown) - 5) ELSE shown END,
+         version = version + 1
+       WHERE installation_id = ? AND key = ? AND state = 'holding'`,
+    )
+    .bind(installation, key)
     .run();
 }
 
@@ -191,6 +214,9 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       // The app ended the card because its alert was removed or switched off (TT-240, D118).
       const removed = input.removed === undefined ? false : input.removed;
       if (typeof removed !== 'boolean') throw new BadRequest('removed');
+      // The app's automatic-ride watch holds the question's buzz while it decides, or lets it go (TT-242, D120).
+      const holds = input.holds;
+      if (holds !== undefined && typeof holds !== 'boolean') throw new BadRequest('holds');
       if (!(await touch(db, installation, now))) return json(404, { error: 'unknownInstallation' });
       const key = `${serviceDate}|${tripId}|${originId}|${destinationId}`;
       if (removed) {
@@ -200,23 +226,30 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
         await db
           .prepare(
             `UPDATE activities SET state = 'removed', token = NULL, version = version + 1
-             WHERE installation_id = ? AND key = ? AND state IN ('started', 'asked', 'ended')`,
+             WHERE installation_id = ? AND key = ? AND state IN ('started', 'asked', 'holding', 'ended')`,
           )
           .bind(installation, key)
           .run();
         return noContent();
       }
-      const state = handedOff ? 'handedOff' : asked ? 'asked' : 'started';
+      if (holds === false && !handedOff && !asked) {
+        // The watch let go: only a held row changes, and none is made.
+        await releaseHold(db, installation, key);
+        return noContent();
+      }
+      const state = handedOff ? 'handedOff' : asked ? 'asked' : holds ? 'holding' : 'started';
       // An ended card stays ended, unless the app reports another token for the train: a new card is up (the alert was
       // switched on again inside its window, TT-240), and it gets the server's updates like the first. A removed card
-      // takes what the app reports now: the app started the card again.
+      // takes what the app reports now: the app started the card again. A hold (TT-242) takes a started card, and `asked`
+      // a held one; a report with no `holds` (a token report, the app's own card start) leaves a held card held.
       await db
         .prepare(
           `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (installation_id, key) DO UPDATE SET token = COALESCE(excluded.token, activities.token),
              state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff'
                WHEN activities.state = 'removed' THEN excluded.state
-               WHEN excluded.state = 'asked' AND activities.state = 'started' THEN 'asked'
+               WHEN excluded.state = 'asked' AND activities.state IN ('started', 'holding') THEN 'asked'
+               WHEN excluded.state = 'holding' AND activities.state = 'started' THEN 'holding'
                WHEN activities.state = 'ended' AND excluded.token IS NOT NULL AND excluded.token IS NOT activities.token THEN 'started'
                ELSE activities.state END,
              version = activities.version + 1`,

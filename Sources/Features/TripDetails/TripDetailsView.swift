@@ -117,6 +117,10 @@ struct TripDetailsView: View {
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
         .task { await viewModel.run() }
+        // A ride that started by itself on this train (TT-242, D120) takes the card's place at rest, as "I’m on board" does.
+        .onChange(of: viewModel.isRiding) { _, isRiding in
+            if isRiding { viewModel.adoptRide() }
+        }
         .task {
             // The longest beat (the last stop row) is still by about 0.7 s.
             try? await Task.sleep(for: .seconds(1))

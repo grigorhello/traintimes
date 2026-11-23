@@ -11,8 +11,11 @@ import UserNotifications
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     /// The app's one router; created on first use, so the delegate's init stays free of main-actor work.
     lazy var router = AppRouter()
+    /// The phone's location for rides (TT-171) and the automatic ride's watch (TT-242, D120): one provider, so a ride the
+    /// watch starts keeps its location session.
+    lazy var location = SystemLocationProvider()
     /// The app's one ride engine (On board, TT-171). Restoring asks for nothing: with no saved ride it does nothing.
-    lazy var ride = RideEngine.app()
+    lazy var ride = RideEngine.app(location: location)
     /// The ride's arriving nudge (TT-173): it follows the engine from launch, before a saved ride is restored, also when
     /// iOS relaunches the app in the background, so a moved estimate moves the notifications with no screen showing.
     lazy var nudge = ArrivalNudge.system()
@@ -20,6 +23,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     lazy var liveActivity = RideLiveActivity.app(following: ride)
     /// "Detect my train" (TT-176); nil in fixture runs.
     lazy var detection = BackgroundDetection.app(ride: ride)
+    /// The ride that starts by itself on an alerted train (TT-242, D120); nil in fixture runs. It decides with the phone
+    /// locked too, so it lives here rather than in `RootView`.
+    lazy var autoRide = AutoRideWatch.app(ride: ride, location: location, liveActivity: liveActivity, nudge: nudge)
 
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -37,11 +43,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         nudge.follow(ride)
         detection?.follow(ride)
         detection?.resume()
+        autoRide?.follow(ride)
         Task {
             await ride.restore()
             // A ride ended before it was restored (the Live Activity's End ride) leaves no notifications behind.
             nudge.restoreFinished()
             liveActivity?.start()
+            // A watch the app was stopped during picks up its train, or ends (TT-242).
+            await autoRide?.restore()
         }
         #if DEBUG
         // UI tests stand in for a tap that launches the app with the server's payload as JSON (D20).

@@ -234,6 +234,7 @@ final class DemoLocation: LocationProviding {
 
     var isAuthorized: Bool { true }
     var canAsk: Bool { false }
+    var isPrecise: Bool { true }
 
     func requestWhenInUse() async -> Bool { true }
 

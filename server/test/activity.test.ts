@@ -577,6 +577,22 @@ describe('the hold while the app decides (TT-242)', () => {
     assert.equal((await activity())!.shown, ASKED);
   });
 
+  test('a hold that comes after the question buzzed takes nothing back: no second buzz at the release or the hold’s end', async () => {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    const [asking] = await cycle('7:13:30');
+    assert.deepEqual(asking.alert, ASK_ALERT, 'Asked with its buzz before the app armed (it arms up to 2 min after L)');
+    assert.equal((await report({ holds: true })).status, 204);
+    assert.equal(await stateOf(), 'started', 'The card stays as it was');
+    await report({ holds: false });
+    assert.deepEqual(await activity(), { token: ACTIVITY_TOKEN, state: 'started', shown: ASKED }, 'Nothing to let go');
+    assert.deepEqual(await cycle('7:14:30'), [], 'No second buzz after the release');
+    await report({ holds: true });
+    assert.deepEqual(await cycle('7:20:00'), [], 'None at the hold’s end either');
+    assert.equal(apns.pushes.length, 0);
+  });
+
   test('let go, then the alert removed before the next cycle: the sweep still sees the card and ends it', async () => {
     await held();
     await cycle('7:13:30');

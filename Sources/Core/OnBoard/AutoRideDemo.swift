@@ -95,6 +95,8 @@ final class DemoAutoRideLocation: LocationProviding {
     var isAuthorized: Bool { true }
     var canAsk: Bool { false }
     var isPrecise: Bool { true }
+    /// Its watch is listening (tests).
+    var isUpdating: Bool { onFix != nil }
 
     func requestWhenInUse() async -> Bool { true }
 
@@ -103,11 +105,12 @@ final class DemoAutoRideLocation: LocationProviding {
         self.onFix = onFix
         tick()
         guard let interval else { return }
+        // Ends with its phone: a watch dropped without stopping it leaves no timer behind.
         updates = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
-                guard !Task.isCancelled else { return }
-                self?.tick()
+                guard !Task.isCancelled, let self else { return }
+                self.tick()
             }
         }
     }

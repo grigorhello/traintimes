@@ -210,6 +210,63 @@ final class DepartureActivityTests: XCTestCase {
         )
     }
 
+    // MARK: The automatic ride (TT-242, D120)
+
+    /// While the automatic ride's watch holds the train, the app tells the server nothing silently: the watch's outcome
+    /// says what the server does, so a "can’t tell" still buzzes.
+    func testNoSilentAskForATrainTheWatchHolds() throws {
+        let now = DepartureRig.time(17, 13, 30)
+        let live = try XCTUnwrap(LiveDeparture(train(), now: now))
+        let ride = Ride(trip: live.departure.trip.key, from: "UN", to: "CL")
+        let other = Ride(trip: TripKey(serviceDay: DepartureRig.day, tripId: "LW-1743"), from: "UN", to: "CL")
+        XCTAssertTrue(RideLiveActivity.tellsSilently(ride, held: nil, live: live, now: now))
+        XCTAssertTrue(RideLiveActivity.tellsSilently(ride, held: other, live: live, now: now), "Another train is held")
+        XCTAssertFalse(RideLiveActivity.tellsSilently(ride, held: ride, live: live, now: now), "This train is held")
+    }
+
+    @MainActor
+    private final class Steps {
+        var items: [String] = []
+        func add(_ item: String) { items.append(item) }
+    }
+
+    /// The hand-off reaches the server before the card turns into the ride.
+    func testTheHandOffGoesBeforeTheCardTurnsIntoTheRide() async {
+        let steps = Steps()
+        let reached = await RideLiveActivity.handOff(
+            report: {
+                await steps.add("report")
+                return true
+            },
+            wait: .seconds(5),
+            then: { steps.add("update") }
+        )
+        XCTAssertTrue(reached)
+        XCTAssertEqual(steps.items, ["report", "update"])
+    }
+
+    /// The server's answer is awaited for a bounded time only, even while the report ignores cancellation (as the APNs
+    /// token's own wait does): the card still turns, and the hand-off is kept to send again.
+    func testAHandOffWithNoAnswerInTimeIsKeptAndTheCardStillTurns() async {
+        let steps = Steps()
+        let started = ContinuousClock.now
+        let late = await RideLiveActivity.handOff(
+            report: {
+                await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 3) { done.resume() }
+                }
+                return true
+            },
+            wait: .milliseconds(50),
+            then: { steps.add("update") }
+        )
+        XCTAssertFalse(late, "Kept, and sent again on the next pass")
+        XCTAssertEqual(steps.items, ["update"])
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(2), "The limit does not wait for the report")
+        let failed = await RideLiveActivity.handOff(report: { false }, wait: .seconds(5), then: {})
+        XCTAssertFalse(failed)
+    }
+
     // MARK: The push payload
 
     func testTheStateRoundTripsWithItsCountdownAsSecondsSince1970() throws {

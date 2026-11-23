@@ -240,8 +240,9 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
       const state = handedOff ? 'handedOff' : asked ? 'asked' : holds ? 'holding' : 'started';
       // An ended card stays ended, unless the app reports another token for the train: a new card is up (the alert was
       // switched on again inside its window, TT-240), and it gets the server's updates like the first. A removed card
-      // takes what the app reports now: the app started the card again. A hold (TT-242) takes a started card, and `asked`
-      // a held one; a report with no `holds` (a token report, the app's own card start) leaves a held card held.
+      // takes what the app reports now: the app started the card again. A hold (TT-242) takes a started card whose question
+      // has not gone yet (once it buzzed, a release would send it again), and `asked` a held one; a report with no `holds`
+      // (a token report, the app's own card start) leaves a held card held.
       await db
         .prepare(
           `INSERT INTO activities (installation_id, key, service_date, token, state) VALUES (?, ?, ?, ?, ?)
@@ -249,7 +250,8 @@ export async function handleRequest(request: Request, db: D1Database, now: numbe
              state = CASE WHEN excluded.state = 'handedOff' THEN 'handedOff'
                WHEN activities.state = 'removed' THEN excluded.state
                WHEN excluded.state = 'asked' AND activities.state IN ('started', 'holding') THEN 'asked'
-               WHEN excluded.state = 'holding' AND activities.state = 'started' THEN 'holding'
+               WHEN excluded.state = 'holding' AND activities.state = 'started'
+                 AND (activities.shown IS NULL OR substr(activities.shown, -5) <> '|asks') THEN 'holding'
                WHEN activities.state = 'ended' AND excluded.token IS NOT NULL AND excluded.token IS NOT activities.token THEN 'started'
                ELSE activities.state END,
              version = activities.version + 1`,

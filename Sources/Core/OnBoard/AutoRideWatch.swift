@@ -4,7 +4,7 @@ import Observation
 /// What the automatic ride's watch reads about its train every look: the train as Schedule would resolve it, for L (its
 /// expected departure) and whether it has left (`BoardingRule`).
 protocol AutoRideDepartureReading: Sendable {
-    /// `trip` resolved with the live status of `ride`'s route at `now`; nil when that cannot be read.
+    /// `trip` resolved with the live status of `ride`'s route at `now`; nil when no fresh live status can be read.
     func departure(of trip: Trip, ride: Ride, at now: Date) async -> Departure?
 }
 
@@ -17,7 +17,11 @@ struct ScheduleDepartureReading: AutoRideDepartureReading {
         // The repository reads a route by its two stations' ids.
         let route = Route(from: Station(id: ride.originId, name: ""), to: Station(id: ride.destinationId, name: ""), line: nil)
         guard let live = try? await repository.liveStatus(for: route, on: trip.key.serviceDay) else { return nil }
-        return Departure.resolve([trip], live: live, freshness: Freshness(live, now: now), isToday: true).first
+        let freshness = Freshness(live, now: now)
+        // Only fresh live status says L and whether the train left: an offline or stale read resolves to the timetable,
+        // which would put a late train's L back and stamp leftAt before it moved. The watch keeps its last L instead.
+        guard freshness.isLive else { return nil }
+        return Departure.resolve([trip], live: live, freshness: freshness, isToday: true).first
     }
 }
 
@@ -86,6 +90,14 @@ final class AutoRideWatch {
     struct Started: Equatable, Sendable {
         let ride: Ride
         let at: Date
+    }
+
+    /// A report the watch sent as it ended (not on board's `asked`, `handedOff` with no card, `holds: false`) that the
+    /// server has not confirmed: sent again every tick until it has, or until the question ends (`until`). Kept on device,
+    /// so a relaunch goes on sending it.
+    struct Pending: Codable, Equatable, Sendable {
+        var report: LiveActivityReport
+        var until: Date
     }
 
     /// The train being watched, as kept on device (`autoRide.watch`): its identity, the latest L, when it left, when the
@@ -197,6 +209,10 @@ final class AutoRideWatch {
     @ObservationIgnored private var isConsidering = false
     @ObservationIgnored private var isStarting = false
     @ObservationIgnored private var isLooking = false
+    /// Reports from watches that ended, not confirmed yet, and the loop that sends them again.
+    @ObservationIgnored private var pending: [Pending] = []
+    @ObservationIgnored private var retries: Task<Void, Never>?
+    @ObservationIgnored private var isRetrying = false
     /// Each watch gets a number, so a look that outlives its watch changes nothing.
     @ObservationIgnored private var generation = 0
 
@@ -244,6 +260,7 @@ final class AutoRideWatch {
         } else {
             self.reportsStationary = false
         }
+        pending = demo ? [] : store.pending
     }
 
     // MARK: Arming
@@ -357,7 +374,7 @@ final class AutoRideWatch {
     /// The question ended with no look past its end: the demo's clock went back to 5:01 PM for its next play.
     func questionEnded() {
         guard let watched else { return }
-        finish(.unsure, reason: watched.unsure ?? .weakFixes)
+        finish(.unsure, reason: watched.unsure)
     }
 
     // MARK: Relaunch
@@ -365,6 +382,11 @@ final class AutoRideWatch {
     /// At launch, after the ride's restore: the watch picks up its train. A ride saved meanwhile means it started (or the
     /// rider started one): answered. Past its deadline it lets the hold go and ends as unsure.
     func restore() async {
+        // Reports a watch could not get to the server before the app stopped go on.
+        if !pending.isEmpty {
+            startRetries()
+            Task { await self.retryPending() }
+        }
         guard watched == nil, let saved = store.saved, let ride else { return }
         if ride.holdsRide {
             watched = saved
@@ -374,8 +396,8 @@ final class AutoRideWatch {
         let now = clock.now
         guard now < saved.deadline, let plan = await ride.plan(for: saved.ride), plan.track != nil else {
             watched = saved
-            send(saved.report(holds: false))
-            finish(.unsure, reason: saved.unsure ?? .weakFixes, report: false)
+            send(saved.report(holds: false), until: saved.endsAt)
+            finish(.unsure, reason: saved.unsure, report: false)
             return
         }
         begin(saved, plan: plan)
@@ -452,7 +474,7 @@ final class AutoRideWatch {
         decide()
         guard self.generation == generation, let current = watched else { return }
         if clock.now >= current.endsAt {
-            finish(.unsure, reason: current.unsure ?? .weakFixes)
+            finish(.unsure, reason: current.unsure)
         }
     }
 
@@ -516,7 +538,7 @@ final class AutoRideWatch {
         replan()
         // With no departure card on the phone, nothing hands it off: the server hears it from here, so it sends no question.
         if !isDemo, holding?.departureRide != saved.ride {
-            send(saved.report(handedOff: true))
+            send(saved.report(handedOff: true), until: saved.endsAt)
         }
         finish(.started)
     }
@@ -564,10 +586,55 @@ final class AutoRideWatch {
         save()
     }
 
-    /// A report sent once, outside the loop (the watch is ending).
-    private func send(_ report: LiveActivityReport) {
-        guard !isDemo, let holding else { return }
-        Task { _ = await holding.reportHold(report) }
+    /// A report the watch sends as it ends: sent now, and again every tick until the server has it or `until` has passed.
+    /// The latest word on a train replaces an older one still waiting.
+    private func send(_ report: LiveActivityReport, until: Date) {
+        guard !isDemo, holding != nil, clock.now < until else { return }
+        pending.removeAll {
+            $0.report.tripId == report.tripId && $0.report.serviceDate == report.serviceDate
+                && $0.report.originId == report.originId
+        }
+        pending.append(Pending(report: report, until: until))
+        store.pending = pending
+        startRetries()
+        Task { await self.retryPending() }
+    }
+
+    /// Sends each waiting report once; one the server has, or whose time has passed, is dropped. Tests call it in place of
+    /// the loop.
+    func retryPending() async {
+        guard !isRetrying, let holding else { return }
+        isRetrying = true
+        defer { isRetrying = false }
+        var tried: Set<LiveActivityReport> = []
+        while let next = pending.first(where: { !tried.contains($0.report) }) {
+            tried.insert(next.report)
+            let done = clock.now >= next.until ? true : await holding.reportHold(next.report)
+            if done {
+                pending.removeAll { $0 == next }
+                store.pending = pending
+            }
+        }
+        stopUpdatesIfIdle()
+    }
+
+    private func startRetries() {
+        guard retries == nil, let lookInterval else { return }
+        retries = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: lookInterval)
+                guard let watch = self, !watch.pending.isEmpty else { break }
+                await watch.retryPending()
+            }
+            self?.retries = nil
+        }
+    }
+
+    /// With no train watched and nothing left to tell the server, the location stops: after a start the ride has the
+    /// updates (the shared provider), while the demo's phone is the watch's own.
+    private func stopUpdatesIfIdle() {
+        guard watched == nil, pending.isEmpty else { return }
+        if isDemo || !isRiding { location.stopUpdates() }
     }
 
     // MARK: The end
@@ -585,12 +652,13 @@ final class AutoRideWatch {
         if store.check(saved.ride, outcome: outcome) || isDemo {
             Analytics.track(.autoRideChecked(check, demo: isDemo))
         }
-        // An outcome's report not yet confirmed goes once more; stopped with the hold on lets it go.
+        // An outcome's report not yet confirmed goes on being sent; stopped with the hold on lets it go. A start says the
+        // last word (the hand-off), so an earlier "can’t tell" is not sent after it.
         if report {
-            if let pending = saved.outcome, !saved.outcomeSent {
-                send(pending)
+            if outcome != .started, let unsent = saved.outcome, !saved.outcomeSent {
+                send(unsent, until: saved.endsAt)
             } else if outcome == .stopped, saved.outcome == nil, saved.holdReachedAt != nil {
-                send(saved.report(holds: false))
+                send(saved.report(holds: false), until: saved.endsAt)
             }
         }
         generation += 1
@@ -600,8 +668,8 @@ final class AutoRideWatch {
         watched = nil
         store.saved = nil
         if !isDemo, holding?.heldRide == saved.ride { holding?.heldRide = nil }
-        // After a start the ride has the updates; with no ride they stop.
-        if !isRiding { location.stopUpdates() }
+        // The location keeps going while a report still waits for the server, so the app is not suspended before it goes.
+        stopUpdatesIfIdle()
     }
 
     private func save() {
@@ -617,6 +685,7 @@ final class AutoRideWatch {
 final class AutoRideStore {
     static let watchKey = "autoRide.watch"
     static let checkedKey = "autoRide.checked"
+    static let pendingKey = "autoRide.pending"
 
     private let defaults: UserDefaults?
 
@@ -632,6 +701,19 @@ final class AutoRideStore {
                 defaults.set(data, forKey: Self.watchKey)
             } else {
                 defaults.removeObject(forKey: Self.watchKey)
+            }
+        }
+    }
+
+    /// The reports that ended watches still owe the server (`AutoRideWatch.Pending`).
+    var pending: [AutoRideWatch.Pending] {
+        get { defaults?.data(forKey: Self.pendingKey).flatMap { try? JSONDecoder().decode([AutoRideWatch.Pending].self, from: $0) } ?? [] }
+        set {
+            guard let defaults else { return }
+            if !newValue.isEmpty, let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Self.pendingKey)
+            } else {
+                defaults.removeObject(forKey: Self.pendingKey)
             }
         }
     }

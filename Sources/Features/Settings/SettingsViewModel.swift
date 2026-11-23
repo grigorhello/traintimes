@@ -418,10 +418,13 @@ final class SettingsViewModel {
         case .notOnBoard:
             text = String(format: String(localized: "settings.last_check.not_on_board"), seconds)
         case .unsure:
-            let why = check.reason.map { reason in
-                String(localized: String.LocalizationValue("settings.last_check.reason." + reason.rawValue))
+            if let reason = check.reason {
+                let why = String(localized: String.LocalizationValue("settings.last_check.reason." + reason.rawValue))
+                text = String(format: String(localized: "settings.last_check.unsure"), seconds, why)
+            } else {
+                // Ended with no verdict (a relaunch past its deadline, or a train that never read as left).
+                text = String(format: String(localized: "settings.last_check.unsure_plain"), seconds)
             }
-            text = String(format: String(localized: "settings.last_check.unsure"), seconds, why ?? "")
         case .answered:
             text = String(localized: "settings.last_check.answered")
         case .stopped:

@@ -297,6 +297,114 @@ final class AutoRideWatchTests: XCTestCase {
         XCTAssertEqual(rig.watch.watched?.deadline, rig.time(360))
     }
 
+    /// An offline or stale read keeps the late train's L (`ScheduleDepartureReading` gives nil for it): the deadline is not
+    /// moved to the timetable and leftAt is not stamped before the train moves.
+    func testAReadWithNoFreshLiveStatusKeepsTheLateTrainsTime() async throws {
+        let rig = try WatchRig(at: -300)
+        await rig.departures.set(delay: 240)
+        await rig.arm()
+        await rig.play(from: -299, to: 30, phone: { _ in nil }, train: nil)
+        XCTAssertEqual(rig.watch.watched?.departure, rig.time(240))
+        await rig.departures.set(unreadable: true)
+        await rig.play(from: 31, to: 120, phone: { _ in nil }, train: nil)
+        XCTAssertEqual(rig.watch.watched?.departure, rig.time(240), "L as last read")
+        XCTAssertNil(rig.watch.watched?.leftAt, "Not left by the timetable")
+        await rig.departures.set(unreadable: false)
+        await rig.play(from: 121, to: 240, phone: { _ in nil }, train: nil)
+        XCTAssertEqual(rig.watch.watched?.leftAt, rig.time(240))
+        XCTAssertEqual(rig.watch.watched?.deadline, rig.time(420))
+    }
+
+    /// The app's reading: only fresh live status resolves the train; offline or stale gives nil, so the watch keeps L.
+    func testTheAppsReadingUsesFreshLiveStatusOnly() async throws {
+        let rig = try WatchRig(at: 60)
+        let now = rig.clock.now
+        let update = LiveTripUpdate(
+            expectedDeparture: rig.time(240), expectedArrival: rig.trip.scheduledArrival.addingTimeInterval(240),
+            delayMinutes: 4, reportedAt: now
+        )
+        let fresh = LiveSnapshot(updatedAt: now, updates: [rig.ride.tripId: update])
+        var offline = fresh
+        offline.isOffline = true
+        let stale = LiveSnapshot(updatedAt: now.addingTimeInterval(-300), updates: [rig.ride.tripId: update])
+        func read(_ live: LiveSnapshot) async -> Departure? {
+            await ScheduleDepartureReading(repository: LiveStub(live: live)).departure(of: rig.trip, ride: rig.ride, at: now)
+        }
+        let departure = await read(fresh)
+        XCTAssertEqual(departure?.departureTime, rig.time(240))
+        let none = await read(offline)
+        XCTAssertNil(none, "Offline would read the timetable's time")
+        let old = await read(stale)
+        XCTAssertNil(old, "Stale too")
+    }
+
+    // MARK: Reports as a watch ends
+
+    /// Not on board's `asked` that the server did not take is sent again until it does, and the location keeps going
+    /// meanwhile so the app is not suspended before it goes.
+    func testAnEndingReportTheServerDidNotTakeIsSentAgain() async throws {
+        let rig = try WatchRig(at: -300)
+        rig.holder.departureRide = rig.ride
+        rig.holder.answers = [true, false]
+        await rig.arm()
+        await rig.play(from: -60, to: 240, phone: { _ in (0, true) })
+        await rig.eventually { rig.holder.reports.contains { $0.asked } }
+        XCTAssertNil(rig.watch.watched)
+        XCTAssertEqual(rig.holder.reports.filter(\.asked).count, 1)
+        XCTAssertEqual(rig.store.pending.map(\.report.asked), [true], "Kept on device")
+        XCTAssertTrue(rig.location.isUpdating, "Still owed to the server")
+
+        await rig.watch.retryPending()
+        XCTAssertEqual(rig.holder.reports.filter(\.asked).count, 2)
+        XCTAssertTrue(rig.store.pending.isEmpty)
+        XCTAssertFalse(rig.location.isUpdating, "Told: the updates stop")
+    }
+
+    /// With no card the start's hand-off is the watch's to send: one the server missed goes again.
+    func testAHandOffTheServerMissedIsSentAgain() async throws {
+        let rig = try WatchRig(at: -300)
+        rig.holder.answers = [true, false]
+        await rig.arm()
+        await rig.play(from: -299, to: 240)
+        await rig.eventually { rig.holder.reports.contains { $0.handedOff } }
+        XCTAssertNotNil(rig.engine.ride)
+        XCTAssertEqual(rig.store.pending.map(\.report.handedOff), [true])
+        await rig.watch.retryPending()
+        XCTAssertEqual(rig.holder.reports.filter(\.handedOff).count, 2)
+        XCTAssertTrue(rig.store.pending.isEmpty)
+        XCTAssertTrue(rig.location.isUpdating, "The ride has the updates")
+    }
+
+    /// A report still owed when the app stopped goes at the next launch; one whose question has ended is dropped unsent.
+    func testAnOwedReportGoesAfterARelaunchUntilTheQuestionEnds() async throws {
+        let defaults = UserDefaults.ephemeral()
+        let first = try WatchRig(at: -300, defaults: defaults)
+        first.holder.departureRide = first.ride
+        first.holder.answers = [true, false]
+        await first.arm()
+        await first.play(from: -60, to: 240, phone: { _ in (0, true) })
+        await first.eventually { first.holder.reports.contains { $0.asked } }
+        XCTAssertEqual(first.store.pending.count, 1)
+
+        let relaunched = try WatchRig(at: 300, defaults: defaults)
+        await relaunched.watch.restore()
+        await relaunched.eventually { relaunched.holder.reports.contains { $0.asked } }
+        XCTAssertEqual(relaunched.holder.reports.map(\.asked), [true])
+        XCTAssertTrue(relaunched.store.pending.isEmpty)
+
+        let late = try WatchRig(at: -300)
+        late.holder.departureRide = late.ride
+        late.holder.answers = [true, false]
+        await late.arm()
+        await late.play(from: -60, to: 240, phone: { _ in (0, true) })
+        await late.eventually { late.holder.reports.contains { $0.asked } }
+        let owed = try XCTUnwrap(late.store.pending.first)
+        late.clock.set(owed.until)
+        await late.watch.retryPending()
+        XCTAssertEqual(late.holder.reports.filter(\.asked).count, 1, "Past the question's end: not sent")
+        XCTAssertTrue(late.store.pending.isEmpty)
+    }
+
     // MARK: Stopping and answering
 
     /// The alert switched off or removed stops the watch; the rule's own DELETE or pause lets the server's hold go.
@@ -400,9 +508,19 @@ final class AutoRideWatchTests: XCTestCase {
         await relaunched.eventually { !relaunched.holder.reports.isEmpty }
         XCTAssertNil(relaunched.watch.watched)
         XCTAssertEqual(relaunched.watch.lastCheck?.outcome, .unsure)
+        XCTAssertNil(relaunched.watch.lastCheck?.reason, "No verdict was made, so no reason is made up")
         XCTAssertEqual(relaunched.holder.holds, [false])
         XCTAssertFalse(relaunched.location.isUpdating)
     }
+}
+
+/// Live status only, for `ScheduleDepartureReading`.
+private struct LiveStub: ScheduleRepository {
+    let live: LiveSnapshot
+
+    func trips(for route: Route, on day: ServiceDay) async throws -> [Trip] { [] }
+    func liveStatus(for route: Route, on day: ServiceDay) async throws -> LiveSnapshot { live }
+    func lineNotices(for line: Line) async throws -> [LineNotice] { [] }
 }
 
 /// TT-242 (D120): the ride engine's side of the automatic start.

@@ -142,6 +142,8 @@ actor FakeDepartures: AutoRideDepartureReading {
 
     func set(delay: TimeInterval) { self.delay = delay }
     func set(originMetres: Double?) { self.originMetres = originMetres }
+    /// No fresh live status (offline, stale or a failed fetch): `ScheduleDepartureReading` gives nil then.
+    func set(unreadable: Bool) { self.unreadable = unreadable }
 
     func departure(of trip: Trip, ride: Ride, at now: Date) async -> Departure? {
         guard !unreadable else { return nil }

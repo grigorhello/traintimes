@@ -249,6 +249,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(text(.started), "Started 0 s after it left", "no seconds read as 0")
         XCTAssertEqual(text(.notOnBoard, seconds: 75), "Not on board after 75 s")
         XCTAssertEqual(text(.unsure, .noFeed, seconds: 180), "Can’t tell after 180 s: no train position")
+        XCTAssertEqual(text(.unsure, .weakFixes, seconds: 180), "Can’t tell after 180 s: weak location")
+        XCTAssertEqual(text(.unsure, seconds: 180), "Can’t tell after 180 s", "no verdict, so no reason")
         XCTAssertEqual(text(.answered, seconds: 40), "Answered first")
         XCTAssertEqual(text(.stopped), "Stopped")
         XCTAssertEqual(text(.notArmed), "Not armed")

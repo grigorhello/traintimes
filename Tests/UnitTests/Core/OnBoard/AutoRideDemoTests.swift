@@ -73,6 +73,7 @@ final class AutoRideDemoTests: XCTestCase {
         let started = try XCTUnwrap(recorder.events.first { $0.name == "ride_started" })
         XCTAssertEqual(started.properties["source"], .string("auto"))
         XCTAssertEqual(started.properties["demo"], .bool(true))
+        XCTAssertFalse(rig.location.isUpdating, "The demo phone stops with its watch; the demo ride rides on its own")
     }
 
     func testStaysIsNotOnBoard() async throws {
@@ -125,5 +126,39 @@ final class AutoRideDemoTests: XCTestCase {
         XCTAssertNotNil(onBoard.autoRideDemo?.watched)
         onBoard.setDemoDeparture(false)
         XCTAssertNil(onBoard.autoRideDemo)
+    }
+
+    /// No on the demo's question: that train is not watched again this run, so the watch does not arm and end every second
+    /// on the demo's next plays (each would send `auto_ride_checked`).
+    func testADeclinedDemoTrainIsNotWatchedAgain() async throws {
+        let clock = TestClock(now: day.gtfsTime(DemoDeparture.startSeconds))
+        let session = DemoDeparture.Session(day: day, clock: clock)
+        let onBoard = OnBoard(
+            app: nil, makeDemoDetector: nil, makeDeparture: { session },
+            makeAutoRideDemo: { session, mode, _ in
+                AutoRideDemo.watch(
+                    session: session, mode: mode, location: DemoAutoRideLocation(session: session, mode: mode, interval: nil),
+                    lookInterval: nil, start: { _ in false }, rideRuns: { false }
+                )
+            }
+        )
+        onBoard.setDemoAutoRide(.stays)
+        onBoard.setDemoDeparture(true)
+        let watch = try XCTUnwrap(onBoard.autoRideDemo)
+        XCTAssertNotNil(watch.watched)
+
+        clock.set(day.gtfsTime(17 * 3600 + 17 * 60))
+        let departure = try XCTUnwrap(session.departure(at: clock.now))
+        let live = try XCTUnwrap(LiveDeparture(departure, now: clock.now))
+        onBoard.updateDepartureAsk(live, route: session.route, isDemo: true)
+        XCTAssertNotNil(onBoard.departureAsk)
+        onBoard.declineDeparture()
+        watch.stop()
+        XCTAssertNil(watch.watched)
+
+        // The demo's next play, from 5:01 PM.
+        clock.set(day.gtfsTime(DemoDeparture.startSeconds + 60))
+        onBoard.armAutoRideDemo()
+        XCTAssertNil(watch.watched, "Declined this run: not watched again")
     }
 }

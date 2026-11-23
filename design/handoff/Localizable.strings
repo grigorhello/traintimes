@@ -446,6 +446,7 @@
 "settings.last_check.started" = "Started %@ s after it left";
 "settings.last_check.not_on_board" = "Not on board after %@ s";
 "settings.last_check.unsure" = "Can’t tell after %@ s: %@";
+"settings.last_check.unsure_plain" = "Can’t tell after %@ s";
 "settings.last_check.answered" = "Answered first";
 "settings.last_check.stopped" = "Stopped";
 "settings.last_check.not_armed" = "Not armed";

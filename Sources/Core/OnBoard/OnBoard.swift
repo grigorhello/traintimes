@@ -311,7 +311,7 @@ final class OnBoard {
         }
     }
 
-    /// Arms the demo watch when it watches nothing, no ride runs and the demo's train has not left yet. A watch the demo's
+    /// Arms the demo watch when it watches nothing, no ride runs, the demo's train was not declined and has not left yet. A watch the demo's
     /// clock went back on (its next play from 5:01 PM) ends as its question would have.
     func armAutoRideDemo() {
         guard let watch = autoRideDemo, let session = departureDemo else { return }
@@ -320,6 +320,8 @@ final class OnBoard {
             watch.questionEnded()
         }
         guard watch.watched == nil, activeRide == nil else { return }
+        // A demo train declined this run is never watched again: it would end as answered at once, every second.
+        guard !declinedDemo.contains(where: { $0.tripKey == session.key }) else { return }
         guard let candidate = AutoRideDemo.candidate(session, at: now), now < candidate.departure else { return }
         watch.watchDemo(candidate, plan: AutoRideDemo.plan(on: session.day))
     }

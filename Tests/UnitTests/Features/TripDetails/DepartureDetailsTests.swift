@@ -171,6 +171,8 @@ final class DepartureDetailsTests: XCTestCase {
     /// TT-242 (D120): the ride starts by itself while the train's Trip details is open: the sheet adopts it in place, at
     /// rest, as if "I’m on board" had been tapped there; ride mode opened by the app for it is drawn at rest too.
     func testARideThatStartsByItselfIsAdoptedInPlace() async throws {
+        let recorder = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
         let rig = DepartureRig.started(at: DepartureRig.time(17, 17))
         let model = await rig.tripDetails()
         XCTAssertFalse(model.isRiding)
@@ -191,6 +193,7 @@ final class DepartureDetailsTests: XCTestCase {
             clock: rig.clock, onBoard: rig.onBoard, ridesInPlace: true
         )
         XCTAssertTrue(opened.ridesInPlace)
+        XCTAssertFalse(recorder.events.contains { $0.name == "trip_opened" }, "Nobody tapped: no trip_opened")
     }
 
     // MARK: Real trains

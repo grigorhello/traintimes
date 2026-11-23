@@ -434,18 +434,30 @@ struct RootView: View {
                 }
             }
             .task(id: demoAutoRide) { onBoard.setDemoAutoRide(demoAutoRide) }
+            // Decided once: in front, at once if Schedule is at rest, else the ride strip waits on Schedule; after a start in
+            // the background, at the next foreground on the same terms. Never later, so no sheet pops up mid-ride.
             .onChange(of: onBoard.autoRideStarted) { _, started in
                 guard let started else { return }
                 if router.presentedSheet == .tripDetails, let details = tripDetails, details.key == started.ride.tripKey {
                     details.adoptRide()
-                } else {
-                    opensAutoRide = started
+                    return
                 }
+                opensAutoRide = started
+                if scenePhase == .active { openAutoRideIfAtRest() }
             }
-            .task(id: autoRideAtRest) {
-                guard autoRideAtRest else { return }
-                await openAutoRide()
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { openAutoRideIfAtRest() }
             }
+    }
+
+    /// Ride mode for the ride that started by itself when Schedule is at rest; otherwise it is let go.
+    private func openAutoRideIfAtRest() {
+        guard opensAutoRide != nil else { return }
+        if autoRideAtRest {
+            Task { await openAutoRide() }
+        } else {
+            opensAutoRide = nil
+        }
     }
 
     /// Settings › Testing › Demo trains › Depart › Automatic ride, in a build that shows Settings › Testing.
@@ -453,7 +465,7 @@ struct RootView: View {
         BuildChannel.showsTesting ? settings.demoAutoRide : .off
     }
 
-    /// A ride that started by itself waits for Schedule in the foreground with nothing over it.
+    /// A ride that started by itself opens ride mode only on Schedule in the foreground with nothing over it.
     private var autoRideAtRest: Bool {
         opensAutoRide != nil && scenePhase == .active && router.selectedTab == .schedule && router.presentedSheet == nil
             && schedule.route != nil

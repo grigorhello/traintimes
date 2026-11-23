@@ -238,6 +238,10 @@ struct AutoRideRule {
         if !room { return .unsure(.short) }
         if !y1 { return .unsure(.noStation) }
         if tp != nil, !y2 { return .unsure(.weakFixes) }
+        // No good fix since the train left (missing or not accurate enough): the phone failed, not GO's feed. A stationary
+        // fix that still held when it left is a phone standing still, as Y1 and "stayed" read it, not a failure.
+        let held = marks.last.map { $0.isStationary && $0.at.addingTimeInterval(RideEngine.stationaryTimeout) >= leftAt } ?? false
+        if tp == nil, !held, !marks.contains(where: { $0.at >= leftAt }) { return .unsure(.weakFixes) }
         if !y3 { return .unsure(.noFeed) }
         return .unsure(.rival)
     }

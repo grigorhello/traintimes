@@ -162,7 +162,7 @@ final class AutoRideRuleTests: XCTestCase {
             if second % 30 == 0 { rig.train(s - 40, along: AutoRideFixtures.boarding(s - 40)) }
         }
         rig.leftAt = rig.time(60)
-        XCTAssertEqual(rig.verdict(400), .unsure(.noFeed))
+        XCTAssertEqual(rig.verdict(400), .unsure(.weakFixes), "GO's feed was fine: the phone's fixes were not good")
     }
 
     // MARK: Y3
@@ -301,10 +301,18 @@ final class AutoRideRuleTests: XCTestCase {
         XCTAssertEqual(result?.verdict, .unsure(.noFeed))
     }
 
+    func testAHeldStationaryFixWithNoFeedIsNoFeedNotWeakFixes() throws {
+        var rig = try RuleRig()
+        // Still on the platform: iOS sends one stationary fix and then nothing; GO places no train.
+        rig.phone(-120, along: 20, stationary: true)
+        let result = rig.run(from: -100, to: 400, phone: { _ in nil }, train: nil)
+        XCTAssertEqual(result?.verdict, .unsure(.noFeed), "The phone stood still; GO's feed was missing")
+    }
+
     func testMissingFixesNeverSayStayed() throws {
         var rig = try RuleRig()
         let result = rig.run(from: -300, to: 400, phone: { s in s < 55 ? (0, 0, false) : nil })
-        XCTAssertEqual(result?.verdict, .unsure(.noFeed))
+        XCTAssertEqual(result?.verdict, .unsure(.weakFixes), "No fix since the train left: the phone's side failed")
     }
 
     func testAPhoneOffTheTrackFor60SecondsIsNotOnBoard() throws {

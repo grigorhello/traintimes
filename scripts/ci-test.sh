@@ -67,11 +67,12 @@ run_tests() {
     -resultBundlePath "$RESULT" \
     -skipMacroValidation \
     -skipPackagePluginValidation \
+    -test-timeouts-enabled YES \
     2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
 }
 
-# Boot the simulator before xcodebuild does, and wait until it is up.
-xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+# A test that hangs fails after 10 min (xcodebuild's default allowance once timeouts are on) instead of running the job
+# into its 90 min limit, which cancels the step before anything below can say which test it was.
 run_tests
 
 # On the Xcode 27 image the simulator service sometimes dies while the test runner is installed ("Invalid device state",

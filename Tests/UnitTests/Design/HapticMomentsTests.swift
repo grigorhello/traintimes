@@ -145,10 +145,18 @@ final class HapticMomentsTests: XCTestCase {
         XCTAssertEqual(haptics.played, [.fail, .done])
     }
 
-    func testNoOnTheQuestionTaps() {
+    /// No on Schedule's departure question (TT-231; the train question's No went with train detection, TT-243).
+    func testNoOnTheDepartureQuestionTaps() throws {
         let haptics = FakeHaptics()
         let onBoard = OnBoard(app: nil, haptics: haptics)
-        onBoard.decline()
+        let time = DepartureRig.time(17, 16, 10)
+        let session = DemoDeparture.Session(day: DepartureRig.day, clock: TestClock(now: time))
+        let live = try XCTUnwrap(session.departure(at: time).flatMap { LiveDeparture($0, now: time) })
+        onBoard.updateDepartureAsk(live, route: DemoRide.route, isDemo: true)
+        XCTAssertNotNil(onBoard.departureAsk)
+
+        onBoard.declineDeparture()
+
         XCTAssertEqual(haptics.played, [.tap])
     }
 

@@ -1,26 +1,24 @@
 import CoreLocation
 
-/// The phone's location for a ride (TT-171), and for the matcher while Schedule is open (TT-175, `keepsInBackground`
-/// false, never asking). The location manager is made on first use, and through this type When In Use is asked only by
-/// `RideEngine.start`. During a ride, `CLLocationUpdate.liveUpdates` gives about one fix a second, and a
-/// `CLBackgroundActivitySession`, created while the app is in front, keeps them coming in the background (the blue
-/// mark); iOS relaunches the app to continue if it stops it, and `RideEngine.restore` creates both again at launch.
+/// The phone's location for a ride (TT-171) and the automatic ride's watch (TT-242, D120). The location manager is made on
+/// first use, and through this type When In Use is asked only by `RideEngine.start` and the Settings switches. During a
+/// ride, `CLLocationUpdate.liveUpdates` gives about one fix a second, and a `CLBackgroundActivitySession`, created while
+/// the app is in front, keeps them coming in the background (the blue mark); iOS relaunches the app to continue if it
+/// stops it, and `RideEngine.restore` creates both again at launch.
 ///
-/// Where location is used (D60 rule 4 as revised by D116): during a ride, by the matcher while Schedule is open, and for
-/// one look when the app opens to set the route's direction. No reading is kept past its use and none is uploaded. When
-/// In Use is asked when a ride starts, or when the rider turns on Automatic direction or Detect my train, never at
-/// launch. Automatic direction's look has its own reader, `SystemDirectionLocation`, which never asks by itself.
+/// Where location is used (D60 rule 4 as revised by D116 and D120): during a ride, by the automatic ride's watch around an
+/// alerted train, and for one look when the app opens to set the route's direction. No reading is kept past its use and
+/// none is uploaded. When In Use is asked when a ride starts, or when the rider turns on Automatic direction or Automatic
+/// ride, never at launch. Automatic direction's look has its own reader, `SystemDirectionLocation`, which never asks by
+/// itself.
 @MainActor
 final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManagerDelegate {
-    /// A ride keeps its updates in the background; train detection (TT-175) watches only while Schedule is open.
-    private let keepsInBackground: Bool
     private var manager: CLLocationManager?
     private var session: CLBackgroundActivitySession?
     private var updates: Task<Void, Never>?
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    init(keepsInBackground: Bool = true) {
-        self.keepsInBackground = keepsInBackground
+    override init() {
         super.init()
     }
 
@@ -55,7 +53,7 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void) {
         self.onFix = onFix
         guard updates == nil else { return }
-        session = keepsInBackground ? CLBackgroundActivitySession() : nil
+        session = CLBackgroundActivitySession()
         generation += 1
         let generation = generation
         // Read off the main actor; each fix is copied into a `LocationFix` before it goes back to the ride.

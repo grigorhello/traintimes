@@ -32,6 +32,15 @@ struct AutoRideCheck: Equatable, Sendable {
         case rival
     }
 
+    /// How the watch was armed (TT-243, D120): with the app in front (`open`, TT-242's), or with the app closed by a
+    /// significant-change wake (`wake`) or by the train's card arriving (`card`).
+    enum Armed: String, Sendable, Codable {
+        case open, wake, card
+
+        /// Armed with the app closed: the watch reads `BackgroundFixes`, and Y1's covered form counts at any station.
+        var isClosed: Bool { self != .open }
+    }
+
     var outcome: Outcome
     /// On `unsure` only.
     var reason: Reason?
@@ -39,4 +48,6 @@ struct AutoRideCheck: Equatable, Sendable {
     var secondsAfter: Int?
     /// When the server confirmed the hold of the question's buzz; nil when none was sent or confirmed.
     var holdReachedAt: Date?
+    /// How the watch was armed, or would have been (`not_armed`); nil for a watch saved before it was kept.
+    var armed: Armed?
 }

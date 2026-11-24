@@ -309,6 +309,12 @@ final class AlertRules: WatchedTripsProviding, LiveActivityReporting {
         }
     }
 
+    /// The rules as kept on device, read without making the store: "When the app is closed" reads today's alerted trains
+    /// from them in a background launch, where `AlertRules` lives only in `RootView` (TT-243, D120).
+    static func stored(in defaults: UserDefaults) -> [AlertRule] {
+        (defaults.data(forKey: rulesKey)).flatMap { try? JSONDecoder().decode([Stored].self, from: $0) }?.map(\.rule) ?? []
+    }
+
     // MARK: Private
 
     private struct Stored: Codable {

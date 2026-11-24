@@ -216,7 +216,7 @@ Checks for the Liquid Glass look and the Schedule changes of TestFlight 1.0 (5).
 
 ## TT-242 · A ride that starts by itself (D120)
 
-Real trains stay off until TT-243 (`AutoRideWatch.isLive`), so the demo is the check. Simulator and CI: `AutoRideRuleTests`, `AutoRideWatchTests`, `AutoRideDemoTests`, the alert server's hold in `server/test/activity.test.ts`, `SettingsSnapshotTests.testTestingDemoAutoRideLight`/`Dark`, and the UI tests in `OnBoardTests` (`-settings.demoTrains departure -settings.demoAutoRide boards` and `stays`).
+The demo is the check at a desk (real trains start rides since TT-243, below). Simulator and CI: `AutoRideRuleTests`, `AutoRideWatchTests`, `AutoRideDemoTests`, the alert server's hold in `server/test/activity.test.ts`, `SettingsSnapshotTests.testTestingDemoAutoRideLight`/`Dark`, and the UI tests in `OnBoardTests` (`-settings.demoTrains departure -settings.demoAutoRide boards` and `stays`).
 
 - iPhone (TestFlight or Xcode build): Settings › Testing › Demo trains › Depart, Automatic ride **Boards**, then Schedule: after about 2 min the ride starts by itself, with no tap: the ride strip shows and ride mode opens once; no buzz, no haptic, no prompt. Last check reads "Started … s after it left".
 - Automatic ride **Stays**: Schedule's question ("On the train to Clarkson?") shows and stays, and no ride starts. Last check reads "Not on board after … s".
@@ -224,3 +224,43 @@ Real trains stay off until TT-243 (`AutoRideWatch.isLive`), so the demo is the c
 - [ ] Boards
 - [ ] Stays
 - [ ] No feed
+
+## TT-243 · Rides start by themselves, part 2: Not on it, the switches, the app closed (D120)
+
+Real alerted trains now start rides by themselves, and Detect my train, its offer, its background question and Schedule's question for trains without an alert are gone; the departure question ("On board?") stays. Simulator and CI: `AutoRideUndoTests` (`undoVerdict`, the undo by itself, Not on it before a restore, the window across a relaunch, a ride on the watch's location), `AutoRideWatchTests` (real trains arm, the stored "off" blocks them), `NotOnItTests` (the 10 min window, the demo's and the app's Not on it, two in 14 days, `ContentState.undoable`), `AutoRideStripTests`, `SettingsAutoRideTests`, `AutoRideWakeTests` with `FakeWakeLocation`, the snapshots in `RideSnapshotTests`, `RideActivitySnapshotTests` and `SettingsSnapshotTests` and of the strip on Schedule (`DetectionSnapshotTests`), and the UI tests in `OnBoardTests`, which launch with `LaunchArguments.noAutoRideHolds` so the strip's answer, the Not on it count and the "off" never carry over. What needs a real ride, a locked phone, the Always prompt or wake-ups is **phone only**: Grigor checks it on his iPhone in the first TestFlight build with TT-242 and TT-243 (TT-243 section 10).
+
+- Demo trains › Ride now starts its ride at once, with no question first; Settings › Notifications has no Detect my train switch.
+
+### For 10 min after a ride started by itself, "Not on it" shows on the Lock Screen card, in the island's expanded view and on the ride screen; a tap ends the ride and the card, and nothing asks about that train again that day.
+- Simulator and CI: **partly.** UI test: Automatic ride Boards, then `trip.notOnIt`: the sheet closes, `schedule.ride` goes and the question does not come back for that train. Unit tests: the window (10 min, across a relaunch), the handler before a restore (reason, source, surface, the decline, the count, "Your stop is next" removed), `RideDetails.Button`. Snapshots light and dark: the ride screen with Not on it, the Lock Screen card and the expanded island with the pill. Whether the card's pill runs on a locked phone is phone only.
+- iPhone (TestFlight or Xcode build): Settings › Testing › Demo trains › Depart, Automatic ride **Boards**, then Schedule. Once the ride starts, ride mode shows "Not on it" where End ride was. Lock the phone: the card reads "Clarkson in" over the minutes, with the "Not on it" pill at the right instead of "Arrives" and the time; press and hold the island: the same card; the compact island is unchanged. Unlock and tap "Not on it" on the ride screen: a light tap, the sheet closes, the ride strip goes, the card leaves and Schedule does not ask about that train.
+- Phone only (Grigor's iPhone, TestFlight): on a real ride that started by itself, lock the phone and tap "Not on it" on the card, once before the first unlock after a restart and once after: note whether it ends the ride at once or asks for Face ID. On another, leave it: at 10 min End ride is back and the card shows "Arrives" and the time again.
+- [ ] Light
+- [ ] Dark
+- [ ] Locked card, before and after the first unlock
+
+### Two "Not on it" in 14 days turn Automatic ride off, and Settings says so.
+- Simulator and CI: **passes** for the rule: unit tests for two in 14 days (no `setting_changed`), the demo's Not on it not counted, and the note's order; `SettingsSnapshotTests` draws the Automatic card with each note.
+- Phone only, since the demo's Not on it does not count: after a second "Not on it" on a real ride within 14 days, Settings › Automatic ride reads off and the note under the card reads "Turned off after two “Not on it”." Turn Automatic ride on: the note goes back to "Opens with trains from the station you’re closer to, and starts the ride once you leave with a train you set an alert on. Your location stays on the phone."
+- [ ] Turned off with the note, then back on
+
+### After the first ride that started by itself is over, Schedule shows "Rides start by themselves" once; OK closes it for good and Turn off turns Automatic ride off.
+- Simulator and CI: **passes.** Unit tests: due after the first start, shown once the ride is over, OK, Turn off, none with the setting off. UI tests: OK, and Turn off, after which `settings.autoRide` reads off. Snapshots light and dark of the strip on Schedule.
+- iPhone (TestFlight or Xcode build), on a phone that has not answered the strip yet: play Automatic ride **Boards** until the ride ends (or tap "Not on it"). Back on Schedule, under the day strip: the accent train glyph, "Rides start by themselves", "On a train with an alert, once you leave with it.", OK and Turn off. Tap OK: it goes, and does not come back after a relaunch or another demo ride. (Turn off is the UI test's; on the phone only if you choose it, and Settings › Automatic ride then reads off.)
+- [ ] Light
+- [ ] Dark
+
+### Settings' Automatic card holds Automatic direction, Automatic ride and When the app is closed with one note; When the app is closed asks for Always, and with it on a wake-up or the card's arrival arms the watch with the app closed.
+- Simulator and CI: **partly.** `SettingsAutoRideTests`: Automatic ride on by default with location, the stored "off", the prompts, refused, Precise Location off, Always refused, Always taken back, the note's order, `setting_changed` only on a tap that changed the switch. `AutoRideWakeTests`: a wake near the station in the window arms, one outside the window or far away does not, a late wake sends `not_armed`, the card in a background launch arms, When In Use is asked before Always, `armed` is set; `BackgroundFixes` passes each reading's age; a ride started with the app closed rides on the watch's location and goes back at the next launch. Snapshots light and dark of the Automatic card. The Always prompt, wake-ups and iOS opening the app for the card are phone only.
+- iPhone: Settings: one card reads Automatic direction, Automatic ride (on) and When the app is closed (off), with one note under it. Turn Automatic ride off: When the app is closed hides; turn it on again.
+- Phone only (Grigor's iPhone, TestFlight): turn When the app is closed on: the When In Use prompt first if location was never asked, then iOS's Always dialog, once; allow it and the switch reads on. Refuse it once instead: a second tap opens Train Times in iOS Settings and the switch stays off. In iOS Settings set location to While Using: back in the app the switch reads off. Then, with it on and Always allowed, set an alert on your train, do not open the app in the 30 min before it, and walk to the station: the ride starts by itself as you leave with the train. Note whether PostHog's `auto_ride_checked` for that train says `armed` `wake` or `card`, and whether a push-to-start card opened the app in the background.
+- [ ] Light
+- [ ] Dark
+- [ ] Always asked once, then iOS Settings
+- [ ] A ride with the app closed (`armed`: wake or card)
+
+### A ride that started by itself ends by itself, silently, only when the phone did not go with the train; never on a pause or missing readings.
+- Simulator and CI: **passes** for the rule: `AutoRideUndoTests` (`undoVerdict` case by case: stayed, off the line, falling behind measured at each position's own time; a pause, a still reading or missing readings never end it off the line or behind; a fast train with 45 s old positions is not ended; the engine ends the ride by itself in its first 10 min only, silences the train for today and does not count it). Real rides are phone only.
+- Phone only (Grigor's iPhone, TestFlight): on rides that started by themselves, nothing ends the ride while the train moves smoothly, stands at a station or the phone sends nothing for a while. If one ever starts while you stay on the platform, it ends by itself soon after the train has gone, with no sound or buzz: the card goes and nothing asks about that train that day.
+- [ ] Real rides never ended by themselves while on the train
+- [ ] A wrong start ended silently (if seen)

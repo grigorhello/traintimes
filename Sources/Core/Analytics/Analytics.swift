@@ -38,7 +38,6 @@ enum AnalyticsScreen: String, Sendable {
     case settings
     case tripDetails = "trip_details"
     case lineNotices = "line_notices"
-    case detectOffer = "detect_offer"
 }
 
 /// Where the analytics go: PostHog in TestFlight and App Store builds with a project token (`PostHogAnalytics`), nothing
@@ -71,18 +70,19 @@ enum Analytics {
 /// How Trip details was opened.
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
-    /// Live Activity before departure; `detection` the background question's notification; `link` a `traintimes://trip`
-    /// link, a widget's train (TT-182).
-    case schedule, notification, ride, departure, detection, link
+    /// Live Activity before departure; `link` a `traintimes://trip` link, a widget's train (TT-182). `detection`, the
+    /// background question's notification, went with train detection (TT-243, D120).
+    case schedule, notification, ride, departure, link
 }
 
 /// How a ride started. Saved with the ride (`SavedRide.startSource`), so `ride_ended` can say it after a relaunch.
 enum RideStartSource: String, Codable, Sendable {
     /// "I'm on board" in Trip details.
     case onBoard = "on_board"
-    /// Yes on the train detection question on Schedule.
+    /// Yes on the train detection question on Schedule. Retired with train detection (TT-243, D120): kept so a ride saved by
+    /// an older build still decodes; nothing sends it.
     case detection
-    /// Start On board on the background question's notification (TT-176).
+    /// Start On board on the background question's notification (TT-176). Retired like `detection`.
     case notification
     /// Yes on the departure question: the Live Activity card, its notification or Schedule's strip (TT-231).
     case departure
@@ -178,7 +178,7 @@ extension AnalyticsEvent {
         Self("notification_permission", ["result": .string(permission == .allowed ? "allowed" : "denied")])
     }
 
-    /// A notification tapped: an alert (`alert`) or the train detection question (`detection`, with its action).
+    /// A notification tapped: an alert (`alert`), or the departure question (`departure`, with its action, TT-231).
     static func notificationOpened(kind: String, action: String = "open") -> Self {
         Self("notification_opened", ["kind": .string(kind), "action": .string(action)])
     }
@@ -219,30 +219,37 @@ extension AnalyticsEvent {
     /// `atStop`: the train was at your stop when the ride ended (Done there, or the end 2 min after it), so Done does not
     /// read as giving up (TT-221). `watchedSeconds` and `opens`: how long, in whole seconds, and how many times the ride
     /// screen was on screen during the ride (TT-224, D106). `source`: how the ride started (TT-242), left out for a ride
-    /// saved before the app kept it.
+    /// saved before the app kept it. `surface`: where Not on it was tapped (TT-243, D120: `card` or `ride`), on `not_on_it`
+    /// only; `auto_undone` has none, since what undid it would say where the rider is.
     static func rideEnded(
-        _ reason: RideEndReason, source: RideStartSource? = nil, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0
+        _ reason: RideEndReason, source: RideStartSource? = nil, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0,
+        surface: RideEndSurface? = nil
     ) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
         case .arrived: "arrived"
         case .leftTheLine: "left_the_line"
         case .cancelled: "cancelled"
+        case .notOnIt: "not_on_it"
+        case .autoUndone: "auto_undone"
         }
         var properties: [String: AnalyticsValue] = [
             "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
         ]
         if let source { properties["source"] = .string(source.rawValue) }
+        if reason == .notOnIt, let surface { properties["surface"] = .string(surface.rawValue) }
         return Self("ride_ended", properties)
     }
 
     /// The automatic ride's watch on an alerted train finished (TT-242, D120), once per train and day: how (`outcome`), why
     /// it could not tell (`reason`, on `unsure` only), the whole seconds after the train left (when it had left) and
-    /// whether it was the Testing demo. No station, line, trip or place.
+    /// whether it was the Testing demo; how it was armed (`armed`, TT-243: `open`, `wake` or `card`). No station, line,
+    /// trip or place.
     static func autoRideChecked(_ check: AutoRideCheck, demo: Bool) -> Self {
         var properties: [String: AnalyticsValue] = ["outcome": .string(check.outcome.rawValue), "demo": .bool(demo)]
         if check.outcome == .unsure, let reason = check.reason { properties["reason"] = .string(reason.rawValue) }
         if let seconds = check.secondsAfter { properties["seconds_after"] = .int(seconds) }
+        if let armed = check.armed { properties["armed"] = .string(armed.rawValue) }
         return Self("auto_ride_checked", properties)
     }
 
@@ -264,17 +271,6 @@ extension AnalyticsEvent {
             "wish": .string(wish.id), "close": .string(close.rawValue), "seconds": .int(seconds), "taps": .int(taps),
             "demo": .bool(demo),
         ])
-    }
-
-    /// Train detection asked "On the train to Clarkson?" (TT-230): on Schedule (`app`) or as the background notification
-    /// (`background`); `evidence` is `stops` (shared stops) or `moving` (moved together on a stretch with no stop between).
-    static func detectionAsked(where place: String, evidence: String) -> Self {
-        Self("detection_asked", ["where": .string(place), "evidence": .string(evidence)])
-    }
-
-    /// Yes or No on the train detection question on Schedule.
-    static func detectionAnswered(yes: Bool) -> Self {
-        Self("detection_answered", ["answer": .string(yes ? "yes" : "no")])
     }
 
     static let directionsOpened = Self("directions_opened")

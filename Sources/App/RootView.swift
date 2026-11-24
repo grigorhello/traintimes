@@ -37,9 +37,11 @@ struct RootView: View {
     @State private var feedbackNudge: FeedbackNudge
     /// Automatic direction's look (TT-234, D116): one per app, fed by Schedule.
     @State private var direction: DirectionLook
+    /// The automatic ride's one-time strip on Schedule (TT-243, D120).
+    @State private var autoRideStrip: AutoRideStrip
     private let liveActivity: RideLiveActivity?
-    /// "Detect my train" (TT-176): the offer after the first completed ride and the Settings switch; nil in fixture runs.
-    private let backgroundDetection: BackgroundDetection?
+    /// When the app is closed (TT-243, D120): its wake-ups start again when the app comes to the front; nil in fixture runs.
+    private let autoRideWake: AutoRideWake?
     /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
     /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
     /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
@@ -66,8 +68,8 @@ struct RootView: View {
         ride: RideEngine? = nil,
         nudge: ArrivalNudge? = nil,
         liveActivity: RideLiveActivity? = nil,
-        detection: BackgroundDetection? = nil,
         autoRide: AutoRideWatch? = nil,
+        autoRideWake: AutoRideWake? = nil,
         feedbackNudge: FeedbackNudge = .app(),
         direction: DirectionDependencies = .app()
     ) {
@@ -89,7 +91,7 @@ struct RootView: View {
             : direction.location
         let look = DirectionLook(
             schedule: schedule, location: location, stations: dependencies.stations, store: direction.store,
-            clock: dependencies.clock, ride: ride, offerDue: { detection?.offerDue == true }, track: direction.track,
+            clock: dependencies.clock, ride: ride, track: direction.track,
             capsule: DirectionCapsuleModel(
                 actionDuration: alertDependencies.capsuleActionDuration, plainDuration: alertDependencies.capsulePlainDuration
             ),
@@ -101,14 +103,27 @@ struct RootView: View {
         // asks for notifications through the alert rules, as the first bell tap does (D66). The automatic ride's watch
         // (TT-242) is `AppDelegate`'s; the demo's is On board's own.
         let rules = bells.rules
+        // The automatic ride's "off", Not on it count and one-time strip (TT-243, D120): on device in the app and in UI
+        // tests (which clear them with launch arguments), none in previews and the unit test host.
+        let environment = ProcessInfo.processInfo.environment
+        let autoRideStore = !ScheduleDependencies.isFixtureRun(environment) || environment["TT_FIXTURES"] != nil
+            ? AutoRideStore(defaults: .standard) : nil
         let onBoard = OnBoard(
-            app: ride, detector: TrainDetector.app(dependencies), liveActivity: liveActivity,
+            app: ride, liveActivity: liveActivity,
             nudge: nudge, makeDemoNudge: { ArrivalNudge.demo() },
             requestNotifications: { await rules.requestPermission() },
             wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared),
-            declines: ScheduleDependencies.isFixtureRun(ProcessInfo.processInfo.environment) ? nil : .standard,
-            autoRide: autoRide
+            declines: ScheduleDependencies.isFixtureRun(environment) ? nil : .standard,
+            autoRide: autoRide,
+            autoRideStore: autoRideStore
         )
+        // The strip shows while Automatic ride reads on, as the Settings switch does.
+        let strip = AutoRideStrip(store: autoRideStore) { [weak settings] in
+            guard let autoRideStore else { return false }
+            let demo = BuildChannel.showsTesting && settings?.demoAutoRide ?? .off != .off
+            return location.readsOn(autoRideStore, demo: demo)
+        }
+        _autoRideStrip = State(initialValue: strip)
         _router = State(initialValue: router)
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
@@ -117,7 +132,8 @@ struct RootView: View {
         _settingsModel = State(
             initialValue: SettingsViewModel(
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
-                detection: detection, direction: location, directionStore: direction.store, look: look,
+                autoRideStore: autoRideStore, autoRideWake: autoRideWake, autoRideStrip: strip,
+                direction: location, directionStore: direction.store, look: look,
                 route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck }
             )
         )
@@ -141,7 +157,7 @@ struct RootView: View {
         _onBoard = State(initialValue: onBoard)
         _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
-        backgroundDetection = detection
+        self.autoRideWake = autoRideWake
         _widgetFile = State(
             initialValue: dependencies.widgetData.flatMap {
                 WidgetFileWriter.app(
@@ -157,7 +173,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        writesWidgetFile(watchesAutoRide(detectsTrains(tabs)))
+        writesWidgetFile(watchesAutoRide(followsRides(tabs)))
             // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
             // A before-departure card lives only while its alert is switched on (TT-240, D118): a bell turned off, an
@@ -174,7 +190,6 @@ struct RootView: View {
         switch router.presentedSheet {
         case .tripDetails: return .tripDetails
         case .lineNotices: return .lineNotices
-        case .detectOffer: return .detectOffer
         case nil: break
         }
         switch router.selectedTab {
@@ -195,6 +210,7 @@ struct RootView: View {
                     .environment(\.launchCovers, splashCovers)
                     .environment(\.feedbackNudge, feedbackNudge)
                     .environment(\.directionLook, direction)
+                    .environment(\.autoRideStrip, autoRideStrip)
                     .environment(\.scheduleCovered, router.presentedSheet != nil || router.selectedTab != .schedule)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
@@ -214,8 +230,6 @@ struct RootView: View {
                 }
             case .lineNotices:
                 LineNoticeSheet(viewModel: schedule)
-            case .detectOffer:
-                DetectOfferSheet(onTurnOn: { Task { await turnOnDetection() } }, onNotNow: { router.dismissSheet() })
             }
         }
         // A tapped notification, also one that launched the app before this view appeared (TT-144).
@@ -244,16 +258,11 @@ struct RootView: View {
         // Live data (TT-195), Board included (TT-233): the made-up feed shows at once too, not at the next poll.
         .onChange(of: settings.mockLive) { Task { await schedule.refresh() } }
         // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
-        // ride asks its question first (TT-175) and plays from the Yes; the demo departure plays from 5:01 PM. Leaving
-        // Departure also stops the ride it handed over to.
+        // ride plays at once (TT-243: its question went with train detection); the demo departure plays from 5:01 PM.
+        // Leaving Departure also stops the ride it handed over to.
         .task(id: demoTrains) {
             onBoard.setDemoDeparture(demoTrains == .departure)
             await onBoard.setDemo(demoTrains == .ride)
-        }
-        // Train detection (TT-175) watches only while Schedule (or Trip details over it) is open in the foreground.
-        .task(id: detection) {
-            guard let route = detection.route else { return }
-            await onBoard.detect(on: route, demo: detection.demo)
         }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
@@ -265,11 +274,12 @@ struct RootView: View {
             closeEndedRide()
             // A ride restored in the background gets its Live Activity now, with the app in front (TT-174).
             liveActivity?.sceneDidBecomeActive()
-            // Schedule's detection takes over from a background check, and a Not me tapped meanwhile counts (TT-176).
-            backgroundDetection?.appDidBecomeActive()
+            // A ride that started by itself meanwhile makes the one-time strip due, and Always may have been taken back in
+            // the Settings app (TT-243).
+            autoRideStrip.refresh()
+            autoRideWake?.resume()
             // A departure question the rider left unanswered goes once its 10 min are over (TT-231).
             await DepartureNotice.removeExpired()
-            backgroundDetection?.refresh()
             await refreshAlerts()
             await bells.cameBack()
         }
@@ -381,29 +391,12 @@ struct RootView: View {
         }
     }
 
-    /// "Detect my train" (TT-176), apart from `tabs` so each chain type-checks in reasonable time. The first ride that
-    /// reaches its stop makes the offer due; it shows over Schedule once nothing else is up, after a sheet that just closed
-    /// has gone. Start On board, or a tap, on the background question is acted on once the app is active, so the ride's Live
-    /// Activity can start.
-    private func detectsTrains(_ content: some View) -> some View {
+    /// The ride's ending and the departure question, apart from `tabs` so each chain type-checks in reasonable time. A ride
+    /// that ended at your stop, by Not on it or by itself (TT-243) closes its sheet.
+    private func followsRides(_ content: some View) -> some View {
         content
             .onChange(of: onBoard.engine?.state?.phase) { _, phase in
-                if phase == .atYourStop { backgroundDetection?.rideReachedYourStop() }
                 if phase == .ended { closeEndedRide() }
-            }
-            .task(id: offersDetection) {
-                guard offersDetection else { return }
-                try? await Task.sleep(for: .milliseconds(700))
-                guard offersDetection, !Task.isCancelled else { return }
-                backgroundDetection?.offerShown()
-                // Automatic direction's one-time strip never shows in the same visit as the offer (TT-236).
-                direction.offerShown()
-                router.present(.detectOffer)
-            }
-            .task(id: detectedRequest) {
-                guard let request = detectedRequest else { return }
-                router.detectedTrain = nil
-                await openDetected(request)
             }
             // The departure question (TT-231, D110): with the app in front on Schedule, its strip asks once the alerted
             // train has left; elsewhere nothing asks in the app.
@@ -585,10 +578,13 @@ struct RootView: View {
     }
 
     /// The ride Trip details follows ended on its own at your stop (2 min after it, D103), also while the app was away: the
-    /// sheet closes, so no ride screen is left for a ride that is over (TT-221, D98). The arrival wish left by `auto`.
+    /// sheet closes, so no ride screen is left for a ride that is over (TT-221, D98). The arrival wish left by `auto`. The
+    /// same for a ride Not on it or the undo by itself ended (TT-243).
     private func closeEndedRide() {
-        guard router.presentedSheet == .tripDetails, let details = tripDetails, details.isRiding,
-              onBoard.endedAtYourStop(details.key) else { return }
+        guard router.presentedSheet == .tripDetails, let details = tripDetails else { return }
+        // Not on it on the card, or the undo by itself (TT-243, D120): the sheet goes with the ride, no wish.
+        if details.rideWasUndone { return router.dismissSheet() }
+        guard details.isRiding, onBoard.endedAtYourStop(details.key) else { return }
         onBoard.wishes.closed(.auto)
         router.dismissSheet()
     }
@@ -656,56 +652,6 @@ struct RootView: View {
         _ = await details.startRide(source: .departure)
     }
 
-    /// When train detection runs (TT-175): on the Schedule tab, in the foreground, with a route; and whether the demo's
-    /// question plays.
-    private var detection: DetectionRun {
-        let watches = scenePhase == .active && router.selectedTab == .schedule
-        return DetectionRun(route: watches ? schedule.route : nil, demo: playsDemoRide)
-    }
-
-    /// The "Detect my train" offer is due and Schedule shows in the foreground with nothing over it (TT-176).
-    private var offersDetection: Bool {
-        backgroundDetection?.offerDue == true && scenePhase == .active && router.selectedTab == .schedule
-            && router.presentedSheet == nil && schedule.route != nil
-    }
-
-    /// The background question's answer, once the app is active.
-    private var detectedRequest: DetectedTrainRequest? {
-        scenePhase == .active ? router.detectedTrain : nil
-    }
-
-    /// Turn on, on the offer: iOS asks for Always, then for notifications if never asked (the question is one), and the
-    /// sheet closes once they are answered.
-    private func turnOnDetection() async {
-        if await backgroundDetection?.turnOn() == true { await alerts.requestPermission() }
-        router.dismissSheet()
-    }
-
-    /// Start On board: the ride on that train starts, with the app in front, and Trip details opens on it in ride mode; a
-    /// tap opens the train's Trip details, where "I’m on board" is. The demo's train (a test push in Debug and TestFlight
-    /// builds) plays the demo ride.
-    private func openDetected(_ request: DetectedTrainRequest) async {
-        let train = request.train
-        if train.trip.tripId == DemoRide.tripId {
-            guard BuildChannel.showsTesting, request.startsRide, await onBoard.startDemoRide() else { return }
-            router.showSchedule()
-            await openRide()
-            return
-        }
-        let link = NotificationLink.trip(train.trip, originId: train.originId, destinationId: train.destinationId)
-        guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
-        if request.startsRide, onBoard.activeRide == nil {
-            _ = await onBoard.start(train.ride, on: route, source: .notification)
-        }
-        router.showSchedule()
-        openTrip(train.trip, on: route, source: .detection)
-    }
-
-    /// Demo trains › Ride is on, in a build that shows Settings › Testing.
-    private var playsDemoRide: Bool {
-        demoTrains == .ride
-    }
-
     /// The Live Activity's tap: Trip details on the ride, at once, or once a ride restored at launch is back (TT-174).
     private func openRideFromActivity() async {
         guard opensRide, onBoard.activeRide != nil else { return }
@@ -768,25 +714,6 @@ struct RootView: View {
     /// "Show trains" on first use: the rider's own choice.
     private func show(_ route: Route) {
         Task { await schedule.show(route) }
-    }
-}
-
-/// Train detection's run: the route while Schedule shows in the foreground (nil stops it), and Demo trains › Ride. Two
-/// routes that join the same two stations are one run (TT-234, D116): a route that turns round keeps the running matcher,
-/// which watches the trains both ways.
-private struct DetectionRun: Hashable {
-    let route: Route?
-    let demo: Bool
-
-    private var pair: [String]? { route.map { [$0.from.id, $0.to.id].sorted() } }
-
-    static func == (lhs: DetectionRun, rhs: DetectionRun) -> Bool {
-        lhs.pair == rhs.pair && lhs.demo == rhs.demo
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(pair)
-        hasher.combine(demo)
     }
 }
 

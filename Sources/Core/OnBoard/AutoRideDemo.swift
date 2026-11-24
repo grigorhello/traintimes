@@ -41,7 +41,6 @@ enum AutoRideDemo {
             positions: positions,
             clock: session.clock,
             store: AutoRideStore(defaults: nil),
-            live: true,
             demo: true,
             lookInterval: lookInterval,
             startRide: start,

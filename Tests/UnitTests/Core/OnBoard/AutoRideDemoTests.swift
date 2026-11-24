@@ -107,7 +107,7 @@ final class AutoRideDemoTests: XCTestCase {
         let clock = TestClock(now: day.gtfsTime(DemoDeparture.startSeconds))
         let session = DemoDeparture.Session(day: day, clock: clock)
         let onBoard = OnBoard(
-            app: nil, makeDemoDetector: nil, makeDeparture: { session },
+            app: nil, makeDeparture: { session },
             makeAutoRideDemo: { session, mode, _ in
                 AutoRideDemo.watch(
                     session: session, mode: mode, location: DemoAutoRideLocation(session: session, mode: mode, interval: nil),
@@ -134,7 +134,7 @@ final class AutoRideDemoTests: XCTestCase {
         let clock = TestClock(now: day.gtfsTime(DemoDeparture.startSeconds))
         let session = DemoDeparture.Session(day: day, clock: clock)
         let onBoard = OnBoard(
-            app: nil, makeDemoDetector: nil, makeDeparture: { session },
+            app: nil, makeDeparture: { session },
             makeAutoRideDemo: { session, mode, _ in
                 AutoRideDemo.watch(
                     session: session, mode: mode, location: DemoAutoRideLocation(session: session, mode: mode, interval: nil),

@@ -763,16 +763,21 @@ struct TripDetailsView: View {
 
     /// End ride as plain ink-secondary text, so a stray thumb on a moving train does not reach for it (TT-204 review); Done
     /// at your stop, a filled accent capsule. Either one ends the ride (Done after the ride ended on its own ends nothing)
-    /// and closes the sheet (TT-221: always).
+    /// and closes the sheet (TT-221: always). Not on it (TT-243, D120) stands in End ride's place, in the same text, for a
+    /// ride's first 10 min after it started by itself: the ride ends and that train is left alone today.
     private func rideButton(_ ride: RideDetails) -> some View {
         Button {
             // Done says how the arrival wish left before the sheet's closing does (TT-223).
             if ride.wish != nil { viewModel.onBoard?.wishes.closed(.done) }
             closingRide = ride
-            viewModel.endRide()
+            if ride.button == .notOnIt {
+                viewModel.notOnIt()
+            } else {
+                viewModel.endRide()
+            }
             close()
         } label: {
-            let title = Text(ride.button)
+            let title = Text(ride.button.title)
                 .font(TTFont.headline)
                 .foregroundStyle(ride.isComplete ? TTColor.onAccent : TTColor.inkSecondary)
                 .frame(maxWidth: .infinity)
@@ -787,7 +792,7 @@ struct TripDetailsView: View {
         }
         .contentShape(Capsule())
         .buttonStyle(PressScaleStyle())
-        .accessibilityIdentifier("trip.endRide")
+        .accessibilityIdentifier(ride.button == .notOnIt ? "trip.notOnIt" : "trip.endRide")
         .padding(.horizontal, TTSpace.s5)
         .padding(.bottom, Self.buttonBottom)
     }

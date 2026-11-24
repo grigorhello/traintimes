@@ -47,22 +47,23 @@ struct RideStripView: View {
     }
 }
 
-/// What the strip under the day strip shows (TT-175; TT-205, D93): the ride strip, train detection's question (or the
-/// departure question, TT-231), Automatic direction's one-time strip (TT-236), or the watched-trip strip, in that order:
-/// one at a time, so a later one waits for those before it. Nothing shows while the matcher checks (no checking strip),
-/// and no countdown before departure: the train's own card says it.
+/// What the strip under the day strip shows (TT-205, D93): the ride strip, the departure question (TT-231), the automatic
+/// ride's one-time strip (TT-243, D120), Automatic direction's one-time strip (TT-236), or the watched-trip strip, in that
+/// order: one at a time, so a later one waits for those before it. No countdown before departure: the train's own card says
+/// it.
 enum RideStripContent: Equatable {
-    case riding, asking, direction, otherwise
+    case riding, asking, autoRide, direction, otherwise
 
-    /// `asksDeparture`: the alerted train has left and Schedule asks "On board?" about it (TT-231), in the same card.
-    /// `showsDirectionStrip`: Automatic direction's one-time strip is unanswered (`DirectionLook.showsStrip`).
-    init(isRiding: Bool, detection: TrainMatcher.State, asksDeparture: Bool = false, showsDirectionStrip: Bool = false) {
+    /// `asksDeparture`: the alerted train has left and Schedule asks "On board?" about it (TT-231). `showsAutoRideStrip`:
+    /// the automatic ride's one-time strip is due (`AutoRideStrip.isShown`). `showsDirectionStrip`: Automatic direction's
+    /// one-time strip is unanswered (`DirectionLook.showsStrip`).
+    init(isRiding: Bool, asksDeparture: Bool = false, showsAutoRideStrip: Bool = false, showsDirectionStrip: Bool = false) {
         if isRiding {
             self = .riding
-        } else if case .asking = detection {
-            self = .asking
         } else if asksDeparture {
             self = .asking
+        } else if showsAutoRideStrip {
+            self = .autoRide
         } else if showsDirectionStrip {
             self = .direction
         } else {
@@ -70,19 +71,20 @@ enum RideStripContent: Equatable {
         }
     }
 
-    /// From On board alone when `direction` is nil: what Automatic direction's look counts as over Schedule.
-    @MainActor init(_ onBoard: OnBoard?, direction: DirectionLook? = nil) {
+    /// From On board alone when `autoRide` and `direction` are nil: what Automatic direction's look counts as over Schedule.
+    @MainActor init(_ onBoard: OnBoard?, autoRide: AutoRideStrip? = nil, direction: DirectionLook? = nil) {
         self.init(
-            isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle,
-            asksDeparture: onBoard?.asksDeparture ?? false, showsDirectionStrip: direction?.showsStrip ?? false
+            isRiding: onBoard?.activeRide != nil, asksDeparture: onBoard?.asksDeparture ?? false,
+            showsAutoRideStrip: autoRide?.isShown ?? false, showsDirectionStrip: direction?.showsStrip ?? false
         )
     }
 }
 
-/// The strip under the day strip: the ride strip while a ride runs, train detection's question (TT-175), Automatic
-/// direction's one-time strip (TT-236), else `otherwise` (the watched-trip strip). The ride strip drops in 12 pt from under
-/// the day strip, from 0.97, on `RideMotion.rise`; the question and the one-time strip land from −10 pt and 0.97 on
-/// `RideMotion.press`, and the question's Yes folds it into the ride strip on `RideMotion.fold`. Reduce Motion fades. The
+/// The strip under the day strip: the ride strip while a ride runs, the departure question (TT-231), the automatic ride's
+/// one-time strip (TT-243), Automatic direction's (TT-236), else `otherwise` (the watched-trip strip). The ride strip drops
+/// in 12 pt from under the day strip, from 0.97, on `RideMotion.rise`; the question and the one-time strips land from −10 pt
+/// and 0.97 on `RideMotion.press`, and the question folds into the ride strip on `RideMotion.fold` (its Yes, or a ride that
+/// started by itself, TT-242). Reduce Motion fades. The
 /// ride strip's digits follow its clock each second.
 ///
 /// The strips share one top-aligned `ZStack`, which stays while one replaces another, so the leaving strip fades where it
@@ -91,6 +93,8 @@ enum RideStripContent: Equatable {
 /// moves the timeline with the strip (`rideStripMotion(_:)`).
 struct RideStripSlot<Otherwise: View>: View {
     let onBoard: OnBoard?
+    /// The automatic ride's one-time strip (TT-243); nil shows none.
+    var autoRide: AutoRideStrip?
     /// Automatic direction's look, for its one-time strip; nil shows none.
     var direction: DirectionLook?
     var onOpen: () -> Void = {}
@@ -102,14 +106,13 @@ struct RideStripSlot<Otherwise: View>: View {
     @State private var wasAsking = false
 
     var body: some View {
-        let detection = onBoard?.detection ?? .idle
-        let content = RideStripContent(onBoard, direction: direction)
+        let content = RideStripContent(onBoard, autoRide: autoRide, direction: direction)
         Group {
             if content == .otherwise {
                 otherwise
             } else {
                 ZStack(alignment: .top) {
-                    strip(content, detection: detection)
+                    strip(content)
                 }
                 .padding(.horizontal, TTSpace.s5)
                 .padding(.top, -2)
@@ -121,7 +124,7 @@ struct RideStripSlot<Otherwise: View>: View {
     }
 
     @ViewBuilder
-    private func strip(_ content: RideStripContent, detection: TrainMatcher.State) -> some View {
+    private func strip(_ content: RideStripContent) -> some View {
         switch content {
         case .riding:
             TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -131,14 +134,7 @@ struct RideStripSlot<Otherwise: View>: View {
             }
             .transition(drop(by: -12))
         case .asking:
-            if case .asking(let question) = detection, let shown = TrainQuestion(question) {
-                TrainQuestionCard(
-                    question: shown,
-                    onYes: { train in Task { if await onBoard?.accept(train) == true { onOpen() } } },
-                    onNo: { onBoard?.decline() }
-                )
-                .transition(drop(by: -10))
-            } else if let ask = onBoard?.departureAsk {
+            if let ask = onBoard?.departureAsk {
                 TrainQuestionCard(
                     departure: ask,
                     onYes: { Task { if await onBoard?.acceptDeparture() == true { onOpen() } } },
@@ -146,6 +142,9 @@ struct RideStripSlot<Otherwise: View>: View {
                 )
                 .transition(drop(by: -10))
             }
+        case .autoRide:
+            DirectionStripCard.autoRide(onOK: { autoRide?.ok() }, onTurnOff: { autoRide?.turnOff() })
+                .transition(drop(by: -10))
         case .direction:
             DirectionStripCard(onOK: { direction?.stripOK() }, onTurnOff: { direction?.stripTurnOff() })
                 .transition(drop(by: -10))
@@ -162,7 +161,7 @@ struct RideStripSlot<Otherwise: View>: View {
         if reduceMotion { return TTMotion.fade }
         switch content {
         case .riding: return wasAsking ? RideMotion.fold : RideMotion.rise
-        case .asking, .direction: return RideMotion.press
+        case .asking, .autoRide, .direction: return RideMotion.press
         case .otherwise: return RideMotion.rise
         }
     }
@@ -172,20 +171,22 @@ extension View {
     /// Moves what sits under the header (the timeline) with the strip under the day strip when it changes, on
     /// `RideMotion.fold` (a fade with Reduce Motion), so a strip or the question no longer pushes the timeline down in one
     /// frame. The strip itself keeps its own spring (`RideStripSlot`). Only this modifier reads the strip's state, so a change
-    /// does not redraw the screen it wraps. `direction`: Automatic direction's one-time strip moves it too (TT-236).
-    func rideStripMotion(_ onBoard: OnBoard?, direction: DirectionLook? = nil) -> some View {
-        modifier(RideStripMotion(onBoard: onBoard, direction: direction))
+    /// does not redraw the screen it wraps. `autoRide` and `direction`: the one-time strips move it too (TT-243, TT-236).
+    func rideStripMotion(_ onBoard: OnBoard?, autoRide: AutoRideStrip? = nil, direction: DirectionLook? = nil) -> some View {
+        modifier(RideStripMotion(onBoard: onBoard, autoRide: autoRide, direction: direction))
     }
 }
 
 private struct RideStripMotion: ViewModifier {
     let onBoard: OnBoard?
+    let autoRide: AutoRideStrip?
     let direction: DirectionLook?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content.animation(
-            reduceMotion ? TTMotion.fade : RideMotion.fold, value: RideStripContent(onBoard, direction: direction)
+            reduceMotion ? TTMotion.fade : RideMotion.fold,
+            value: RideStripContent(onBoard, autoRide: autoRide, direction: direction)
         )
     }
 }

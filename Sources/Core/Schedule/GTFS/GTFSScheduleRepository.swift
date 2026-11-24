@@ -117,27 +117,6 @@ extension GTFSScheduleRepository: RideDataProviding {
     }
 }
 
-extension GTFSScheduleRepository: TrainCandidatesProviding {
-    /// The trips between the route's two stations, either way, that run at `time` (from 2 min before they leave the first
-    /// until they could reach the last running 15 min late) and have a track (TT-175).
-    func candidates(on route: Route, at time: Date) async -> [TrainCandidate] {
-        guard let timetable = try? await store.timetable() else { return [] }
-        let day = ServiceDay(containing: time)
-        var trains: [TrainCandidate] = []
-        for stretch in [route, Route(from: route.to, to: route.from, line: route.line)] {
-            for call in timetable.directCalls(from: stretch.from.id, to: stretch.to.id, on: day) {
-                guard time >= call.departures[call.from].addingTimeInterval(-2 * 60),
-                      time <= call.arrivals[call.to].addingTimeInterval(TrainMatcher.latestDelay) else { continue }
-                let trip = TripKey(serviceDay: day, tripId: call.tripId)
-                let ride = Ride(trip: trip, from: stretch.from.id, to: stretch.to.id)
-                guard let plan = timetable.ridePlan(for: ride), plan.track != nil else { continue }
-                trains.append(TrainCandidate(trip: trip, route: stretch, plan: plan))
-            }
-        }
-        return trains
-    }
-}
-
 extension GTFSScheduleRepository: RivalTrainsProviding {
     /// The other rail trips with a track leaving the ride's origin on its service day within `AutoRideRule.rivalWindow` of
     /// `departure` (TT-242, D120), each at the TripUpdates feed's expected departure there while the feed is fresh, else at

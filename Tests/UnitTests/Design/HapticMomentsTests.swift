@@ -114,7 +114,7 @@ final class HapticMomentsTests: XCTestCase {
         XCTAssertNil(feels.moment(for: [train(.onTime)], now: at(1.9)) { _ in true }, "nor by the clock")
     }
 
-    // MARK: Alerts tab, feedback, detection
+    // MARK: Alerts tab, feedback
 
     func testRemoveDropsAndUndoTaps() async {
         let haptics = FakeHaptics()
@@ -147,7 +147,7 @@ final class HapticMomentsTests: XCTestCase {
 
     func testNoOnTheQuestionTaps() {
         let haptics = FakeHaptics()
-        let onBoard = OnBoard(app: nil, makeDemoDetector: nil, haptics: haptics)
+        let onBoard = OnBoard(app: nil, haptics: haptics)
         onBoard.decline()
         XCTAssertEqual(haptics.played, [.tap])
     }

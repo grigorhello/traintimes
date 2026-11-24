@@ -56,6 +56,25 @@ struct RidePlan: Sendable, Equatable {
     var isExpress = false
 }
 
+extension RidePlan {
+    /// Where the timetable has the train at `time`, in metres along its track: standing at each stop from its arrival to
+    /// its departure, at an even speed between them, waiting at the first stop before it leaves and at the last after.
+    func scheduledAlong(at time: Date) -> Double {
+        guard let distances = track?.stopDistances, let lastDistance = distances.last else { return 0 }
+        for index in stops.indices {
+            if time < stops[index].arrival {
+                guard index > 0 else { return distances[0] }
+                let leaves = stops[index - 1].departure
+                let span = stops[index].arrival.timeIntervalSince(leaves)
+                let fraction = span > 0 ? min(max(time.timeIntervalSince(leaves) / span, 0), 1) : 1
+                return distances[index - 1] + (distances[index] - distances[index - 1]) * fraction
+            }
+            if time <= stops[index].departure { return distances[index] }
+        }
+        return lastDistance
+    }
+}
+
 /// The live word on a trip from GO's TripUpdates feed (D36), as the ride uses it.
 struct RideStatus: Sendable, Equatable {
     /// Seconds late at your stop, or at the last stop before it with an estimate; nil with none.
@@ -99,11 +118,12 @@ struct LocationFix: Sendable, Equatable {
     var age: TimeInterval = 0
 }
 
-/// The phone's location during a ride (TT-171), and the matcher's while Schedule is open (TT-175): When In Use
-/// permission, and updates with the background session while a ride lasts. Through this protocol When In Use is asked
-/// only when a ride starts; the Automatic direction and Detect my train switches ask it too, and nothing asks at launch
-/// (D60 rule 4 as revised by D116). Automatic direction's one look when the app opens has its own reader,
-/// `DirectionLocating`, which never asks by itself. `SystemLocationProvider` in the app, a fake in tests.
+/// The phone's location during a ride (TT-171), and the automatic ride's watch's (TT-242, D120): When In Use permission,
+/// and updates with the background session while a ride lasts. Through this protocol When In Use is asked only when a ride
+/// starts; the Automatic direction and Automatic ride switches ask it too, and nothing asks at launch (D60 rule 4 as
+/// revised by D116 and D120). Automatic direction's one look when the app opens has its own reader, `DirectionLocating`,
+/// which never asks by itself. `SystemLocationProvider` in the app (`BackgroundFixes` for a watch armed with the app
+/// closed), a fake in tests.
 @MainActor
 protocol LocationProviding: AnyObject {
     /// When In Use or Always is allowed. Reading it never asks.

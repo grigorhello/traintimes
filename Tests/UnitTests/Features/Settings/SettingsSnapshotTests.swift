@@ -4,20 +4,30 @@ import XCTest
 @testable import TrainTimes
 
 /// Settings after the redesign (TT-168, D57) against design/frames/settings*.png, light and dark: the main view with the
-/// Automatic direction card in each of its states (TT-234, D116), the three Notifications states, About and Testing. Drawn
+/// Automatic card in each of its states (TT-234, D116; TT-243, D120, board 46), the three Notifications states, About and
+/// Testing. Drawn
 /// in the key window so the safe areas render as on the simulator; the tab bar is in the app shell snapshots. Glass is
 /// drawn as its solid fallback and the springs are not played (`\.rendersGlass` and `\.playsSettingsMotion` off), so every
 /// image is the settled page, and a dark glass control cannot differ between runs.
 final class SettingsSnapshotTests: XCTestCase {
     // MARK: Main view
 
-    /// settings.png with the Automatic direction card on (board 17): notifications on, Testing off (a TestFlight build).
+    /// settings.png with the Automatic card on (board 46): notifications on, Testing off (a TestFlight build); Automatic
+    /// direction and Automatic ride on, When the app is closed off.
     @MainActor func testMainLight() { snapMain(.allowed, .light, showsTesting: true, direction: FakeDirectionLocation()) }
-    /// settings-dark.png: notifications off, Delays and Mock time on, Automatic direction on.
+    /// settings-dark.png: notifications off, Delays and Mock time on, the whole Automatic card on (Always allowed).
     @MainActor func testMainDark() {
-        snapMain(.off, .dark, showsTesting: true, testingOn: true, direction: FakeDirectionLocation())
+        snapMain(.off, .dark, showsTesting: true, testingOn: true, direction: FakeDirectionLocation(), closedOn: true)
     }
-    /// settings-store.png: the App Store build, six rows, nothing asked yet: Automatic direction off with its plain note.
+    /// Automatic ride turned off by two "Not on it": When the app is closed hides, "Turned off after two “Not on it”."
+    @MainActor func testMainAutoRideTurnedOffLight() {
+        snapMain(.allowed, .light, direction: FakeDirectionLocation(), autoRideTurnedOff: true)
+    }
+    @MainActor func testMainAutoRideTurnedOffDark() {
+        snapMain(.allowed, .dark, direction: FakeDirectionLocation(), autoRideTurnedOff: true)
+    }
+    /// settings-store.png: the App Store build, nothing asked yet: Automatic direction and Automatic ride off with the
+    /// plain note.
     @MainActor func testMainStoreLight() { snapMain(.notAsked, .light, direction: FakeDirectionLocation(permission: .notAsked)) }
     @MainActor func testMainStoreDark() { snapMain(.notAsked, .dark, direction: FakeDirectionLocation(permission: .notAsked)) }
     /// Location refused: Automatic direction off, "Needs your location. Allow it in iOS Settings."
@@ -39,14 +49,6 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testNotificationsOffDark() async { snapNotifications(.off, .dark, await twoAlerts()) }
     @MainActor func testNotificationsNotAskedLight() async { snapNotifications(.notAsked, .light, await twoAlerts()) }
     @MainActor func testNotificationsNotAskedDark() async { snapNotifications(.notAsked, .dark, await twoAlerts()) }
-    /// "Detect my train" on (TT-176).
-    @MainActor func testNotificationsDetectOnLight() async {
-        snapNotifications(.allowed, .light, await twoAlerts(), detection: BackgroundRig.on())
-    }
-    /// Turned off by three "No" in a week: the line under the switch.
-    @MainActor func testNotificationsDetectTurnedOffDark() async {
-        snapNotifications(.allowed, .dark, await twoAlerts(), detection: turnedOff())
-    }
 
     // MARK: About and Testing
 
@@ -115,12 +117,13 @@ final class SettingsSnapshotTests: XCTestCase {
     }
 
     /// `direction` is Automatic direction's location reader, with nothing stored; nil is no reader, which reads off.
-    /// Demo place is kept in defaults of its own, never the app's. `autoRideCheck` is what Last check shows.
+    /// Demo place is kept in defaults of its own, never the app's. `autoRideCheck` is what Last check shows. `wake` is When
+    /// the app is closed; `autoRideStore` keeps Automatic ride's "off".
     @MainActor
     private func model(
         _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil,
-        detection: BackgroundRig? = nil, direction: (any DirectionLocating)? = nil, route: Route? = nil,
-        autoRideCheck: AutoRideCheck? = nil
+        direction: (any DirectionLocating)? = nil, route: Route? = nil, autoRideCheck: AutoRideCheck? = nil,
+        autoRideStore: AutoRideStore? = nil, wake: AutoRideWake? = nil
     ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
         if testingOn {
@@ -131,7 +134,7 @@ final class SettingsSnapshotTests: XCTestCase {
         }
         let model = SettingsViewModel(
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
-            showsTesting: showsTesting, alerts: alerts, detection: detection?.detection, direction: direction,
+            showsTesting: showsTesting, alerts: alerts, autoRideStore: autoRideStore, autoRideWake: wake, direction: direction,
             directionStore: DirectionStore(defaults: nil), route: { route }, autoRideCheck: { autoRideCheck },
             defaults: .ephemeral()
         )
@@ -148,28 +151,31 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor
     private func snapMain(
         _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, showsTesting: Bool = false, testingOn: Bool = false,
-        direction: (any DirectionLocating)? = nil, testName: String = #function, line: UInt = #line
+        direction: (any DirectionLocating)? = nil, closedOn: Bool = false, autoRideTurnedOff: Bool = false,
+        testName: String = #function, line: UInt = #line
     ) {
+        let store = AutoRideStore(defaults: .ephemeral())
+        if autoRideTurnedOff {
+            store.recordNotOnIt(at: Date(timeIntervalSince1970: 1_795_000_000))
+            store.recordNotOnIt(at: Date(timeIntervalSince1970: 1_795_100_000))
+        }
+        store.closed = closedOn
+        let wake = AutoRideWake.switchOnly(location: FakeWakeLocation(allowsAlways: closedOn), store: store)
         let view = SettingsView(
-            viewModel: model(permission, showsTesting: showsTesting, testingOn: testingOn, direction: direction)
+            viewModel: model(
+                permission, showsTesting: showsTesting, testingOn: testingOn, direction: direction, autoRideStore: store,
+                wake: wake
+            )
         )
         snap(view, style, testName: testName, line: line)
     }
 
-    /// The switch off after three "No" in a week.
-    @MainActor
-    private func turnedOff() -> BackgroundRig {
-        let defaults = UserDefaults.ephemeral()
-        defaults.set(true, forKey: DetectionStore.turnedOffKey)
-        return BackgroundRig(defaults: defaults)
-    }
-
     @MainActor
     private func snapNotifications(
-        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, _ alerts: AlertRules, detection: BackgroundRig? = nil,
+        _ permission: NotificationPermission, _ style: UIUserInterfaceStyle, _ alerts: AlertRules,
         testName: String = #function, line: UInt = #line
     ) {
-        let page = SettingsNotificationsPage(viewModel: model(permission, alerts: alerts, detection: detection), onShowAlerts: {})
+        let page = SettingsNotificationsPage(viewModel: model(permission, alerts: alerts), onShowAlerts: {})
         snap(page, style, testName: testName, line: line)
     }
 

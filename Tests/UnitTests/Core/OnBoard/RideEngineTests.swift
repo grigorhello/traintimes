@@ -468,7 +468,7 @@ final class RideEngineTests: XCTestCase {
     }
 
     /// Acceptance: no location request at launch; the engine asks only at a ride's start (the Automatic direction and
-    /// Detect my train switches ask too, D116).
+    /// Automatic ride switches ask too, D116, D120).
     func testLocationIsAskedOnlyWhenARideStarts() async throws {
         let rig = try rig(at: t(11, 10))
         await rig.engine.restore()

@@ -11,7 +11,7 @@ final class SettingsDirectionTests: XCTestCase {
     /// The pages of the Settings app the model opened; a test opens nothing.
     private var opened: [URL] = []
 
-    private let plainNote = "settings.auto_direction.note"
+    private let plainNote = "settings.automatic.note"
     private let route = AlertFixtures.route
 
     override func setUp() async throws {
@@ -44,7 +44,7 @@ final class SettingsDirectionTests: XCTestCase {
         let store = DirectionStore(defaults: nil)
         let model = makeModel(FakeDirectionLocation(), store: store)
         XCTAssertTrue(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, plainNote)
+        XCTAssertEqual(model.automaticNote, plainNote)
         XCTAssertFalse(store.isOff)
         XCTAssertTrue(recorder.events.isEmpty, "reading the switch sends nothing")
     }
@@ -62,7 +62,7 @@ final class SettingsDirectionTests: XCTestCase {
         XCTAssertFalse(model.autoDirection)
         XCTAssertTrue(store.isOff)
         XCTAssertEqual(defaults.object(forKey: DirectionStore.offKey) as? Bool, true)
-        XCTAssertEqual(model.autoDirectionNote, plainNote, "the rider's own off needs nothing from iOS")
+        XCTAssertEqual(model.automaticNote, plainNote, "the rider's own off needs nothing from iOS")
         XCTAssertEqual(recorder.events, [.settingChanged("auto_direction", value: "off")])
         XCTAssertEqual(recorder.events.first?.properties, ["setting": .string("auto_direction"), "value": .string("off")])
 
@@ -83,7 +83,7 @@ final class SettingsDirectionTests: XCTestCase {
         DirectionStore(defaults: defaults).isOff = true
         let model = makeModel(FakeDirectionLocation(), store: DirectionStore(defaults: defaults))
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, plainNote)
+        XCTAssertEqual(model.automaticNote, plainNote)
         XCTAssertTrue(recorder.events.isEmpty)
     }
 
@@ -95,7 +95,7 @@ final class SettingsDirectionTests: XCTestCase {
         store.isOff = true
         let model = makeModel(location, store: store)
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, plainNote)
+        XCTAssertEqual(model.automaticNote, plainNote)
 
         let prompt = try XCTUnwrap(model.tapAutoDirection(true))
         await prompt.value
@@ -116,7 +116,7 @@ final class SettingsDirectionTests: XCTestCase {
         await prompt.value
         XCTAssertEqual(location.requests, 1)
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, "settings.auto_direction.needs_location")
+        XCTAssertEqual(model.automaticNote, "settings.auto_direction.needs_location")
         XCTAssertTrue(recorder.events.isEmpty, "iOS refused: the switch did not change")
         XCTAssertTrue(opened.isEmpty)
     }
@@ -130,7 +130,7 @@ final class SettingsDirectionTests: XCTestCase {
         await prompt.value
         XCTAssertEqual(location.permission, .allowed)
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, "settings.auto_direction.needs_precise")
+        XCTAssertEqual(model.automaticNote, "settings.auto_direction.needs_precise")
         XCTAssertTrue(recorder.events.isEmpty)
         XCTAssertTrue(opened.isEmpty)
     }
@@ -142,7 +142,7 @@ final class SettingsDirectionTests: XCTestCase {
         let location = FakeDirectionLocation(permission: .refused)
         let model = makeModel(location, store: DirectionStore(defaults: nil))
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, "settings.auto_direction.needs_location")
+        XCTAssertEqual(model.automaticNote, "settings.auto_direction.needs_location")
 
         XCTAssertNil(model.tapAutoDirection(true))
         XCTAssertEqual(opened, [SettingsViewModel.locationSettingsURL])
@@ -154,7 +154,7 @@ final class SettingsDirectionTests: XCTestCase {
         location.permission = .allowed
         await model.refreshPermission()
         XCTAssertTrue(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, plainNote)
+        XCTAssertEqual(model.automaticNote, plainNote)
         XCTAssertTrue(recorder.events.isEmpty)
     }
 
@@ -163,7 +163,7 @@ final class SettingsDirectionTests: XCTestCase {
         let location = FakeDirectionLocation(isPrecise: false)
         let model = makeModel(location, store: DirectionStore(defaults: nil))
         XCTAssertFalse(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, "settings.auto_direction.needs_precise")
+        XCTAssertEqual(model.automaticNote, "settings.auto_direction.needs_precise")
 
         XCTAssertNil(model.tapAutoDirection(true))
         XCTAssertEqual(opened, [SettingsViewModel.locationSettingsURL])
@@ -174,7 +174,7 @@ final class SettingsDirectionTests: XCTestCase {
         location.isPrecise = true
         await model.refreshPermission()
         XCTAssertTrue(model.autoDirection)
-        XCTAssertEqual(model.autoDirectionNote, plainNote)
+        XCTAssertEqual(model.automaticNote, plainNote)
         XCTAssertTrue(recorder.events.isEmpty)
     }
 
@@ -206,7 +206,7 @@ final class SettingsDirectionTests: XCTestCase {
         ]
         for model in models {
             XCTAssertFalse(model.autoDirection)
-            XCTAssertEqual(model.autoDirectionNote, plainNote)
+            XCTAssertEqual(model.automaticNote, plainNote)
             XCTAssertNil(model.tapAutoDirection(true))
             XCTAssertNil(model.tapAutoDirection(false))
             XCTAssertFalse(model.autoDirection)

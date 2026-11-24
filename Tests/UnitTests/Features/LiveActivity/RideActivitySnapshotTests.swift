@@ -12,6 +12,7 @@ import XCTest
 /// Before departure (TT-178): the Lock Screen card pending, late, boarding, the departure question (TT-231, boards 31 and
 /// 32: "On board?" with Yes and No once the train has left) and stale; the island compact and expanded, and asking.
 /// Boarding at the platform (TT-233, D114): the card of a train the feed places at its station, before and past its time.
+/// Not on it (TT-243, D120): the card of a ride that started by itself, with its pill.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -36,6 +37,10 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testExpressLockScreenDark() async throws { snap(try await expressLockScreen(), .dark) }
     @MainActor func testExpressIslandLight() async throws { snap(try await expressIsland(), .light) }
     @MainActor func testExpressIslandDark() async throws { snap(try await expressIsland(), .dark) }
+    /// A ride that started by itself (TT-243, D120): the glass "Not on it" pill in the right fact's place for its first
+    /// 10 min, on the Lock Screen riding and with your stop next, and in the expanded island; stale, the fact comes back.
+    @MainActor func testNotOnItLight() async throws { snap(try await notOnIt(), .light) }
+    @MainActor func testNotOnItDark() async throws { snap(try await notOnIt(), .dark) }
 
     private struct Moment {
         let attributes: RideActivityAttributes
@@ -195,6 +200,28 @@ final class RideActivitySnapshotTests: XCTestCase {
             lockCard(with("enjoyAfternoon"), isStale: false)
             compact(with("enjoyEvening"))
             expanded(with("enjoyEvening"))
+            Spacer()
+        }
+        .padding(.top, 60)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    @MainActor
+    private func notOnIt() async throws -> some View {
+        func undoable(_ moment: Moment) -> Moment {
+            var state = moment.state
+            state.undoable = true
+            return Moment(attributes: moment.attributes, state: state)
+        }
+        let riding = undoable(try await moment(DemoRideRig.time(17, 32)))
+        let next = undoable(try await moment(DemoRideRig.time(17, 38)))
+        return VStack(spacing: 14) {
+            lockCard(riding, isStale: false)
+            lockCard(next, isStale: false)
+            lockCard(riding, isStale: true)
+            expanded(riding)
             Spacer()
         }
         .padding(.top, 60)

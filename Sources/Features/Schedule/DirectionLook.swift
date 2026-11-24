@@ -194,7 +194,6 @@ final class DirectionLook: RouteChoiceFollowing {
     private let store: DirectionStore
     private let clock: any AppClock
     private let ride: (any DirectionRideSource)?
-    private let offerDue: @MainActor () -> Bool
     private let track: @Sendable (Route, ServiceDay) async -> DirectionRule.Track?
     private let haptics: any HapticPlaying
     private let quick: Duration
@@ -231,8 +230,6 @@ final class DirectionLook: RouteChoiceFollowing {
     @ObservationIgnored private var turning: Turning?
     @ObservationIgnored private var turnings = 0
     @ObservationIgnored private var turningTimer: Task<Void, Never>?
-    /// Detect my train's offer was shown in this visit: the strip waits for a later turn (TT-236).
-    @ObservationIgnored private var offerShownThisVisit = false
     /// The strip, on its way in as the names land.
     @ObservationIgnored private var stripTask: Task<Void, Never>?
 
@@ -269,7 +266,7 @@ final class DirectionLook: RouteChoiceFollowing {
     /// plays the launch splash: where it does not, a cold start follows the coming-back rule.
     init(
         schedule: any RouteTurning, location: any DirectionLocating, stations: any StationRepository, store: DirectionStore,
-        clock: any AppClock, ride: (any DirectionRideSource)? = nil, offerDue: @escaping @MainActor () -> Bool = { false },
+        clock: any AppClock, ride: (any DirectionRideSource)? = nil,
         track: @escaping @Sendable (Route, ServiceDay) async -> DirectionRule.Track? = { _, _ in nil },
         capsule: DirectionCapsuleModel = DirectionCapsuleModel(), haptics: any HapticPlaying = TTHaptics.shared,
         quick: Duration = DirectionRule.quick, limit: Duration = DirectionRule.limit,
@@ -282,7 +279,6 @@ final class DirectionLook: RouteChoiceFollowing {
         self.store = store
         self.clock = clock
         self.ride = ride
-        self.offerDue = offerDue
         self.track = track
         self.capsule = capsule
         self.haptics = haptics
@@ -362,7 +358,6 @@ final class DirectionLook: RouteChoiceFollowing {
         isCold = false
         beginsVisit = true
         visitDone = false
-        offerShownThisVisit = false
         turned = nil
     }
 
@@ -407,11 +402,6 @@ final class DirectionLook: RouteChoiceFollowing {
 
     // MARK: The one-time strip (TT-236)
 
-    /// Detect my train's offer is shown (`RootView`): the strip does not show in this visit.
-    func offerShown() {
-        offerShownThisVisit = true
-    }
-
     /// The strip's OK: it closes for good.
     func stripOK() {
         guard showsStrip else { return }
@@ -445,11 +435,11 @@ final class DirectionLook: RouteChoiceFollowing {
         if !showsStrip { showsStrip = true }
     }
 
-    /// The strip comes with this turn unless it was answered, Automatic direction reads off, or Detect my train's offer is
-    /// due or was shown in this visit (then it waits for a later turn). `now`: the turn was made under the splash, so the
-    /// strip is in place when it lifts; otherwise it arrives as the names land.
+    /// The strip comes with this turn unless it was answered or Automatic direction reads off (Detect my train's offer, which
+    /// held it back, went with TT-243). `now`: the turn was made under the splash, so the strip is in place when it lifts;
+    /// otherwise it arrives as the names land.
     private func offerStrip(now: Bool = false) {
-        guard !showsStrip, stripTask == nil, !store.stripAnswered, isOn, !offerDue(), !offerShownThisVisit else { return }
+        guard !showsStrip, stripTask == nil, !store.stripAnswered, isOn else { return }
         guard !now, stripDelay > .zero else { return showStrip() }
         let delay = stripDelay
         stripTask = Task { [weak self] in
@@ -533,7 +523,7 @@ final class DirectionLook: RouteChoiceFollowing {
 
     /// A ride that ended at your stop is proof with no reading: once the ride's sheet is gone and Schedule shows, the
     /// route turns to leave from that stop, when it is the route's To, within an hour of the ride's end. The Undo hour
-    /// stops it; a route chosen by hand does not. Detect my train's offer goes first.
+    /// stops it; a route chosen by hand does not.
     private func proveIfDue() {
         guard let arrival = ride?.arrival, arrival != usedArrival else { return }
         let now = clock.now
@@ -541,7 +531,7 @@ final class DirectionLook: RouteChoiceFollowing {
             usedArrival = arrival
             return
         }
-        guard scene.isClear, schedule.isToday, ride?.holdsRide != true, !offerDue(), let route = schedule.route else { return }
+        guard scene.isClear, schedule.isToday, ride?.holdsRide != true, let route = schedule.route else { return }
         usedArrival = arrival
         guard isOn, route.to.id == arrival.stopId, !store.holdsUndo(for: route, at: now) else { return }
         if run != nil { finish(.nothing(.rideProof)) }
@@ -553,8 +543,6 @@ final class DirectionLook: RouteChoiceFollowing {
 
     private func startIfDue() {
         guard run == nil, !visitDone, scene.isClear, schedule.isToday else { return }
-        // Detect my train's offer goes first: the look waits for its sheet to close.
-        guard !offerDue() else { return }
         visitDone = true
         let now = clock.now
         guard hadRoute, let route = schedule.route else { return note(.noRoute) }

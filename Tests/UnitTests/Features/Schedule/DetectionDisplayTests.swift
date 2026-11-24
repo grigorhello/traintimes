@@ -3,6 +3,7 @@ import XCTest
 
 /// The departure question's words on Schedule (TT-231; train detection's question that shared them went with TT-243, D120)
 /// and what the strip under the day strip shows, in order.
+@MainActor
 final class DetectionDisplayTests: XCTestCase {
     func testTheQuestionNamesTheRidersStop() {
         XCTAssertEqual(TrainQuestionCard.title(stop: "Clarkson GO"), "On the train to Clarkson?")

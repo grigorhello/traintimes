@@ -257,15 +257,15 @@ final class AutoRideUndoTests: XCTestCase {
         XCTAssertEqual(SavedRide.read(from: defaults, key: RideEngine.storageKey)?.startSource, .detection)
     }
 
-    // MARK: Wake fixes
+    // MARK: Background fixes
 
-    func testAWakeFixGetsItsAgeFromItsTimestamp() {
+    func testABackgroundFixGetsItsAgeFromItsTimestamp() {
         let now = Date(timeIntervalSince1970: 1_795_000_000)
         let old = CLLocation(
             coordinate: CLLocationCoordinate2D(latitude: 43.645, longitude: -79.38), altitude: 0, horizontalAccuracy: 65,
             verticalAccuracy: -1, timestamp: now.addingTimeInterval(-30)
         )
-        let fix = SystemWakeLocation.fix(from: old, now: now)
+        let fix = BackgroundFixes.fix(from: old, now: now)
         XCTAssertEqual(fix.age, 30, accuracy: 0.001)
         XCTAssertEqual(fix.horizontalAccuracy, 65)
 
@@ -273,6 +273,6 @@ final class AutoRideUndoTests: XCTestCase {
             coordinate: CLLocationCoordinate2D(latitude: 43.645, longitude: -79.38), altitude: 0, horizontalAccuracy: 65,
             verticalAccuracy: -1, timestamp: now.addingTimeInterval(5)
         )
-        XCTAssertEqual(SystemWakeLocation.fix(from: ahead, now: now).age, 0, "A clock a little ahead is no age")
+        XCTAssertEqual(BackgroundFixes.fix(from: ahead, now: now).age, 0, "A clock a little ahead is no age")
     }
 }

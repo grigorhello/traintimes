@@ -552,7 +552,8 @@ final class RideEngine: DirectionRideSource {
         }
         if let ending {
             state = current
-            return end(ending)
+            end(ending)
+            return
         }
         let changed = current != state
         if changed { state = current }

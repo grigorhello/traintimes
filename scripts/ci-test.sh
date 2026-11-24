@@ -49,7 +49,6 @@ read -r UDID IOS_VERSION < build/simulator.txt
 
 xcodebuild -version
 RESULT=build/TestResults.xcresult
-rm -rf "$RESULT"
 
 FORMATTER=(cat)
 if command -v xcbeautify >/dev/null 2>&1; then
@@ -57,20 +56,40 @@ if command -v xcbeautify >/dev/null 2>&1; then
   [[ -n "${GITHUB_ACTIONS:-}" ]] && FORMATTER+=(--renderer github-actions)
 fi
 
-xcodebuild test \
-  -project TrainTimes.xcodeproj \
-  -scheme TrainTimes \
-  -configuration Debug \
-  -destination "id=$UDID" \
-  -resultBundlePath "$RESULT" \
-  -skipMacroValidation \
-  -skipPackagePluginValidation \
-  2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+run_tests() {
+  rm -rf "$RESULT"
+  status=0
+  xcodebuild test \
+    -project TrainTimes.xcodeproj \
+    -scheme TrainTimes \
+    -configuration Debug \
+    -destination "id=$UDID" \
+    -resultBundlePath "$RESULT" \
+    -skipMacroValidation \
+    -skipPackagePluginValidation \
+    2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+}
+
+# Boot the simulator before xcodebuild does, and wait until it is up.
+xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+run_tests
+
+# On the Xcode 27 image the simulator service sometimes dies while the test runner is installed ("Invalid device state",
+# Mach error -308), before any test starts (three TT-243 runs and main after TT-242). Then restart the service, boot the
+# simulator again and run once more; the build is done, so the second run costs little more than the tests.
+if [[ "$status" -ne 0 ]] && grep -q "Failed to install or launch the test runner" build/xcodebuild.log \
+  && ! grep -q "Test Case '.*' started" build/xcodebuild.log; then
+  echo "::warning::The simulator failed before any test started; restarting it and running the tests again."
+  xcrun simctl shutdown all >/dev/null 2>&1 || true
+  killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+  run_tests
+fi
 
 # The formatter shows test results only, so a run that ends without them (the test app crashed or never started) left
 # nothing to read in the log, and cloud sessions cannot download the result bundle. On a failure, print xcodebuild's own
 # last lines, the result bundle's summary and the newest crash report of the app.
-if [[ "${status:-0}" -ne 0 ]]; then
+if [[ "$status" -ne 0 ]]; then
   echo "::group::xcodebuild's last lines"
   tail -n 150 build/xcodebuild.log
   echo "::endgroup::"

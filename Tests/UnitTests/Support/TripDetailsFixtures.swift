@@ -192,13 +192,12 @@ struct DemoRideRig {
         let wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
         let clock = TestClock(now: start)
         let day = DemoRideRig.day
-        // No question first (TT-175): the ride starts as Demo trains › Ride turns on.
+        // The ride starts as Demo trains › Ride turns on (TT-243: its question went with train detection).
         let onBoard = OnBoard(
             app: nil,
             makeDemo: { _ in
                 (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil, express: express), ride: DemoRide.ride(on: day))
             },
-            makeDemoDetector: nil,
             makeDemoNudge: makeNudge,
             wishes: wishes
         )
@@ -212,6 +211,26 @@ struct DemoRideRig {
     /// passed without stopping, about 13 %, 38 %, 57 % and 77 % of the way to Clarkson.
     static func express(at moment: Date) async -> DemoRideRig {
         await started(at: moment, express: true, from: DemoRideRig.time(17, 20))
+    }
+
+    /// The demo ride as if it had started by itself at `start` (TT-243, D120), moved on to `moment`: Not on it stands for End
+    /// ride until 10 min after `start`. It starts through the demo departure's hand-off, as the demo watch starts it.
+    static func autoStarted(
+        at moment: Date = DemoRideRig.time(17, 34), from start: Date = DemoRideRig.time(17, 32)
+    ) async -> DemoRideRig {
+        let clock = TestClock(now: start)
+        let day = DemoRideRig.day
+        let onBoard = OnBoard(
+            app: nil,
+            makeDeparture: { DemoDeparture.Session(day: day, clock: clock) },
+            makeHandOff: { _ in (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil), ride: DemoRide.ride(on: day)) },
+            wishes: ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
+        )
+        onBoard.setDemoDeparture(true)
+        await onBoard.handOffDemo(source: .auto)
+        let rig = DemoRideRig(clock: clock, onBoard: onBoard)
+        if moment != start { rig.drive(to: moment) }
+        return rig
     }
 
     var engine: RideEngine? { onBoard.engine }

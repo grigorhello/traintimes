@@ -76,6 +76,10 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         /// The ride's arrival wish, "Have a good day", in "Now"'s place on the card from 5 s after your stop (TT-229, D108):
         /// the one the ride screen shows (`ArrivalWishes`). Nil before then, and in the compact island, which keeps "Now".
         var wish: String? = nil
+        /// The ride started by itself less than 10 min ago (TT-243, D120): a glass "Not on it" pill stands in the right
+        /// fact's place ("Arrives" and its time), and the 45 s refresh after the window takes it away. Only the app writes
+        /// it; the alert server never does.
+        var undoable = false
 
         /// About a minute before your stop: the activity alerts once.
         var isAlert: Bool { phase == .arriving }
@@ -106,7 +110,7 @@ extension RideActivityAttributes.ContentState {
     enum CodingKeys: String, CodingKey {
         case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated, wish
         case stations, skipped, express
-        case asks
+        case asks, undoable
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -136,6 +140,7 @@ extension RideActivityAttributes.ContentState {
         updated = try container.decodeIfPresent(String.self, forKey: .updated) ?? ""
         asks = try container.decodeIfPresent(Bool.self, forKey: .asks) ?? false
         wish = try container.decodeIfPresent(String.self, forKey: .wish)
+        undoable = try container.decodeIfPresent(Bool.self, forKey: .undoable) ?? false
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -159,6 +164,7 @@ extension RideActivityAttributes.ContentState {
         try container.encode(updated, forKey: .updated)
         if asks { try container.encode(asks, forKey: .asks) }
         try container.encodeIfPresent(wish, forKey: .wish)
+        if undoable { try container.encode(undoable, forKey: .undoable) }
     }
 }
 

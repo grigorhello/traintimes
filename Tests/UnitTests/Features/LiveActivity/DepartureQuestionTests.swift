@@ -3,7 +3,7 @@ import XCTest
 
 /// TT-231 (D110): "On board?" when an alerted train leaves. The rule on the demo departure's clock (the 5:13 PM train, 3 min
 /// late from 5:04, so it leaves at 5:16), the asking card's state, Schedule's question with Yes and No, the declined-today
-/// rule shared with train detection, and the analytics.
+/// rule (`DetectionStore`, which Not on it writes too), and the analytics.
 @MainActor
 final class DepartureQuestionTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
@@ -137,15 +137,15 @@ final class DepartureQuestionTests: XCTestCase {
         try asking(rig, at: DepartureRig.time(17, 16, 10))
         XCTAssertEqual(rig.onBoard.departureAsk?.ride, DemoRide.ride(on: DepartureRig.day))
         XCTAssertTrue(rig.onBoard.asksDeparture)
-        XCTAssertEqual(RideStripContent(rig.onBoard), .asking, "In detection's question card")
+        XCTAssertEqual(RideStripContent(rig.onBoard), .asking, "In the strip's question card")
 
         try asking(rig, at: DepartureRig.time(17, 26))
         XCTAssertNil(rig.onBoard.departureAsk, "Gone with the window")
     }
 
-    func testDetectionsQuestionWinsTheStrip() {
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle, asksDeparture: true), .asking)
-        XCTAssertEqual(RideStripContent(isRiding: true, detection: .idle, asksDeparture: true), .riding)
+    func testRidingWinsTheStripOverTheQuestion() {
+        XCTAssertEqual(RideStripContent(isRiding: false, asksDeparture: true), .asking)
+        XCTAssertEqual(RideStripContent(isRiding: true, asksDeparture: true), .riding)
     }
 
     func testYesStartsTheRideWithSourceDeparture() async throws {
@@ -179,8 +179,8 @@ final class DepartureQuestionTests: XCTestCase {
         XCTAssertNil(rig.onBoard.departureAsk, "Nothing asks about that train again")
     }
 
-    /// A No on the card, the notification or Schedule's strip silences train detection for that trip today too.
-    func testNoBlocksDetectionForThatTripToday() async throws {
+    /// A No on the card, the notification or Schedule's strip silences that trip for the day everywhere.
+    func testNoSilencesThatTripToday() async throws {
         let recorder = RecordingAnalytics.install()
         let defaults = UserDefaults.ephemeral()
         let key = TripKey(serviceDay: DepartureRig.day, tripId: DemoRide.tripId)
@@ -189,7 +189,7 @@ final class DepartureQuestionTests: XCTestCase {
         DepartureQuestion.decline(key, in: defaults, surface: .card)
 
         XCTAssertTrue(DepartureQuestion.isDeclined(key, in: defaults))
-        XCTAssertEqual(defaults.stringArray(forKey: TrainDetector.silencedKey), ["\(DepartureRig.day.dateKey)/\(DemoRide.tripId)"])
+        XCTAssertEqual(defaults.stringArray(forKey: DetectionStore.silencedKey), ["\(DepartureRig.day.dateKey)/\(DemoRide.tripId)"])
         XCTAssertEqual(recorder.events, [.departureQuestionAnswered(yes: false, surface: .card)])
 
         let onBoard = OnBoard(app: nil, declines: defaults)

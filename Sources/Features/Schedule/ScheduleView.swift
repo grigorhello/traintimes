@@ -44,6 +44,8 @@ struct ScheduleView: View {
     /// Automatic direction's look (TT-234, D116), from `RootView`, and whether the Feedback sheet is up, which it counts
     /// as something over Schedule.
     @Environment(\.directionLook) private var direction
+    /// The automatic ride's one-time strip (TT-243, D120), from `RootView`; nil in previews and snapshots of Schedule alone.
+    @Environment(\.autoRideStrip) private var autoRideStrip
     @State private var feedbackOpen = false
     /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
     @State private var nudgeWaiting = false
@@ -93,7 +95,7 @@ struct ScheduleView: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             // The timeline moves with the strip under the day strip instead of jumping (TT-175), Automatic direction's
             // one-time strip included (TT-236).
-            .rideStripMotion(onBoard, direction: direction)
+            .rideStripMotion(onBoard, autoRide: autoRideStrip, direction: direction)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TTColor.canvas)
             // A tap outside the day panel closes it, and still reaches what it lands on (TT-191).
@@ -236,11 +238,8 @@ struct ScheduleView: View {
         case .timeline, .noTrains: true
         case .loading, .noConnection, .failed: false
         }
-        // Automatic direction's one-time strip counts as a ride strip (TT-236).
-        let rideStrip = RideStripContent(
-            isRiding: onBoard?.activeRide != nil, detection: onBoard?.detection ?? .idle,
-            showsDirectionStrip: direction?.showsStrip ?? false
-        )
+        // The one-time strips count as a ride strip (TT-236, TT-243).
+        let rideStrip = RideStripContent(onBoard, autoRide: autoRideStrip, direction: direction)
         return FeedbackNudge.Stillness(
             isActive: scenePhase == .active,
             isLoaded: isLoaded,
@@ -379,10 +378,10 @@ struct ScheduleView: View {
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, -TTSpace.s1)
             }
-            // The ride strip takes the watched-trip strip's place while a ride runs (Live-Schedule), and Automatic
-            // direction's one-time strip until it is answered (TT-236). Its own view reads the ride, so the ride's
+            // The ride strip takes the watched-trip strip's place while a ride runs (Live-Schedule), and the one-time strips
+            // (the automatic ride's, TT-243, then Automatic direction's, TT-236) until they are answered. Its own view reads the ride, so the ride's
             // every-second changes redraw the strip alone.
-            RideStripSlot(onBoard: onBoard, direction: direction, onOpen: onOpenRide) {
+            RideStripSlot(onBoard: onBoard, autoRide: autoRideStrip, direction: direction, onOpen: onOpenRide) {
                 if let strip = viewModel.watchedStrip(formatter) {
                     WatchedTripStripView(strip: strip, onOpen: { onOpenTrip(strip.id) }) {
                         withAnimation(.easeOut(duration: 0.2)) { viewModel.dismissWatchedStrip(strip.id) }

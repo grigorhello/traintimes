@@ -45,8 +45,8 @@ struct SettingsView: View {
     }
 }
 
-/// The main view: title, then the cards of design/frames/settings.png with Automatic direction's between the first and
-/// Support (TT-234, D116).
+/// The main view: title, then the cards of design/frames/settings.png with the Automatic card between the first and Support
+/// (TT-234, D116; TT-243, D120).
 struct SettingsMainPage: View {
     @Bindable var viewModel: SettingsViewModel
     let open: (SettingsPage) -> Void
@@ -141,24 +141,44 @@ struct SettingsMainPage: View {
         .accessibilityIdentifier("settings.notifications")
     }
 
-    /// Automatic direction (TT-234, D116): the system switch in a card of its own, as Detect my train's, and one note under
-    /// the card: what the switch does, or what it needs from the Settings app while iOS keeps it off. The row always
-    /// shows; with no location reader (fixture runs) it reads off and a tap changes nothing. The note sits 8 pt under the
-    /// card and 14 pt above the next one.
+    /// The Automatic card (TT-234, D116; TT-243, D120; board 46): Automatic direction, Automatic ride, and while that reads
+    /// on When the app is closed, each a system switch tinted accent, and one note under the card: what iOS keeps them
+    /// from, that two Not on it turned Automatic ride off, or what the card does. The rows always show (When the app is
+    /// closed aside); with no location reader (fixture runs) they read off and a tap changes nothing. The note sits 8 pt
+    /// under the card and 14 pt above the next one.
     private var autoDirectionCard: some View {
         VStack(alignment: .leading, spacing: TTSpace.s2) {
             SettingsCard {
-                Toggle(isOn: Binding(get: { viewModel.autoDirection }, set: { viewModel.autoDirection = $0 })) {
-                    Text("settings.auto_direction").font(TTFont.body).foregroundStyle(TTColor.ink)
+                settingsSwitch(
+                    "settings.auto_direction", id: "settings.autoDirection",
+                    isOn: Binding(get: { viewModel.autoDirection }, set: { viewModel.autoDirection = $0 })
+                )
+                SettingsHairline()
+                settingsSwitch(
+                    "settings.auto_ride", id: "settings.autoRide",
+                    isOn: Binding(get: { viewModel.autoRide }, set: { viewModel.autoRide = $0 })
+                )
+                if viewModel.showsAutoRideClosed {
+                    SettingsHairline()
+                    settingsSwitch(
+                        "settings.auto_ride.closed", id: "settings.autoRideClosed",
+                        isOn: Binding(get: { viewModel.autoRideClosed }, set: { viewModel.autoRideClosed = $0 })
+                    )
                 }
-                .tint(TTColor.accent)
-                .padding(.horizontal, TTSpace.s4)
-                .frame(minHeight: SettingsMetrics.rowHeight)
-                .accessibilityIdentifier("settings.autoDirection")
             }
-            SettingsNote(text: viewModel.autoDirectionNote)
+            SettingsNote(text: viewModel.automaticNote)
         }
         .padding(.bottom, 2)
+    }
+
+    private func settingsSwitch(_ title: LocalizedStringKey, id: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title).font(TTFont.body).foregroundStyle(TTColor.ink)
+        }
+        .tint(TTColor.accent)
+        .padding(.horizontal, TTSpace.s4)
+        .frame(minHeight: SettingsMetrics.rowHeight)
+        .accessibilityIdentifier(id)
     }
 
     /// Support (TT-202, D85): the feedback sheet, and the rider's mail app as the fallback.

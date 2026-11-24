@@ -22,7 +22,8 @@ struct DemoPlaceStation: Equatable, Identifiable, Sendable {
 }
 
 /// Settings (TT-105, redesigned in TT-168, D57): the two on-device choices, the Notifications row and page, the Automatic
-/// direction switch (TT-234, D116), About and the Testing page of TestFlight and Debug builds.
+/// card (Automatic direction, TT-234, D116; Automatic ride and When the app is closed, TT-243, D120), About and the Testing
+/// page of TestFlight and Debug builds.
 @Observable @MainActor
 final class SettingsViewModel {
     /// Pages on traintimes.ca (TT-151) and the official GO service updates page, opened in Safari.
@@ -50,8 +51,12 @@ final class SettingsViewModel {
     private let alerts: AlertRules?
     /// The app's clock (with Mock time off, the device or fixture clock): Mock time starts from its "now".
     private let clock: any AppClock
-    /// "Detect my train" (TT-176), the switch on the Notifications page; nil hides it (fixture runs, most tests).
-    private let detection: BackgroundDetection?
+    /// Automatic ride's "off" and When the app is closed's "on" (TT-243, D120); nil (previews, most tests) reads both off.
+    private let autoRideStore: AutoRideStore?
+    /// When the app is closed: Always and the wake-ups; nil hides the row (fixture runs, previews, most tests).
+    private let autoRideWake: AutoRideWake?
+    /// The one-time strip on Schedule, drawn again when Automatic ride changes here.
+    private let autoRideStrip: AutoRideStrip?
     /// Done when "Turn on notifications" turned them on (TT-215, D100).
     private let haptics: any HapticPlaying
     /// Automatic direction's location reader and what it keeps on device (TT-234, D116). With either missing (previews,
@@ -81,7 +86,9 @@ final class SettingsViewModel {
         showsTesting: Bool = BuildChannel.showsTesting,
         clock: any AppClock = SystemClock(),
         alerts: AlertRules? = nil,
-        detection: BackgroundDetection? = nil,
+        autoRideStore: AutoRideStore? = nil,
+        autoRideWake: AutoRideWake? = nil,
+        autoRideStrip: AutoRideStrip? = nil,
         haptics: any HapticPlaying = TTHaptics.shared,
         direction: (any DirectionLocating)? = nil,
         directionStore: DirectionStore? = nil,
@@ -98,7 +105,9 @@ final class SettingsViewModel {
         self.appInfo = appInfo
         self.clock = clock
         self.alerts = alerts
-        self.detection = detection
+        self.autoRideStore = autoRideStore
+        self.autoRideWake = autoRideWake
+        self.autoRideStrip = autoRideStrip
         self.direction = direction
         self.directionStore = directionStore
         self.look = look
@@ -214,38 +223,6 @@ final class SettingsViewModel {
         if permission == .allowed, was != .allowed { haptics.play(.confirmed) }
     }
 
-    // MARK: Detect my train (TT-176)
-
-    /// The switch shows: the app can detect trains (not in fixture runs).
-    var showsDetection: Bool { detection != nil }
-
-    /// "Detect my train": on asks iOS for Always (and for notifications if never asked), and goes back off without Always;
-    /// off stops the wake-ups at once.
-    var detectsTrain: Bool {
-        get { detection?.isOn ?? false }
-        set {
-            guard let detection, newValue != detection.isOn else { return }
-            if newValue {
-                Task { await turnOnDetection() }
-            } else {
-                detection.turnOff()
-            }
-        }
-    }
-
-    /// Three Not me in a week turned it off: a line under the switch says so.
-    var detectionWasTurnedOff: Bool { detection?.wasTurnedOff ?? false }
-
-    func turnOnDetection() async {
-        guard let detection else { return }
-        let staysOn = await detection.turnOn()
-        // Turning it on can show the iOS location prompt, and Automatic direction reads its answer too (TT-234, D116).
-        directionReads += 1
-        guard staysOn else { return }
-        if let alerts { await alerts.requestPermission() }
-        await refreshPermission()
-    }
-
     // MARK: Automatic direction (TT-234, D116)
 
     /// The reader and the store, where Automatic direction can work; nil in fixture runs, previews and the unit test host.
@@ -265,16 +242,20 @@ final class SettingsViewModel {
         set { tapAutoDirection(newValue) }
     }
 
-    /// The note under the switch, as its key in the strings file: what the switch does, or what it needs from the
-    /// Settings app while iOS keeps it off.
-    var autoDirectionNote: String {
+    /// The one note under the Automatic card, as its key in the strings file, the first that applies: what iOS keeps
+    /// Automatic direction and Automatic ride from (location refused, Precise Location off), that two Not on it turned
+    /// Automatic ride off (until it is turned on again, TT-243), else what the card does.
+    var automaticNote: String {
         _ = directionReads
-        guard let location = directionReader?.location else { return "settings.auto_direction.note" }
-        switch location.permission {
-        case .refused: return "settings.auto_direction.needs_location"
-        case .allowed where !location.isPrecise: return "settings.auto_direction.needs_precise"
-        case .allowed, .notAsked, .unavailable: return "settings.auto_direction.note"
+        if let location = directionReader?.location {
+            switch location.permission {
+            case .refused: return "settings.auto_direction.needs_location"
+            case .allowed where !location.isPrecise: return "settings.auto_direction.needs_precise"
+            case .allowed, .notAsked, .unavailable: break
+            }
         }
+        if let autoRideStore, autoRideStore.isOff, autoRideStore.turnedOffAt != nil { return "settings.auto_ride.turned_off" }
+        return "settings.automatic.note"
     }
 
     /// The rider's tap on the switch. Off stores the "off". On clears it, and then: location never asked (or Allow Once
@@ -320,6 +301,123 @@ final class SettingsViewModel {
         directionReads += 1
         let isOn = autoDirection
         if isOn != was { Analytics.track(.settingChanged("auto_direction", value: isOn ? "on" : "off")) }
+    }
+
+    // MARK: Automatic ride (TT-243, D120)
+
+    /// A Demo Automatic ride mode is set (TT-242): the switch reads on with no location, as the demo watch needs none.
+    private var demoAutoRideOn: Bool { showsTesting && settings.demoAutoRide != .off }
+
+    /// The reader and the store, where Automatic ride can work; nil in previews and most tests, and in fixture runs with no
+    /// demo mode.
+    private var autoRideReader: (location: any DirectionLocating, store: AutoRideStore)? {
+        guard let direction, let autoRideStore, direction.permission != .unavailable || demoAutoRideOn else { return nil }
+        return (direction, autoRideStore)
+    }
+
+    /// The Automatic ride switch. It reads on while location is allowed with Precise Location (or a Demo Automatic ride mode
+    /// is set), unless the rider turned it off: only that "off" is stored (`AutoRideStore.isOff`). Setting it is the
+    /// rider's tap (`tapAutoRide(_:)`).
+    var autoRide: Bool {
+        get {
+            _ = directionReads
+            guard let reader = autoRideReader else { return false }
+            return reader.location.readsOn(reader.store, demo: demoAutoRideOn)
+        }
+        set { tapAutoRide(newValue) }
+    }
+
+    /// The rider's tap on Automatic ride. Off stores the "off" (an unanswered one-time strip counts as answered, as D116's
+    /// does). On clears it, with two Not on it's note and count, and then: location never asked shows the When In Use
+    /// prompt at once; refused, or Precise Location off, opens the app's page in the Settings app and the switch stays
+    /// off. Returns the task that waits for the prompt's answer, nil when none was shown.
+    @discardableResult
+    func tapAutoRide(_ on: Bool) -> Task<Void, Never>? {
+        guard let reader = autoRideReader else {
+            autoRideSettled(from: false)
+            return nil
+        }
+        let was = reader.location.readsOn(reader.store, demo: demoAutoRideOn)
+        var prompt: Task<Void, Never>?
+        if on {
+            reader.store.turnOn()
+            if !demoAutoRideOn {
+                switch reader.location.permission {
+                case .notAsked:
+                    prompt = Task {
+                        _ = await self.direction?.requestWhenInUse()
+                        self.autoRideSettled(from: was)
+                    }
+                case .refused:
+                    openSettings(Self.locationSettingsURL)
+                case .allowed:
+                    if !reader.location.isPrecise { openSettings(Self.locationSettingsURL) }
+                case .unavailable:
+                    break
+                }
+            }
+        } else if was {
+            reader.store.isOff = true
+            if reader.store.stripDue { reader.store.stripAnswered = true }
+        }
+        if prompt == nil { autoRideSettled(from: was) }
+        return prompt
+    }
+
+    /// A tap on Automatic ride is done: `setting_changed` only when it left the switch changed, and the strip and the
+    /// wake-ups follow.
+    private func autoRideSettled(from was: Bool) {
+        directionReads += 1
+        let isOn = autoRide
+        if isOn != was { Analytics.track(.settingChanged("auto_ride", value: isOn ? "on" : "off")) }
+        autoRideStrip?.refresh()
+        autoRideWake?.resume()
+    }
+
+    /// When the app is closed shows while Automatic ride reads on, where the app has wake-ups (not in fixture runs).
+    var showsAutoRideClosed: Bool { autoRideWake != nil && autoRide }
+
+    /// When the app is closed: on only with Always allowed and the rider's own "on" (off by default); Always taken back
+    /// reads off. Setting it is the rider's tap (`tapAutoRideClosed(_:)`).
+    var autoRideClosed: Bool {
+        get {
+            _ = directionReads
+            return autoRideWake?.isOn ?? false
+        }
+        set { tapAutoRideClosed(newValue) }
+    }
+
+    /// The rider's tap on When the app is closed. On keeps the rider's "on" at once, then with Always not allowed shows
+    /// iOS's prompts (When In Use first where location was never asked, then Always) where iOS still can, and otherwise
+    /// opens the app's page in the Settings app, the switch staying off. Off stops the wake-ups. Returns the task that
+    /// waits for the prompts, nil when none was shown.
+    @discardableResult
+    func tapAutoRideClosed(_ on: Bool) -> Task<Void, Never>? {
+        guard let wake = autoRideWake else { return nil }
+        let was = wake.isOn
+        var prompt: Task<Void, Never>?
+        if on {
+            if !wake.switchOn() {
+                if wake.canAskAlways {
+                    prompt = Task {
+                        _ = await wake.turnOn()
+                        self.autoRideClosedSettled(from: was)
+                    }
+                } else {
+                    openSettings(Self.locationSettingsURL)
+                }
+            }
+        } else if was {
+            wake.turnOff()
+        }
+        if prompt == nil { autoRideClosedSettled(from: was) }
+        return prompt
+    }
+
+    private func autoRideClosedSettled(from was: Bool) {
+        directionReads += 1
+        let isOn = autoRideClosed
+        if isOn != was { Analytics.track(.settingChanged("auto_ride_closed", value: isOn ? "on" : "off")) }
     }
 
     // MARK: Testing

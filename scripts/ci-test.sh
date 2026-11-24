@@ -49,7 +49,6 @@ read -r UDID IOS_VERSION < build/simulator.txt
 
 xcodebuild -version
 RESULT=build/TestResults.xcresult
-rm -rf "$RESULT"
 
 FORMATTER=(cat)
 if command -v xcbeautify >/dev/null 2>&1; then
@@ -57,12 +56,58 @@ if command -v xcbeautify >/dev/null 2>&1; then
   [[ -n "${GITHUB_ACTIONS:-}" ]] && FORMATTER+=(--renderer github-actions)
 fi
 
-xcodebuild test \
-  -project TrainTimes.xcodeproj \
-  -scheme TrainTimes \
-  -configuration Debug \
-  -destination "id=$UDID" \
-  -resultBundlePath "$RESULT" \
-  -skipMacroValidation \
-  -skipPackagePluginValidation \
-  2>&1 | "${FORMATTER[@]}"
+run_tests() {
+  rm -rf "$RESULT"
+  status=0
+  xcodebuild test \
+    -project TrainTimes.xcodeproj \
+    -scheme TrainTimes \
+    -configuration Debug \
+    -destination "id=$UDID" \
+    -resultBundlePath "$RESULT" \
+    -skipMacroValidation \
+    -skipPackagePluginValidation \
+    -test-timeouts-enabled YES \
+    2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+}
+
+# A test that hangs fails after 10 min (xcodebuild's default allowance once timeouts are on) instead of running the job
+# into its 90 min limit, which cancels the step before anything below can say which test it was.
+run_tests
+
+# On the Xcode 27 image the simulator itself sometimes fails under the tests: its service dies while the test runner is
+# installed ("Invalid device state", Mach error -308), or the test host is killed mid-run and the iOS runtime then reads as
+# "(null)" ("cannot determine the runtime bundle"). Seen on most TT-243 runs and on main after TT-241 and TT-242, with no
+# test at fault. Then restart the simulator service, boot the simulator again and run the tests once more; the build is
+# done, so the second run costs the tests only. A real test failure fails the second run too.
+SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device'
+if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
+  echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
+  xcrun simctl shutdown all >/dev/null 2>&1 || true
+  killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+  xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the restart."
+  xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+  cp build/xcodebuild.log build/xcodebuild-first.log
+  run_tests
+fi
+
+# The formatter shows test results only, so a run that ends without them (the test app crashed or never started) left
+# nothing to read in the log, and cloud sessions cannot download the result bundle. On a failure, print xcodebuild's own
+# last lines, the result bundle's summary and the newest crash report of the app.
+if [[ "$status" -ne 0 ]]; then
+  echo "::group::xcodebuild's last lines"
+  tail -n 150 build/xcodebuild.log
+  echo "::endgroup::"
+  echo "::group::Result bundle summary"
+  xcrun xcresulttool get test-results summary --path "$RESULT" 2>&1 | head -c 20000 || true
+  echo
+  echo "::endgroup::"
+  report=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/TrainTimes*.ips 2>/dev/null | head -n 1 || true)
+  if [[ -n "$report" ]]; then
+    echo "::group::Crash report $report"
+    head -c 12000 "$report"
+    echo
+    echo "::endgroup::"
+  fi
+  exit "$status"
+fi

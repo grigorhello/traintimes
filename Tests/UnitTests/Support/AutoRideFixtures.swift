@@ -167,6 +167,8 @@ final class WatchRig {
     let plan: RidePlan
     let clock: TestClock
     let location = FakeLocation(authorized: true)
+    /// The watch's location when armed with the app closed (TT-243): `BackgroundFixes` in the app.
+    let closedLocation = FakeLocation(authorized: true)
     let engine: RideEngine
     let positions = FakeTripPositions()
     let rivals = FakeRivalTrains()
@@ -188,8 +190,7 @@ final class WatchRig {
     /// `at`: the clock, in seconds after L. `defaults`: where the watch keeps its train (relaunch tests share one);
     /// `rideDefaults`: the engine's.
     init(
-        at seconds: Double = -300, defaults: UserDefaults? = .ephemeral(), rideDefaults: UserDefaults? = nil,
-        live: Bool = true
+        at seconds: Double = -300, defaults: UserDefaults? = .ephemeral(), rideDefaults: UserDefaults? = nil
     ) throws {
         plan = try OnBoardFixtures.plan()
         departure = AutoRideFixtures.departure(plan)
@@ -199,8 +200,8 @@ final class WatchRig {
             data: FakeRideData(plan: plan), location: location, clock: clock, defaults: rideDefaults, tickInterval: nil
         )
         watch = AutoRideWatch(
-            ride: engine, location: location, departures: departures, positions: positions, rivals: rivals,
-            holding: holder, clock: clock, store: store, live: live, lookInterval: nil,
+            ride: engine, location: location, closedLocation: closedLocation, departures: departures, positions: positions,
+            rivals: rivals, holding: holder, clock: clock, store: store, lookInterval: nil,
             replan: { [weak self] in self?.replans += 1 },
             isDeclined: { [weak self] in self?.declined.contains($0) ?? false },
             isTesting: { [weak self] in self?.testing ?? false },

@@ -85,8 +85,24 @@ struct RideDetails: Equatable {
     let stretch: Range<Double>
     /// Your stop is the next one: moving to it, or standing at the stop before it.
     let yoursIsNext: Bool
-    /// "End ride", or "Done" at your stop.
-    let button: String
+    /// The button under the ride: End ride, Done at your stop, or Not on it in a ride's first 10 min after it started by
+    /// itself (TT-243, D120).
+    enum Button: Equatable {
+        case end
+        case done
+        case notOnIt
+
+        var title: String {
+            switch self {
+            case .end: String(localized: "onboard.end")
+            case .done: String(localized: "onboard.done")
+            case .notOnIt: String(localized: "onboard.notOnIt")
+            }
+        }
+    }
+
+    /// End ride, Done at your stop, or Not on it while the ride that started by itself may still be undone.
+    let button: Button
 
     var isComplete: Bool { moment == .atYourStop }
     /// Arriving and at your stop tint the hero card.
@@ -116,7 +132,11 @@ struct RideDetails: Equatable {
 
 extension RideDetails {
     /// The display model at `now` (the ride engine's clock), or nil for a plan with fewer than two stops.
-    init?(plan: RidePlan, state: RideState, now: Date, formatter: some TimeFormatting, wish: ArrivalWish? = nil) {
+    /// `undoable`: the ride started by itself less than 10 min ago, so Not on it stands in End ride's place.
+    init?(
+        plan: RidePlan, state: RideState, now: Date, formatter: some TimeFormatting, wish: ArrivalWish? = nil,
+        undoable: Bool = false
+    ) {
         guard let times = RideTimes(plan: plan, state: state) else { return nil }
         let stops = plan.stops
         let last = times.last
@@ -210,7 +230,7 @@ extension RideDetails {
         rows = Self.rows(built, at: place)
         trainPosition = place
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
-        button = isComplete ? String(localized: "onboard.done") : String(localized: "onboard.end")
+        button = isComplete ? .done : undoable ? .notOnIt : .end
     }
 }
 
@@ -379,7 +399,10 @@ extension OnBoard {
     /// Trip details' ride mode for `key`, at the engine's clock; nil when the engine's ride is another trip's.
     func details(for key: TripKey, formatter: some TimeFormatting) -> RideDetails? {
         guard let engine, engine.ride?.tripKey == key, let plan = engine.plan, let state = engine.state else { return nil }
-        return RideDetails(plan: plan, state: state, now: engine.now, formatter: formatter, wish: arrivalWish)
+        return RideDetails(
+            plan: plan, state: state, now: engine.now, formatter: formatter, wish: arrivalWish,
+            undoable: autoUndoUntil.map { engine.now < $0 } ?? false
+        )
     }
 
     /// The ride strip on Schedule; nil with no ride running.

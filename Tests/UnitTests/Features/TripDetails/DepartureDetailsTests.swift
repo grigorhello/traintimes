@@ -128,14 +128,11 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(hero.late)
     }
 
-    /// D93: no countdown strip and no checking strip on Schedule; the ride wins over the question.
+    /// D93: no countdown strip on Schedule; the ride wins over the question.
     func testTheStripSlotShowsTheRideThenTheQuestion() {
-        let checking = TrainMatcher.State.checking(DetectionFixtures.progress(stops: 1))
-        let asking = TrainMatcher.State.asking(DetectionFixtures.question())
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: .idle), .otherwise)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: checking), .otherwise)
-        XCTAssertEqual(RideStripContent(isRiding: false, detection: asking), .asking)
-        XCTAssertEqual(RideStripContent(isRiding: true, detection: asking), .riding)
+        XCTAssertEqual(RideStripContent(isRiding: false), .otherwise)
+        XCTAssertEqual(RideStripContent(isRiding: false, asksDeparture: true), .asking)
+        XCTAssertEqual(RideStripContent(isRiding: true, asksDeparture: true), .riding)
     }
 
     func testAHandOffRideThatEndedOnItsOwnLetsARealRideStart() async throws {
@@ -160,7 +157,7 @@ final class DepartureDetailsTests: XCTestCase {
         XCTAssertNil(onBoard.activeRide)
         XCTAssertTrue(onBoard.canStart)
 
-        // Train detection's Yes (or "I’m on board") on a real train now starts it on the app's engine.
+        // The departure question's Yes (or "I’m on board") on a real train now starts it on the app's engine.
         let ride = Ride(trip: TripKey(serviceDay: day, tripId: "LW-REAL"), from: "UN", to: "CL")
         let started = await onBoard.start(ride, on: DemoRide.route)
         XCTAssertTrue(started)

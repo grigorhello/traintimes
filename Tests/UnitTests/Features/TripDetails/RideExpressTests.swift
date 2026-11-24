@@ -309,7 +309,7 @@ final class RideExpressTests: XCTestCase {
         let analytics = RecordingAnalytics.install()
         defer { Analytics.tracker = nil }
         let clock = TestClock(now: t(17, 20))
-        let express = OnBoard(app: DemoRide.engine(on: day, clock: clock, tickInterval: nil, express: true), makeDemoDetector: nil)
+        let express = OnBoard(app: DemoRide.engine(on: day, clock: clock, tickInterval: nil, express: true))
         let started = await express.start(DemoRide.ride(on: day), on: DemoRide.route)
         XCTAssertTrue(started)
         let first = try XCTUnwrap(analytics.events.last { $0.name == "ride_started" })
@@ -317,7 +317,7 @@ final class RideExpressTests: XCTestCase {
         XCTAssertEqual(first.properties["skipped_stations"], .int(4))
         XCTAssertEqual(first.properties["demo"], .bool(false))
 
-        let stopping = OnBoard(app: DemoRide.engine(on: day, clock: clock, tickInterval: nil), makeDemoDetector: nil)
+        let stopping = OnBoard(app: DemoRide.engine(on: day, clock: clock, tickInterval: nil))
         _ = await stopping.start(DemoRide.ride(on: day), on: DemoRide.route)
         let second = try XCTUnwrap(analytics.events.last { $0.name == "ride_started" })
         XCTAssertEqual(second.properties["express"], .bool(false))

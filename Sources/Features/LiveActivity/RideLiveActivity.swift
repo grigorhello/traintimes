@@ -51,6 +51,11 @@ final class RideLiveActivity: RideActivityFollowing {
 
     private let app: RideEngine?
     private var demo: RideEngine?
+    /// Not on it on the demo ride's card (TT-243): set by `OnBoard`.
+    var demoNotOnIt: (@MainActor (Ride) -> Void)?
+    /// A departure card appeared, the server's or the app's, once per card (TT-243, D120): "When the app is closed" arms
+    /// the watch on it with the app in the background (`AutoRideWake.cardArrived(_:)`). Set by `AppDelegate`.
+    var departureArrived: (@MainActor (Ride) -> Void)?
     /// The ride's line, for the tile: the GO feed's, or the demo's.
     private let line: @MainActor (Ride) async -> Line?
     /// A ride's stops, for a departure's activity: made with the ride's stop count, so the hand-off keeps it.
@@ -240,9 +245,12 @@ final class RideLiveActivity: RideActivityFollowing {
             if activity.attributes.shows(ride) { await handOff(LiveActivityReport(activity.attributes, handedOff: true)) }
         }
         let deviceNow = Date()
-        guard let content = RideActivityAttributes.ContentState(
+        guard var content = RideActivityAttributes.ContentState(
             plan: plan, state: state, now: engine.now, deviceNow: deviceNow, formatter: formatter(), wish: dueWish(at: state)
         ) else { return }
+        // Not on it for the ride's first 10 min after it started by itself (TT-243, D120); the pass after the window, at
+        // the latest the 45 s refresh, takes it away.
+        content.undoable = engine.autoUndoUntil.map { engine.now < $0 } ?? false
         let current = activities.first(where: fits)
         let staleDate = deviceNow.addingTimeInterval(Self.staleAfter)
         if let current {
@@ -442,6 +450,10 @@ final class RideLiveActivity: RideActivityFollowing {
 
     private func followToken(of id: String) {
         guard followedTokens.insert(id).inserted else { return }
+        if let activity = Activity<RideActivityAttributes>.activities.first(where: { $0.id == id }),
+           activity.content.state.isDeparture, Self.isShowing(activity.activityState) {
+            departureArrived?(Ride(activity.attributes))
+        }
         Task { [weak self] in
             await Self.pushTokens(of: id) { [weak self] token in await self?.received(token: token, of: id) }
         }

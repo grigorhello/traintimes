@@ -5,8 +5,8 @@ import UserNotifications
 /// so a tap that launches a closed app reaches it too, and hands each tap's link to the router, which RootView opens.
 /// The token callbacks go to `SystemPushRegistration`, which the alert rules ask for the token. A ride the app was stopped
 /// during is restored at launch, also when iOS relaunches the app in the background to continue it (TT-171), and its Live
-/// Activity follows it from then on (TT-174). "Detect my train" starts its wake-ups again at launch, which is how a relaunch
-/// for a wake-up reaches it, and the background question's answers arrive here (TT-176).
+/// Activity follows it from then on (TT-174). "When the app is closed" starts its wake-ups again at launch, which is how a
+/// relaunch for a wake-up reaches it (TT-243, D120), and the card's No and Not on it arrive here.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     /// The app's one router; created on first use, so the delegate's init stays free of main-actor work.
@@ -21,11 +21,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     lazy var nudge = ArrivalNudge.system()
     /// The ride on the Lock Screen and in the Dynamic Island (TT-174); nil in fixture runs.
     lazy var liveActivity = RideLiveActivity.app(following: ride)
-    /// "Detect my train" (TT-176); nil in fixture runs.
-    lazy var detection = BackgroundDetection.app(ride: ride)
     /// The ride that starts by itself on an alerted train (TT-242, D120); nil in fixture runs. It decides with the phone
     /// locked too, so it lives here rather than in `RootView`.
     lazy var autoRide = AutoRideWatch.app(ride: ride, location: location, liveActivity: liveActivity, nudge: nudge)
+    /// "When the app is closed" (TT-243, D120): the watch armed from a wake-up or the card's arrival; nil in fixture runs.
+    lazy var autoRideWake = AutoRideWake.app(watch: autoRide, ride: ride)
 
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -35,15 +35,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // A route saved before this install sent analytics counts once, so the install shows as activated (TT-217).
         RouteCount().launched(with: UserDefaultsRouteStore().route)
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().setNotificationCategories([
-            DetectionNotice.notificationCategory, DepartureNotice.notificationCategory,
-        ])
+        UNUserNotificationCenter.current().setNotificationCategories([DepartureNotice.notificationCategory])
         // No on the departure question's card (TT-231, D110): iOS runs the intent here, which ended the card.
         DeclineDepartureIntent.declined = { [weak self] train in self?.declined(train, surface: .card) }
+        // Not on it on the ride's card (TT-243, D120): the same, before or after the launch's restore.
+        NotOnTrainIntent.notOnIt = { [weak self] train in self?.notOnIt(train) }
         nudge.follow(ride)
-        detection?.follow(ride)
-        detection?.resume()
         autoRide?.follow(ride)
+        // The server's card for an alerted train arriving with the app in the background arms the watch (TT-243).
+        liveActivity?.departureArrived = { [weak self] ride in
+            Task { await self?.autoRideWake?.cardArrived(ride) }
+        }
+        autoRideWake?.resume()
         Task {
             await ride.restore()
             // A ride ended before it was restored (the Live Activity's End ride) leaves no notifications behind.
@@ -74,31 +77,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        // The background question (TT-176): Not me runs in the background, so it is kept on device before iOS suspends the
-        // app again; Start On board and a tap open the app, which acts on them once it is active.
-        if let train = DetectedTrain(userInfo: response.notification.request.content.userInfo) {
-            let action = response.actionIdentifier
-            if action == DetectionNotice.notMeAction { DetectionStore.recordNotMe(train, in: .standard, at: Date()) }
-            completionHandler()
-            Task { @MainActor in
-                let name = switch action {
-                case DetectionNotice.startAction: "start"
-                case DetectionNotice.notMeAction: "not_me"
-                default: "open"
-                }
-                Analytics.track(.notificationOpened(kind: "detection", action: name))
-                switch action {
-                case DetectionNotice.startAction: self.router.open(train, startsRide: true)
-                case UNNotificationDefaultActionIdentifier: self.router.open(train, startsRide: false)
-                case DetectionNotice.notMeAction:
-                    // Tap, felt only with the app open (TT-215, D100).
-                    TTHaptics.shared.play(.undo)
-                    self.detection?.refresh()
-                default: break
-                }
-            }
-            return
-        }
         let link = NotificationLink(userInfo: response.notification.request.content.userInfo)
         // The departure question (TT-231): Yes opens the app and starts the ride, No declines the train in the background,
         // a tap opens its Trip details.
@@ -136,11 +114,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     /// No on the departure question, on the card or its notification (TT-231, D110): the train is not asked about again
-    /// today (nor by train detection), the answer is counted, and the alert server sends nothing more for it.
+    /// today, the answer is counted, and the alert server sends nothing more for it.
     private func declined(_ train: DeclinedDeparture, surface: DepartureQuestion.Surface) {
         let key = TripKey(serviceDay: ServiceDay(dateKey: train.serviceDate), tripId: train.tripId)
         DepartureQuestion.decline(key, in: .standard, surface: surface)
         liveActivity?.declined(train)
+    }
+
+    /// Not on it on the ride's card (`NotOnTrainIntent`, which ended the card; TT-243, D120): the ride ends, also before the
+    /// launch's restore (the engine reads the saved ride then), its train is left alone today, and the tap counts toward two
+    /// in 14 days. "Your stop is next" goes with the ride (`ArrivalNudge`; `restoreFinished()` before a restore). The demo
+    /// ride's is `OnBoard`'s. Nothing is reported to the server: the card was handed off.
+    private func notOnIt(_ train: DeclinedDeparture) {
+        let shown = Ride(train)
+        if shown.tripId == DemoRide.tripId {
+            liveActivity?.demoNotOnIt?(shown)
+            return
+        }
+        if let running = ride.ride, running != shown { return }
+        guard ride.end(.notOnIt, surface: .card) != nil else { return }
+        AutoRideStore(defaults: .standard).recordNotOnIt(at: Date())
     }
 
     /// A notification arriving while the app is open is not shown (D39), but Recent updates lists it (TT-143).

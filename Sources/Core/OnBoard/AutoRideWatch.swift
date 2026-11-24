@@ -36,18 +36,16 @@ protocol AutoRideHolding: AnyObject {
     func reportHold(_ activity: LiveActivityReport) async -> Bool
 }
 
-/// Rides start by themselves, part 1 (TT-242, D120): for an alerted train, from an app open in the 30 min before it leaves
+/// Rides start by themselves (TT-242, TT-243, D120): for an alerted train, from an app open in the 30 min before it leaves
 /// until it decides, the watch reads the phone's location and GO's train positions, asks the alert server to hold the
-/// question's buzz, and starts the ride by itself when `AutoRideRule` finds the phone left the station with the train. One
-/// per app, owned by `AppDelegate` (it decides with the phone locked, where `RootView` does not run); the Testing demo has
-/// its own, owned by `OnBoard`. It never asks for anything, keeps no place and no fix on device, and watches one train at a
-/// time.
-///
-/// Real trains are off in this part (`isLive`): TT-243 turns them on.
+/// question's buzz, and starts the ride by itself when `AutoRideRule` finds the phone left the station with the train. With
+/// "When the app is closed" on and Always allowed, `AutoRideWake` arms it too, from a significant-change wake or the train's
+/// card arriving (`armClosed(_:plan:armed:)`): it then reads `BackgroundFixes`, and the ride it starts keeps them. One per
+/// app, owned by `AppDelegate` (it decides with the phone locked, where `RootView` does not run); the Testing demo has its
+/// own, owned by `OnBoard`. It never asks for anything, keeps no place and no fix on device, and watches one train at a
+/// time. Automatic ride turned off (`AutoRideStore.isOff`) arms nothing and stops a watch.
 @Observable @MainActor
 final class AutoRideWatch {
-    /// Real trains arm only once this is true (TT-243).
-    static let isLive = false
     /// It arms from 30 min before L to 2 min after it.
     static let armLead: TimeInterval = 30 * 60
     static let armTail: TimeInterval = 2 * 60
@@ -131,6 +129,8 @@ final class AutoRideWatch {
         /// The first "can’t tell" at the deadline, and when; it keeps watching for a later start until the question ends.
         var unsure: AutoRideCheck.Reason?
         var unsureAt: Date?
+        /// How it was armed (TT-243); nil in a watch saved before it was kept, which was armed in front.
+        var armed: AutoRideCheck.Armed?
 
         var route: Route {
             Route(
@@ -181,17 +181,19 @@ final class AutoRideWatch {
     /// The app's engine: plans, the default start and whether a ride runs. Nil for the demo, which starts through `OnBoard`.
     private let ride: RideEngine?
     private let location: any LocationProviding
+    /// The location a watch armed with the app closed reads (TT-243, `BackgroundFixes`: Always, and updates that run in the
+    /// background with no new session); nil arms nothing that way.
+    private let closedLocation: (any LocationProviding)?
     private let departures: any AutoRideDepartureReading
     private let positions: any TrainPositionProviding
     private let rivals: any RivalTrainsProviding
     private weak var holding: (any AutoRideHolding)?
     private let clock: any AppClock
     private let store: AutoRideStore
-    private let live: Bool
     private let isDemo: Bool
     private let lookInterval: Duration?
-    /// The start: the app's engine, or the demo's hand-off.
-    private let startRide: @MainActor (Ride) async -> Bool
+    /// The start: the demo's hand-off; nil starts on the app's engine, with the watch's location.
+    private let startRide: (@MainActor (Ride) async -> Bool)?
     /// The arriving nudge's `replan()` after a start, as `OnBoard.start` does.
     private let replan: @MainActor () -> Void
     private let isDeclined: @MainActor (TripKey) -> Bool
@@ -204,6 +206,8 @@ final class AutoRideWatch {
     private let reportsStationary: Bool
 
     @ObservationIgnored private var rule: AutoRideRule?
+    /// The location the current (or last) watch reads: `location`, or `closedLocation` for one armed with the app closed.
+    @ObservationIgnored private var watchLocation: (any LocationProviding)?
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var follower: Task<Void, Never>?
     @ObservationIgnored private var isConsidering = false
@@ -219,13 +223,13 @@ final class AutoRideWatch {
     init(
         ride: RideEngine?,
         location: any LocationProviding,
+        closedLocation: (any LocationProviding)? = nil,
         departures: any AutoRideDepartureReading,
         positions: any TrainPositionProviding,
         rivals: any RivalTrainsProviding = NoRivalTrains(),
         holding: (any AutoRideHolding)? = nil,
         clock: any AppClock,
         store: AutoRideStore,
-        live: Bool = AutoRideWatch.isLive,
         demo: Bool = false,
         lookInterval: Duration? = .seconds(15),
         startRide: (@MainActor (Ride) async -> Bool)? = nil,
@@ -238,16 +242,16 @@ final class AutoRideWatch {
     ) {
         self.ride = ride
         self.location = location
+        self.closedLocation = closedLocation
         self.departures = departures
         self.positions = positions
         self.rivals = rivals
         self.holding = holding
         self.clock = clock
         self.store = store
-        self.live = live
         isDemo = demo
         self.lookInterval = lookInterval
-        self.startRide = startRide ?? { await ride?.start($0, source: .auto, asks: false) ?? false }
+        self.startRide = startRide
         self.replan = replan
         self.isDeclined = isDeclined
         self.isTesting = isTesting
@@ -265,38 +269,69 @@ final class AutoRideWatch {
 
     // MARK: Arming
 
-    /// Real trains may arm and none is watched: `RootView` looks for candidates only then.
-    var mayArm: Bool { live && watched == nil }
+    /// No train is watched: `RootView` looks for candidates only then.
+    var mayArm: Bool { watched == nil }
 
     /// `RootView`, every few seconds while the app is in front: the alerted trains on screen (Schedule's and the departure
-    /// card's). It arms for the first that passes every gate; one blocked by a gate counts once as `not_armed`.
+    /// card's). It arms for the first that passes every gate; one blocked by a gate counts once as `not_armed`. Automatic
+    /// ride turned off is one of the gates (TT-243).
     func consider(_ candidates: [Candidate]) async {
-        guard live, watched == nil, !isConsidering else { return }
+        guard watched == nil, !isConsidering else { return }
         isConsidering = true
         defer { isConsidering = false }
         let now = clock.now
         for candidate in candidates {
             let ride = candidate.ride
-            guard now >= candidate.departure.addingTimeInterval(-Self.armLead),
-                  now <= candidate.departure.addingTimeInterval(Self.armTail),
-                  !store.wasWatched(ride), !isDeclined(ride.tripKey), !isRiding else { continue }
+            guard isInWindow(candidate, at: now), !store.wasWatched(ride), !isDeclined(ride.tripKey), !isRiding else { continue }
             let blocked = candidate.arrival.timeIntervalSince(candidate.departure) < Self.shortestRide
-                || !location.isAuthorized || !location.isPrecise || isTesting()
+                || !location.isAuthorized || !location.isPrecise || isTesting() || store.isOff
             let plan = blocked ? nil : await self.ride?.plan(for: ride)
             guard watched == nil, !isRiding else { return }
             guard let plan, plan.track != nil else {
-                notArmed(ride)
+                notArmed(ride, armed: .open)
                 continue
             }
-            arm(candidate, plan: plan, at: now)
+            arm(candidate, plan: plan, at: now, armed: .open)
             return
         }
+    }
+
+    /// The train's window is open: from L − 30 min to L + 2 min.
+    func isInWindow(_ candidate: Candidate, at now: Date) -> Bool {
+        now >= candidate.departure.addingTimeInterval(-Self.armLead) && now <= candidate.departure.addingTimeInterval(Self.armTail)
+    }
+
+    /// `AutoRideWake`, with the app closed (TT-243, D120): an alerted train in its window, from a significant-change wake
+    /// near it or its card arriving. The same gates as `consider(_:)`, on `closedLocation` (Always and Precise Location);
+    /// one that blocks counts once as `not_armed`. Armed this way, Y1's covered form counts at any station (TT-242's rule for
+    /// a late arm): a rider already at the station gets no wake until the train moves. True when it armed.
+    @discardableResult
+    func armClosed(_ candidate: Candidate, plan: RidePlan, armed: AutoRideCheck.Armed) -> Bool {
+        let ride = candidate.ride
+        let now = clock.now
+        guard watched == nil, !isConsidering, isInWindow(candidate, at: now), !store.wasWatched(ride),
+              !isDeclined(ride.tripKey), !isRiding else { return false }
+        let reads = closedLocation.map { $0.isAuthorized && $0.isPrecise } ?? false
+        let blocked = candidate.arrival.timeIntervalSince(candidate.departure) < Self.shortestRide || isTesting()
+            || store.isOff || !reads || plan.track == nil
+        guard !blocked else {
+            notArmed(ride, armed: armed)
+            return false
+        }
+        arm(candidate, plan: plan, at: now, armed: armed, late: true)
+        return watched != nil
+    }
+
+    /// A wake with the app closed came after an alerted train's window, with no watch for it (TT-243): `not_armed`, once.
+    func missed(_ ride: Ride, armed: AutoRideCheck.Armed) {
+        guard watched?.ride != ride, !store.wasWatched(ride) else { return }
+        notArmed(ride, armed: armed)
     }
 
     /// The Testing demo (TT-242): its train, with no gate.
     func watchDemo(_ candidate: Candidate, plan: RidePlan) {
         guard watched == nil else { return }
-        arm(candidate, plan: plan, at: clock.now)
+        arm(candidate, plan: plan, at: clock.now, armed: .open)
     }
 
     private var isRiding: Bool {
@@ -305,14 +340,14 @@ final class AutoRideWatch {
         return state.phase != .ended
     }
 
-    private func notArmed(_ ride: Ride) {
+    private func notArmed(_ ride: Ride, armed: AutoRideCheck.Armed) {
         guard store.check(ride, outcome: .notArmed) else { return }
-        let check = AutoRideCheck(outcome: .notArmed)
+        let check = AutoRideCheck(outcome: .notArmed, armed: armed)
         lastCheck = check
         Analytics.track(.autoRideChecked(check, demo: isDemo))
     }
 
-    private func arm(_ candidate: Candidate, plan: RidePlan, at now: Date) {
+    private func arm(_ candidate: Candidate, plan: RidePlan, at now: Date, armed: AutoRideCheck.Armed, late: Bool = false) {
         let saved = Saved(
             ride: candidate.ride,
             from: .init(id: candidate.route.from.id, name: candidate.route.from.name),
@@ -320,9 +355,14 @@ final class AutoRideWatch {
             lineId: candidate.route.line?.id, lineName: candidate.route.line?.name,
             scheduledDeparture: candidate.trip.scheduledDeparture, scheduledArrival: candidate.trip.scheduledArrival,
             departure: candidate.departure, arrival: candidate.arrival, armedAt: now,
-            armedLate: now >= candidate.departure
+            armedLate: late || now >= candidate.departure, armed: armed
         )
         begin(saved, plan: plan)
+    }
+
+    /// The location a watch reads: `closedLocation` for one armed with the app closed, else `location`.
+    private func reader(for saved: Saved) -> any LocationProviding {
+        (saved.armed?.isClosed ?? false) ? (closedLocation ?? location) : location
     }
 
     private func begin(_ saved: Saved, plan: RidePlan) {
@@ -334,7 +374,9 @@ final class AutoRideWatch {
         watched = saved
         save()
         if !isDemo { holding?.heldRide = saved.ride }
-        location.startUpdates { [weak self] fix in self?.receive(fix) }
+        let reader = reader(for: saved)
+        watchLocation = reader
+        reader.startUpdates { [weak self] fix in self?.receive(fix) }
         startLoop()
         Task { await self.look() }
     }
@@ -431,8 +473,11 @@ final class AutoRideWatch {
         isLooking = true
         defer { isLooking = false }
         let generation = generation
-        // Stopped: a gate that went while it watched.
-        if isTesting() || (!isDemo && (!location.isAuthorized || !location.isPrecise)) {
+        // Stopped: a gate that went while it watched, Automatic ride turned off among them (TT-243), and for a watch
+        // armed with the app closed, When the app is closed turned off.
+        let reader = reader(for: saved)
+        if isTesting() || (!isDemo && (!reader.isAuthorized || !reader.isPrecise || store.isOff))
+            || (!isDemo && (saved.armed?.isClosed ?? false) && !store.closed) {
             finish(.stopped)
             return
         }
@@ -502,7 +547,7 @@ final class AutoRideWatch {
             // Last check shows it at once; the watch goes on for a later start until the question ends.
             lastCheck = AutoRideCheck(
                 outcome: .unsure, reason: reason, secondsAfter: saved.leftAt.map { max(0, Int(now.timeIntervalSince($0))) },
-                holdReachedAt: saved.holdReachedAt
+                holdReachedAt: saved.holdReachedAt, armed: saved.armed ?? .open
             )
             // In front, Schedule asks with its strip and the card asks silently; in the background the server buzzes.
             changed.outcome = isActive() ? saved.report(asked: true) : saved.report(holds: false)
@@ -523,7 +568,15 @@ final class AutoRideWatch {
         }
         isStarting = true
         let generation = generation
-        let started = await startRide(saved.ride)
+        let started: Bool
+        if let startRide {
+            started = await startRide(saved.ride)
+        } else {
+            // A watch armed with the app closed hands its own `BackgroundFixes` to the ride (TT-243): they already run in
+            // the background, so no new session is made from there.
+            let closed = (saved.armed?.isClosed ?? false) ? closedLocation : nil
+            started = await ride?.start(saved.ride, source: .auto, asks: false, location: closed) ?? false
+        }
         isStarting = false
         guard self.generation == generation, watched != nil else { return }
         guard started else {
@@ -533,6 +586,8 @@ final class AutoRideWatch {
         }
         let now = clock.now
         self.started = Started(ride: saved.ride, at: now)
+        // The one-time strip on Schedule after this ride (TT-243); the demo's start marks it through `OnBoard`.
+        if !isDemo { store.stripDue = true }
         let seconds = saved.leftAt.map { max(0, Int(now.timeIntervalSince($0))) } ?? 0
         Analytics.track(.rideStarted(source: .auto, demo: isDemo, secondsAfter: seconds))
         replan()
@@ -631,10 +686,11 @@ final class AutoRideWatch {
     }
 
     /// With no train watched and nothing left to tell the server, the location stops: after a start the ride has the
-    /// updates (the shared provider), while the demo's phone is the watch's own.
+    /// updates (the shared provider, or the watch's `BackgroundFixes` it took over), while the demo's phone is the watch's
+    /// own.
     private func stopUpdatesIfIdle() {
         guard watched == nil, pending.isEmpty else { return }
-        if isDemo || !isRiding { location.stopUpdates() }
+        if isDemo || !isRiding { (watchLocation ?? location).stopUpdates() }
     }
 
     // MARK: The end
@@ -646,7 +702,7 @@ final class AutoRideWatch {
         let seconds = saved.leftAt.map { max(0, Int(now.timeIntervalSince($0))) }
         let check = AutoRideCheck(
             outcome: outcome, reason: outcome == .unsure ? reason : nil, secondsAfter: seconds,
-            holdReachedAt: saved.holdReachedAt
+            holdReachedAt: saved.holdReachedAt, armed: saved.armed ?? .open
         )
         lastCheck = check
         if store.check(saved.ride, outcome: outcome) || isDemo {
@@ -680,17 +736,97 @@ final class AutoRideWatch {
 
 /// The watch as kept on device (TT-242, D120): the train being watched (`autoRide.watch`) and today's checked trains
 /// (`autoRide.checked`, so `auto_ride_checked` goes once per train and day, and a finished train is not watched again).
-/// No place and no fix. `defaults` nil keeps nothing (the demo, tests that need nothing kept).
+/// From TT-243 also the rider's choices: Automatic ride's "off" (`autoRide.off`), When the app is closed (`autoRide.closed`),
+/// the Not on it taps (`autoRide.notOnIt`) and when two of them turned Automatic ride off (`autoRide.turnedOffAt`), and the
+/// one-time strip (`autoRide.stripDue`, `autoRide.stripAnswered`). No place and no fix. Each value is read from the defaults
+/// when asked, so a UI test's launch arguments (`LaunchArguments.noAutoRideHolds`) read as cleared for the whole run.
+/// `defaults` nil keeps nothing (the demo, tests that need nothing kept).
 @MainActor
 final class AutoRideStore {
     static let watchKey = "autoRide.watch"
     static let checkedKey = "autoRide.checked"
     static let pendingKey = "autoRide.pending"
+    static let offKey = "autoRide.off"
+    static let notOnItKey = "autoRide.notOnIt"
+    static let turnedOffKey = "autoRide.turnedOffAt"
+    static let stripDueKey = "autoRide.stripDue"
+    static let stripAnsweredKey = "autoRide.stripAnswered"
+    static let closedKey = "autoRide.closed"
+    /// Two Not on it within this long turn Automatic ride off (TT-243).
+    static let notOnItLimit = 2
+    static let notOnItWindow: TimeInterval = 14 * 24 * 3600
 
     private let defaults: UserDefaults?
 
     init(defaults: UserDefaults?) {
         self.defaults = defaults
+    }
+
+    /// The rider turned Automatic ride off (the switch, the strip's Turn off), or two Not on it did. Only the "off" is
+    /// stored: without it Automatic ride reads on whenever location is allowed with Precise Location.
+    var isOff: Bool {
+        get { defaults?.bool(forKey: Self.offKey) ?? false }
+        set { flag(newValue, Self.offKey) }
+    }
+
+    /// The rider's own "on" for When the app is closed; off by default. It reads on only with Always allowed too.
+    var closed: Bool {
+        get { defaults?.bool(forKey: Self.closedKey) ?? false }
+        set { flag(newValue, Self.closedKey) }
+    }
+
+    /// When two Not on it turned Automatic ride off; nil once it is turned on again. Settings says so meanwhile.
+    var turnedOffAt: Date? {
+        get { (defaults?.object(forKey: Self.turnedOffKey) as? Double).map { Date(timeIntervalSince1970: $0) } }
+        set {
+            if let newValue { defaults?.set(newValue.timeIntervalSince1970, forKey: Self.turnedOffKey) } else {
+                defaults?.removeObject(forKey: Self.turnedOffKey)
+            }
+        }
+    }
+
+    /// The one-time strip is due: a ride started by itself (the demo's too).
+    var stripDue: Bool {
+        get { defaults?.bool(forKey: Self.stripDueKey) ?? false }
+        set { flag(newValue, Self.stripDueKey) }
+    }
+
+    /// The one-time strip was answered, OK or Turn off.
+    var stripAnswered: Bool {
+        get { defaults?.bool(forKey: Self.stripAnsweredKey) ?? false }
+        set { flag(newValue, Self.stripAnsweredKey) }
+    }
+
+    /// When each Not on it of the last 14 days was tapped.
+    var notOnIts: [Date] {
+        ((defaults?.array(forKey: Self.notOnItKey) as? [Double]) ?? []).map { Date(timeIntervalSince1970: $0) }
+    }
+
+    /// A Not on it on a real ride: counted, and the second within 14 days turns Automatic ride off (the stored "off" and
+    /// when), with no `setting_changed`. True when it turned it off.
+    @discardableResult
+    func recordNotOnIt(at now: Date) -> Bool {
+        let recent = notOnIts.filter { now.timeIntervalSince($0) < Self.notOnItWindow } + [now]
+        guard recent.count >= Self.notOnItLimit else {
+            defaults?.set(recent.map(\.timeIntervalSince1970), forKey: Self.notOnItKey)
+            return false
+        }
+        defaults?.removeObject(forKey: Self.notOnItKey)
+        isOff = true
+        turnedOffAt = now
+        return true
+    }
+
+    /// Automatic ride turned on again by the rider: the "off", the note's reason and the Not on it count go.
+    func turnOn() {
+        isOff = false
+        turnedOffAt = nil
+        defaults?.removeObject(forKey: Self.notOnItKey)
+    }
+
+    /// Stores a flag: true, or nothing for false.
+    private func flag(_ value: Bool, _ key: String) {
+        if value { defaults?.set(true, forKey: key) } else { defaults?.removeObject(forKey: key) }
     }
 
     var saved: AutoRideWatch.Saved? {
@@ -744,5 +880,14 @@ final class AutoRideStore {
 
     private static func key(_ ride: Ride) -> String {
         "\(ride.serviceDate)|\(ride.tripId)|\(ride.originId)"
+    }
+}
+
+extension DirectionLocating {
+    /// Automatic ride reads on (TT-243, D120): location allowed with Precise Location, or a Demo Automatic ride mode set
+    /// (`demo`), unless the rider turned it off. Settings and the one-time strip read it through Automatic direction's reader,
+    /// which never asks by itself.
+    func readsOn(_ store: AutoRideStore, demo: Bool = false) -> Bool {
+        (demo || (permission == .allowed && isPrecise)) && !store.isOff
     }
 }

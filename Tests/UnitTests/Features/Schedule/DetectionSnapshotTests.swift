@@ -3,21 +3,25 @@ import SwiftUI
 import XCTest
 @testable import TrainTimes
 
-/// Train detection's question on Schedule against board 9 of the Live view canvas (TT-175; one line, Yes and No since
-/// TT-205, D93), light and dark. Drawn under the top of the screen on the canvas ground, with the ripple still.
+/// The departure question on Schedule against board 9 of the Live view canvas (TT-231; one line, Yes and No since TT-205,
+/// D93; it was train detection's until TT-243), and the automatic ride's one-time strip (TT-243, D120), light and dark.
+/// Drawn under the top of the screen on the canvas ground, with the ripple still.
 final class DetectionSnapshotTests: XCTestCase {
     @MainActor func testQuestionLight() { snap(question, .light) }
     @MainActor func testQuestionDark() { snap(question, .dark) }
+    @MainActor func testAutoRideStripLight() { snap(autoRideStrip, .light) }
+    @MainActor func testAutoRideStripDark() { snap(autoRideStrip, .dark) }
 
     private let formatter = TimeFormatter(format: .twelveHour)
 
     @MainActor
     private var question: some View {
-        screen {
-            if let question = TrainQuestion(DetectionFixtures.question()) {
-                TrainQuestionCard(question: question)
-            }
-        }
+        screen { TrainQuestionCard(title: TrainQuestionCard.title(stop: "Clarkson GO")) }
+    }
+
+    @MainActor
+    private var autoRideStrip: some View {
+        screen { DirectionStripCard.autoRide() }
     }
 
     @MainActor

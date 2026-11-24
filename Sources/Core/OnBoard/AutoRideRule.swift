@@ -2,7 +2,7 @@ import Foundation
 
 /// Rides start by themselves, part 1 (TT-242, D120): whether the phone left the rider's station with the alerted train.
 /// Pure: `AutoRideWatch` feeds it the phone's fixes and GO's positions of the trip and of its rivals as they come, and asks
-/// for a verdict on each fix and each look. Its numbers are its own constants, never `TrainMatcher`'s.
+/// for a verdict on each fix and each look. Its numbers are its own constants.
 ///
 /// All five must hold for a start:
 /// - **Y1 · At the station.** A good fix within 300 m of the origin point, measured at or after L − 15 min; a stationary
@@ -26,6 +26,12 @@ import Foundation
 ///
 /// No verdict before the train has left (`leftAt`). Until `min(leftAt + 180 s, L + 6 min)` it waits; after that it is
 /// unsure, with the first reason that applies, and a start is still allowed while all five hold.
+///
+/// The undo by itself (TT-243, D120, `undoVerdict(at:)`): the ride engine runs the same rule on its own fixes and the feed's
+/// positions for the first 10 min of a ride that started by itself, and ends it when the phone stayed (the not-on-board
+/// check above, the same code), went 300 m or more off the line for 60 s on fresh moving fixes, or fell behind: at two
+/// positions with their vehicle's time, 20 s or more apart and each 90 s old or less, the train more than 600 m ahead of
+/// the phone along the track at the position's own time. Never on missing fixes, a pause or a stationary fix.
 struct AutoRideRule {
     // MARK: Numbers
 
@@ -80,6 +86,8 @@ struct AutoRideRule {
     /// The deadline: `min(leftAt + decideSpan, L + decideCap)`.
     static let decideSpan: TimeInterval = 180
     static let decideCap: TimeInterval = 6 * 60
+    /// The undo by itself's falling behind: the train this far ahead of the phone along the track (TT-243).
+    static let behindGap = 600.0
     /// A look this long after the one before it means the app was suspended between them (`leftAt(look:previous:...)`).
     static let lookGap: TimeInterval = 30
     /// Raw fixes, with their places, are kept this long.
@@ -92,6 +100,14 @@ struct AutoRideRule {
         case notOnBoard
         case waiting
         case unsure(AutoRideCheck.Reason)
+    }
+
+    /// The undo by itself's verdict (TT-243, D120): the ride keeps going, or why it ends.
+    enum Undo: Equatable, Sendable {
+        case keeps
+        case stayed
+        case offTheLine
+        case fallingBehind
     }
 
     /// What the watch knows at the moment it asks.
@@ -443,15 +459,7 @@ struct AutoRideRule {
     private func isNotOnBoard(_ moment: Moment, leftAt: Date, atStation: Bool) -> Bool {
         guard let last = marks.last else { return false }
         let isFresh = moment.now.timeIntervalSince(last.at) < Self.goodAge
-        // Stayed: within 300 m of the station for 60 s, or still there, while GO places the train 800 m along.
-        let held = last.isStationary && last.fromOrigin <= Self.stayRadius
-            && moment.now.timeIntervalSince(last.at) <= RideEngine.stationaryTimeout
-        if held || (isFresh && spans(after: leftAt, where: { $0.fromOrigin <= Self.stayRadius })) {
-            if let train = sightings.last(where: \.isFresh), moment.now.timeIntervalSince(train.readAt) <= Self.feedMaxAge,
-               train.along >= Self.stayTrainAlong {
-                return true
-            }
-        }
+        if stayed(at: moment.now, after: leftAt) { return true }
         // Went elsewhere: off the track for 60 s.
         if isFresh, spans(after: leftAt, where: { $0.off >= Self.elsewhereOff }) { return true }
         // Never at the station, and far from it and off the track as the train left.
@@ -461,6 +469,56 @@ struct AutoRideRule {
             return true
         }
         return false
+    }
+
+    /// Stayed: within 300 m of the station for 60 s, or a stationary fix there that still holds, while GO places the train
+    /// 800 m along. Not on board's check, and the undo by itself's (TT-243).
+    private func stayed(at now: Date, after leftAt: Date) -> Bool {
+        guard let last = marks.last else { return false }
+        let isFresh = now.timeIntervalSince(last.at) < Self.goodAge
+        let held = last.isStationary && last.fromOrigin <= Self.stayRadius
+            && now.timeIntervalSince(last.at) <= RideEngine.stationaryTimeout
+        guard held || (isFresh && spans(after: leftAt, where: { $0.fromOrigin <= Self.stayRadius })) else { return false }
+        guard let train = sightings.last(where: \.isFresh) else { return false }
+        return now.timeIntervalSince(train.readAt) <= Self.feedMaxAge && train.along >= Self.stayTrainAlong
+    }
+
+    // MARK: The undo by itself (TT-243, D120)
+
+    /// Whether the ride that started by itself ends now, and why: the phone stayed, went off the line, or fell behind the
+    /// train. Only on what the phone and the feed said: missing fixes, a pause or a stationary fix never undo off the line
+    /// or behind (on a smooth train iOS may send nothing while the feed moves on, TT-220).
+    func undoVerdict(at now: Date) -> Undo {
+        if stayed(at: now, after: .distantPast) { return .stayed }
+        if let last = marks.last, now.timeIntervalSince(last.at) < Self.goodAge,
+           spans(after: .distantPast, where: { $0.off >= Self.elsewhereOff && !$0.isStationary }) {
+            return .offTheLine
+        }
+        if isFallingBehind() { return .fallingBehind }
+        return .keeps
+    }
+
+    /// At two of the trip's positions with their vehicle's time, 20 s or more apart and each 90 s old or less when read,
+    /// the train is more than 600 m ahead of the phone along the track at the position's own time, the phone's moving fixes
+    /// interpolated to it. The phone's place now is never set against a position: a 45 s old position of a train at
+    /// 100 km/h is 1.2 km behind it.
+    private func isFallingBehind() -> Bool {
+        let behind = sightings.compactMap { sighting -> Date? in
+            guard sighting.hasVehicleTime, sighting.isFresh, let phone = movingPhoneAlong(at: sighting.reportedAt),
+                  sighting.along - phone > Self.behindGap else { return nil }
+            return sighting.reportedAt
+        }
+        guard let first = behind.first, let last = behind.last else { return false }
+        return last.timeIntervalSince(first) >= Self.feedSpan
+    }
+
+    /// `phoneAlong(at:)` between two fixes that are not stationary: a stationary one says the phone stood, which on a smooth
+    /// train can be iOS taking it for still.
+    private func movingPhoneAlong(at time: Date) -> Double? {
+        guard let after = marks.firstIndex(where: { $0.at >= time }), !marks[after].isStationary else { return nil }
+        if marks[after].at == time { return marks[after].along }
+        guard after > 0, !marks[after - 1].isStationary else { return nil }
+        return phoneAlong(at: time)
     }
 
     /// Every good fix of the last 60 s after the train left matches, and they cover the 60 s with no gap over 10 s.

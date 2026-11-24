@@ -1,49 +1,33 @@
 import SwiftUI
 
-/// Train detection's question (TT-175; one question since TT-205, D93, *Live-Detect*): "On the train to Clarkson?", asked by
-/// the rider's stop, Yes or No. When two trains fit, it is still one question and Yes starts the matcher's first.
-struct TrainQuestion: Equatable {
-    /// "On the train to Clarkson?".
-    let title: String
-    /// The train Yes starts: the matcher's first candidate.
-    let train: TrainCandidate
-}
-
-extension TrainQuestion {
-    /// Nil for a question with no train.
-    init?(_ question: TrainMatcher.Question) {
-        guard let train = question.trains.first, let stop = train.plan.stops.last else { return nil }
-        title = String(format: String(localized: "detect.question"), Self.shortName(stop.station.name))
-        self.train = train
-    }
-
-    /// "Union", "Clarkson": the station's name without " GO" and " Station", as the live surfaces say it.
-    static func shortName(_ name: String) -> String {
-        let short = RideDetails.shortName(name)
-        return short.hasSuffix(" Station") ? String(short.dropLast(8)) : short
-    }
-}
-
-/// The question card under the day strip (`.sug`): the rippling dot and the question, Yes and No. Nothing starts until the
-/// rider taps one.
+/// The departure question's card under the day strip (TT-231, D110; `.sug`): the rippling dot and "On the train to
+/// Clarkson?", asked by the rider's stop about the alerted train that has just left, Yes and No. Nothing starts until the
+/// rider taps one. Train detection's question that shared it went with the any-train check (TT-243, D120).
 struct TrainQuestionCard: View {
     /// "On the train to Clarkson?".
     let title: String
     var onYes: () -> Void = {}
     var onNo: () -> Void = {}
 
-    /// Train detection's question: Yes starts the matcher's first train.
-    init(question: TrainQuestion, onYes: @escaping (TrainCandidate) -> Void = { _ in }, onNo: @escaping () -> Void = {}) {
-        title = question.title
-        self.onYes = { onYes(question.train) }
+    init(departure ask: DepartureAsk, onYes: @escaping () -> Void, onNo: @escaping () -> Void) {
+        self.init(title: Self.title(stop: ask.route.to.name), onYes: onYes, onNo: onNo)
+    }
+
+    init(title: String, onYes: @escaping () -> Void = {}, onNo: @escaping () -> Void = {}) {
+        self.title = title
+        self.onYes = onYes
         self.onNo = onNo
     }
 
-    /// The departure question (TT-231, D110): the same card, asked about the alerted train that has just left.
-    init(departure ask: DepartureAsk, onYes: @escaping () -> Void, onNo: @escaping () -> Void) {
-        title = String(format: String(localized: "detect.question"), TrainQuestion.shortName(ask.route.to.name))
-        self.onYes = onYes
-        self.onNo = onNo
+    /// "On the train to Clarkson?" for the rider's stop.
+    static func title(stop name: String) -> String {
+        String(format: String(localized: "detect.question"), shortName(name))
+    }
+
+    /// "Union", "Clarkson": the station's name without " GO" and " Station", as the live surfaces say it.
+    static func shortName(_ name: String) -> String {
+        let short = RideDetails.shortName(name)
+        return short.hasSuffix(" Station") ? String(short.dropLast(8)) : short
     }
 
     var body: some View {
@@ -79,8 +63,8 @@ struct TrainQuestionCard: View {
     private static let noWidth: CGFloat = 88 - 2 * TTSpace.s4
 }
 
-/// The question's buttons, 44 pt (`.sug .acts .btn`): Yes filled in the accent, No outlined in ink. Automatic direction's
-/// one-time strip uses them too (TT-236).
+/// The question's buttons, 44 pt (`.sug .acts .btn`): Yes filled in the accent, No outlined in ink. The one-time strips use
+/// them too (TT-236, TT-243).
 struct QuestionButtonStyle: ButtonStyle {
     let isPrimary: Bool
 

@@ -17,16 +17,19 @@ final class AutoRideWatchTests: XCTestCase {
 
     // MARK: Arming
 
-    /// The gate: real trains stay off until TT-243.
-    func testRealTrainsStayOffBehindTheGate() async throws {
-        XCTAssertFalse(AutoRideWatch.isLive)
-        let rig = try WatchRig(live: AutoRideWatch.isLive)
+    /// TT-243: the gate is gone, so a real train arms; the rider's "off" keeps it from arming (`not_armed`).
+    func testRealTrainsArmAndTheRidersOffKeepsThemFromArming() async throws {
+        let rig = try WatchRig()
         await rig.arm()
-        XCTAssertNil(rig.watch.watched)
-        XCTAssertFalse(rig.watch.mayArm)
-        XCTAssertFalse(rig.location.isUpdating)
-        XCTAssertNil(rig.holder.heldRide)
-        XCTAssertTrue(rig.holder.reports.isEmpty)
+        XCTAssertEqual(rig.watch.watched?.ride, rig.ride)
+
+        let off = try WatchRig()
+        off.store.isOff = true
+        await off.arm()
+        XCTAssertNil(off.watch.watched)
+        XCTAssertFalse(off.location.isUpdating)
+        XCTAssertNil(off.holder.heldRide)
+        XCTAssertEqual(off.watch.lastCheck?.outcome, .notArmed)
     }
 
     /// It arms for an alerted train from L − 30 min to L + 2 min, reads location and holds the train.

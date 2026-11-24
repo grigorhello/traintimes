@@ -45,7 +45,8 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertFalse(ride.isTinted)
         XCTAssertFalse(ride.pingsYourStop)
         XCTAssertEqual(ride.title, "5:13 PM train")
-        XCTAssertEqual(ride.button, "End ride")
+        XCTAssertEqual(ride.button, .end)
+        XCTAssertEqual(ride.button.title, "End ride")
     }
 
     func testAtTheStopBeforeYoursYourStopIsNext() async throws {
@@ -105,7 +106,8 @@ final class RideDetailsTests: XCTestCase {
         XCTAssertTrue(ride.isComplete)
         XCTAssertTrue(ride.isTinted)
         XCTAssertFalse(ride.pingsYourStop)
-        XCTAssertEqual(ride.button, "Done")
+        XCTAssertEqual(ride.button, .done)
+        XCTAssertEqual(ride.button.title, "Done")
         XCTAssertTrue(ride.stops.allSatisfy(\.isDone))
         XCTAssertEqual(ride.stops.map(\.time), [nil, nil, nil, nil, nil, "5:43 PM"])
 

@@ -121,15 +121,17 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSceneManifest_Generation' => 'YES',
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
-    # TT-171, TT-234: asked when a ride starts (On board), or when the rider turns on Automatic direction or Detect my
-    # train in Settings, never at launch (D60 rule 4 as revised by D116; the words are TT-234's). A ride's background
-    # session also needs UIBackgroundModes location.
+    # TT-171, TT-234, TT-243: asked when a ride starts (On board), or when the rider turns on Automatic direction,
+    # Automatic ride or When the app is closed in Settings, never at launch (D60 rule 4 as revised by D116 and D120; the
+    # words are TT-243's). A ride's background session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
-      'Your location shows trains from the station you’re closer to when you open the app, shows which station is ' \
-      'next while you ride, and tells you before your stop. It stays on the phone.',
-    # TT-176: asked only when the rider turns on "Detect my train" (the offer after the first completed ride, or Settings).
+      'Your location shows trains from the station you’re closer to when you open the app, starts the ride when a ' \
+      'train you set an alert on leaves with you, shows which station is next while you ride, and tells you before ' \
+      'your stop. It stays on the phone.',
+    # TT-243 (D120): asked only from Settings › When the app is closed.
     'INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription' =>
-      'Train Times asks when you get on a GO train. Your location stays on the phone.',
+      'Train Times starts the ride when your alerted train leaves with you, even when the app is closed. Your ' \
+      'location stays on the phone.',
     # Keys with no INFOPLIST_KEY_ setting live in Config/Info.plist; Xcode merges the generated keys into it.
     # D49 reverses D25: no UIDesignRequiresCompatibility key, so iOS 26 draws Liquid Glass (TT-156).
     # D47: ITSAppUsesNonExemptEncryption NO answers export compliance (HTTPS only) for every upload (TT-154).

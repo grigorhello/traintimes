@@ -222,20 +222,6 @@ final class DirectionLookTests: XCTestCase {
         XCTAssertEqual(rig.location.starts, 1, "the hour is over")
     }
 
-    /// Detect my train's offer goes first: the look waits for its sheet to close.
-    func testTheLookWaitsForDetectMyTrainsOffer() {
-        let rig = Rig(now: evening)
-        rig.offer.isDue = true
-        rig.look.update(front)
-        XCTAssertEqual(rig.location.starts, 0)
-        XCTAssertNil(rig.look.lastLook)
-
-        rig.offer.isDue = false
-        rig.look.update(front)
-        XCTAssertEqual(rig.location.starts, 1)
-        XCTAssertTrue(rig.look.isLooking)
-    }
-
     func testTheLookWaitsForToday() {
         let rig = Rig(now: evening)
         rig.schedule.isToday = false
@@ -977,23 +963,6 @@ final class DirectionLookTests: XCTestCase {
         await eventually { rig.schedule.turnCount == 1 && rig.capsule == .turned(station: "Union") }
     }
 
-    /// Detect my train's offer goes first: the turn plays when its sheet is closed.
-    func testTheOfferGoesBeforeTheProof() async {
-        let rig = Rig(now: evening)
-        rig.offer.isDue = true
-        rig.ride.arrival = arrival()
-        rig.look.update(front)
-        XCTAssertNil(rig.look.lastLook)
-        await pause()
-        XCTAssertEqual(rig.schedule.turnCount, 0)
-
-        rig.offer.isDue = false
-        rig.look.update(front)
-        XCTAssertEqual(rig.outcome, .turn)
-        XCTAssertEqual(rig.location.starts, 0)
-        await eventually { rig.schedule.turnCount == 1 }
-    }
-
     /// Only while Automatic direction reads on when Schedule shows: the setting off, Allow Once run out, Precise off.
     func testTheProofNeedsAutomaticDirectionOn() async {
         let off = Rig(now: evening)
@@ -1706,31 +1675,6 @@ final class DirectionLookTests: XCTestCase {
         XCTAssertTrue(rig.look.showsStrip)
     }
 
-    /// Never in the same visit as Detect my train's offer, shown in this visit or due when the turn comes: the turn plays
-    /// with the plain capsule and the strip waits for the next turn.
-    func testNoStripInTheVisitOfDetectMyTrainsOffer() async {
-        let shown = Rig(now: evening)
-        shown.look.offerShown()
-        await turnAtUnion(shown)
-        await pause()
-        XCTAssertFalse(shown.look.showsStrip)
-
-        shown.look.wentToBackground()
-        shown.look.update(front)
-        shown.location.send(atOakville)
-        await eventually { shown.schedule.turnCount == 2 }
-        XCTAssertTrue(shown.look.showsStrip, "the next visit's turn brings it")
-
-        let due = Rig(now: evening)
-        due.look.update(front)
-        due.offer.isDue = true
-        due.location.send(atUnion)
-        await eventually { due.schedule.turnCount == 1 && due.capsule != nil }
-        XCTAssertEqual(due.capsule, .turned(station: "Union"))
-        XCTAssertFalse(due.look.showsStrip)
-        XCTAssertFalse(due.store.stripAnswered)
-    }
-
     /// The strip shows only while Automatic direction reads on. Turned off by the rider (seen at Schedule's next scene
     /// change, or told by Settings): it goes and counts as answered.
     func testTurnedOffInSettingsTheStripGoesAsAnswered() async {
@@ -1991,24 +1935,16 @@ final class DirectionLookTests: XCTestCase {
     }
 }
 
-/// A look with everything under it faked: Schedule's route, the reader, the store in memory, the clock, the ride and
-/// Detect my train's offer. The capsule stays up until a test ends it, and the quick time and the limit are long unless
+/// A look with everything under it faked: Schedule's route, the reader, the store in memory, the clock and the ride. The capsule stays up until a test ends it, and the quick time and the limit are long unless
 /// a test shortens them. The one-time strip comes at once with its turn unless a test gives it a delay.
 @MainActor
 private final class Rig {
-    /// Detect my train's offer, as a test sets it.
-    @MainActor
-    final class Offer {
-        var isDue = false
-    }
-
     let schedule: FakeRouteTurning
     let location: FakeDirectionLocation
     let store: DirectionStore
     let clock: TestClock
     let ride: FakeRideSource
     let haptics: FakeHaptics
-    let offer: Offer
     let capsuleDelay: Duration
     let look: DirectionLook
 
@@ -2026,18 +1962,16 @@ private final class Rig {
         let clock = TestClock(now: now)
         let ride = FakeRideSource()
         let haptics = FakeHaptics()
-        let offer = Offer()
         self.schedule = schedule
         self.location = location
         self.store = store
         self.clock = clock
         self.ride = ride
         self.haptics = haptics
-        self.offer = offer
         self.capsuleDelay = capsuleDelay
         look = DirectionLook(
             schedule: schedule, location: location, stations: stations, store: store, clock: clock, ride: ride,
-            offerDue: { offer.isDue }, track: track,
+            track: track,
             capsule: DirectionCapsuleModel(actionDuration: .seconds(300), plainDuration: .seconds(300)), haptics: haptics,
             quick: quick, limit: limit, capsuleDelay: capsuleDelay, stripDelay: stripDelay, playsSplash: playsSplash
         )

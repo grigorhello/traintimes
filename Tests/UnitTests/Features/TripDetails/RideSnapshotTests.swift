@@ -5,7 +5,8 @@ import XCTest
 
 /// On board against the canvas's Live-Ride-Lean (TT-204) and the Live view canvas's boards (TT-205, D93), light and dark:
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
-/// with "I'm on board" (the hero card over the folded trip); the location sheet; the one-line ride strip. Glass is drawn as its solid fallback, and the motion is off
+/// with "I'm on board" (the hero card over the folded trip); a ride that started by itself, with Not on it; the location sheet;
+/// the one-line ride strip. Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).
 final class RideSnapshotTests: XCTestCase {
     @MainActor func testRidingLight() async throws { snap(await ride(at: DemoRideRig.time(17, 32)), .light) }
@@ -33,9 +34,9 @@ final class RideSnapshotTests: XCTestCase {
     /// The location sheet. Its line is three sentences since TT-234 (D116), on three rows in a sheet one row taller.
     @MainActor func testPermissionLight() { snap(permission, .light) }
     @MainActor func testPermissionDark() { snap(permission, .dark) }
-    /// Live-Always (TT-176, cut down by TT-205): "Detect my train next time?", after the first completed ride.
-    @MainActor func testDetectOfferLight() { snap(detectOffer, .light) }
-    @MainActor func testDetectOfferDark() { snap(detectOffer, .dark) }
+    /// TT-243, D120: a ride that started by itself, 2 min in: Not on it stands where End ride is.
+    @MainActor func testNotOnItLight() async { snap(await notOnIt(), .light) }
+    @MainActor func testNotOnItDark() async { snap(await notOnIt(), .dark) }
     @MainActor func testStripLight() async { snap(await strip(), .light) }
     @MainActor func testStripDark() async { snap(await strip(), .dark) }
 
@@ -48,6 +49,12 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor
     private func express(at time: Date) async -> some View {
         let rig = await DemoRideRig.express(at: time)
+        return TripDetailsView(viewModel: rig.tripDetails())
+    }
+
+    @MainActor
+    private func notOnIt() async -> some View {
+        let rig = await DemoRideRig.autoStarted()
         return TripDetailsView(viewModel: rig.tripDetails())
     }
 
@@ -87,19 +94,6 @@ final class RideSnapshotTests: XCTestCase {
             Color.black.opacity(0.2)
             RideIntroSheet()
                 .frame(height: RideIntroSheet.height)
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: TTRadius.sheet, topTrailingRadius: TTRadius.sheet))
-        }
-        .ignoresSafeArea()
-    }
-
-    /// The "Detect my train" offer over a dimmed screen, as it rises from the bottom.
-    @MainActor
-    private var detectOffer: some View {
-        ZStack(alignment: .bottom) {
-            TTColor.canvas
-            Color.black.opacity(0.2)
-            DetectOfferSheet()
-                .frame(height: DetectOfferSheet.height)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: TTRadius.sheet, topTrailingRadius: TTRadius.sheet))
         }
         .ignoresSafeArea()

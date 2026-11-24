@@ -64,7 +64,7 @@ enum HapticMoment: String, CaseIterable, Sendable {
     case swap
     /// Remove alert on the Alerts tab.
     case remove
-    /// Undo or Try again on a capsule; No on the detection question; End ride.
+    /// Undo or Try again on a capsule; No on the departure question; Not on it; End ride.
     case undo
     /// Feedback sent, or notifications turned back on.
     case confirmed
@@ -72,7 +72,7 @@ enum HapticMoment: String, CaseIterable, Sendable {
     case late
     /// Your first trains on first launch: the station tap is silent, Rail joint 260 ms in as the first card lands.
     case firstTrains
-    /// "I’m on board", or Yes on the detection question.
+    /// "I’m on board".
     case onBoard
     /// Boarding now for a train you watch (its alert on, or its Trip details open), app open.
     case boarding

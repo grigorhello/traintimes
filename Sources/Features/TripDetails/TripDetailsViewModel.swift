@@ -344,6 +344,12 @@ final class TripDetailsViewModel {
         return onBoard.isRunning(key) || (followsRide && onBoard.endedAtYourStop(key))
     }
 
+    /// The sheet followed this trip's ride, which Not on it on the card or the undo by itself ended (TT-243, D120): `RootView`
+    /// closes it.
+    var rideWasUndone: Bool {
+        followsRide && onBoard?.endedUndone(key) == true
+    }
+
     /// "I'm on board": a ride can start, and this train runs today, is not cancelled and is in its window. In the demo
     /// departure, while its window lasts (it hands over into the demo ride).
     var showsOnBoardButton: Bool {
@@ -454,6 +460,13 @@ final class TripDetailsViewModel {
     func endRide() {
         if onBoard?.isRunning(key) == true { haptics.play(.undo) }
         onBoard?.end()
+    }
+
+    /// Not on it (TT-243, D120): Tap at once, then the ride that started by itself ends and its train is left alone today.
+    func notOnIt() {
+        guard onBoard?.isRunning(key) == true else { return }
+        haptics.play(.undo)
+        onBoard?.notOnIt()
     }
 
     /// Loads, then reloads on the timetable's foreground refresh interval while the sheet is open, so the sheet moves

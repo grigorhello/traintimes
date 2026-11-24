@@ -3,28 +3,22 @@ import Observation
 
 /// On board as the screens see it (TT-172): the app's ride engine, or the demo ride's while Settings › Testing › Demo
 /// trains › Ride is on. One per app, made in `RootView` and shared by Trip details (the button and ride mode) and
-/// Schedule (the ride strip, and train detection's strip and question, TT-175).
+/// Schedule (the ride strip and the departure question, TT-231).
 @Observable @MainActor
 final class OnBoard {
     /// The app's engine (`AppDelegate.ride`); nil in previews and in tests that need no ride.
     private let app: RideEngine?
-    /// The app's train detector (TT-175); nil in fixture runs, previews and most tests.
-    private let detector: TrainDetector?
-    /// The demo ride's engine while Demo trains › Ride is on, from the question's Yes. The Live Activity follows whichever
-    /// demo engine plays, however it was started or stopped (TT-174).
+    /// The demo ride's engine while Demo trains › Ride is on, or the demo departure's hand-off. The Live Activity follows
+    /// whichever demo engine plays, however it was started or stopped (TT-174).
     private(set) var demo: RideEngine? {
         didSet { if demo !== oldValue { liveActivity?.follow(demo: demo) } }
     }
-    /// The demo question's detector, until its Yes (TT-175).
-    private(set) var demoDetector: TrainDetector?
     /// Demo trains › Ride is on.
     private(set) var playsDemo = false
     /// The route the ride was started on, for the sheet's header when the strip opens it.
     private(set) var route: Route?
-    /// The demo ride, from the moment on its clock where the question's Yes left it (nil: from 5:32 PM).
+    /// The demo ride, from a moment on its clock (nil: from 5:32 PM).
     private let makeDemo: @MainActor (Date?) -> (engine: RideEngine, ride: Ride)
-    /// The demo question; nil starts the demo ride at once (ride tests).
-    private let makeDemoDetector: (@MainActor () -> TrainDetector)?
     @ObservationIgnored private var isAccepting = false
     /// Demo trains › Departure (TT-177): the demo's before-departure window while it plays. It keeps playing under the
     /// demo ride its "I’m on board" starts, and shows again once that ride is ended.
@@ -47,7 +41,7 @@ final class OnBoard {
     /// The ride screen's Tick and Tap and its watch time (TT-224, D106).
     let screen: RideScreen
 
-    /// The detection question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
+    /// The departure question's feels (TT-215, D100): Rail joint on Yes at the tap, Tap on No.
     private let haptics: any HapticPlaying
     /// Where a No on the departure question is kept for the day (TT-231): `.standard` in the app, nil in tests.
     private let declines: UserDefaults?
@@ -57,6 +51,8 @@ final class OnBoard {
     @ObservationIgnored private var declinedDemo: Set<Ride> = []
     /// The app's automatic ride watch (TT-242, D120, `AppDelegate.autoRide`); nil in fixture runs, previews and tests.
     let autoRide: AutoRideWatch?
+    /// What the automatic ride keeps on device (TT-243): Not on it's count and the one-time strip; nil keeps nothing.
+    private let autoRideStore: AutoRideStore?
     /// Settings › Testing › Demo trains › Depart › Automatic ride: the demo watch while the demo departure plays.
     private(set) var autoRideDemo: AutoRideWatch?
     private var demoAutoRideMode: DemoAutoRide = .off
@@ -66,10 +62,8 @@ final class OnBoard {
 
     init(
         app: RideEngine?,
-        detector: TrainDetector? = nil,
         liveActivity: (any RideActivityFollowing)? = nil,
         makeDemo: @escaping @MainActor (Date?) -> (engine: RideEngine, ride: Ride) = { DemoRide.session(from: $0) },
-        makeDemoDetector: (@MainActor () -> TrainDetector)? = { DemoRide.detector() },
         makeDeparture: @escaping @MainActor () -> DemoDeparture.Session = { DemoDeparture.session() },
         makeHandOff: @escaping @MainActor (DemoDeparture.Session) -> (engine: RideEngine, ride: Ride) = {
             DemoRide.session(continuing: $0)
@@ -82,19 +76,19 @@ final class OnBoard {
         screen: RideScreen? = nil,
         declines: UserDefaults? = nil,
         autoRide: AutoRideWatch? = nil,
+        autoRideStore: AutoRideStore? = nil,
         makeAutoRideDemo: @escaping @MainActor (DemoDeparture.Session, DemoAutoRide, OnBoard) -> AutoRideWatch = {
             OnBoard.demoWatch(session: $0, mode: $1, onBoard: $2)
         }
     ) {
         self.autoRide = autoRide
+        self.autoRideStore = autoRideStore
         self.makeAutoRideDemo = makeAutoRideDemo
         self.haptics = haptics
         self.declines = declines
         self.app = app
-        self.detector = detector
         self.liveActivity = liveActivity
         self.makeDemo = makeDemo
-        self.makeDemoDetector = makeDemoDetector
         self.makeDeparture = makeDeparture
         self.makeHandOff = makeHandOff
         self.nudge = nudge
@@ -111,7 +105,7 @@ final class OnBoard {
     var canStart: Bool { (demo == nil || handOffEnded) && !playsDemo && app?.canStart == true }
 
     /// The demo departure's ride ended on its own, 2 min after its last stop (TT-177, D103): it no longer stands in for the
-    /// app's engine, so a real ride (train detection's Yes, "I’m on board") can start.
+    /// app's engine, so a real ride ("I’m on board", the departure question's Yes) can start.
     private var handOffEnded: Bool { demoIsHandOff && activeRide == nil }
 
     /// The first "I'm on board" shows the app's sheet before the iOS prompt.
@@ -134,6 +128,12 @@ final class OnBoard {
         return state.phase == .ended && state.endReason == .arrived
     }
 
+    /// This trip's ride ended by Not on it or by itself, in its first 10 min after it started by itself (TT-243, D120).
+    func endedUndone(_ key: TripKey) -> Bool {
+        guard let engine, engine.ride?.tripKey == key, let state = engine.state, state.phase == .ended else { return false }
+        return state.endReason == .notOnIt || state.endReason == .autoUndone
+    }
+
     /// The arrival wish (TT-223, D103) in "Now"'s place: 5 s after the train reached your stop (5 s on the real clock, so
     /// 30 s on the demo ride's 6x one), while the ride is at your stop or ended there. One wish per ride.
     var arrivalWish: ArrivalWish? {
@@ -148,7 +148,7 @@ final class OnBoard {
         return wishes.wish(for: id, arrivedAt: arrivedAt, demo: isDemo)
     }
 
-    /// "I'm on board" (or the question's Yes): starts the ride on the app's engine, where location is asked, then asks for
+    /// "I'm on board" (or the departure question's Yes): starts the ride on the app's engine, where location is asked, then asks for
     /// notifications if they were never asked, for the arriving notifications (TT-173). False when it did not start.
     @discardableResult
     func start(_ ride: Ride, on route: Route, source: RideStartSource = .onBoard) async -> Bool {
@@ -176,12 +176,12 @@ final class OnBoard {
         }
     }
 
-    /// Demo trains › Ride turned on or off: the demo's question plays when Schedule shows (its ride starts on Yes), or
-    /// with no question the ride starts from 5:32 PM; off, it stops and leaves the app's engine as it was.
+    /// Demo trains › Ride turned on or off: the demo ride starts at once from 5:32 PM (TT-243: the question before it went
+    /// with train detection); off, it stops and leaves the app's engine as it was.
     func setDemo(_ isOn: Bool) async {
         playsDemo = isOn
         if isOn {
-            guard demo == nil, makeDemoDetector == nil else { return }
+            guard demo == nil else { return }
             let session = makeDemo(nil)
             demo = session.engine
             followDemo(session.engine)
@@ -190,7 +190,6 @@ final class OnBoard {
             dropDemoNudge()
             demo?.end()
             demo = nil
-            demoDetector = nil
             demoIsHandOff = false
         }
     }
@@ -250,28 +249,6 @@ final class OnBoard {
         return true
     }
 
-    /// Start On board on the demo's background question (TT-176; Debug and TestFlight builds, as a test push sends it): the
-    /// demo ride from 5:32 PM on its own engine, which End ride stops, as the demo departure's ride (TT-177). False when a
-    /// ride already runs.
-    @discardableResult
-    func startDemoRide() async -> Bool {
-        guard activeRide == nil else { return false }
-        let session = makeDemo(nil)
-        // Its own arriving nudge (TT-173), as the demo departure's ride.
-        let rideNudge = makeDemoNudge()
-        rideNudge?.follow(session.engine)
-        guard await session.engine.start(session.ride) else {
-            rideNudge?.stop()
-            return false
-        }
-        demoNudge?.stop()
-        demoNudge = rideNudge
-        demo?.end()
-        demo = session.engine
-        demoIsHandOff = true
-        return true
-    }
-
     // MARK: Automatic ride (TT-242, D120)
 
     /// The ride that started by itself, the demo's or the app's, and when: ride mode opens once for it (`RootView`).
@@ -326,87 +303,51 @@ final class OnBoard {
         watch.watchDemo(candidate, plan: AutoRideDemo.plan(on: session.day))
     }
 
-    /// The demo watch as Settings › Testing plays it: its start is the demo departure's hand-off.
+    /// The demo watch as Settings › Testing plays it: its start is the demo departure's hand-off, which makes the one-time
+    /// strip due as a real start does (TT-243), so it can be checked at a desk.
     static func demoWatch(session: DemoDeparture.Session, mode: DemoAutoRide, onBoard: OnBoard) -> AutoRideWatch {
         AutoRideDemo.watch(
             session: session, mode: mode,
-            start: { [weak onBoard] _ in await onBoard?.handOffDemo(source: .auto) ?? false },
+            start: { [weak onBoard] _ in
+                guard let onBoard, await onBoard.handOffDemo(source: .auto) else { return false }
+                onBoard.autoRideStore?.stripDue = true
+                return true
+            },
             rideRuns: { [weak onBoard] in onBoard?.activeRide != nil },
             isDeclined: { [weak onBoard] key in onBoard?.declinedDemo.contains { $0.tripKey == key } ?? false }
         )
     }
 
-    // MARK: Train detection (TT-175)
+    // MARK: Not on it (TT-243, D120)
 
-    /// What the strip under the day strip shows instead of the ride: the matcher checking, or its question; nothing while
-    /// a ride runs.
-    var detection: TrainMatcher.State {
-        guard activeRide == nil else { return .idle }
-        return (demoDetector ?? detector)?.state ?? .idle
+    /// When "Not on it" stops showing for the ride on screen: 10 min after it started by itself (the demo watch's too);
+    /// nil for any other ride.
+    var autoUndoUntil: Date? {
+        guard activeRide != nil else { return nil }
+        return engine?.autoUndoUntil
     }
 
-    /// Runs train detection while Schedule is open, until the screen goes: the demo's question while Demo trains › Ride is
-    /// on (once, until it is turned off and on), else the app's detector on `route`, paused while a ride runs.
-    func detect(on route: Route, demo isDemo: Bool) async {
-        if isDemo {
-            guard activeRide == nil, demo == nil, let makeDemoDetector else { return }
-            if let current = demoDetector {
-                // A No keeps the demo quiet until it is turned off and on.
-                guard current.silenced.isEmpty else { return }
-                // A question not yet asked starts again from 5:18 PM, so the rider sees it from the start.
-                if !current.isAsking { demoDetector = makeDemoDetector() }
-            } else {
-                demoDetector = makeDemoDetector()
-            }
-            await demoDetector?.run(on: DemoRide.route)
+    /// Not on it on the ride screen, in its first 10 min after it started by itself: the ride ends (its card, "Your stop is
+    /// next" and the sheet with it), and nothing asks about that train again today. A real ride's train is declined in the
+    /// store and the tap counts toward two in 14 days, which turn Automatic ride off; the demo's is declined for the run
+    /// only and does not count. The haptic is the caller's. Nothing is reported to the server: the card was handed off.
+    func notOnIt(surface: RideEndSurface = .ride) {
+        guard let engine, autoUndoUntil != nil else { return }
+        if engine === demo {
+            // The ended demo stays the engine, so an open sheet sees its ride end (`endedUndone`); a real ride can start
+            // after the demo departure's hand-off all the same (`handOffEnded`).
+            if let ride = engine.end(.notOnIt, surface: surface) { declinedDemo.insert(ride) }
             return
         }
-        guard let detector else { return }
-        while !Task.isCancelled {
-            if activeRide == nil {
-                await detector.run(on: route) { [weak self] in self?.activeRide == nil }
-            }
-            // A ride runs, or location is not allowed yet: look again shortly, so detection resumes when the ride ends.
-            try? await Task.sleep(for: Self.detectRetry)
-        }
+        guard engine.end(.notOnIt, surface: surface) != nil else { return }
+        autoRideStore?.recordNotOnIt(at: engine.now)
     }
 
-    static let detectRetry: Duration = .seconds(5)
-
-    /// Yes on the question: the ride on that train starts, the demo's on its own engine from where its clock is. The only
-    /// way the matcher leads to a ride; false when it did not start.
-    @discardableResult
-    func accept(_ train: TrainCandidate) async -> Bool {
-        // A second tap while the first starts the ride does nothing.
-        guard !isAccepting else { return false }
-        haptics.play(.onBoard)
-        isAccepting = true
-        defer { isAccepting = false }
-        if let question = demoDetector {
-            // The demo clock where the question was asked: it ran on while the question waited.
-            var moment = question.now
-            if case .asking(let asked) = question.state { moment = asked.askedAt }
-            let session = makeDemo(moment)
-            demo = session.engine
-            followDemo(session.engine)
-            let started = await session.engine.start(session.ride, source: .detection)
-            Analytics.track(.detectionAnswered(yes: true))
-            if started { Analytics.track(.rideStarted(source: .detection, demo: true, plan: session.engine.plan)) }
-            // The question stays until the ride shows, so the strip goes straight from one to the other.
-            demoDetector = nil
-            return started
-        }
-        Analytics.track(.detectionAnswered(yes: true))
-        guard let detector, await start(train.ride, on: train.route, source: .detection) else { return false }
-        detector.accepted()
-        return true
-    }
-
-    /// No on the question: its trains are not asked about again today.
-    func decline() {
-        haptics.play(.undo)
-        Analytics.track(.detectionAnswered(yes: false))
-        (demoDetector ?? detector)?.decline()
+    /// Not on it on the demo ride's card (`NotOnTrainIntent`, which ended the card): as on the ride screen. The app's own
+    /// ride is `AppDelegate`'s, which works before this exists.
+    func demoCardNotOnIt(_ ride: Ride) {
+        guard let demo, demo === engine, demo.ride == ride else { return }
+        notOnIt(surface: .card)
     }
 
     // MARK: The departure question (TT-231)
@@ -422,14 +363,12 @@ final class OnBoard {
         if ask != departureAsk { departureAsk = ask }
     }
 
-    /// No train detection question shows: detection's own question wins the strip.
+    /// Schedule's strip asks the departure question: no ride runs.
     var asksDeparture: Bool {
-        guard departureAsk != nil, activeRide == nil else { return false }
-        if case .asking = detection { return false }
-        return true
+        departureAsk != nil && activeRide == nil
     }
 
-    /// The train was declined today: on the card, the notification or Schedule's strip, or on detection's question.
+    /// The train was declined today: on the card, the notification or Schedule's strip, by Not on it or the undo by itself.
     func isDeclined(_ ask: DepartureAsk) -> Bool {
         ask.isDemo ? declinedDemo.contains(ask.ride) : DepartureQuestion.isDeclined(ask.ride.tripKey, in: declines)
     }
@@ -487,6 +426,8 @@ final class OnBoard {
 @MainActor
 protocol RideActivityFollowing: AnyObject {
     func follow(demo engine: RideEngine?)
+    /// Not on it on the demo ride's card (TT-243): `OnBoard` sets it, `AppDelegate` calls it for the demo's train.
+    var demoNotOnIt: (@MainActor (Ride) -> Void)? { get set }
     /// No on the departure question in the app (TT-231): that train's card leaves the Lock Screen, and the alert server
     /// sends nothing more for it.
     func declineDeparture(_ ride: Ride)

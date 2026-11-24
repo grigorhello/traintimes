@@ -33,6 +33,17 @@ enum RideEndReason: String, Sendable {
     case leftTheLine
     /// The trip was cancelled.
     case cancelled
+    /// "Not on it" on a ride that started by itself, in its first 10 min (TT-243, D120).
+    case notOnIt
+    /// The ride that started by itself undid itself: the phone clearly did not go with the train (TT-243, D120,
+    /// `AutoRideRule.undoVerdict`).
+    case autoUndone
+}
+
+/// Where "Not on it" was tapped (TT-243, D120): the Live Activity card or expanded island (`NotOnTrainIntent`), or the ride
+/// screen.
+enum RideEndSurface: String, Sendable {
+    case card, ride
 }
 
 /// Everything the ride's views show (TT-172 onward).
@@ -63,19 +74,20 @@ enum RideEvent: Equatable, Sendable {
 }
 
 /// The On board ride engine (TT-171, Live-Spec "one position, two sources"). A ride starts for one trip, service date,
-/// origin and destination when the rider asks (the button, the departure question's Yes or the matcher's question, TT-172,
-/// TT-231 and TT-175), or by itself on an alerted train the phone left the station with (`AutoRideWatch`, TT-242, D120),
-/// which asks for nothing. A start the rider asked for asks for When In Use location; so do the Automatic direction and
-/// Detect my train switches, and nothing asks at launch (D60 rule 4 as revised by D116 and D120).
+/// origin and destination when the rider asks (the button or the departure question's Yes, TT-172 and TT-231), or by
+/// itself on an alerted train the phone left the station with (`AutoRideWatch`, TT-242, D120), which asks for nothing. A
+/// start the rider asked for asks for When In Use location; so do the Automatic direction and Automatic ride switches, and
+/// nothing asks at launch (D60 rule 4 as revised by D116 and D120).
 ///
 /// Position, phone first: GPS about once a second, each fix placed along the trip's track. After 60 s with no fix, the
 /// train feed's position (TT-179), then the timetable corrected by the last measured offset or the feed's delay. Phases
 /// follow the position: at a station within 200 m of it, your stop next once the last station before it is behind, and
 /// arriving once your stop is a minute away. The ride ends with End ride, by itself 2 min after your stop (D103), 1 km off the
-/// line for 3 min, or when the trip is cancelled. It is saved on device and restored at launch, where the background
-/// location session is created again. Location is used during a ride, by the matcher while Schedule is open, and for one
-/// look when the app opens to set the route's direction (TT-234, D116); no reading is kept past its use and none is
-/// uploaded.
+/// line for 3 min, or when the trip is cancelled. A ride that started by itself also ends with "Not on it" in its first
+/// 10 min, or by itself, silently, when the phone clearly did not go with the train (`AutoRideRule.undoVerdict`, TT-243,
+/// D120). It is saved on device and restored at launch, where the background location session is created again. Location
+/// is used during a ride, by the automatic ride's watch around an alerted train's departure, and for one look when the app
+/// opens to set the route's direction (TT-234, D116); no reading is kept past its use and none is uploaded.
 ///
 /// A ride the phone itself placed at your stop, and that ended there, is Automatic direction's proof of where the rider
 /// is (`arrival`, TT-234, D116).
@@ -100,6 +112,8 @@ final class RideEngine: DirectionRideSource {
     /// train back (TT-220). Closer, it is noise, or the feed's front car against the phone's, and counts as that point.
     static let behindTolerance = 500.0
     static let storageKey = "onboard.ride"
+    /// "Not on it" shows, and the ride may undo itself, this long after a start by itself (TT-243, D120).
+    static let undoWindow: TimeInterval = 10 * 60
 
     private(set) var ride: Ride?
     private(set) var plan: RidePlan?
@@ -122,6 +136,9 @@ final class RideEngine: DirectionRideSource {
 
     private let data: (any RideDataProviding)?
     private let location: any LocationProviding
+    /// The location this ride reads when it is not `location`: the automatic ride's watch's `BackgroundFixes` for a start
+    /// with the app closed (TT-243, D120), kept for that ride; the next launch's restore goes back to `location`.
+    @ObservationIgnored private var rideLocation: (any LocationProviding)?
     private let trains: (any TrainPositionProviding)?
     private let clock: any AppClock
     private let defaults: UserDefaults?
@@ -141,6 +158,9 @@ final class RideEngine: DirectionRideSource {
     /// The furthest along the track the phone or the feed placed the train. Ranks alone let a placement behind it reset
     /// the delay on a long stretch, such as Clarkson to Union with no stop between (TT-220).
     @ObservationIgnored private var measuredAlong = -Double.infinity
+    /// The undo by itself's rule (TT-243, D120), fed this ride's fixes and the feed's positions in the first 10 min of a
+    /// ride that started by itself; nil otherwise.
+    @ObservationIgnored private var undoRule: AutoRideRule?
     /// The phone's own fix placed the train at your stop in this ride: what makes its end there a proof (`arrival`).
     @ObservationIgnored private var phoneReachedYourStop = false
     /// The last phase sent as `.phase`.
@@ -195,19 +215,25 @@ final class RideEngine: DirectionRideSource {
     // MARK: Start, restore, end
 
     /// Starts a ride. One the rider asked for (`asks`) asks for When In Use location here, the engine's only ask (the
-    /// Automatic direction and Detect my train switches ask it too, D116; nothing asks at launch); without it the ride runs
-    /// on the timetable. An automatic start (`asks` false, TT-242, D120) never asks: a prompt from the background would
-    /// never be answered, so it goes by what is allowed. False when the trip does not run that day between those stations,
-    /// or while another start awaits its plan.
+    /// Automatic direction and Automatic ride switches ask it too, D116, D120; nothing asks at launch); without it the ride
+    /// runs on the timetable. An automatic start (`asks` false, TT-242, D120) never asks: a prompt from the background would
+    /// never be answered, so it goes by what is allowed. `location`: the automatic ride's watch's own, for a start with the
+    /// app closed (TT-243): its `BackgroundFixes` already run in the background, so no new session is made from there; the
+    /// ride keeps it until the next launch's restore. False when the trip does not run that day between those stations, or
+    /// while another start awaits its plan.
     @discardableResult
-    func start(_ ride: Ride, source: RideStartSource = .onBoard, asks: Bool = true) async -> Bool {
+    func start(
+        _ ride: Ride, source: RideStartSource = .onBoard, asks: Bool = true, location rideLocation: (any LocationProviding)? = nil
+    ) async -> Bool {
         guard !isStarting else { return false }
         isStarting = true
         defer { isStarting = false }
         guard let data, let plan = try? await data.ridePlan(for: ride), plan.stops.count >= 2 else { return false }
-        let allowed = asks ? await location.requestWhenInUse() : location.isAuthorized
+        let reader = rideLocation ?? location
+        let allowed = asks ? await reader.requestWhenInUse() : reader.isAuthorized
         let status = await data.rideStatus(for: ride)
         stopTracking()
+        self.rideLocation = rideLocation
         begin(
             ride, plan: plan, saved: SavedRide(ride: ride, startedAt: clock.now, startSource: source), status: status,
             tracksLocation: allowed
@@ -226,6 +252,8 @@ final class RideEngine: DirectionRideSource {
         let status = await data.rideStatus(for: saved.ride)
         // End ride while the plan and status loaded (TT-174) removed the saved ride.
         guard ride == nil, SavedRide.read(from: defaults, key: Self.storageKey) != nil else { return }
+        // The app's own location again, also for a ride that started on the watch's with the app closed (TT-243).
+        rideLocation = nil
         // A ride 2 min past your stop is over: it ends at once on the timetable, and location does not start again.
         let offset = status.delay ?? saved.offset ?? 0
         let reachedAt = saved.arrivedAt ?? plan.stops[plan.stops.count - 1].arrival.addingTimeInterval(offset)
@@ -241,6 +269,16 @@ final class RideEngine: DirectionRideSource {
             return
         }
         end(.byRider)
+    }
+
+    /// The location the running ride reads.
+    private var reader: any LocationProviding { rideLocation ?? location }
+
+    /// When "Not on it" stops showing for the ride (TT-243, D120): 10 min after it started by itself; nil for any other ride,
+    /// before a start or once it ended.
+    var autoUndoUntil: Date? {
+        guard startSource == .auto, let startedAt, let state, state.phase != .ended else { return nil }
+        return startedAt.addingTimeInterval(Self.undoWindow)
     }
 
     /// The ride's events, from now on; each caller gets its own stream.
@@ -275,11 +313,15 @@ final class RideEngine: DirectionRideSource {
         // A new ride: the last one's proof no longer says where the rider is.
         arrival = nil
         announcedPhase = nil
+        // The undo by itself watches the first 10 min of a ride that started by itself (TT-243, D120).
+        undoRule = saved.startSource == .auto && clock.now < saved.startedAt.addingTimeInterval(Self.undoWindow)
+            ? AutoRideRule(plan: plan, originId: ride.originId, armedLate: false, reportsStationary: Self.reportsStationary)
+            : nil
         // Without a track a fix cannot place the train, so the phone is not used.
         self.tracksLocation = tracksLocation && plan.track != nil
         locationStartedAt = clock.now
         if self.tracksLocation {
-            location.startUpdates { [weak self] fix in self?.receive(fix) }
+            reader.startUpdates { [weak self] fix in self?.receive(fix) }
         }
         save()
         update()
@@ -287,9 +329,21 @@ final class RideEngine: DirectionRideSource {
         startLoop()
     }
 
-    /// Ends the ride for `reason`; End ride is `end()`.
-    func end(_ reason: RideEndReason) {
-        guard var ended = state, ended.phase != .ended else { return }
+    /// Ends the ride for `reason`; End ride is `end()`. `surface`: where Not on it was tapped (TT-243, D120). Before a
+    /// launch's restore has finished (the card's Not on it in a stopped app) there is no state yet: the saved ride is read
+    /// for how it started, `ride_ended` goes with the reason, the source and the surface, and the saved ride goes, so
+    /// `restore()` does not bring it back. Not on it and the undo by itself decline the train for today
+    /// (`DetectionStore.silence`), so nothing asks about it again. Returns the ride it ended, nil when none ran.
+    @discardableResult
+    func end(_ reason: RideEndReason, surface: RideEndSurface? = nil) -> Ride? {
+        guard var ended = state else {
+            guard let saved = SavedRide.read(from: defaults, key: Self.storageKey) else { return nil }
+            Analytics.track(.rideEnded(reason, source: saved.startSource, surface: surface))
+            SavedRide.clear(from: defaults, key: Self.storageKey)
+            declineIfUndone(saved.ride, reason: reason)
+            return saved.ride
+        }
+        guard ended.phase != .ended else { return nil }
         stopTracking()
         let atStop = ended.phase == .atYourStop
         ended.phase = .ended
@@ -301,19 +355,36 @@ final class RideEngine: DirectionRideSource {
             arrival = RideArrival(stopId: ride.destinationId, at: clock.now)
         }
         Analytics.track(.rideEnded(
-            reason, source: startSource, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens
+            reason, source: startSource, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens,
+            surface: surface
         ))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil
+        undoRule = nil
+        if let ride { declineIfUndone(ride, reason: reason) }
         emit(.phase(.ended))
         emit(.update(ended))
+        return ride
+    }
+
+    /// Not on it and the undo by itself: the train is declined for today, straight in the store (never
+    /// `DepartureQuestion.decline`, which would count a question answer that never came).
+    private func declineIfUndone(_ ride: Ride, reason: RideEndReason) {
+        guard reason == .notOnIt || reason == .autoUndone, let defaults else { return }
+        DetectionStore.silence([ride.tripKey], in: defaults)
     }
 
     private func stopTracking() {
         loop?.cancel()
         loop = nil
-        if tracksLocation { location.stopUpdates() }
+        if tracksLocation { reader.stopUpdates() }
         tracksLocation = false
+    }
+
+    /// iOS sends a stationary update when the phone stops from iOS 18 on, as the watch reads it (TT-242).
+    private static var reportsStationary: Bool {
+        if #available(iOS 18, *) { return true }
+        return false
     }
 
     private func startLoop() {
@@ -335,6 +406,8 @@ final class RideEngine: DirectionRideSource {
     /// A fix from the phone, placed at the time iOS measured it. A fix more than 1 km off the line does not place the train
     /// and starts the off-the-line count, from the scheduled departure on. A fix older than 60 s says nothing about now.
     func receive(_ fix: LocationFix) {
+        // The undo by itself counts only good fixes, by its own rule (TT-243).
+        if state?.phase != .ended { undoRule?.observe(fix, at: clock.now) }
         guard let plan, let track = plan.track, state?.phase != .ended, fix.age < Self.fixTimeout,
               fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= Self.worstAccuracy else { return }
         let now = clock.now
@@ -355,6 +428,7 @@ final class RideEngine: DirectionRideSource {
         let position = await trains?.position(of: ride.tripKey)
         guard self.ride == ride, state?.phase != .ended else { return }
         self.status = status
+        if let position { undoRule?.observe(position, readAt: clock.now) }
         if let position, let track = plan?.track {
             let projection = track.shape.project(position.coordinate)
             feedPosition = projection.off <= Self.offLineDistance
@@ -471,12 +545,15 @@ final class RideEngine: DirectionRideSource {
             .leftTheLine
         } else if let arrivedAt = saved.arrivedAt, now.timeIntervalSince(arrivedAt) >= Self.endAfterArrival {
             .arrived
+        } else if isUndone(at: now, startedAt: saved.startedAt) {
+            .autoUndone
         } else {
             nil
         }
         if let ending {
             state = current
-            return end(ending)
+            end(ending)
+            return
         }
         let changed = current != state
         if changed { state = current }
@@ -485,6 +562,17 @@ final class RideEngine: DirectionRideSource {
             emit(.phase(phase))
         }
         if changed { emit(.update(current)) }
+    }
+
+    /// The undo by itself (TT-243, D120): in the first 10 min of a ride that started by itself, the phone clearly did not go
+    /// with the train. Its rule is let go once the 10 min are over.
+    private func isUndone(at now: Date, startedAt: Date) -> Bool {
+        guard let rule = undoRule else { return false }
+        guard now < startedAt.addingTimeInterval(Self.undoWindow) else {
+            undoRule = nil
+            return false
+        }
+        return rule.undoVerdict(at: now) != .keeps
     }
 
     /// The phone while it has a fix less than 60 s old (or a stationary one, which iOS does not repeat), and for the first

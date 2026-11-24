@@ -389,7 +389,7 @@ struct RideActivityCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                if !state.label.isEmpty {
+                if !state.label.isEmpty, !showsNotOnIt {
                     Text(state.label)
                         .font(.system(size: 15))
                         .foregroundStyle(style.label)
@@ -433,10 +433,20 @@ struct RideActivityCard: View {
         }
     }
 
+    /// "Not on it" in the right fact's place for a ride's first 10 min after it started by itself (TT-243, D120; board 41's
+    /// `.undo`); not on a stale card, as the question's buttons.
+    private var showsNotOnIt: Bool { state.undoable && !state.isDeparture && !style.isStale }
+
     /// The pill before departure (the number, mint while the train is boarding, TT-233, or the dash while it is not posted:
-    /// still, since an activity does not animate); the arrival during the ride.
+    /// still, since an activity does not animate); the arrival during the ride, or Not on it, a glass pill like No, which ends
+    /// the ride in the background (`NotOnTrainIntent`).
     @ViewBuilder private var trailing: some View {
-        if state.isDeparture {
+        if showsNotOnIt {
+            Button(intent: NotOnTrainIntent(attributes)) {
+                RideActivityAnswer(title: "onboard.notOnIt", ink: .white, fill: .white.opacity(0.16), minWidth: 108)
+            }
+            .buttonStyle(.plain)
+        } else if state.isDeparture {
             PlatformBadge(number: state.platformNumber, size: 16, palette: style.pill)
         } else if let value = state.value {
             Text(value)
@@ -465,11 +475,13 @@ struct RideActivityCard: View {
     }
 }
 
-/// A departure question's answer (TT-231): a 44 pt pill, at least 76 pt wide, 17 pt semibold.
+/// A departure question's answer (TT-231): a 44 pt pill, at least 76 pt wide, 17 pt semibold; Not on it's is at least 108
+/// pt wide (TT-243).
 struct RideActivityAnswer: View {
     let title: LocalizedStringKey
     let ink: Color
     let fill: Color
+    var minWidth: CGFloat = 76
 
     var body: some View {
         Text(title)
@@ -478,7 +490,7 @@ struct RideActivityAnswer: View {
             .foregroundStyle(ink)
             .lineLimit(1)
             .padding(.horizontal, 16)
-            .frame(minWidth: 76, minHeight: 44)
+            .frame(minWidth: minWidth, minHeight: 44)
             .background(fill, in: Capsule())
             .contentShape(Capsule())
     }

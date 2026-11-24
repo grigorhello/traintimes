@@ -26,10 +26,24 @@ enum LaunchArguments {
     static let noDirectionStrip = ["-direction.stripAnswered", ""]
     /// No turns counted yet (TT-236), so a turn shows "Now from …".
     static let noDirectionTurns = ["-direction.turns", ""]
+    /// No automatic ride strip due (TT-243), whatever an earlier test's ride left, so it never takes Automatic direction's
+    /// strip's place.
+    static let noAutoRideStripDue = ["-autoRide.stripDue", ""]
     /// Nothing holds Automatic direction back: no Undo hour, no choice by hand and no "off", whatever an earlier run left,
-    /// with the strip unanswered and no turns counted. A test that checks the Undo hour relaunches without
-    /// `noDirectionUndo`, and one that checks the strip's answer without `noDirectionStrip`.
+    /// with the strip unanswered and no turns counted (and no automatic ride strip before it). A test that checks the Undo
+    /// hour relaunches without `noDirectionUndo`, and one that checks the strip's answer without `noDirectionStrip`.
     static let noDirectionHolds = noDirectionUndo + noDirectionChoice + noDirectionOff + noDirectionStrip + noDirectionTurns
+        + noAutoRideStripDue
+
+    /// The automatic ride's one-time strip was never answered (TT-243, D120).
+    static let noAutoRideStrip = ["-autoRide.stripAnswered", ""]
+    /// No Not on it counted.
+    static let noAutoRideNotOnIt = ["-autoRide.notOnIt", ""]
+    /// The rider has not turned Automatic ride off.
+    static let noAutoRideOff = ["-autoRide.off", ""]
+    /// Nothing holds the automatic ride back, whatever an earlier run left: no "off", no Not on it counted and its strip
+    /// unanswered, read as cleared for the whole run, as `noDirectionHolds` does.
+    static let noAutoRideHolds = noAutoRideStrip + noAutoRideNotOnIt + noAutoRideOff
 
     /// Settings › Testing › Demo place at one of the route's two stations, by id: the phone reads as standing there, with
     /// location allowed (TT-234, D116). Fixture runs have no location reader, so this is how a UI test turns the route.

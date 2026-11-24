@@ -1,16 +1,18 @@
 import CoreLocation
 import UIKit
 
-/// "Detect my train"'s location in the app (TT-176): the Always permission and the significant-change wake-ups. The
-/// location manager is made on first use; `BackgroundDetection.resume()` makes it at launch while the switch is on, which
-/// is what lets a relaunch for a wake-up deliver it. On iOS 18 a `CLServiceSession` asking for Always is held while the
-/// wake-ups run, as iOS 18 expects of an app that uses location in the background. It asks only from the rider's tap on
-/// the switch or the offer: When In Use first where location was never asked, so the rider reads its sentence, then
-/// Always (TT-234, D116).
+/// "When the app is closed"'s location in the app (TT-243, D120; "Detect my train"'s before it, TT-176): the Always
+/// permission and the significant-change wake-ups. The location manager is made on first use; `AutoRideWake.resume()` makes
+/// it at launch while the switch is on, which is what lets a relaunch for a wake-up deliver it. On iOS 18 a
+/// `CLServiceSession` asking for Always is held while the wake-ups run, as iOS 18 expects of an app that uses location in
+/// the background. It asks only from the rider's tap on the switch: When In Use first where location was never asked, so
+/// the rider reads its sentence, then Always (TT-234, D116), which iOS shows once (`canAskAlways`).
 @MainActor
 final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManagerDelegate {
     /// After the Always request, a dialog shows within this long or not at all (iOS shows it once).
     static let dialogWait: Duration = .seconds(1)
+    /// The Always dialog was asked for while When In Use was allowed: iOS shows it once, so a second tap opens Settings.
+    static let alwaysAskedKey = "location.alwaysAsked"
 
     private var manager: CLLocationManager?
     private var onWake: (@MainActor (WakeFix) async -> Void)?
@@ -32,6 +34,14 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
 
     var canAskWhenInUse: Bool {
         locationManager().authorizationStatus == .notDetermined
+    }
+
+    var canAskAlways: Bool {
+        switch locationManager().authorizationStatus {
+        case .notDetermined: true
+        case .authorizedWhenInUse: !UserDefaults.standard.bool(forKey: Self.alwaysAskedKey)
+        default: false
+        }
     }
 
     func requestWhenInUse() async -> Bool {
@@ -65,6 +75,7 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
             waiters.append(continuation)
             resignedForDialog = false
             askedFrom = manager.authorizationStatus
+            UserDefaults.standard.set(true, forKey: Self.alwaysAskedKey)
             watchDialog()
             manager.requestAlwaysAuthorization()
             Task { [weak self] in
@@ -120,8 +131,8 @@ final class SystemWakeLocation: NSObject, WakeLocationProviding, CLLocationManag
 
     // MARK: Private
 
-    /// A wake-up in the background gets about 10 s: a background task covers the decision and the check's start (loading
-    /// the trains), after which the check's GPS keeps the app running.
+    /// A wake-up in the background gets about 10 s: a background task covers the decision and the watch's start (reading
+    /// today's alerted trains), after which the watch's GPS keeps the app running.
     private func deliver(_ fix: WakeFix) {
         guard let onWake else { return }
         let time = WakeTime()
@@ -188,7 +199,7 @@ private final class WakeTime {
     private var id = UIBackgroundTaskIdentifier.invalid
 
     func begin() {
-        id = UIApplication.shared.beginBackgroundTask(withName: "detect.wake") { [weak self] in
+        id = UIApplication.shared.beginBackgroundTask(withName: "autoRide.wake") { [weak self] in
             // iOS calls this on the main thread when the time runs out.
             MainActor.assumeIsolated { self?.end() }
         }
@@ -201,8 +212,11 @@ private final class WakeTime {
     }
 }
 
-/// GPS for a background check (TT-176): with Always and the `location` background mode, standard updates can start in the
-/// background after a wake-up and keep the app running while the matcher checks, for up to 12 minutes. It never asks.
+/// GPS for a watch armed with the app closed (TT-243, D120; a background check's before, TT-176): with Always and the
+/// `location` background mode, standard updates can start in the background after a wake-up and keep the app running while
+/// the watch decides, and the ride it starts keeps them until the next launch. Automatic pauses stay off, so no fix is
+/// stationary. Each fix carries its age from its timestamp: batched fixes would otherwise share one time and break Y2's
+/// rules. It never asks.
 @MainActor
 final class BackgroundFixes: NSObject, LocationProviding, CLLocationManagerDelegate {
     private var manager: CLLocationManager?
@@ -238,19 +252,23 @@ final class BackgroundFixes: NSObject, LocationProviding, CLLocationManagerDeleg
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        let fixes = locations.map { location in
-            LocationFix(
-                coordinate: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
-                horizontalAccuracy: location.horizontalAccuracy
-            )
-        }
+        let fixes = locations.map { Self.fix(from: $0, now: Date()) }
         Task { @MainActor in
             for fix in fixes { self.onFix?(fix) }
         }
     }
 
+    /// A fix as the watch and the ride read it, with its age from its own timestamp.
+    nonisolated static func fix(from location: CLLocation, now: Date) -> LocationFix {
+        LocationFix(
+            coordinate: GeoPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude),
+            horizontalAccuracy: location.horizontalAccuracy,
+            age: max(0, now.timeIntervalSince(location.timestamp))
+        )
+    }
+
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-        // No fix this time; the matcher carries on with the next one, and the check ends at its time anyway.
+        // No fix this time; the watch carries on with the next one, and decides at its deadline anyway.
     }
 
     private func locationManager() -> CLLocationManager {

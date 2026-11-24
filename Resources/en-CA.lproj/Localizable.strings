@@ -82,6 +82,7 @@
 "onboard.button" = "I’m on board";
 "onboard.end" = "End ride";
 "onboard.done" = "Done";
+"onboard.notOnIt" = "Not on it";
 "onboard.now" = "Now";
 "onboard.minutes" = "%d min";
 "onboard.late" = "%d min late";
@@ -124,17 +125,10 @@
 "wish.enjoyWeekend" = "Enjoy your weekend";
 "wish.happyFriday" = "Happy Friday";
 
-/* Train detection (TT-175, D68): the checking strip and the question on Schedule. %@ is a line, a station, or a time from the one formatter. */
+/* The departure question (TT-231, D110) on Schedule, the Live Activity card and its notification; train detection's question that shared them went with TT-243 (D120). %@ is a station. */
 "detect.question" = "On the train to %@?";
 "detect.yes" = "Yes";
 "detect.no" = "No";
-
-/* Train detection in the background (TT-176, D73): the offer after the first completed ride, the notification and the Settings switch. In detect.notif.body: the line, the station it moved with the train since, your stop. */
-"loc.always.title" = "Detect my train next time?";
-"loc.always.body" = "Train Times asks when you get on. No need to open the app. It needs your location “Always”.";
-"loc.turnOn" = "Turn on";
-"detect.setting" = "Detect my train";
-"detect.setting.turnedOff" = "Turned off after three “No” in a week. Turn it on again any time.";
 
 /* Automatic direction (TT-234, D116): Schedule's capsules when the route turned by itself or asks, and the Settings switch. %@ is the station's short name. */
 "direction.capsule.turned" = "Now from %@";
@@ -146,9 +140,16 @@
 "direction.strip.ok" = "OK";
 "direction.strip.off" = "Turn off";
 "settings.auto_direction" = "Automatic direction";
-"settings.auto_direction.note" = "Opens with trains from the station you’re closer to. Your location stays on the phone.";
 "settings.auto_direction.needs_location" = "Needs your location. Allow it in iOS Settings.";
 "settings.auto_direction.needs_precise" = "Needs Precise Location. Turn it on in iOS Settings.";
+
+/* Rides start by themselves (TT-243, D120): the Automatic card's rows and its one note (with Automatic direction's), and the one-time strip on Schedule (its buttons are direction.strip.ok and direction.strip.off). */
+"settings.auto_ride" = "Automatic ride";
+"settings.auto_ride.closed" = "When the app is closed";
+"settings.automatic.note" = "Opens with trains from the station you’re closer to, and starts the ride once you leave with a train you set an alert on. Your location stays on the phone.";
+"settings.auto_ride.turned_off" = "Turned off after two “Not on it”.";
+"autoride.strip.title" = "Rides start by themselves";
+"autoride.strip.body" = "On a train with an alert, once you leave with it.";
 
 /* Status badges */
 "status.on_time" = "On time";
@@ -336,7 +337,7 @@
 "settings.demo_trains.delays_detail" = "The next train late, one cancelled, the rest on time, plus a line notice.";
 "settings.demo_trains.offline_detail" = "The saved timetable, as if there were no connection.";
 "settings.demo_trains.platform_detail" = "The next train leaves in 8 min with no platform posted yet.";
-"settings.demo_trains.ride_detail" = "Asks on Schedule if you’re on the 5:13 PM train, then plays your ride to Clarkson.";
+"settings.demo_trains.ride_detail" = "Plays your ride on the 5:13 PM train from Union to Clarkson.";
 "settings.demo_trains.departure_detail" = "Plays the last 17 minutes before the 5:13 PM train leaves Union, with an alert on it. Open it from the strip on Schedule.";
 "settings.live_data" = "Live data";
 "settings.live_data.off" = "Off";
@@ -381,7 +382,7 @@
 "haptics.moment.swap.detail" = "Tap at 310 ms";
 "haptics.moment.remove" = "Remove alert";
 "haptics.moment.remove.detail" = "Drop";
-"haptics.moment.undo" = "Undo, Try again, No";
+"haptics.moment.undo" = "Undo, Try again, No, Not on it";
 "haptics.moment.undo.detail" = "Tap";
 "haptics.moment.confirmed" = "Sent, notifications on";
 "haptics.moment.confirmed.detail" = "Done";

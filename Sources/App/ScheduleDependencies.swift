@@ -10,8 +10,6 @@ struct ScheduleDependencies {
     let clock: any AppClock
     /// On board's trips and tracks (TT-171): the GO feed in the app; none in fixture runs, so no ride starts or restores.
     var rides: (any RideDataProviding)?
-    /// The trains train detection matches the phone against (TT-175): the GO feed in the app; none in fixture runs.
-    var candidates: (any TrainCandidatesProviding)?
     /// Where GO's train feed places each train (TT-179): the alert server's `/v1/trains` in the app; none in fixture runs.
     var trains: (any TrainPositionProviding)?
     /// The widget file's schedule and stations (TT-182, D107): the GO feed as it is, never wrapped by `withTesting()`, so Demo
@@ -39,7 +37,7 @@ struct ScheduleDependencies {
             trains: RelayTrainPositions.shared
         )
         let live = ScheduleDependencies(
-            repository: repository, stations: repository, clock: SystemClock(), rides: repository, candidates: repository,
+            repository: repository, stations: repository, clock: SystemClock(), rides: repository,
             trains: RelayTrainPositions.shared, widgetData: repository, rivals: repository
         )
         return BuildChannel.showsTesting ? live.withTesting() : live
@@ -58,7 +56,6 @@ struct ScheduleDependencies {
             stations: stations,
             clock: mocked,
             rides: rides,
-            candidates: candidates,
             trains: trains,
             widgetData: widgetData,
             rivals: rivals
@@ -110,6 +107,8 @@ extension AutoRideWatch {
         return AutoRideWatch(
             ride: ride,
             location: location,
+            // A watch armed with the app closed reads GPS that keeps going in the background (TT-243).
+            closedLocation: BackgroundFixes(),
             departures: ScheduleDepartureReading(repository: data),
             positions: trains,
             rivals: dependencies.rivals ?? NoRivalTrains(),
@@ -126,55 +125,37 @@ extension AutoRideWatch {
     }
 }
 
+extension AutoRideWake {
+    /// "When the app is closed" in the app (TT-243, D120): significant-change wake-ups, today's alerted trains from the
+    /// stored rules and the GO feed as it is (never the Demo or Mock time wrapper), the device clock. None in fixture runs,
+    /// previews and the unit test host, where there is no watch.
+    static func app(
+        watch: AutoRideWatch?, ride: RideEngine, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AutoRideWake? {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        guard let watch, let data = dependencies.widgetData else { return nil }
+        let departures = ScheduleDepartureReading(repository: data)
+        return AutoRideWake(
+            location: SystemWakeLocation(),
+            watch: watch,
+            store: AutoRideStore(defaults: .standard),
+            clock: SystemClock(),
+            trains: { now in
+                await alertedTrains(
+                    rules: AlertRules.stored(in: .standard), repository: data, departures: departures,
+                    plans: { await ride.plan(for: $0) }, at: now
+                )
+            },
+            isInForeground: { UIApplication.shared.applicationState != .background }
+        )
+    }
+}
+
 extension ArrivalNudge {
     /// The demo ride's nudge (TT-173), on its 6x clock. None in fixture runs (UI tests, previews), so a demo ride in a UI
     /// test leaves no notification to go off over a later test.
     static func demo(environment: [String: String] = ProcessInfo.processInfo.environment) -> ArrivalNudge? {
         ScheduleDependencies.isFixtureRun(environment) ? nil : ArrivalNudge.system(rate: DemoRide.speed)
-    }
-}
-
-extension TrainDetector {
-    /// The app's train detector (TT-175): the GO feed's trains on the route, the phone's location only while Schedule is
-    /// open (no background session, never asking), and the schedule's clock. None in fixture runs.
-    static func app(_ dependencies: ScheduleDependencies) -> TrainDetector? {
-        guard let candidates = dependencies.candidates else { return nil }
-        return TrainDetector(
-            candidates: candidates,
-            location: SystemLocationProvider(keepsInBackground: false),
-            trains: dependencies.trains,
-            clock: dependencies.clock,
-            defaults: .standard,
-            askedWhere: "app"
-        )
-    }
-}
-
-extension BackgroundDetection {
-    /// "Detect my train" in the app (TT-176): the GO feed's trains on the saved route, significant-change wake-ups and GPS
-    /// that runs in the background for a check, the schedule's clock, the question in the notification centre. None in
-    /// fixture runs, so UI tests and previews never touch location.
-    static func app(ride: RideEngine, environment: [String: String] = ProcessInfo.processInfo.environment) -> BackgroundDetection? {
-        let dependencies = ScheduleDependencies.app(environment: environment)
-        guard let candidates = dependencies.candidates else { return nil }
-        let clock = dependencies.clock
-        let trains = dependencies.trains
-        return BackgroundDetection(
-            location: SystemWakeLocation(),
-            candidates: candidates,
-            notifier: SystemDetectionNotifier(),
-            clock: clock,
-            defaults: .standard,
-            route: { UserDefaultsRouteStore().route },
-            isRiding: { ride.ride != nil && ride.state?.phase != .ended },
-            isInForeground: { UIApplication.shared.applicationState != .background },
-            makeDetector: {
-                TrainDetector(
-                    candidates: candidates, location: BackgroundFixes(), trains: trains, clock: clock, defaults: .standard,
-                    tickInterval: nil, askedWhere: "background"
-                )
-            }
-        )
     }
 }
 

@@ -286,6 +286,10 @@ struct RootView: View {
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).
         .task {
+            // The demo card's Not on it (TT-243) goes to the OnBoard this view keeps: set here, not in OnBoard's init, which
+            // runs again for every RootView init SwiftUI makes and would point it at an OnBoard that was thrown away.
+            let kept = onBoard
+            liveActivity?.demoNotOnIt = { [weak kept] ride in kept?.demoCardNotOnIt(ride) }
             liveActivity?.connect(reporter: alerts, wishes: onBoard) { departureForActivity() }
         }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.

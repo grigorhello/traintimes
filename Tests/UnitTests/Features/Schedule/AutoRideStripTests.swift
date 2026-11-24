@@ -69,6 +69,19 @@ final class AutoRideStripTests: XCTestCase {
         XCTAssertEqual(recorder.events, [.settingChanged("auto_ride", value: "off")])
     }
 
+    /// A UI test's launch arguments keep the stored answer cleared for the whole run: the strip still closes at the tap.
+    func testAnAnswerHoldsForTheRunWhateverTheStoreReadsBack() {
+        let store = AutoRideStore(defaults: .ephemeral())
+        store.stripDue = true
+        let strip = strip(store)
+
+        strip.ok()
+        store.stripAnswered = false
+        strip.refresh()
+
+        XCTAssertFalse(strip.isShown)
+    }
+
     func testHiddenWhileAutomaticRideReadsOff() {
         let store = AutoRideStore(defaults: .ephemeral())
         store.stripDue = true

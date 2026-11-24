@@ -12,6 +12,9 @@ final class AutoRideStrip {
     private let haptics: any HapticPlaying
     /// Bumped on every change, so the strip is drawn again: the store itself is not observed.
     private var version = 0
+    /// Answered in this run: closed at once, whatever the store reads back (a UI test's launch arguments keep the stored
+    /// answer cleared for the whole run).
+    private var answered = false
 
     /// `store` nil (previews, the unit test host's screens) never shows it. `readsOn`: Automatic ride reads on.
     init(store: AutoRideStore?, readsOn: @escaping @MainActor () -> Bool, haptics: any HapticPlaying = TTHaptics.shared) {
@@ -23,13 +26,14 @@ final class AutoRideStrip {
     /// Due and not answered, while Automatic ride reads on. Riding comes first in the slot.
     var isShown: Bool {
         _ = version
-        guard let store else { return false }
+        guard let store, !answered else { return false }
         return store.stripDue && !store.stripAnswered && readsOn()
     }
 
     /// OK: closed for good.
     func ok() {
         haptics.play(.undo)
+        answered = true
         store?.stripAnswered = true
         version += 1
     }
@@ -37,6 +41,7 @@ final class AutoRideStrip {
     /// Turn off: Automatic ride off, as the Settings switch turns it off.
     func turnOff() {
         haptics.play(.undo)
+        answered = true
         store?.stripAnswered = true
         if store?.isOff == false {
             store?.isOff = true

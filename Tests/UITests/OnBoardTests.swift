@@ -166,7 +166,9 @@ final class OnBoardTests: XCTestCase {
         XCTAssertFalse(question.waitForExistence(timeout: 10), "Not on it declined that train: nothing asks about it")
     }
 
-    /// TT-243 (D120): the one-time strip's Turn off turns Automatic ride off, and its Settings switch reads off.
+    /// TT-243 (D120): the one-time strip's Turn off turns Automatic ride off, and its Settings switch reads off. The "off" is
+    /// cleared for the first launch, so it is read in a second launch that keeps it, as `AutoDirectionTests` does; the
+    /// switch then turns it on again (a demo mode needs no location), so nothing is left on the simulator.
     @MainActor
     func testTheStripsTurnOffTurnsAutomaticRideOff() {
         let app = launchBoards()
@@ -179,10 +181,26 @@ final class OnBoardTests: XCTestCase {
         app.buttons["autoride.strip.off"].tap()
         XCTAssertTrue(autoStrip.waitForNonExistence(timeout: 15))
 
+        app.terminate()
+        // No demo departure plays now; the Automatic ride mode alone makes the switch read the stored "off".
+        app.launchArguments = LaunchArguments.fixtureRoute + LaunchArguments.demoAutoRide("boards")
+            + LaunchArguments.noAutoRideStrip + LaunchArguments.noAutoRideNotOnIt
+        app.launch()
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
         app.tabBars.buttons["Settings"].tap()
         let setting = app.switches["settings.autoRide"]
         XCTAssertTrue(setting.waitForExistence(timeout: 15))
         XCTAssertEqual(setting.value as? String, "0")
+
+        setting.tap()
+        XCTAssertTrue(waitForValue(setting, "1"), "the switch turns it on again")
+    }
+
+    /// Waits up to 15 s for a switch to read `value`.
+    @MainActor
+    private func waitForValue(_ element: XCUIElement, _ value: String) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 15) == .completed
     }
 
     /// The demo departure with Automatic ride on Boards, nothing held back by an earlier run, on Schedule.

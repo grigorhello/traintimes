@@ -96,7 +96,6 @@ final class OnBoard {
         self.requestNotifications = requestNotifications
         self.wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: haptics)
         self.screen = screen ?? RideScreen(haptics: haptics)
-        liveActivity?.demoNotOnIt = { [weak self] ride in self?.demoCardNotOnIt(ride) }
     }
 
     /// The demo's engine while it plays, else the app's.

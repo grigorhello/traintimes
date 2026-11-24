@@ -65,4 +65,25 @@ xcodebuild test \
   -resultBundlePath "$RESULT" \
   -skipMacroValidation \
   -skipPackagePluginValidation \
-  2>&1 | "${FORMATTER[@]}"
+  2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+
+# The formatter shows test results only, so a run that ends without them (the test app crashed or never started) left
+# nothing to read in the log, and cloud sessions cannot download the result bundle. On a failure, print xcodebuild's own
+# last lines, the result bundle's summary and the newest crash report of the app.
+if [[ "${status:-0}" -ne 0 ]]; then
+  echo "::group::xcodebuild's last lines"
+  tail -n 150 build/xcodebuild.log
+  echo "::endgroup::"
+  echo "::group::Result bundle summary"
+  xcrun xcresulttool get test-results summary --path "$RESULT" 2>&1 | head -c 20000 || true
+  echo
+  echo "::endgroup::"
+  report=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/TrainTimes*.ips 2>/dev/null | head -n 1 || true)
+  if [[ -n "$report" ]]; then
+    echo "::group::Crash report $report"
+    head -c 12000 "$report"
+    echo
+    echo "::endgroup::"
+  fi
+  exit "$status"
+fi

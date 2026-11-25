@@ -243,6 +243,26 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertFalse(RideLiveActivity.alerts(from: before, to: before))
     }
 
+    // MARK: The stop line
+
+    /// TT-244, D121: the train's centre stays 10 pt inside the line's ends, 22 pt from the left one while the bolt shows,
+    /// clear of the open island's corner cut; elsewhere it is drawn where `x` puts it.
+    func testTheTrainStaysOnTheLine() {
+        let layout = RideActivityBar.Layout(width: 326, stops: 6)
+        XCTAssertEqual(layout.segment, 52.2, accuracy: 0.001)
+        XCTAssertEqual(layout.trainX(0, showsBolt: false), 10, accuracy: 0.001)
+        XCTAssertEqual(layout.trainX(0, showsBolt: true), 22, accuracy: 0.001)
+        XCTAssertEqual(layout.trainX(0.1, showsBolt: false), layout.x(0.1), accuracy: 0.001)
+        XCTAssertEqual(layout.x(0.1), 16.22, accuracy: 0.001)
+        XCTAssertEqual(layout.trainX(0.1, showsBolt: true), 22, accuracy: 0.001)
+        for showsBolt in [false, true] {
+            XCTAssertEqual(layout.trainX(2.5, showsBolt: showsBolt), 159.5, accuracy: 0.001)
+            XCTAssertEqual(layout.trainX(2.5, showsBolt: showsBolt), layout.x(2.5), accuracy: 0.001)
+            XCTAssertEqual(layout.trainX(5, showsBolt: showsBolt), 316, accuracy: 0.001)
+        }
+        XCTAssertEqual(layout.x(5), 318, accuracy: 0.001)
+    }
+
     // MARK: Links
 
     func testTheLinksOpenTheRideAndEndIt() throws {

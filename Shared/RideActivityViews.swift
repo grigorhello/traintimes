@@ -185,8 +185,10 @@ struct RideActivityCountdown: View {
 
 /// The stop line, no words (kept on the ride cards: Grigor asked for it back, TT-205): a dot for each stop (the origin's
 /// larger), your stop's pin at the end, mint behind the train; the train glyph alone on a disc of the background's colour,
-/// moving with a 0.6 s ease on each update. A station the train does not stop at is a hollow dot, mint once passed, and on
-/// an express the bolt sits above the train, centred on it, still (an activity does not loop) (TT-232, D111, board 40).
+/// moving with a 0.6 s ease on each update. A station the train does not stop at is a hollow dot, mint once passed (TT-232,
+/// D111, board 40). On an express the bolt rides beside the train, left of it, on one capsule of the background's colour
+/// under both, still (an activity does not loop), and the train's centre stays 10 pt inside the line's ends (22 pt from the
+/// left one while the bolt shows), clear of the open island's corner cut (TT-244, D121, boards 49 and 50).
 struct RideActivityBar: View {
     let stopCount: Int
     let position: Double
@@ -196,9 +198,11 @@ struct RideActivityBar: View {
     let style: RideActivityStyle
 
     static let height: CGFloat = 20
-    /// The bolt's box above the train, its foot this far inside the train's.
-    private static let bolt: CGFloat = 16
-    private static let boltOverlap: CGFloat = 3
+    /// The bolt's box (the compact island's), its left edge this far left of the train's 24 pt box, and the capsule under
+    /// the bolt and the train, from 22 pt left of the train's centre to the disc's right edge.
+    private static let bolt: CGFloat = 14
+    private static let boltLead: CGFloat = 10
+    private static let plate: CGFloat = 33
 
     var body: some View {
         GeometryReader { geometry in
@@ -239,13 +243,18 @@ struct RideActivityBar: View {
                         .fill(style.tint, style: FillStyle(eoFill: true))
                         .frame(width: 24, height: 24)
                 }
-                .overlay(alignment: .top) {
+                // The plate and the bolt hang outside the 24 pt box, so `.position` still places the train's centre.
+                .background(alignment: .trailing) {
                     if showsBolt {
-                        RideActivityBolt(size: Self.bolt, color: style.tint)
-                            .offset(y: Self.boltOverlap - Self.bolt)
+                        Capsule().fill(style.surface).frame(width: Self.plate, height: 22).offset(x: -1)
                     }
                 }
-                .position(x: layout.x(at), y: mid)
+                .overlay(alignment: .leading) {
+                    if showsBolt {
+                        RideActivityBolt(size: Self.bolt, color: style.tint).offset(x: -Self.boltLead)
+                    }
+                }
+                .position(x: layout.trainX(at, showsBolt: showsBolt), y: mid)
                 .animation(.easeInOut(duration: 0.6), value: position)
             }
         }
@@ -257,6 +266,11 @@ struct RideActivityBar: View {
     struct Layout {
         let width: CGFloat
         let stops: Int
+
+        /// The nearest the train's centre comes to either end of the line, and to the left end while the bolt shows
+        /// (TT-244, D121). Here, not on `RideActivityBar`, whose statics are main-actor isolated.
+        static let end: CGFloat = 10
+        static let boltEnd: CGFloat = 22
 
         var segment: CGFloat {
             max(0, (width - 11 - 9 * CGFloat(stops - 2) - 18) / CGFloat(stops - 1))
@@ -279,6 +293,11 @@ struct RideActivityBar: View {
             let fraction = position - Double(index)
             guard index < stops - 1, fraction > 0.001 else { return center(of: min(index, stops - 1)) }
             return segmentStart(index) + segment * fraction
+        }
+
+        /// Where the train is drawn: `x(position)`, kept on the line, clear of the open island's corner cut (TT-244).
+        func trainX(_ position: Double, showsBolt: Bool) -> CGFloat {
+            min(max(x(position), showsBolt ? Self.boltEnd : Self.end), width - Self.end)
         }
     }
 }
@@ -427,8 +446,8 @@ struct RideActivityCard: View {
                     stopCount: state.stations ?? attributes.stopCount, position: state.position, skipped: state.skipped,
                     showsBolt: state.express && state.phase != .atYourStop, style: style
                 )
-                // On an express the bolt stands above the train: 4 pt more, so it clears the number (160 pt in the island).
-                .padding(.top, state.express ? 8 : 4)
+                // 4 pt for every ride: the bolt rides beside the train, nothing stands above it (TT-244, D121).
+                .padding(.top, 4)
             }
         }
     }
@@ -516,7 +535,9 @@ struct RideActivityLockView: View {
 }
 
 /// The expanded island: the same card under the camera, black in every moment (the text goes mint once close). Kept short:
-/// the expanded island is at most 160 pt tall, the camera's row included.
+/// the expanded island is at most 160 pt tall, the camera's row included. iOS cuts what it shows with a rounded corner
+/// about 13 pt inside the island's edge (TT-244, D121), so a ride card has 8 pt under it, which lifts the stop line out of
+/// the corner: every ride island is 160 pt; before departure and the question keep 4 pt.
 struct RideActivityExpanded: View {
     let attributes: RideActivityAttributes
     let state: RideActivityAttributes.ContentState
@@ -525,7 +546,7 @@ struct RideActivityExpanded: View {
     var body: some View {
         RideActivityCard(attributes: attributes, state: state, style: style)
             .padding(.horizontal, 6)
-            .padding(.bottom, 4)
+            .padding(.bottom, state.isDeparture ? 4 : 8)
     }
 }
 

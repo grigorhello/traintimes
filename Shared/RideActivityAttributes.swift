@@ -64,8 +64,8 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         var stations: Int?
         /// Which of those dots the train does not stop at: drawn hollow.
         var skipped: [Int] = []
-        /// The Schedule card's express tag: the bolt above the train on the stop line, and after the tile in the compact
-        /// island. Only during the ride.
+        /// The Schedule card's express tag: the bolt beside the train on the stop line (TT-244), and after the tile in the
+        /// compact island. Only during the ride.
         var express = false
         /// Your stop is next, or the train is boarding: the number turns mint, as on the ride screen.
         var isClose = false

@@ -7,8 +7,10 @@ import XCTest
 /// a dark Lock Screen: the Lock Screen card riding (5:32 PM), your stop next (5:38), arriving (5:42) and stale; the island
 /// compact, compact arriving, minimal, expanded riding, arriving and at your stop. The system draws the island's black
 /// shape and the Lock Screen's rounded card; these mock-ups stand in for them, at Apple's sizes for a 402 pt iPhone
-/// (compact trailing about 52 pt, the expanded island at most 160 pt tall and 374 pt wide, the camera's row about 40 pt),
-/// so content that would be cut off is cut off here too. The countdown is stopped at the moment the content was made.
+/// (compact trailing about 52 pt, the expanded island at most 160 pt tall and 374 pt wide), so content that would be cut off
+/// is cut off here too. The expanded island has the margins and the corner cut measured on a phone (TT-244, D121): the
+/// card 18 pt in from its sides, 36.67 pt under its top and 13.33 pt above its bottom, and what it shows cut by a rounded
+/// corner 13 pt inside its edge. The countdown is stopped at the moment the content was made.
 /// Before departure (TT-178): the Lock Screen card pending, late, boarding, the departure question (TT-231, boards 31 and
 /// 32: "On board?" with Yes and No once the train has left) and stale; the island compact and expanded, and asking.
 /// Boarding at the platform (TT-233, D114): the card of a train the feed places at its station, before and past its time.
@@ -31,8 +33,8 @@ final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testArrivalWishLight() async throws { snap(try await arrivalWish(), .light) }
     @MainActor func testArrivalWishDark() async throws { snap(try await arrivalWish(), .dark) }
 
-    // On an express (TT-232, D111, the Live view canvas's board 40): the stations it passes hollow, the bolt above the train
-    // and after the tile in the compact island. Riding at 5:22 and 5:29 PM, arriving at 5:38:20, at Clarkson at 5:39:05.
+    // On an express (TT-232, D111, the Live view canvas's board 40): the stations it passes hollow, the bolt beside the train
+    // (TT-244, D121) and after the tile in the compact island. Riding at 5:22 and 5:29 PM, arriving at 5:38:20, at Clarkson at 5:39:05.
     @MainActor func testExpressLockScreenLight() async throws { snap(try await expressLockScreen(), .light) }
     @MainActor func testExpressLockScreenDark() async throws { snap(try await expressLockScreen(), .dark) }
     @MainActor func testExpressIslandLight() async throws { snap(try await expressIsland(), .light) }
@@ -41,6 +43,11 @@ final class RideActivitySnapshotTests: XCTestCase {
     /// 10 min, on the Lock Screen riding and with your stop next, and in the expanded island; stale, the fact comes back.
     @MainActor func testNotOnItLight() async throws { snap(try await notOnIt(), .light) }
     @MainActor func testNotOnItDark() async throws { snap(try await notOnIt(), .dark) }
+    /// The ends of the line under the open island's corner cut (TT-244, D121, boards 49 and 50): a stopping train and an
+    /// express at the origin and an express at your stop in the expanded island, then the express at the origin on the
+    /// Lock Screen. The train stays 10 pt inside the line, 22 pt from its left end while the bolt shows beside it.
+    @MainActor func testIslandEndsLight() async throws { snap(try await islandEnds(), .light) }
+    @MainActor func testIslandEndsDark() async throws { snap(try await islandEnds(), .dark) }
 
     private struct Moment {
         let attributes: RideActivityAttributes
@@ -265,6 +272,30 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
+    /// The train at the origin (`position` 0; the demo rigs start past it) and an express at your stop.
+    @MainActor
+    private func islandEnds() async throws -> some View {
+        func atOrigin(_ moment: Moment) -> Moment {
+            var state = moment.state
+            state.position = 0
+            return Moment(attributes: moment.attributes, state: state)
+        }
+        let stopping = atOrigin(try await moment(DemoRideRig.time(17, 32)))
+        let express = atOrigin(try await moment(DemoRideRig.time(17, 29), express: true))
+        let there = try await moment(DemoRideRig.time(17, 39, 5), express: true)
+        return VStack(spacing: 18) {
+            expanded(stopping)
+            expanded(express)
+            expanded(there)
+            lockCard(express, isStale: false)
+            Spacer()
+        }
+        .padding(.top, 11)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
     @MainActor
     private func expressIsland() async throws -> some View {
         let riding = try await moment(DemoRideRig.time(17, 29), express: true)
@@ -323,13 +354,14 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(.black, in: Capsule())
     }
 
-    /// The expanded island as the widget fills it: the card in the bottom region, under the camera's row.
+    /// The expanded island as the widget fills it: the card in the bottom region, under the camera's row, with the margins
+    /// measured on a phone (TT-244, D121).
     @MainActor
     private func expanded(_ moment: Moment) -> some View {
         RideActivityExpanded(attributes: moment.attributes, state: moment.state, style: .island(moment.state, isStale: false))
-            .padding(.horizontal, 14)
-            .padding(.top, 40)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 18)
+            .padding(.top, 36.67)
+            .padding(.bottom, 13.33)
             .expandedIsland()
     }
 
@@ -370,12 +402,13 @@ final class RideActivitySnapshotTests: XCTestCase {
 }
 
 private extension View {
-    /// The expanded island's black shape, cut at its 160 pt maximum.
+    /// The expanded island's black shape, cut at its 160 pt maximum, and what it shows cut by a rounded corner 13 pt inside
+    /// its edge, as iOS does (TT-244, D121: measured on a phone, not documented).
     func expandedIsland() -> some View {
-        // Its own height up to 160 pt, the rest cut off.
+        // Its own height up to 160 pt, the rest cut off; the inner cut concentric with the 44 pt shape.
         frame(maxHeight: 160, alignment: .top)
             .fixedSize(horizontal: false, vertical: true)
-            .clipped()
+            .mask { RoundedRectangle(cornerRadius: 31, style: .continuous).padding(13) }
             .background(.black, in: RoundedRectangle(cornerRadius: 44, style: .continuous))
     }
 }

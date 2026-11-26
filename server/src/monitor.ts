@@ -22,8 +22,12 @@ import {
   type SentKind,
 } from './alerts.ts';
 import {
+  ASK_BUZZES,
   asksIn,
   askTitle,
+  BOARD_BUZZES,
+  BOARDED,
+  boardedIn,
   BOARDING_RADIUS_M,
   contentState,
   DEPART_LEAD_MS,
@@ -31,6 +35,7 @@ import {
   endPayload,
   hasSighting,
   holdEnds,
+  isBoardTime,
   leaves,
   LINE_COLORS,
   phaseAt,
@@ -248,8 +253,11 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
   const sent: Push[] = [];
   const gone = new Set<string>();
   let sends = 0;
-  /** The questions sent with their alert this cycle, sent again once the cycle is through (TT-245, `echo`). */
-  const echoes: LiveActivityPush[] = [];
+  /**
+   * The alerting updates sent this cycle, sent again once the cycle is through (`echo`): the question `ASK_BUZZES` times in
+   * all (TT-245), time to board `BOARD_BUZZES` times (TT-247). `payload` makes the same update with a later timestamp.
+   */
+  const echoes: { push: Omit<LiveActivityPush, 'payload'>; payload: (at: number) => object; buzzes: number }[] = [];
 
   async function deliver(rule: RuleRow, push: Omit<Push, 'token' | 'environment'>): Promise<PushResult> {
     if (gone.has(rule.installation_id)) return 'failed';
@@ -413,19 +421,23 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
   return sent;
 
   /**
-   * The question's second buzz (TT-245, D122; Grigor wanted "On board?" to vibrate twice): iOS vibrates once for each
-   * Live Activity update that carries an alert, and nothing sets its pattern, so every update that asked with its alert
-   * this cycle goes again ECHO_MS later, the same card with the same alert and a later timestamp (iOS skips an update
-   * whose timestamp is not newer). The cycle's other pushes go first, then one wait for all, so the gap is ECHO_MS at
-   * least. Never for a silent question, and not for the notification that stands in for a card. Counted in MAX_SENDS.
+   * The question's second buzz (TT-245, D122; Grigor wanted "On board?" to vibrate twice) and time to board's second and
+   * third (TT-247, D124): iOS vibrates once for each Live Activity update that carries an alert, and nothing sets its
+   * pattern, so every update that went with its alert this cycle goes again ECHO_MS later, and time to board once more
+   * ECHO_MS after that: the same card with the same alert and a later timestamp (iOS skips an update whose timestamp is
+   * not newer). The cycle's other pushes go first, then one wait for all per round, so the gap is ECHO_MS at least. Never
+   * for a silent question, and not for the notification that stands in for a card. Counted in MAX_SENDS.
    */
   async function echo() {
-    if (echoes.length === 0) return;
-    await wait?.(ECHO_MS);
-    for (const push of echoes) {
-      if (sends >= MAX_SENDS) return;
-      sends++;
-      await apns.sendLiveActivity(push, now + ECHO_MS);
+    for (let round = 1; echoes.some((again) => again.buzzes > round); round++) {
+      await wait?.(ECHO_MS);
+      const at = now + round * ECHO_MS;
+      for (const again of echoes) {
+        if (again.buzzes <= round) continue;
+        if (sends >= MAX_SENDS) return;
+        sends++;
+        await apns.sendLiveActivity({ ...again.push, payload: again.payload(at) }, at);
+      }
     }
   }
 
@@ -591,9 +603,11 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       if (phase === 'over' || !rule.start_token || sends >= MAX_SENDS || now >= leaves(train)) return;
       // Claim the start first: an overlapping cycle finds the row and starts nothing.
       const state = contentState(train, phase, now, rule.time_format);
+      // A card that starts inside time to board has had it: its start's own alert stands in (TT-247).
+      const marked = (isBoardTime(train, phase, now) ? BOARDED : '') + signature(state);
       const claimed = await db
         .prepare(`INSERT OR IGNORE INTO activities (installation_id, key, service_date, state, shown) VALUES (?, ?, ?, 'started', ?)`)
-        .bind(rule.installation_id, key, date, signature(state))
+        .bind(rule.installation_id, key, date, marked)
         .run();
       if (claimed.meta.changes === 0) return;
       const attributes = {
@@ -654,18 +668,30 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     }
     if (!activity.token || sends >= MAX_SENDS) return;
     const state = contentState(train, phase, now, rule.time_format);
-    const shown = signature(state);
+    // Time to board (TT-247, D124): its alert goes once per train, with the update that turns the card into it, and only
+    // when a cycle followed the card before (its `shown`): a card first seen inside it (an alert set 3 min before the
+    // train, the app's own card start) is marked with no alert, as the rider just acted. Never after the question (a
+    // delay reported once it asked counts down again), nor once the app reported it asked (it is in front as the train
+    // leaves); a hold (TT-242) is the question's only.
+    const boardTime = isBoardTime(train, phase, now);
+    const boards = boardTime && !boardedIn(activity.shown) && !!activity.shown && !asksIn(activity.shown) && activity.state !== 'asked';
+    const shown = (boardTime || boardedIn(activity.shown) ? BOARDED : '') + signature(state);
     if (shown === activity.shown) return;
     // Claim the update first, as a watch's send is claimed.
     if (!(await setActivity(activity, { shown }))) return;
     sends++;
     // The alert goes with the update that turns the card into the question, not with a later one that only moves its
     // time (the expected departure moves once the feed drops the station, D89).
-    const payload = updatePayload(train, state, now, rule.time_format, silent || asksIn(activity.shown));
+    const quiet = silent || asksIn(activity.shown);
+    const payload = updatePayload(train, state, now, rule.time_format, quiet, boards);
     const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload, expiration }, now);
-    // The question with its alert goes twice, for two buzzes (TT-245): the second once the cycle is through.
+    // The question with its alert goes twice, for two buzzes (TT-245), and time to board three times (TT-247): the rest
+    // once the cycle is through.
     if (result === 'sent' && payload.aps.alert !== undefined) {
-      echoes.push({ token: activity.token, environment: rule.environment, payload: updatePayload(train, state, now + ECHO_MS, rule.time_format), expiration });
+      const buzzes = state.asks ? ASK_BUZZES : BOARD_BUZZES;
+      const time = rule.time_format;
+      echoes.push({ push: { token: activity.token, environment: rule.environment, expiration }, payload: (at) => updatePayload(train, state, at, time, quiet, boards), buzzes });
+      if (!state.asks) console.log('Time to board: a card buzzed');
     }
     if (result === 'unregistered' || result === 'badToken') {
       // The rider swiped it away, or it ended: nothing more to send.

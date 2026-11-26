@@ -18,6 +18,11 @@
 // start (TT-245, D122: before it, only while the train stood there), and the dash while it posts none or was not read.
 //
 // Two buzzes (TT-245, D122): the update that asks with its alert goes twice, ECHO_MS apart (`echo` in `src/monitor.ts`).
+//
+// Three buzzes for time to board (TT-247, D124): the update that first turns the card into "time to board" (`isBoardTime`:
+// boarding, or 5 min or less on its minutes, whichever comes first) carries an alert and goes three times, ECHO_MS apart.
+// Once per train: the stored signature keeps a mark (`BOARDED`, `boardedIn`) once the card has buzzed for it, or was first
+// seen inside it.
 
 import { DELAY_MIN } from './alerts.ts';
 import { format, strings } from './copy.ts';
@@ -32,6 +37,12 @@ export const BOARDING_MS = 2 * MINUTE;
 export const ASK_MS = 10 * MINUTE;
 /** The question's second alert follows the first by this much, so the phone vibrates twice (TT-245, D122). */
 export const ECHO_MS = 1_500;
+/** The question's alert goes this many times, for two buzzes (TT-245, D122). */
+export const ASK_BUZZES = 2;
+/** Time to board's alert goes this many times, ECHO_MS apart, for three buzzes, so it never feels like the question (TT-247). */
+export const BOARD_BUZZES = 3;
+/** Time to board comes at the latest when the card's minutes read this (TT-247, D124): "5 min". */
+export const BOARD_MINUTES = 5;
 /** A train this close to the station's place stands at it (`BoardingRule.radius`, TT-233). */
 export const BOARDING_RADIUS_M = 350;
 /** A position older than this says nothing (`BoardingRule.fixMaxAge`). */
@@ -273,6 +284,29 @@ export function signature(state: ContentState): string {
   return parts.join('|');
 }
 
+/**
+ * Time to board (TT-247, D124; Grigor: "3x vibration ... when boarding is starting ... if it is smaller then 5 minutes do
+ * it before 5 minutes"): the card is boarding (`boardingPhase`'s, or the clock's last 2 min), or its minutes read 5 min or
+ * less, and the train has not left. So it comes at the Boarding moment where a train boards early (Union, about 15 min
+ * ahead) and at the 5 min mark where it stands there for 2 min (Clarkson, Oakville).
+ */
+export function isBoardTime(departure: Departure, phase: Phase | 'before' | 'over', now: number): boolean {
+  if (phase === 'boarding') return true;
+  return phase === 'countingDown' && minutesUntil(leaves(departure), now) <= BOARD_MINUTES;
+}
+
+/**
+ * The mark at the front of a stored signature once the card has buzzed for time to board, or was first seen inside it
+ * (TT-247): it buzzes once, whatever comes after (a delay that moves the train back past 5 min, a position that drops for
+ * a cycle). At the front so the question's `|asks` stays at the end and the line stays the second part (`sweptState`).
+ */
+export const BOARDED = '*';
+
+/** The card has had its time to board (`BOARDED`). */
+export function boardedIn(shown: string | null): boolean {
+  return shown?.startsWith(BOARDED) ?? false;
+}
+
 /** The stored signature is the question's: `signature` of a state that asks, which carries no platform, so it ends there. */
 /** The platform in a stored signature ("…|platform 7/8", `signature`), null without one (TT-245). */
 export function platformIn(shown: string | null): string | null {
@@ -328,12 +362,19 @@ export function startPayload(departure: Departure, attributes: Attributes, state
  * `event: update`: the minutes, the delay or the phase changed. The question's update carries an alert (TT-231): the Lock
  * Screen lights up, the phone buzzes, and the island opens on it; "On the 4:29 PM train?" names the train as its
  * notification does. The cycle sends it twice for two buzzes (TT-245). Not when `silent`: the app was in front as the
- * train left, where Schedule asks.
+ * train left, where Schedule asks. `boards`: the update that turns the card into time to board carries "Time to board
+ * the 4:29 PM train", and the cycle sends it three times (TT-247).
  */
-export function updatePayload(departure: Departure, state: ContentState, now: number, timeFormat: TimeFormat = '12h', silent = false) {
+export function updatePayload(departure: Departure, state: ContentState, now: number, timeFormat: TimeFormat = '12h', silent = false, boards = false) {
   const aps: Record<string, unknown> = { timestamp: seconds(now), event: 'update', 'content-state': state, 'stale-date': seconds(staleDate(departure)) };
   if (state.asks && !silent) aps.alert = { title: askTitle(departure, timeFormat), body: '', sound: 'default' };
+  else if (boards && !state.asks) aps.alert = { title: boardTitle(departure, timeFormat), body: '', sound: 'default' };
   return { aps };
+}
+
+/** "Time to board the 4:29 PM train": the train by its scheduled departure, as every notification names it (D9, TT-247). */
+export function boardTitle(departure: Departure, timeFormat: TimeFormat): string {
+  return format(strings['depart.board.notif'], formatTime(departure.scheduled, timeFormat));
 }
 
 /** "On the 4:29 PM train?": the train by its scheduled departure, as every notification names it (D9). */

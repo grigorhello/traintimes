@@ -332,6 +332,99 @@ describe('the activity, at the right times', () => {
   });
 });
 
+describe('time to board, three buzzes (TT-247)', () => {
+  const BOARD_ALERT = { title: 'Time to board the 7:13 AM train', body: '', sound: 'default' };
+
+  /** One cycle at `time` that records its waits; returns the Live Activity pushes sent, as their `aps`. */
+  async function timedCycle(time: string, feed: Feed | null = null) {
+    const before = apns.activityPushes.length;
+    const waits: number[] = [];
+    await monitor({ db, apns, feed: async () => feed, now: at(time), wait: async (ms) => void waits.push(ms) });
+    return { pushes: apns.activityPushes.slice(before).map((push) => (push.payload as { aps: any }).aps), waits };
+  }
+
+  /** The 7:13's card started at T−30 by the server, with its update token in. */
+  async function started() {
+    await setUp();
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+  }
+
+  test('nothing places the train: at the 5 min mark, three times 1.5 s apart; Boarding now by the clock and the question come as before', async () => {
+    await started();
+    const [six] = await cycle('7:06:30');
+    assert.equal(six['content-state'].minutes, '6 min');
+    assert.equal(six.alert, undefined, 'Not before the card reads 5 min');
+
+    const { pushes, waits } = await timedCycle('7:07:30');
+    assert.equal(pushes.length, 3, 'Three buzzes');
+    assert.deepEqual(waits, [ECHO_MS, ECHO_MS]);
+    for (const aps of pushes) {
+      assert.deepEqual(aps.alert, BOARD_ALERT);
+      assert.equal(aps['content-state'].minutes, '5 min');
+      assert.equal(aps['content-state'].phase, 'countingDown', 'The card itself is as before');
+    }
+    assert.deepEqual(
+      pushes.map((aps) => aps.timestamp),
+      [at('7:07:30'), at('7:07:30') + ECHO_MS, at('7:07:30') + 2 * ECHO_MS].map((ms) => Math.floor(ms / 1000)),
+      'Each later than the one before, or iOS skips it',
+    );
+
+    const [clock] = await cycle('7:11:30');
+    assert.equal(clock['content-state'].phase, 'boarding');
+    assert.equal(clock.alert, undefined, 'Boarding now by the clock is not a second time to board');
+    const question = await cycle('7:13:30');
+    assert.equal(question.length, 2, '"On board?" keeps its two');
+    assert.equal(question[0].alert.title, 'On the 7:13 AM train?');
+  });
+
+  test('once: a delay that moves the train back past 5 min, and its new 5 min mark, send no alert', async () => {
+    await started();
+    assert.equal((await cycle('7:07:30')).length, 3);
+    const later = await cycle('7:08:30', delayFeed('7:08', 10));
+    assert.equal(later.length, 1);
+    assert.equal(later[0]['content-state'].minutes, '14 min');
+    assert.equal(later[0].alert, undefined);
+    const again = await cycle('7:17:30', delayFeed('7:17', 10));
+    assert.equal(again.length, 1);
+    assert.equal(again[0]['content-state'].minutes, '5 min');
+    assert.equal(again[0].alert, undefined);
+  });
+
+  test('a card first seen inside time to board does not buzz: the rider just set the alert', async () => {
+    // The server starts it 4 min before: its start's own alert stands in.
+    await setUp();
+    const [start] = await cycle('7:09:00');
+    assert.equal(start.event, 'start');
+    await report({ token: ACTIVITY_TOKEN });
+    const after = await cycle('7:10:00');
+    assert.equal(after.length, 1);
+    assert.equal(after[0].alert, undefined);
+
+    // The app started it (no push-to-start token): the first cycle that follows it marks it with no alert.
+    db = memoryD1();
+    apns = new FakeApns();
+    await saveSampleTimetables(db, ['20261109']);
+    await setUp(INSTALLATION, null);
+    await report({ token: ACTIVITY_TOKEN });
+    const first = await cycle('7:09:00');
+    assert.equal(first.length, 1);
+    assert.equal(first[0].alert, undefined);
+    assert.equal((await cycle('7:10:00'))[0].alert, undefined);
+  });
+
+  test('a hold on the question (TT-242) leaves time to board its three buzzes; the question stays silent', async () => {
+    await started();
+    await report({ token: ACTIVITY_TOKEN, holds: true });
+    const board = await cycle('7:07:30');
+    assert.equal(board.length, 3);
+    assert.deepEqual(board[0].alert, BOARD_ALERT);
+    const question = await cycle('7:13:30');
+    assert.equal(question.length, 1);
+    assert.equal(question[0].alert, undefined);
+  });
+});
+
 describe('a card whose alert is gone (TT-240)', () => {
   const OTHER_TOKEN = 'd'.repeat(160);
   const rows = () => db.prepare('SELECT COUNT(*) AS n FROM activities').first<{ n: number }>().then((row) => row!.n);

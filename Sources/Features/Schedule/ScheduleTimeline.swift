@@ -431,7 +431,9 @@ struct DepartureCardView: View {
     }
 
     private var cardFace: some View {
-        Card(padding: 0, flatness: look.look, highlight: card.isBoarding ? 1 : 0) {
+        // A Boarding card keeps the ordinary surface and border; the status row and the filled pill say Boarding
+        // (TT-248, D125).
+        Card(padding: 0, flatness: look.look) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
                     .departedLook(look.look)
@@ -455,12 +457,7 @@ struct DepartureCardView: View {
             }
             .padding(Self.padding)
             .frame(height: TimelineCardSize.standard.height, alignment: .top)
-            // The outline's cross-fade stops here: of the content only the status and the platform pill take it up again,
-            // so a time or a countdown that changes in the same update still changes at once.
-            .animation(nil, value: card.isBoarding)
         }
-        // Into and out of Boarding (TT-233, D114): the accent outline and tint cross-fade.
-        .animation(boardingFade, value: card.isBoarding)
         .coordinateSpace(.named(cardSpace))
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
             height = $0

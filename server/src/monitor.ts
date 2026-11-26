@@ -34,6 +34,7 @@ import {
   leaves,
   LINE_COLORS,
   phaseAt,
+  platformIn,
   shortName,
   signature,
   startPayload,
@@ -211,6 +212,8 @@ interface Sighting {
   tripId: string;
   position: { metres: number; at: number } | null;
   platform: string | null;
+  /** The station's board was read this cycle (or tried): false keeps the platform the card shows (TT-245, D122). */
+  read: boolean;
 }
 
 /**
@@ -475,8 +478,9 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
    * such a train exists. A board is read for BOARD_STATIONS stations at most: first where a train stands within 350 m
    * (boarding needs its platform), then where most riders' trains are still to leave (TT-245, D122: the card's pill shows
    * the platform the board posts, planned or posted, as the app's own updates do, rather than the dash until the train
-   * comes in), so the same stations are read from one minute to the next. A train at a station left out, or missing from
-   * `STATIONS`, does not board and keeps the dash; `boardingPhase` says what it does.
+   * comes in). A train at a station left out does not board, and its card keeps the platform it shows (`keptPlatform`)
+   * until the station is read again; a train at a station missing from `STATIONS` does not board and keeps the dash.
+   * `boardingPhase` says what it does.
    */
   async function sight(trains: (Watch & { status: LiveStatus | null; activity: ActivityRow | null })[]): Promise<Map<string, Sighting>> {
     const found = new Map<string, Sighting>();
@@ -514,7 +518,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
         const vehicle = place && vehicles?.trains.find((v) => v.tripId === train.tripId && (v.startDate === undefined || v.startDate === train.date));
         // With no time of its own a position is as old as the feed, as the app reads it (`RelayTrainPositions`).
         const position = place && vehicle ? { metres: metresBetween(place, [vehicle.latitude, vehicle.longitude]), at: vehicle.timestamp ?? vehicles?.timestamp ?? 0 } : null;
-        sighting = { origin, tripId: train.tripId, position, platform: null };
+        sighting = { origin, tripId: train.tripId, position, platform: null, read: false };
         found.set(id, sighting);
       }
       if (!place) continue;
@@ -540,7 +544,11 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       }),
     );
     for (const sighting of found.values()) {
-      const board = boards[stations.indexOf(sighting.origin)];
+      const index = stations.indexOf(sighting.origin);
+      if (index < 0) continue;
+      sighting.read = true;
+      // A failed read shows the dash, as the app does (`PlatformStore`): never an earlier fetch's platform as current.
+      const board = boards[index];
       if (board) sighting.platform = platformFor(board, sighting.tripId);
     }
     return found;
@@ -561,6 +569,8 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       ...departureOf(watch, status),
       position: sighting?.position,
       platform: sighting?.platform,
+      // A station left out of this cycle's reads: the pill keeps what the card shows (TT-245, D122).
+      keptPlatform: sighting && !sighting.read ? platformIn(activity?.shown ?? null) : undefined,
       hasLeftOrigin: update !== undefined && hasLeftOrigin(update, call),
     };
     let phase = phaseAt(train, now);

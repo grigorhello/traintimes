@@ -82,6 +82,11 @@ export interface Departure {
   hasLeftOrigin?: boolean;
   /** The platform the origin's board posts for the train, "7/8" at Union; null or left out while none is posted or the board was not read. */
   platform?: string | null;
+  /**
+   * The platform the card already shows (`platformIn` of its stored signature), set only while the origin's board was not
+   * read this cycle (TT-245, D122): the pill keeps it rather than dropping to the dash. Never counts for boarding.
+   */
+  keptPlatform?: string | null;
 }
 
 /** The activity's fixed part: which ride it is (the app's `Ride`), the line's tile, your stop and the stop count. */
@@ -244,7 +249,8 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
     state.countdownEnd = Math.round(leavesAt / 1000);
     // Never "1 min" for a train that stands at its platform past its time (`LiveDeparture.isDeparting`).
     state.minutes = now >= leavesAt ? strings['schedule.departing'] : format(strings['onboard.minutes'], minutesUntil(leavesAt, now));
-    if (departure.platform) state.platformNumber = departure.platform;
+    const platform = departure.platform ?? departure.keptPlatform;
+    if (platform) state.platformNumber = platform;
   }
   return state;
 }
@@ -268,6 +274,12 @@ export function signature(state: ContentState): string {
 }
 
 /** The stored signature is the question's: `signature` of a state that asks, which carries no platform, so it ends there. */
+/** The platform in a stored signature ("…|platform 7/8", `signature`), null without one (TT-245). */
+export function platformIn(shown: string | null): string | null {
+  const part = shown?.split('|').find((piece) => piece.startsWith('platform '));
+  return part ? part.slice('platform '.length) : null;
+}
+
 export function asksIn(shown: string | null): boolean {
   return shown?.endsWith('|asks') ?? false;
 }

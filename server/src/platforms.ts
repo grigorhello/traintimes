@@ -32,8 +32,8 @@ export interface PlatformBoard {
 
 /**
  * The platform the board posts for a GTFS trip id, by GO's trip number, its last part (the app's
- * `Board.platform(forTrip:)`); null while it posts none. The minute cycle reads it for a train standing at the station
- * (TT-233).
+ * `Board.platform(forTrip:)`); null while it posts none. The minute cycle reads it for the alerted trains in their window
+ * at a station whose board it read (TT-233, TT-245).
  */
 export function platformFor(board: PlatformBoard, tripId: string): string | null {
   const number = tripId.split('-').pop();

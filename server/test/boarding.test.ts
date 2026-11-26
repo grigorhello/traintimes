@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
-import { boardingPhase, contentState, hasSighting, phaseAt, signature, type BoardingPhase, type Departure } from '../src/activity.ts';
+import { boardingPhase, contentState, hasSighting, phaseAt, platformIn, signature, type BoardingPhase, type Departure } from '../src/activity.ts';
 import { handleRequest } from '../src/api.ts';
 import worker, { type Env } from '../src/index.ts';
 import { BOARD_STATIONS, MAX_SENDS, metresBetween, monitor } from '../src/monitor.ts';
@@ -176,6 +176,15 @@ describe('the rule, case for case with the app’s BoardingRuleTests', () => {
     assert.equal(asking.platformNumber, undefined);
     assert.equal(asking.minutes, undefined);
     assert.equal(signature(asking), 'departed|5:58 PM departed||||asks');
+  });
+
+  test('platformIn reads the pill’s platform back from a stored signature (TT-245)', () => {
+    const counting = (platform: string | null) => signature(contentState(train({ platform }), 'countingDown', at('17:50'), '12h'));
+    assert.equal(platformIn(counting('7/8')), '7/8');
+    assert.equal(platformIn(counting(null)), null);
+    assert.equal(platformIn(null), null);
+    assert.equal(contentState({ ...train({ platform: null }), keptPlatform: '7/8' }, 'countingDown', at('17:50'), '12h').platformNumber, '7/8');
+    assert.equal(contentState({ ...train({ platform: '5' }), keptPlatform: '7/8' }, 'countingDown', at('17:50'), '12h').platformNumber, '5', 'A read wins');
   });
 });
 
@@ -456,6 +465,34 @@ describe('the minute cycle', () => {
     reads.boards = [];
     await cycle('7:05:30', { trains: [vehicle(5_000, '7:05:20'), vehicle(100, '7:05:20', 'LW-1108', 'BO')], platform: '2' });
     assert.deepEqual(reads.boards, ['BO', 'OA'], 'The same stations the next time');
+  });
+
+  test('a station left out of a cycle’s reads keeps the platform its card shows; it never boards on it (TT-245)', async () => {
+    // At 6:45 the Oakville and Bronte windows are open: both boards are read and the Bronte card starts with Platform 2.
+    // At 7:00 trains stand at Oakville (two riders), Appleby (two) and Bronte (one): Appleby and Oakville are read.
+    await arm(rider(1));
+    await arm(rider(2));
+    await arm(rider(3), 'LW-1858', '7:16', 'AP');
+    await arm(rider(4), 'LW-1858', '7:16', 'AP');
+    await arm(rider(5), 'LW-1108', '7:15', 'BO');
+    const starts = await cycle('6:45:00', { platform: '2' });
+    assert.deepEqual(reads.boards, ['OA', 'BO']);
+    const bronte = starts.find((push) => push.attributes.originId === 'BO');
+    assert.equal(bronte['content-state'].platformNumber, '2');
+    const token = { tripId: '20261109-LW-1108', serviceDate: '20261109', originId: 'BO', destinationId: 'UN', token: ACTIVITY_TOKEN };
+    assert.equal((await call(api, 'PUT', `/v1/installations/${rider(5)}/activities`, token)).status, 204);
+    reads.boards = [];
+    const trains = [vehicle(100, '6:59:50'), vehicle(100, '6:59:50', 'LW-1858', 'AP'), vehicle(100, '6:59:50', 'LW-1108', 'BO')];
+    const pushes = await cycle('7:00:00', { trains, platform: '3' });
+    assert.deepEqual(reads.boards, ['AP', 'OA'], 'Bronte is left out this time');
+    const update = pushes.find((push) => push.event === 'update');
+    assert.equal(update['content-state'].platformNumber, '2', 'The card keeps its platform rather than the dash');
+    assert.equal(update['content-state'].phase, 'countingDown', 'A kept platform never makes a train board');
+    assert.equal(update['content-state'].isClose, false);
+    reads.boards = [];
+    const [read] = await cycle('7:01:00', { trains: [vehicle(100, '7:00:50', 'LW-1108', 'BO')], platform: null });
+    assert.equal(reads.boards[0], 'BO', 'Its train stands: Bronte is read first');
+    assert.equal(read['content-state'].platformNumber, undefined, 'Read again and posting none: the dash');
   });
 
   test('a positions read that fails still reads the board for the pill (TT-245)', async () => {

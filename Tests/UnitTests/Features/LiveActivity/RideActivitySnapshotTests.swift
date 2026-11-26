@@ -213,8 +213,8 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// At your stop: "Now", then the wish in its place, and the longest wishes; the compact island keeps "Now", the expanded
-    /// island shows the wish.
+    /// At your stop: "Now", then the wish in its place, and the longest wishes with their emoji (TT-249, D126); the compact
+    /// island keeps "Now", the expanded island shows the wish.
     @MainActor
     private func arrivalWish() async throws -> some View {
         let there = try await moment(DemoRideRig.time(17, 43, 5))

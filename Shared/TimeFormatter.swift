@@ -13,7 +13,7 @@ enum TimeFormat: String, CaseIterable, Sendable, Codable {
 protocol TimeFormatting: Sendable {
     /// Clock time in America/Toronto: "7:32 AM" or "07:32". Also the `%@` value for notification and toast strings.
     func time(_ date: Date) -> String
-    /// The next train's relative time: "in N min", or "Departing" under 1 min.
+    /// The next train's relative time: "in 12 min", "in 5 h 23 min" (`waitLength(minutes:)`), or "Departing" under 1 min.
     func relative(until departure: Date, now: Date) -> String
     /// The freshness line: "Updated just now" under 1 min, else "Updated N min ago".
     func updated(at date: Date, now: Date) -> String
@@ -47,6 +47,24 @@ extension TimeFormatting {
             return String(format: String(localized: "schedule.trip_hours"), hours)
         }
         return String(format: String(localized: "schedule.trip_hours_minutes"), hours, rest)
+    }
+
+    /// A wait to a train, the one wording wherever one counts down on Schedule and in Trip details (TT-246, D123): "45 min"
+    /// under an hour, "5 h 23 min" ("5 h" on the hour) under a day, then "1 d 5 h" ("2 d" on the day). The caller rounds
+    /// the minutes its own way.
+    func waitLength(minutes: Int) -> String {
+        let minutes = max(0, minutes)
+        if minutes < 60 {
+            return String(format: String(localized: "wait.minutes"), minutes)
+        }
+        if minutes < 24 * 60 {
+            let (hours, rest) = minutes.quotientAndRemainder(dividingBy: 60)
+            if rest == 0 { return String(format: String(localized: "wait.hours"), hours) }
+            return String(format: String(localized: "wait.hours_minutes"), hours, rest)
+        }
+        let (days, hours) = (minutes / 60).quotientAndRemainder(dividingBy: 24)
+        if hours == 0 { return String(format: String(localized: "wait.days"), days) }
+        return String(format: String(localized: "wait.days_hours"), days, hours)
     }
 }
 
@@ -91,7 +109,7 @@ struct TimeFormatter: TimeFormatting {
         if minutes < 1 {
             return String(localized: "schedule.departing")
         }
-        return String(format: String(localized: "schedule.in_minutes"), minutes)
+        return String(format: String(localized: "schedule.in_wait"), waitLength(minutes: minutes))
     }
 
     func updated(at date: Date, now: Date) -> String {

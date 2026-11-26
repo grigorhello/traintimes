@@ -15,7 +15,8 @@ final class ScheduleViewModel {
     static let pastDayCount = 7
     /// Live status is fetched again this often while Schedule is in the foreground (TT-131).
     static let livePollInterval: Duration = .seconds(30)
-    /// Away from the app longer than this, Schedule comes back at Now on Today, as the Schedule tab does (TT-222).
+    /// Out of view longer than this, in the background or on another tab, Schedule comes back at Now on Today, as the
+    /// Schedule tab does (TT-222, TT-246).
     static let returnToNowAfter: TimeInterval = 10 * 60
     /// The watched-trip strip stays this long after the train's arrival (TT-144).
     static let watchedStripAfterArrival: TimeInterval = 10 * 60
@@ -121,8 +122,14 @@ final class ScheduleViewModel {
     /// "Loading timetable". Live polls and Try again load again.
     private(set) var timetableFailed = false
     private var isLoading = false
-    /// When the app last went to the background, for the return to Now after a long time away (TT-222).
-    @ObservationIgnored private var wentToBackgroundAt: Date?
+    /// When Schedule went out of view, for the return to Now after a long time away: the app went to the background
+    /// (TT-222) or another tab was opened (TT-246), whichever came first.
+    @ObservationIgnored private var leftViewAt: Date?
+    /// The app was in the background since Schedule went out of view: the return is a reopen (`back_to_now` source).
+    @ObservationIgnored private var wasInBackground = false
+    /// Schedule's tab is the one shown. While another is, a return to the foreground waits for Schedule's tab to come back
+    /// (TT-246): the tab switch, not the reopen, is when the rider sees the timeline again.
+    @ObservationIgnored private(set) var isInView = true
     /// The Today last acted on, so the day turning over at midnight is seen once (TT-159, D52).
     @ObservationIgnored private var knownToday: ServiceDay
     /// The last timetable and live status, resolved again before each poll's fetch so live data that aged past the
@@ -610,28 +617,57 @@ final class ScheduleViewModel {
         nowPulse += 1
     }
 
-    /// The app went to the background: the moment is kept for `cameToForeground()` (TT-222).
+    /// The app went to the background: the moment is kept for `cameToForeground()` (TT-222). `RootView` calls it whichever
+    /// tab is shown, so a time away that began on another tab counts from when Schedule's tab was left (TT-246).
     func wentToBackground() {
-        wentToBackgroundAt = clock.now
+        if leftViewAt == nil { leftViewAt = clock.now }
+        wasInBackground = true
         // The arrow on From lives for the visit (TT-235, D116).
         if marksFrom { marksFrom = false }
         if outgoing != nil { outgoing = nil }
     }
 
+    /// Another tab was opened over Schedule (TT-246): the moment is kept for `cameIntoView(looking:)`.
+    func leftView() {
+        isInView = false
+        if leftViewAt == nil { leftViewAt = clock.now }
+    }
+
     /// Back in the foreground. After more than 10 min away the timeline goes back to Now on Today, exactly as the
     /// Schedule tab tapped again does (TT-222); a shorter time keeps the day and the scroll, and Now plays where it is
-    /// (D80).
+    /// (D80). With another tab shown nothing happens yet: the return waits for Schedule's tab (`cameIntoView(looking:)`,
+    /// TT-246).
     ///
     /// `look` is Automatic direction's look (TT-234, D116), awaited first, 1 s at most, so there is one arrival and one
     /// Now play: after a long time away Today is put back before it, so the look runs on Today (the other day's cards
     /// hide meanwhile). When it turned the route (true), the turn's own load, jump to Now and Now play are the arrival.
     func cameToForeground(looking look: (@MainActor () async -> Bool)? = nil) async {
-        let away = wentToBackgroundAt.map { clock.now.timeIntervalSince($0) } ?? 0
-        wentToBackgroundAt = nil
+        guard isInView else { return }
+        await arrive(looking: look)
+    }
+
+    /// Schedule's tab shows again (TT-246). After more than 10 min out of view, on another tab, in the background or both,
+    /// the timeline goes back to Now on Today, as `cameToForeground(looking:)` does; a shorter time, and the first
+    /// appearance, play Now where it is (D80). `look` as in `cameToForeground(looking:)`.
+    func cameIntoView(looking look: (@MainActor () async -> Bool)? = nil) async {
+        guard !isInView else { return timelineAppeared() }
+        isInView = true
+        // The minute the tab was left is still on screen: the Now line and the scroll go to the present first.
+        tick(playsDepartures: false)
+        await arrive(looking: look)
+    }
+
+    /// The return to Schedule after time out of view (TT-222, TT-246): the look first, then back to Now after more than
+    /// 10 min, else Now plays where it is.
+    private func arrive(looking look: (@MainActor () async -> Bool)?) async {
+        let away = leftViewAt.map { clock.now.timeIntervalSince($0) } ?? 0
+        let reopened = wasInBackground
+        leftViewAt = nil
+        wasInBackground = false
         let returns = hasLoaded && away > Self.returnToNowAfter
         var jumping = false
         if returns {
-            Analytics.track(.backToNow(.reopen))
+            Analytics.track(.backToNow(reopened ? .reopen : .otherTab))
             knownToday = today
             jumping = !isToday
             if jumping {

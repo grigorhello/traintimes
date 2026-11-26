@@ -62,6 +62,24 @@ final class TimeFormatterTests: XCTestCase {
         XCTAssertEqual(twelve.relative(until: now.addingTimeInterval(11 * 60), now: now), "in 11 min")
         XCTAssertEqual(twelve.relative(until: now.addingTimeInterval(59), now: now), "Departing")
         XCTAssertEqual(twelve.relative(until: now.addingTimeInterval(-30), now: now), "Departing")
+        // TT-246 (D123): an hour or more reads in hours, as Grigor's "in 323 min" at midnight now does.
+        XCTAssertEqual(twelve.relative(until: now.addingTimeInterval(323 * 60 + 30), now: now), "in 5 h 23 min")
+    }
+
+    /// TT-246 (D123): minutes under an hour, hours and minutes under a day, then days and hours; nothing dropped on the hour
+    /// or the day but the zero.
+    func testWaitLength() {
+        XCTAssertEqual(twelve.waitLength(minutes: 0), "0 min")
+        XCTAssertEqual(twelve.waitLength(minutes: 59), "59 min")
+        XCTAssertEqual(twelve.waitLength(minutes: 60), "1 h")
+        XCTAssertEqual(twelve.waitLength(minutes: 61), "1 h 1 min")
+        XCTAssertEqual(twelve.waitLength(minutes: 324), "5 h 24 min")
+        XCTAssertEqual(twelve.waitLength(minutes: 23 * 60 + 59), "23 h 59 min")
+        XCTAssertEqual(twelve.waitLength(minutes: 24 * 60), "1 d")
+        XCTAssertEqual(twelve.waitLength(minutes: 24 * 60 + 59), "1 d", "Days drop the minutes")
+        XCTAssertEqual(twelve.waitLength(minutes: 29 * 60 + 10), "1 d 5 h")
+        XCTAssertEqual(twelve.waitLength(minutes: 58 * 60), "2 d 10 h")
+        XCTAssertEqual(twentyFour.waitLength(minutes: 90), "1 h 30 min", "The same whatever the Time format")
     }
 
     func testUpdatedLine() {

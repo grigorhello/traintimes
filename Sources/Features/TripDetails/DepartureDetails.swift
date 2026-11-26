@@ -63,14 +63,14 @@ struct DepartureHero: Equatable {
         if isDeparting {
             number = String(localized: "schedule.departing")
         } else if counts {
-            number = formatter.waitLength(minutes: max(1, Int(untilDeparture / 60)))
+            number = TimeFormatter.duration(minutes: max(1, Int(untilDeparture / 60)))
         } else {
             number = time
         }
         self.time = time
         self.showsCountdown = counts
         late = if case .delayed(let minutes, _) = departure.status {
-            String(format: String(localized: "onboard.late"), minutes)
+            String(format: String(localized: "onboard.late"), TimeFormatter.duration(minutes: minutes))
         } else {
             nil
         }

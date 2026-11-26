@@ -11,8 +11,9 @@ enum LockWidget {
     static let handOverLead: TimeInterval = 30 * 60
     /// The circular's ring empties over the 30 min before the departure; it is full before that.
     static let ringSpan: TimeInterval = 30 * 60
-    /// The circular writes the minutes from 60 min before the departure; earlier, the clock time.
-    static let minutesLead: TimeInterval = 60 * 60
+    /// The circular writes the minutes from 59 min before the departure; earlier, the clock time, so the circle never
+    /// reads "60 min" (TT-246, D123: an hour is never written in minutes, and "1 h" has no room in the circle).
+    static let minutesLead: TimeInterval = 59 * 60
 }
 
 /// The glyph the circular and inline sizes lead with: the train, or the bell while they show Your train.
@@ -157,7 +158,7 @@ struct LockRectangularContent: Equatable, Sendable {
 /// Circular: the minutes to the train inside a ring that empties over its last 30 min.
 struct LockCircularContent: Equatable, Sendable {
     let glyph: LockWidgetGlyph
-    /// "5" (the minutes, from 60 min before), "now" in the last minute, "8:06" (the clock time) before that and for the
+    /// "5" (the minutes, from 59 min before), "now" in the last minute, "8:06" (the clock time) before that and for the
     /// next day's first train; nil draws the glyph alone.
     let value: String?
     /// "min" under the minutes, the clock time under "now".

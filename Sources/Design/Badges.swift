@@ -19,7 +19,7 @@ enum TripStatus: Hashable, Sendable {
     var text: String {
         switch self {
         case .onTime: String(localized: "status.on_time")
-        case .delayed(let minutes): String(format: String(localized: "status.delayed"), minutes)
+        case .delayed(let minutes): String(format: String(localized: "status.delayed"), TimeFormatter.duration(minutes: minutes))
         case .cancelled: String(localized: "status.cancelled")
         case .stopSkipped: String(localized: "status.stop_skipped")
         case .scheduled: String(localized: "status.scheduled")

@@ -67,7 +67,7 @@ struct TimelineLayout: Hashable, Sendable {
         /// "No trains for 48 min · next 6:40 PM", "No trains for 5 h 24 min · next 5:24 AM" (TT-246, D123).
         func label(_ formatter: some TimeFormatting) -> String? {
             next.map {
-                String(format: String(localized: "schedule.no_trains_gap"), formatter.waitLength(minutes: minutes), formatter.time($0))
+                String(format: String(localized: "schedule.no_trains_gap"), TimeFormatter.duration(minutes: minutes), formatter.time($0))
             }
         }
     }

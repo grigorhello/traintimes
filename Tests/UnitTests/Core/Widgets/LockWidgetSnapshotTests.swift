@@ -20,7 +20,7 @@ final class LockWidgetSnapshotTests: XCTestCase {
 
     // MARK: - States
 
-    /// 9:17 PM: the 11:47 PM express is the last train, 150 min away. The widest "Last train" line, and a clock time too
+    /// 9:17 PM: the 11:47 PM express is the last train, 2 h 30 min away. The widest "Last train" line, and a clock time too
     /// wide for the circle.
     private var lateExpress: WidgetEntry {
         var late = WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(23, 47, express: true)])
@@ -36,7 +36,7 @@ final class LockWidgetSnapshotTests: XCTestCase {
         return WidgetFixtures.entry(WidgetFixtures.at(23, 46, second: 30), .trains(late))
     }
 
-    /// 3:02 PM on the 24-hour clock, long station names: Your train, the 16:58, in 116 min, the 15:13 before it. The
+    /// 3:02 PM on the 24-hour clock, long station names: Your train, the 16:58, in 1 h 56 min, the 15:13 before it. The
     /// widest first and third rows.
     private var longYourTrain: WidgetEntry {
         let header = WidgetEntry.Header(

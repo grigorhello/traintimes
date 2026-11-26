@@ -67,25 +67,28 @@ final class TimeFormatterTests: XCTestCase {
     }
 
     /// TT-246 (D123): minutes under an hour, hours and minutes under a day, then days and hours; nothing dropped on the hour
-    /// or the day but the zero.
-    func testWaitLength() {
-        XCTAssertEqual(twelve.waitLength(minutes: 0), "0 min")
-        XCTAssertEqual(twelve.waitLength(minutes: 59), "59 min")
-        XCTAssertEqual(twelve.waitLength(minutes: 60), "1 h")
-        XCTAssertEqual(twelve.waitLength(minutes: 61), "1 h 1 min")
-        XCTAssertEqual(twelve.waitLength(minutes: 324), "5 h 24 min")
-        XCTAssertEqual(twelve.waitLength(minutes: 23 * 60 + 59), "23 h 59 min")
-        XCTAssertEqual(twelve.waitLength(minutes: 24 * 60), "1 d")
-        XCTAssertEqual(twelve.waitLength(minutes: 24 * 60 + 59), "1 d", "Days drop the minutes")
-        XCTAssertEqual(twelve.waitLength(minutes: 29 * 60 + 10), "1 d 5 h")
-        XCTAssertEqual(twelve.waitLength(minutes: 58 * 60), "2 d 10 h")
-        XCTAssertEqual(twentyFour.waitLength(minutes: 90), "1 h 30 min", "The same whatever the Time format")
+    /// or the day but the zero. The same wording for every count of minutes (Grigor: never "123 min").
+    func testDuration() {
+        XCTAssertEqual(TimeFormatter.duration(minutes: 0), "0 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 59), "59 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 60), "1 h")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 61), "1 h 1 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 80), "1 h 20 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 123), "2 h 3 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 324), "5 h 24 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 23 * 60 + 59), "23 h 59 min")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 24 * 60), "1 d")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 24 * 60 + 59), "1 d", "Days drop the minutes")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 29 * 60 + 10), "1 d 5 h")
+        XCTAssertEqual(TimeFormatter.duration(minutes: 58 * 60), "2 d 10 h")
+        XCTAssertEqual(TimeFormatter.duration(minutes: -5), "0 min")
     }
 
     func testUpdatedLine() {
         let now = utc("2026-11-05T12:21:00Z")
         XCTAssertEqual(twelve.updated(at: now.addingTimeInterval(-20), now: now), "Updated just now")
         XCTAssertEqual(twelve.updated(at: now.addingTimeInterval(-4 * 60), now: now), "Updated 4 min ago")
+        XCTAssertEqual(twelve.updated(at: now.addingTimeInterval(-75 * 60), now: now), "Updated 1 h 15 min ago", "TT-246, D123")
     }
 
     func testTimeFeedsPercentAtStrings() {

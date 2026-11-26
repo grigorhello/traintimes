@@ -6,8 +6,8 @@ import { formatTime, type TimeFormat } from './time.ts';
  */
 export const strings = {
   'schedule.route_title': '%@ to %@',
-  'notif.delay.title': '%@ train delayed %d min',
-  'notif.delay.update.title': '%@ train now delayed %d min',
+  'notif.delay.title': '%1$@ train delayed %2$@',
+  'notif.delay.update.title': '%1$@ train now delayed %2$@',
   'notif.delay.body': '%@. Now expected %@, as reported at %@.',
   'notif.recovery.title': '%@ train back on time',
   'notif.recovery.body': '%@. Expected %@, as reported at %@.',
@@ -28,10 +28,32 @@ export const strings = {
   'depart.platformLabel': 'Platform',
   // In the minutes' place once the train's time has come and it still stands at the station (TT-233).
   'schedule.departing': 'Departing',
-  'onboard.minutes': '%d min',
-  'onboard.late': '%d min late',
+  'onboard.late': '%@ late',
   'live.updated': 'Updated %@',
+  // A count of minutes, one wording everywhere minutes show (TT-246, D123): never "75 min", always "1 h 15 min".
+  'duration.minutes': '%d min',
+  'duration.hours': '%d h',
+  'duration.hours_minutes': '%1$d h %2$d min',
+  'duration.days': '%d d',
+  'duration.days_hours': '%1$d d %2$d h',
 } as const;
+
+/**
+ * A count of minutes as the app writes it (`TimeFormatter.duration(minutes:)`, TT-246, D123): "45 min" under an hour,
+ * "1 h 20 min" ("1 h" on the hour) under a day, then "1 d 5 h" ("2 d" on the day). The caller rounds the minutes.
+ */
+export function duration(minutes: number): string {
+  const whole = Math.max(0, Math.trunc(minutes));
+  if (whole < 60) return format(strings['duration.minutes'], whole);
+  if (whole < 24 * 60) {
+    const hours = Math.floor(whole / 60);
+    const rest = whole % 60;
+    return rest === 0 ? format(strings['duration.hours'], hours) : format(strings['duration.hours_minutes'], hours, rest);
+  }
+  const days = Math.floor(whole / (24 * 60));
+  const hours = Math.floor(whole / 60) % 24;
+  return hours === 0 ? format(strings['duration.days'], days) : format(strings['duration.days_hours'], days, hours);
+}
 
 /** Fills `%@` and `%d` in order, and `%1$@` by position, as `String(format:)` does in the app. */
 export function format(template: string, ...args: (string | number)[]): string {
@@ -73,7 +95,7 @@ export function alertNotice(
   switch (alert.kind) {
     case 'delay':
       return {
-        title: format(strings[alert.update ? 'notif.delay.update.title' : 'notif.delay.title'], train, alert.delayMin),
+        title: format(strings[alert.update ? 'notif.delay.update.title' : 'notif.delay.title'], train, duration(alert.delayMin)),
         body: format(strings['notif.delay.body'], route, formatTime(alert.expected, timeFormat), reported),
       };
     case 'recovery':

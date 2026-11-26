@@ -194,15 +194,16 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(yours.ringInterval, WidgetFixtures.at(7, 58)...WidgetFixtures.at(8, 28))
     }
 
-    /// More than 60 min away the circle shows the clock time; from 60 min, the minutes.
-    func testCircularShowsTheClockTimeUntil60MinutesBefore() {
+    /// An hour or more away the circle shows the clock time; from 59 min, the minutes, so it never reads "60 min" (TT-246,
+    /// D123).
+    func testCircularShowsTheClockTimeUntil59MinutesBefore() {
         let far = LockCircularContent(WidgetFixtures.farTrain())
         XCTAssertEqual(far.value, "7:58")
         XCTAssertNil(far.caption)
         XCTAssertEqual(far.ring, 1)
-        XCTAssertEqual(LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 57))).value, "7:58")
-        let hour = LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 58)))
-        XCTAssertEqual(hour.value, "60")
+        XCTAssertEqual(LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 58))).value, "7:58")
+        let hour = LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 59)))
+        XCTAssertEqual(hour.value, "59")
         XCTAssertEqual(hour.caption, "min")
         XCTAssertEqual(hour.ring, 1)
     }

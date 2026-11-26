@@ -454,7 +454,7 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.stopCount, "12 stops")
         XCTAssertEqual(details.origin, "West Harbour GO")
         XCTAssertEqual(details.destination, "Union Station GO")
-        XCTAssertEqual(details.tripLength, "64 min ride")
+        XCTAssertEqual(details.tripLength, "1 h 4 min ride", "TT-246, D123")
         XCTAssertEqual(details.stops.map(\.isEnd).filter { $0 }.count, 2)
         XCTAssertEqual(details.alertButton, "Alert me")
     }

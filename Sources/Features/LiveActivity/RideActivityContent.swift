@@ -48,7 +48,7 @@ extension RideActivityAttributes.ContentState {
         countdownEnd = countdownTo.map { deviceNow.addingTimeInterval($0.timeIntervalSince(now)) }
         // The ride screen's minutes, word for word (`RideDetails`): sent again as the engine's minute changes.
         minutes = countdownTo.map { _ in
-            String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: last, from: now)))
+            TimeFormatter.duration(minutes: max(1, times.minutes(to: last, from: now)))
         }
         self.now = String(localized: "onboard.now")
         label = showsArrival ? String(localized: "depart.arrivesLabel") : ""
@@ -121,12 +121,13 @@ extension RideActivityAttributes.ContentState {
         // a train that stands at its platform past its time. The server writes the word on the same condition.
         let number = live.isDeparting(at: now)
             ? String(localized: "schedule.departing")
-            : String(format: String(localized: "onboard.minutes"), live.minutes(at: now))
+            : TimeFormatter.duration(minutes: live.minutes(at: now))
         minutes = asks ? nil : number
         self.now = ""
         label = asks ? "" : String(localized: "depart.platformLabel")
         value = nil
-        delay = isLate ? live.delayMinutes.map { String(format: String(localized: "onboard.late"), $0) } : nil
+        delay = isLate
+            ? live.delayMinutes.map { String(format: String(localized: "onboard.late"), TimeFormatter.duration(minutes: $0)) } : nil
         platformNumber = asks ? nil : live.platform
         late = isLate
         position = 0

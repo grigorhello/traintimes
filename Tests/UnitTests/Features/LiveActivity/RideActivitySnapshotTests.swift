@@ -48,6 +48,10 @@ final class RideActivitySnapshotTests: XCTestCase {
     /// Lock Screen. The train stays 10 pt inside the line, 22 pt from its left end while the bolt shows beside it.
     @MainActor func testIslandEndsLight() async throws { snap(try await islandEnds(), .light) }
     @MainActor func testIslandEndsDark() async throws { snap(try await islandEnds(), .dark) }
+    /// TT-246 (D123): 95 min from your stop reads "1 h 35 min", never "95 min": in the compact island (scaled into its 48 pt,
+    /// as "Departing" is), the open island and the Lock Screen card.
+    @MainActor func testLongRideLight() async throws { snap(try await longRide(), .light) }
+    @MainActor func testLongRideDark() async throws { snap(try await longRide(), .dark) }
 
     private struct Moment {
         let attributes: RideActivityAttributes
@@ -264,6 +268,25 @@ final class RideActivitySnapshotTests: XCTestCase {
             expanded(riding)
             expanded(arriving)
             expanded(there)
+            Spacer()
+        }
+        .padding(.top, 11)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    /// The demo ride with 95 min to your stop, as a long ride (Union to Niagara Falls) reads early on.
+    @MainActor
+    private func longRide() async throws -> some View {
+        let riding = try await moment(DemoRideRig.time(17, 32))
+        var state = riding.state
+        state.minutes = TimeFormatter.duration(minutes: 95)
+        let long = Moment(attributes: riding.attributes, state: state)
+        return VStack(spacing: 18) {
+            compact(long)
+            expanded(long)
+            lockCard(long, isStale: false)
             Spacer()
         }
         .padding(.top, 11)

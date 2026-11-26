@@ -292,7 +292,12 @@ export function signature(state: ContentState): string {
  */
 export function isBoardTime(departure: Departure, phase: Phase | 'before' | 'over', now: number): boolean {
   if (phase === 'boarding') return true;
-  return phase === 'countingDown' && minutesUntil(leaves(departure), now) <= BOARD_MINUTES;
+  return phase === 'countingDown' && withinBoardMinutes(departure, now);
+}
+
+/** The card's minutes read 5 min or less (`BOARD_MINUTES`). */
+export function withinBoardMinutes(departure: Departure, now: number): boolean {
+  return minutesUntil(leaves(departure), now) <= BOARD_MINUTES;
 }
 
 /**

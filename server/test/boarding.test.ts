@@ -305,6 +305,20 @@ describe('the minute cycle', () => {
     assert.equal(five[0].alert, undefined);
   });
 
+  test('a card the server starts on a train already boarding gets its three buzzes the next cycle (TT-247)', async () => {
+    await arm();
+    const [start] = await cycle('6:43:00', { trains: [vehicle(150, '6:42:50')], platform: '3' });
+    assert.equal(start.event, 'start');
+    assert.equal(start['content-state'].phase, 'boarding', 'A train laid over at its first station');
+    assert.equal((await report({ token: ACTIVITY_TOKEN })).status, 204);
+    const next = await cycle('6:44:00', { trains: [vehicle(150, '6:43:50')], platform: '3' });
+    assert.equal(next.length, 3);
+    assert.deepEqual(next[0].alert, { title: 'Time to board the 7:13 AM train', body: '', sound: 'default' });
+    const five = await cycle('7:07:30', { trains: [vehicle(150, '7:07:20')], platform: '3' });
+    assert.equal(five.length, 1);
+    assert.equal(five[0].alert, undefined, 'Once');
+  });
+
   test('past its time and still there: boarding now over "Departing"; the question when it moves off, once, as TT-231 built it', async () => {
     await started();
     const standing = (seen: string) => ({ trains: [vehicle(150, seen)], platform: '3' });

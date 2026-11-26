@@ -37,6 +37,7 @@ import {
   holdEnds,
   isBoardTime,
   leaves,
+  withinBoardMinutes,
   LINE_COLORS,
   phaseAt,
   platformIn,
@@ -603,8 +604,9 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       if (phase === 'over' || !rule.start_token || sends >= MAX_SENDS || now >= leaves(train)) return;
       // Claim the start first: an overlapping cycle finds the row and starts nothing.
       const state = contentState(train, phase, now, rule.time_format);
-      // A card that starts inside time to board has had it: its start's own alert stands in (TT-247).
-      const marked = (isBoardTime(train, phase, now) ? BOARDED : '') + signature(state);
+      // A card that starts inside the last 5 min has had time to board: its start's own alert stands in (TT-247). One the
+      // server starts at T−30 on a train already boarding (a train laid over at its first station) gets it next cycle.
+      const marked = (isBoardTime(train, phase, now) && withinBoardMinutes(train, now) ? BOARDED : '') + signature(state);
       const claimed = await db
         .prepare(`INSERT OR IGNORE INTO activities (installation_id, key, service_date, state, shown) VALUES (?, ?, ?, 'started', ?)`)
         .bind(rule.installation_id, key, date, marked)
@@ -668,13 +670,14 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     }
     if (!activity.token || sends >= MAX_SENDS) return;
     const state = contentState(train, phase, now, rule.time_format);
-    // Time to board (TT-247, D124): its alert goes once per train, with the update that turns the card into it, and only
-    // when a cycle followed the card before (its `shown`): a card first seen inside it (an alert set 3 min before the
-    // train, the app's own card start) is marked with no alert, as the rider just acted. Never after the question (a
-    // delay reported once it asked counts down again), nor once the app reported it asked (it is in front as the train
-    // leaves); a hold (TT-242) is the question's only.
+    // Time to board (TT-247, D124): its alert goes once per train, with the update that turns the card into it. A card
+    // first followed inside the last 5 min (no `shown` yet: an alert set 3 min before the train, the app's own card start)
+    // is marked with no alert, as the rider just acted. Never after the question (a delay reported once it asked counts
+    // down again), nor once the app reported it asked (it is in front as the train leaves); a hold (TT-242) is the
+    // question's only.
     const boardTime = isBoardTime(train, phase, now);
-    const boards = boardTime && !boardedIn(activity.shown) && !!activity.shown && !asksIn(activity.shown) && activity.state !== 'asked';
+    const firstSeen = !activity.shown && withinBoardMinutes(train, now);
+    const boards = boardTime && !boardedIn(activity.shown) && !firstSeen && !asksIn(activity.shown) && activity.state !== 'asked';
     const shown = (boardTime || boardedIn(activity.shown) ? BOARDED : '') + signature(state);
     if (shown === activity.shown) return;
     // Claim the update first, as a watch's send is claimed.

@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
-import { contentState, phaseAt, signature, type Departure } from '../src/activity.ts';
+import { contentState, ECHO_MS, phaseAt, signature, type Departure } from '../src/activity.ts';
 import { handleRequest } from '../src/api.ts';
 import { ApnsClient } from '../src/apns.ts';
 import { MAX_SENDS, monitor } from '../src/monitor.ts';
@@ -12,6 +12,8 @@ import { at, call, FakeApns, INSTALLATION, memoryD1, saveSampleTimetables, TOKEN
 
 const START_TOKEN = 'b'.repeat(160);
 const ACTIVITY_TOKEN = 'c'.repeat(160);
+/** A second rider on the same train. */
+const OTHER = '6f1c2a9e-3b4d-4c5e-9f60-000000000002';
 
 let db: D1Database;
 let apns: FakeApns;
@@ -139,7 +141,13 @@ describe('the activity, at the right times', () => {
     assert.equal(boarding['content-state'].minutes, '1 min');
 
     // TT-231: the train has left, so the card asks "On board?", with an alert; no notification as well.
-    const [asking] = await cycle('7:17:30', delayFeed('7:17', 4));
+    const asked = await cycle('7:17:30', delayFeed('7:17', 4));
+    const [asking, again] = asked;
+    assert.equal(asked.length, 2, 'Sent twice, for two buzzes (TT-245)');
+    assert.deepEqual(again['content-state'], asking['content-state'], 'The same card');
+    assert.deepEqual(again.alert, asking.alert, 'With its alert again');
+    assert.ok(again.timestamp > asking.timestamp, 'A later timestamp, or iOS skips it');
+    assert.equal(apns.activityPushes.at(-1)!.token, ACTIVITY_TOKEN);
     assert.equal(asking.event, 'update');
     assert.equal(asking['content-state'].phase, 'departed', 'A phase every app build reads');
     assert.equal(asking['content-state'].asks, true);
@@ -149,7 +157,7 @@ describe('the activity, at the right times', () => {
     assert.equal(asking['content-state'].minutes, undefined);
     assert.equal(asking['content-state'].delay, undefined);
     assert.equal(asking['content-state'].late, false);
-    assert.deepEqual(asking.alert, { title: 'On the 7:13 AM train?', body: '', sound: 'default' }, 'Lights the screen, one buzz');
+    assert.deepEqual(asking.alert, { title: 'On the 7:13 AM train?', body: '', sound: 'default' }, 'Lights the screen and buzzes');
     assert.equal(asking['stale-date'], at('7:27') / 1000);
     assert.equal(apns.pushes.filter((push) => push.category === 'depart.question').length, 0, 'With a card, no notification');
 
@@ -159,6 +167,31 @@ describe('the activity, at the right times', () => {
     assert.equal(end['content-state'].asks, undefined, 'Its last look is Departed, no question');
     assert.equal(end['dismissal-date'], at('7:27') / 1000);
     assert.deepEqual(await cycle('7:28:00', delayFeed('7:28', 4)), [], 'Ended once');
+  });
+
+  test('two buzzes (TT-245): the question goes again ECHO_MS after the cycle’s other pushes; the notification goes once', async () => {
+    await setUp();
+    await setUp(OTHER);
+    await cycle('6:43:00');
+    await report({ token: ACTIVITY_TOKEN });
+    await report({ token: ACTIVITY_TOKEN }, OTHER);
+    const before = apns.activityPushes.length;
+    const waits: { ms: number; sent: number }[] = [];
+    await monitor({ db, apns, feed: async () => null, now: at('7:13:30'), wait: async (ms) => void waits.push({ ms, sent: apns.activityPushes.length - before }) });
+    assert.deepEqual(waits, [{ ms: ECHO_MS, sent: 2 }], 'One wait, after both riders’ questions');
+    const pushes = apns.activityPushes.slice(before).map((push) => (push.payload as { aps: any }).aps);
+    assert.equal(pushes.length, 4);
+    assert.ok(pushes.every((aps) => aps['content-state'].asks && aps.alert?.title === 'On the 7:13 AM train?'));
+    assert.equal(pushes[2].timestamp, Math.floor((at('7:13:30') + ECHO_MS) / 1000));
+
+    // No card: the notification stands in, once.
+    db = memoryD1();
+    apns = new FakeApns();
+    await saveSampleTimetables(db, ['20261109']);
+    await setUp(INSTALLATION, null);
+    await cycle('7:13:30');
+    assert.equal(apns.pushes.filter((push) => push.category === 'depart.question').length, 1);
+    assert.equal(apns.activityPushes.length, 0);
   });
 
   test('No on the card: nothing more is sent, no notification', async () => {
@@ -179,9 +212,11 @@ describe('the activity, at the right times', () => {
     assert.equal((await report({ asked: true })).status, 204);
     const [boarding] = await cycle('7:11:30');
     assert.equal(boarding['content-state'].phase, 'boarding', 'Updates go on');
-    const [asking] = await cycle('7:13:30');
+    const silent = await cycle('7:13:30');
+    const [asking] = silent;
     assert.equal(asking['content-state'].asks, true);
     assert.equal(asking.alert, undefined, 'Silent');
+    assert.equal(silent.length, 1, 'Once: a silent question gets no second push');
     assert.equal(apns.pushes.length, 0);
     const [end] = await cycle('7:23:00');
     assert.equal(end.event, 'end');

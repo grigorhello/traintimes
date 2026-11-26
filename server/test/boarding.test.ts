@@ -271,7 +271,7 @@ describe('the minute cycle', () => {
     });
     assert.equal(update.alert, undefined);
     assert.equal(update['stale-date'], at('7:23') / 1000, 'The window ends as before');
-    assert.deepEqual(reads.boards, ['OA'], 'The board of the station it stands at');
+    assert.deepEqual(reads.boards, ['OA', 'OA'], 'Its station’s board, from the window’s start (TT-245) and while it stands there');
     assert.deepEqual(await cycle('6:58:40', { trains: [vehicle(150, '6:58:20')], platform: '3' }), [], 'The same look sends nothing');
     const [next] = await cycle('6:59:10', { trains: [vehicle(160, '6:58:50')], platform: '3' });
     assert.equal(next['content-state'].phase, 'boarding');
@@ -348,13 +348,13 @@ describe('the minute cycle', () => {
     const stale = { trains: [vehicle(150, '7:05')], platform: '3' };
     const [counting] = await cycle('7:10:30', stale);
     assert.equal(counting['content-state'].phase, 'countingDown', 'Never boarding on a guess');
-    assert.equal(counting['content-state'].platformNumber, undefined);
+    assert.equal(counting['content-state'].platformNumber, '3', 'The board’s platform in the pill all the same (TT-245)');
     const [boardingNow] = await cycle('7:11:00', stale);
     assert.equal(boardingNow['content-state'].phase, 'boarding');
     assert.equal(boardingNow['content-state'].minutes, '2 min');
     const [asking] = await cycle('7:13:00', stale);
     assert.equal(asking['content-state'].asks, true, 'Departed at its time');
-    assert.deepEqual(reads.boards, [], 'No board for a train nobody sees');
+    assert.deepEqual(reads.boards, ['OA', 'OA', 'OA'], 'The board while the train is still to leave (the start at 6:43 too), none once it has left');
     // A vehicle on another service date is not this train either.
     db = memoryD1();
     apns = new FakeApns();
@@ -377,7 +377,7 @@ describe('the minute cycle', () => {
     assert.equal(past['content-state'].phase, 'countingDown');
     assert.equal(past['content-state'].minutes, 'Departing');
     assert.equal(past['content-state'].asks, undefined);
-    assert.deepEqual(reads.boards, ['OA', 'OA', 'OA'], 'The board is asked while the train stands there');
+    assert.deepEqual(reads.boards, ['OA', 'OA', 'OA', 'OA'], 'The board is asked from the start, and while the train stands there past its time');
   });
 
   test('a far position in the minute before its time is not a departure; at its time it is', async () => {
@@ -385,9 +385,10 @@ describe('the minute cycle', () => {
     const [rolling] = await cycle('7:12:30', { trains: [vehicle(900, '7:12:20')] });
     assert.equal(rolling['content-state'].phase, 'countingDown', 'Still rolling in: not boarding either');
     assert.equal(rolling['content-state'].asks, undefined);
-    assert.deepEqual(reads.boards, [], 'No board for a train that is not at the station');
+    assert.deepEqual(reads.boards, ['OA', 'OA'], 'The board for the pill while it is still to leave (TT-245)');
     const [asking] = await cycle('7:13:00', { trains: [vehicle(900, '7:12:50')] });
     assert.equal(asking['content-state'].asks, true);
+    assert.deepEqual(reads.boards, ['OA', 'OA'], 'None once it has left: the question shows no platform');
   });
 
   test('the positions are read once a cycle, and only while an alerted train is in its activity window', async () => {
@@ -426,6 +427,52 @@ describe('the minute cycle', () => {
     assert.deepEqual(reads.boards, ['OA', 'AP'], 'Oakville first, then one of the others, the same one each minute');
     const phases = pushes.map((push) => `${push.attributes.originId} ${push['content-state'].phase}`).sort();
     assert.deepEqual(phases, ['AP boarding', 'BO countingDown', 'OA boarding', 'OA boarding'], 'A train whose board was not read does not board');
+  });
+
+  test('the card shows the platform the board posts from its start, with no position, and follows a change (TT-245)', async () => {
+    // Grigor's 08:22 from Clarkson on 2026-11-26: the board posted its platform long before, the card kept the dash.
+    await arm();
+    const [start] = await cycle('6:43:00', { platform: '2' });
+    assert.equal(start.event, 'start');
+    assert.equal(start['content-state'].phase, 'countingDown');
+    assert.equal(start['content-state'].platformNumber, '2', 'No train feed at all: the pill still has the board’s platform');
+    assert.equal(start['content-state'].isClose, false, 'Not boarding: that needs the train at the station');
+    assert.equal(reads.positions, 1);
+    assert.equal((await report({ token: ACTIVITY_TOKEN })).status, 204);
+    const [moved] = await cycle('6:50:00', { trains: [vehicle(9_000, '6:49:50')], platform: '4' });
+    assert.equal(moved['content-state'].platformNumber, '4', 'A changed platform sends an update');
+    assert.equal(moved['content-state'].phase, 'countingDown');
+    const [none] = await cycle('6:51:00', { trains: [vehicle(8_000, '6:50:50')], platform: null });
+    assert.equal(none['content-state'].platformNumber, undefined, 'The dash while the board posts none');
+  });
+
+  test('boards go to stations where a train stands first, then where most riders’ trains are still to leave (TT-245)', async () => {
+    // At 7:05: three riders on the 7:13 still out of Oakville, a train standing at Bronte and one rider on the 7:16 at Appleby.
+    for (const i of [1, 2, 3]) await arm(rider(i));
+    await arm(rider(4), 'LW-1108', '7:15', 'BO');
+    await arm(rider(5), 'LW-1858', '7:16', 'AP');
+    await cycle('7:05:00', { trains: [vehicle(5_000, '7:04:50'), vehicle(100, '7:04:50', 'LW-1108', 'BO')], platform: '2' });
+    assert.deepEqual(reads.boards, ['BO', 'OA'], 'Bronte, where it stands, then Oakville, where most wait; not Appleby');
+    reads.boards = [];
+    await cycle('7:05:30', { trains: [vehicle(5_000, '7:05:20'), vehicle(100, '7:05:20', 'LW-1108', 'BO')], platform: '2' });
+    assert.deepEqual(reads.boards, ['BO', 'OA'], 'The same stations the next time');
+  });
+
+  test('a positions read that fails still reads the board for the pill (TT-245)', async () => {
+    await arm();
+    await monitor({
+      db,
+      apns,
+      feed: async () => null,
+      positions: async () => {
+        throw new Error('GO is down');
+      },
+      platforms: async (stop) => (reads.boards.push(stop), { fetchedAt: at('6:43') / 1000, trips: [{ trip: '1256', platform: '5/6' }] }),
+      now: at('6:43'),
+    });
+    const start = (apns.activityPushes.at(-1)!.payload as { aps: any }).aps;
+    assert.equal(start['content-state'].platformNumber, '5/6');
+    assert.deepEqual(reads.boards, ['OA']);
   });
 
   test('a station the server cannot place follows the clock', async () => {

@@ -29,6 +29,10 @@ final class RideActivitySnapshotTests: XCTestCase {
     // the station, "Departing" past its time, the Platform number mint.
     @MainActor func testBoardingLockScreenLight() throws { snap(try boardingLockScreen(), .light) }
     @MainActor func testBoardingLockScreenDark() throws { snap(try boardingLockScreen(), .dark) }
+    // Union's paired platforms (TT-245, D122): counting down late, boarding past its time and late (the widest row), the
+    // expanded island (the narrowest).
+    @MainActor func testUnionPairLockScreenLight() throws { snap(try unionPairLockScreen(), .light) }
+    @MainActor func testUnionPairLockScreenDark() throws { snap(try unionPairLockScreen(), .dark) }
     // The arrival wish (TT-229, D108, board 23 on the Live Activity).
     @MainActor func testArrivalWishLight() async throws { snap(try await arrivalWish(), .light) }
     @MainActor func testArrivalWishDark() async throws { snap(try await arrivalWish(), .dark) }
@@ -84,21 +88,22 @@ final class RideActivitySnapshotTests: XCTestCase {
     }
 
     /// The 5:13 PM train standing at its platform at `time` (TT-233, D114): GO's train feed places it 150 m from the
-    /// station 10 s ago, Platform 7 posted, `delay` min late. Boarding, also past its time.
+    /// station 10 s ago, Platform 7 posted, `delay` min late. Boarding, also past its time. With `stands` false no feed
+    /// places it: it counts down.
     @MainActor
-    private func standing(_ time: Date, delay: Int = 0) throws -> Moment {
+    private func standing(_ time: Date, delay: Int = 0, platform: String = "7", stands: Bool = true) throws -> Moment {
         let day = DepartureRig.day
         let scheduled = DepartureRig.time(17, 13)
         let expected = scheduled.addingTimeInterval(TimeInterval(delay * 60))
         let train = Departure(
             trip: Trip(
                 key: TripKey(serviceDay: day, tripId: DemoRide.tripId), scheduledDeparture: scheduled,
-                scheduledArrival: scheduled.addingTimeInterval(30 * 60), platform: .published("7"), tags: []
+                scheduledArrival: scheduled.addingTimeInterval(30 * 60), platform: .published(platform), tags: []
             ),
             status: delay > 0 ? .delayed(minutes: delay, reportedAt: time) : .onTime,
             expectedDeparture: expected,
             expectedArrival: expected.addingTimeInterval(30 * 60),
-            originFix: OriginFix(metres: 150, reportedAt: time.addingTimeInterval(-10))
+            originFix: stands ? OriginFix(metres: 150, reportedAt: time.addingTimeInterval(-10)) : nil
         )
         let live = try XCTUnwrap(LiveDeparture(train, now: time))
         let state = RideActivityAttributes.ContentState(
@@ -181,6 +186,24 @@ final class RideActivitySnapshotTests: XCTestCase {
             lockCard(departing, isStale: false)
             lockCard(late, isStale: false)
             compact(departing)
+            expanded(late)
+            Spacer()
+        }
+        .padding(.top, 60)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    /// Union's pair in the pill (TT-245, D122): counting down 3 min late 18 min before, standing past its time and late
+    /// ("Departing" beside "3 min late" and "12/13", the widest row), and the same card in the expanded island.
+    @MainActor
+    private func unionPairLockScreen() throws -> some View {
+        let counting = try standing(DepartureRig.time(16, 58, 10), delay: 3, platform: "12/13", stands: false)
+        let late = try standing(DepartureRig.time(17, 17, 10), delay: 3, platform: "12/13")
+        return VStack(spacing: 14) {
+            lockCard(counting, isStale: false)
+            lockCard(late, isStale: false)
             expanded(late)
             Spacer()
         }

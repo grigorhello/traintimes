@@ -4,7 +4,8 @@
 // A cycle stays inside the Workers Free plan (D43): it reads only the rules whose watch window is open, the watched
 // trips' part of the feed and today's timetable (the coming week's only when the usual train is missing today), reads
 // the watches in one query, and makes at most MAX_SENDS calls to APNs. GO's train positions are read once, and only
-// while an alerted train is in its Live Activity window; a station's board only while one stands at it (TT-233, D114).
+// while an alerted train is in its Live Activity window; a station's board while one stands at it (TT-233, D114) or is
+// still to leave from it in its window, for the card's platform (TT-245, D122).
 // Every cycle, idle ones too, also reads the Live Activity cards no rule watches any more and ends them (TT-240, D118).
 // A card the app holds (TT-242, D120) is followed like a started one, its question silent until the hold ends.
 
@@ -26,6 +27,7 @@ import {
   BOARDING_RADIUS_M,
   contentState,
   DEPART_LEAD_MS,
+  ECHO_MS,
   endPayload,
   hasSighting,
   holdEnds,
@@ -54,13 +56,13 @@ import type { ApnsEnvironment } from './apns.ts';
 /**
  * APNs calls per cycle. The Free plan allows 50 outside requests per run, and the Cache API's calls share that quota
  * with fetch(). Reading something through a relay costs 3 at worst (the cache's match, the call to GO, the cache's
- * put): TripUpdates 3, the train positions 3 and BOARD_STATIONS station boards 3 each (TT-233) make 12, which leaves 38
- * for APNs; 36 keeps 2 spare, as 45 did beside the feed's 3. The rest are decided again the next minute. On Workers Paid
- * (10,000 per run) this can be raised.
+ * put): TripUpdates 3, the train positions 3 and BOARD_STATIONS station boards 3 each (TT-233), Union's 4 with its
+ * departures list (TT-245), make 13, which leaves 37 for APNs; 35 keeps 2 spare. The question's second buzz (TT-245)
+ * counts here too. The rest are decided again the next minute. On Workers Paid (10,000 per run) this can be raised.
  */
-export const MAX_SENDS = 36;
+export const MAX_SENDS = 35;
 
-/** Station boards read per cycle at most (TT-233): each can cost 3 outside requests, counted in MAX_SENDS. */
+/** Station boards read per cycle at most (TT-233): each can cost 3 outside requests (Union 4), counted in MAX_SENDS. */
 export const BOARD_STATIONS = 2;
 
 export interface Sender {
@@ -194,9 +196,12 @@ export interface MonitorDeps {
   positions?: () => Promise<{ timestamp?: number; trains: TrainPosition[] } | null>;
   /**
    * A station's departures board, for its posted platforms (TT-225); null while GO fails. Called for BOARD_STATIONS
-   * stations a cycle at most, and only for one where an alerted train stands. Left out, no train boards by its position.
+   * stations a cycle at most, and only for one where an alerted train in its window stands or is still to leave (TT-245).
+   * Left out, no train boards by its position and the card's pill is the dash.
    */
   platforms?: (stop: string) => Promise<PlatformBoard | null>;
+  /** Waits before the question's second buzz (TT-245); left out, it goes right after the cycle's other pushes. */
+  wait?: (ms: number) => Promise<void>;
   now: number;
 }
 
@@ -236,10 +241,12 @@ const trainKey = (watch: Watch) => `${watch.date}|${watch.tripId}|${watch.rule.o
 const watchKey = (watch: Watch) => `${watch.date}|${watch.tripId}|${watch.rule.origin_id}|${watch.rule.destination_id}`;
 
 /** Runs one cycle and returns the notifications APNs accepted, for logs and tests. */
-export async function monitor({ db, apns, feed: loadFeed, positions: loadPositions, platforms: loadPlatforms, now }: MonitorDeps): Promise<Push[]> {
+export async function monitor({ db, apns, feed: loadFeed, positions: loadPositions, platforms: loadPlatforms, wait, now }: MonitorDeps): Promise<Push[]> {
   const sent: Push[] = [];
   const gone = new Set<string>();
   let sends = 0;
+  /** The questions sent with their alert this cycle, sent again once the cycle is through (TT-245, `echo`). */
+  const echoes: LiveActivityPush[] = [];
 
   async function deliver(rule: RuleRow, push: Omit<Push, 'token' | 'environment'>): Promise<PushResult> {
     if (gone.has(rule.installation_id)) return 'failed';
@@ -399,7 +406,25 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
       await upsertWatch(db, rule.installation_id, key, date, watch, previous, version + 1);
     }
   }
+  await echo();
   return sent;
+
+  /**
+   * The question's second buzz (TT-245, D122; Grigor wanted "On board?" to vibrate twice): iOS vibrates once for each
+   * Live Activity update that carries an alert, and nothing sets its pattern, so every update that asked with its alert
+   * this cycle goes again ECHO_MS later, the same card with the same alert and a later timestamp (iOS skips an update
+   * whose timestamp is not newer). The cycle's other pushes go first, then one wait for all, so the gap is ECHO_MS at
+   * least. Never for a silent question, and not for the notification that stands in for a card. Counted in MAX_SENDS.
+   */
+  async function echo() {
+    if (echoes.length === 0) return;
+    await wait?.(ECHO_MS);
+    for (const push of echoes) {
+      if (sends >= MAX_SENDS) return;
+      sends++;
+      await apns.sendLiveActivity(push, now + ECHO_MS);
+    }
+  }
 
   /**
    * Cards nobody watches (TT-240, D118): a Live Activity the server can reach (it has the card's token, and `shown` says
@@ -446,14 +471,15 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
 
   /**
    * Boarding at the platform (TT-233, D114): where GO's train feed places the alerted trains that are in their activity
-   * window, by `trainKey`, and the platform the origin's board posts for the ones standing there. The positions are read
-   * once, and only when such a train exists. A board is read only for a station where one stands within 350 m, for
-   * BOARD_STATIONS stations at most: the ones where most riders wait, so the same stations are read from one minute to the
-   * next. A train at a station left out, or missing from `STATIONS`, does not board; `boardingPhase` says what it does.
+   * window, by `trainKey`, and the platform the origin's board posts for them. The positions are read once, and only when
+   * such a train exists. A board is read for BOARD_STATIONS stations at most: first where a train stands within 350 m
+   * (boarding needs its platform), then where most riders' trains are still to leave (TT-245, D122: the card's pill shows
+   * the platform the board posts, planned or posted, as the app's own updates do, rather than the dash until the train
+   * comes in), so the same stations are read from one minute to the next. A train at a station left out, or missing from
+   * `STATIONS`, does not board and keeps the dash; `boardingPhase` says what it does.
    */
   async function sight(trains: (Watch & { status: LiveStatus | null; activity: ActivityRow | null })[]): Promise<Map<string, Sighting>> {
     const found = new Map<string, Sighting>();
-    if (!loadPositions) return found;
     const live = trains.filter((train) => {
       // `followActivity` does nothing more for these, and a card that asks stays the question wherever the train is.
       if (train.activity && !follows(train.activity)) return false;
@@ -464,36 +490,45 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     });
     if (live.length === 0) return found;
     let vehicles: { timestamp?: number; trains: TrainPosition[] } | null = null;
-    try {
-      vehicles = await loadPositions();
-    } catch (error) {
-      console.warn('Train positions failed', error);
+    if (loadPositions) {
+      try {
+        vehicles = await loadPositions();
+      } catch (error) {
+        console.warn('Train positions failed', error);
+      }
     }
-    if (!vehicles) return found;
 
     const stands = (sighting: Sighting) => sighting.position !== null && hasSighting(sighting, now) && sighting.position.metres <= BOARDING_RADIUS_M;
-    // Riders by origin station whose train stands at it.
-    const waiting = new Map<string, number>();
+    // Riders by origin station: whose train stands at it, and whose train is still to leave from it.
+    const standing = new Map<string, number>();
+    const coming = new Map<string, number>();
+    const add = (counts: Map<string, number>, stop: string) => counts.set(stop, (counts.get(stop) ?? 0) + 1);
     for (const train of live) {
       const id = trainKey(train);
+      const origin = train.rule.origin_id;
+      // The rule's station id is the app's text: only GO's own station codes have a place, and so a board to read.
+      const place = Object.hasOwn(STATIONS, origin) ? STATIONS[origin] : undefined;
       let sighting = found.get(id);
       if (!sighting) {
-        const origin = train.rule.origin_id;
-        // The rule's station id is the app's text: only GO's own station codes have a place, and so a board to read.
-        const place = Object.hasOwn(STATIONS, origin) ? STATIONS[origin] : undefined;
         // A vehicle that names a start date must be on the train's service date.
-        const vehicle = place && vehicles.trains.find((v) => v.tripId === train.tripId && (v.startDate === undefined || v.startDate === train.date));
+        const vehicle = place && vehicles?.trains.find((v) => v.tripId === train.tripId && (v.startDate === undefined || v.startDate === train.date));
         // With no time of its own a position is as old as the feed, as the app reads it (`RelayTrainPositions`).
-        const position = place && vehicle ? { metres: metresBetween(place, [vehicle.latitude, vehicle.longitude]), at: vehicle.timestamp ?? vehicles.timestamp ?? 0 } : null;
+        const position = place && vehicle ? { metres: metresBetween(place, [vehicle.latitude, vehicle.longitude]), at: vehicle.timestamp ?? vehicles?.timestamp ?? 0 } : null;
         sighting = { origin, tripId: train.tripId, position, platform: null };
         found.set(id, sighting);
       }
-      if (stands(sighting)) waiting.set(sighting.origin, (waiting.get(sighting.origin) ?? 0) + 1);
+      if (!place) continue;
+      if (stands(sighting)) add(standing, origin);
+      else if (now < leaves(departureOf(train, train.status))) add(coming, origin);
     }
-    if (!loadPlatforms || waiting.size === 0) return found;
+    if (!loadPlatforms) return found;
 
     const boardOf = loadPlatforms;
-    const stations = [...waiting.keys()].sort((a, b) => waiting.get(b)! - waiting.get(a)! || (a < b ? -1 : 1)).slice(0, BOARD_STATIONS);
+    const count = (counts: Map<string, number>, stop: string) => counts.get(stop) ?? 0;
+    const stations = [...new Set([...standing.keys(), ...coming.keys()])]
+      .sort((a, b) => count(standing, b) - count(standing, a) || count(coming, b) - count(coming, a) || (a < b ? -1 : 1))
+      .slice(0, BOARD_STATIONS);
+    if (stations.length === 0) return found;
     const boards = await Promise.all(
       stations.map(async (stop) => {
         try {
@@ -506,7 +541,7 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     );
     for (const sighting of found.values()) {
       const board = boards[stations.indexOf(sighting.origin)];
-      if (board && stands(sighting)) sighting.platform = platformFor(board, sighting.tripId);
+      if (board) sighting.platform = platformFor(board, sighting.tripId);
     }
     return found;
   }
@@ -618,6 +653,10 @@ export async function monitor({ db, apns, feed: loadFeed, positions: loadPositio
     // time (the expected departure moves once the feed drops the station, D89).
     const payload = updatePayload(train, state, now, rule.time_format, silent || asksIn(activity.shown));
     const result = await apns.sendLiveActivity({ token: activity.token, environment: rule.environment, payload, expiration }, now);
+    // The question with its alert goes twice, for two buzzes (TT-245): the second once the cycle is through.
+    if (result === 'sent' && payload.aps.alert !== undefined) {
+      echoes.push({ token: activity.token, environment: rule.environment, payload: updatePayload(train, state, now + ECHO_MS, rule.time_format), expiration });
+    }
     if (result === 'unregistered' || result === 'badToken') {
       // The rider swiped it away, or it ended: nothing more to send.
       await setActivity({ ...activity, version: activity.version + 1 }, { state: 'ended' });

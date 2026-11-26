@@ -79,7 +79,7 @@ struct LockRectangularContent: Equatable, Sendable {
         /// "in 5 min · then 8:28", "in 41 min · earlier 7:58", "Last train · in 32 min", "now · then 8:28".
         let note: WidgetText
         /// The note without the train after the dot: "in 1 h 56 min" for "in 1 h 56 min · earlier 15:13", which the view
-        /// shows when the whole note is wider than the plate (TT-246, D123: the line cannot shrink, so it was cut mid-time).
+        /// shows when the whole note is too wide even shrunk (TT-246, D123: at 75 % it was still cut mid-time).
         let lead: WidgetText
         /// The bell after the note: the train named there is the alerted one.
         let thenIsAlerted: Bool

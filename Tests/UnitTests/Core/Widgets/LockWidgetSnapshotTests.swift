@@ -57,6 +57,26 @@ final class LockWidgetSnapshotTests: XCTestCase {
         return WidgetFixtures.entry(WidgetFixtures.at(15, 2), .trains(trains), format: .twentyFourHour)
     }
 
+    /// 6:32 AM: Your train, the alerted 8:28, in 1 h 56 min, the 7:58 before it. The widest note that still fits whole
+    /// once it shrinks (TT-246, D123).
+    private var hoursYourTrain: WidgetEntry {
+        var trains = WidgetEntry.Trains(
+            header: WidgetFixtures.header(), trains: [WidgetFixtures.train(7, 58), WidgetFixtures.train(8, 28, alerted: true)]
+        )
+        trains.yourTrain = 1
+        trains.earlier = 0
+        return WidgetFixtures.entry(WidgetFixtures.at(6, 32), .trains(trains))
+    }
+
+    /// 6:04 AM: the 8:00 in 1 h 56 min, then the alerted 8:28, more than 2 h away. At the edge with the bell, which does
+    /// not shrink: whole only while it fits shrunk, never cut (TT-246, D123).
+    private var hoursThenAlerted: WidgetEntry {
+        let trains = WidgetEntry.Trains(
+            header: WidgetFixtures.header(), trains: [WidgetFixtures.train(8, 0), WidgetFixtures.train(8, 28, alerted: true)]
+        )
+        return WidgetFixtures.entry(WidgetFixtures.at(6, 4), .trains(trains))
+    }
+
     private var states: [(String, WidgetEntry)] {
         [
             ("next-train", WidgetFixtures.nextTrain()), ("express-next", WidgetFixtures.expressNext),
@@ -72,7 +92,10 @@ final class LockWidgetSnapshotTests: XCTestCase {
 
     @MainActor
     private func rectangular(_ style: UIUserInterfaceStyle, isDimmed: Bool = false, testName: String = #function, line: UInt = #line) {
-        let entries = states + [("late-express", lateExpress), ("long-your-train", longYourTrain), ("long-route", longRoute)]
+        let entries = states + [
+            ("late-express", lateExpress), ("long-your-train", longYourTrain), ("long-route", longRoute),
+            ("hours-your-train", hoursYourTrain), ("hours-then-alerted", hoursThenAlerted),
+        ]
         let cells = entries.map { name, entry in
             Cell(id: name) {
                 LockRectangularView(content: LockRectangularContent(entry), isDimmed: isDimmed) { Color.primary.opacity(0.1) }

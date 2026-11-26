@@ -78,6 +78,9 @@ struct LockRectangularContent: Equatable, Sendable {
         let isExpress: Bool
         /// "in 5 min · then 8:28", "in 41 min · earlier 7:58", "Last train · in 32 min", "now · then 8:28".
         let note: WidgetText
+        /// The note without the train after the dot: "in 1 h 56 min" for "in 1 h 56 min · earlier 15:13", which the view
+        /// shows when the whole note is wider than the plate (TT-246, D123: the line cannot shrink, so it was cut mid-time).
+        let lead: WidgetText
         /// The bell after the note: the train named there is the alerted one.
         let thenIsAlerted: Bool
     }
@@ -96,12 +99,12 @@ struct LockRectangularContent: Equatable, Sendable {
         link = entry.routeLink(from: .lockRectangular)
         let names = entry.header.map(WidgetHeaderContent.init)
         if let shown = entry.lockTrain, let names {
-            let (note, thenIsAlerted) = Self.note(shown, in: entry, formatter: formatter)
+            let (note, lead, thenIsAlerted) = Self.note(shown, in: entry, formatter: formatter)
             body = .train(
                 Train(
                     header: shown.isYourTrain ? .yourTrain(to: names.to) : .route(from: names.from, to: names.to),
                     time: WidgetClock(shown.train.departure, formatter: formatter), isExpress: shown.train.isExpress, note: note,
-                    thenIsAlerted: thenIsAlerted
+                    lead: lead, thenIsAlerted: thenIsAlerted
                 )
             )
             return
@@ -126,13 +129,14 @@ struct LockRectangularContent: Equatable, Sendable {
     /// on the same service day, or the earlier one under Your train.
     private static func note(
         _ shown: LockWidgetTrain, in entry: WidgetEntry, formatter: any TimeFormatting
-    ) -> (WidgetText, Bool) {
+    ) -> (note: WidgetText, lead: WidgetText, thenIsAlerted: Bool) {
         let trains = shown.trains
-        var lead = entry.isLeaving(shown.train)
+        let lead = entry.isLeaving(shown.train)
             ? String(localized: "widget.now")
             : String(format: String(localized: "widget.lock.in"), WidgetCountdown.minutes(from: entry.date, to: shown.train.departure))
         if trains.lastTrain == shown.index {
-            return (WidgetText("\(String(localized: "widget.last_train")) · \(lead)"), false)
+            let last = WidgetText("\(String(localized: "widget.last_train")) · \(lead)")
+            return (last, last, false)
         }
         var tail: WidgetText?
         var thenIsAlerted = false
@@ -147,9 +151,9 @@ struct LockRectangularContent: Equatable, Sendable {
                 thenIsAlerted = then.isAlerted
             }
         }
-        guard let tail else { return (WidgetText(lead), false) }
-        lead += " · "
-        return (WidgetText(pieces: [WidgetText.Piece(text: lead, isStrong: false)] + tail.pieces), thenIsAlerted)
+        guard let tail else { return (WidgetText(lead), WidgetText(lead), false) }
+        let pieces = [WidgetText.Piece(text: lead + " · ", isStrong: false)] + tail.pieces
+        return (WidgetText(pieces: pieces), WidgetText(lead), thenIsAlerted)
     }
 }
 

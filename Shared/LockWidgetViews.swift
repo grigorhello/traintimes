@@ -59,7 +59,13 @@ struct LockRectangularView<Plate: View>: View {
             VStack(alignment: .leading, spacing: 0) {
                 header(train.header)
                 time(train.time, isExpress: train.isExpress)
-                note(train.note, hasBell: train.thenIsAlerted)
+                // The whole note, or the countdown alone when the note is wider than the plate: "in 1 h 56 min · earlier
+                // 15:13" on the 24-hour clock does not fit the iPhone 17 Pro's 148 pt, and the attributed line does not
+                // shrink, so it was cut mid-time (TT-246, D123). The bell goes with the train it marks.
+                ViewThatFits(in: .horizontal) {
+                    note(train.note, hasBell: train.thenIsAlerted)
+                    note(train.lead, hasBell: false)
+                }
             }
         case .noTrains(let quiet):
             VStack(alignment: .leading, spacing: 0) {

@@ -61,9 +61,12 @@ struct LockRectangularView<Plate: View>: View {
                 time(train.time, isExpress: train.isExpress)
                 // The whole note, or the countdown alone when the note is wider than the plate: "in 1 h 56 min · earlier
                 // 15:13" on the 24-hour clock does not fit the iPhone 17 Pro's 148 pt, and the attributed line does not
-                // shrink, so it was cut mid-time (TT-246, D123). The bell goes with the train it marks.
+                // shrink, so it was cut mid-time (TT-246, D123). The bell goes with the train it marks. `ViewThatFits`
+                // measures the line 3 to 5 pt wider than it draws ("in 41 min · earlier 7:58", drawn with 3 pt to spare,
+                // fell back), so the whole note may run 6 pt into the right margin, as the header may.
                 ViewThatFits(in: .horizontal) {
                     note(train.note, hasBell: train.thenIsAlerted)
+                        .padding(.trailing, -6)
                     note(train.lead, hasBell: false)
                 }
             }

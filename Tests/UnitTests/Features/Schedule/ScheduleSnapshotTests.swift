@@ -31,10 +31,10 @@ final class ScheduleSnapshotTests: XCTestCase {
     @MainActor func testDepartedDelayedDark() async throws { snap(try await .liveFixture(.delayed, minutesLater: 21), .dark) }
     @MainActor func testDepartedCancelledLight() async throws { snap(try await .loadedFixture(.cancelled, minutesLater: 12), .light) }
     @MainActor func testDepartedCancelledDark() async throws { snap(try await .loadedFixture(.cancelled, minutesLater: 12), .dark) }
-    // TT-246 (D123): 3:31 AM, four hours before the first train: the fold from Now reads "No trains for 4 h 1 min · next
-    // 7:32 AM" and the next card "in 4 h 1 min" (Grigor saw "324 min" and "323 min" at midnight).
-    @MainActor func testLongWaitLight() async throws { snap(try await .loadedFixture(minutesLater: -230), .light) }
-    @MainActor func testLongWaitDark() async throws { snap(try await .loadedFixture(minutesLater: -230), .dark) }
+    // TT-246 (D123): 12:11 AM, seven hours before the first train: the fold from Now reads "No trains for 7 h 21 min · next
+    // 7:32 AM" and the next card "in 7 h 21 min", as wide as Grigor's "in 5 h 23 min" at midnight (he saw "323 min").
+    @MainActor func testLongWaitLight() async throws { snap(try await .loadedFixture(minutesLater: -430), .light) }
+    @MainActor func testLongWaitDark() async throws { snap(try await .loadedFixture(minutesLater: -430), .dark) }
 
     @MainActor
     private func snap(_ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {

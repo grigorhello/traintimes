@@ -46,7 +46,7 @@ Missing or stale data is never reported as live: a train with no live status rea
 
 **Time and date.** Times follow the device 12/24-hour setting unless overridden in Settings, use America/Toronto, and respect daylight-saving changes. The service day is the GO service day: trips after midnight belong to the previous service day and sort after 11:59 PM. The Schedule screen itself turns to the next calendar day at 12:00 AM Toronto time, not at the 3:00 AM service cutoff (D52): the day strip, the selected day and the timeline all move together, and an app opened at 12:01 AM shows the actual day, selected, from its top. Every arrival is labelled "Arrival" on a Schedule card ("Scheduled arrival" or "Est. arrival" on Trip details); an estimate is shown only when the feed supplies or reliably supports one.
 
-**Copy.** Sentence case everywhere, Canadian spelling (favourite, colour, cancelled), no exclamation marks, no emoji, no promises: write "Send updates as changes are reported", never "Never miss a train".
+**Copy.** Sentence case everywhere, Canadian spelling (favourite, colour, cancelled), no exclamation marks, no emoji (except warm lines such as the arrival wishes, which end with one, D126), no promises: write "Send updates as changes are reported", never "Never miss a train".
 
 ## Schedule screen (timeline)
 

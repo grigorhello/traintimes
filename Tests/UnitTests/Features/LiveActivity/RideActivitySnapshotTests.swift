@@ -213,23 +213,25 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
-    /// At your stop: "Now", then the wish in its place, and the longest wishes with their emoji (TT-249, D126); the compact
-    /// island keeps "Now", the expanded island shows the wish.
+    /// At your stop: "Now", then the wish in its place, and the longest wishes with their emoji (TT-249, D126), the widest
+    /// in a ride that started by itself, which shows no "Not on it" at your stop; the compact island keeps "Now", the
+    /// expanded island shows the widest wish.
     @MainActor
     private func arrivalWish() async throws -> some View {
         let there = try await moment(DemoRideRig.time(17, 43, 5))
-        func with(_ id: String) -> Moment {
+        func with(_ id: String, undoable: Bool = false) -> Moment {
             var state = there.state
             state.wish = ArrivalWish(id: id, period: .evening).text
+            state.undoable = undoable
             return Moment(attributes: there.attributes, state: state)
         }
         return VStack(spacing: 14) {
             lockCard(there, isStale: false)
             lockCard(with("enjoyEvening"), isStale: false)
-            lockCard(with("goodEvening"), isStale: false)
+            lockCard(with("goodEvening", undoable: true), isStale: false)
             lockCard(with("enjoyAfternoon"), isStale: false)
             compact(with("enjoyEvening"))
-            expanded(with("enjoyEvening"))
+            expanded(with("goodEvening"))
             Spacer()
         }
         .padding(.top, 60)

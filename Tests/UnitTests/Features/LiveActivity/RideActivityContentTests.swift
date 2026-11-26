@@ -133,7 +133,7 @@ final class RideActivityContentTests: XCTestCase {
             plan: rig.plan, state: try XCTUnwrap(engine.state), now: engine.now, deviceNow: deviceNow, formatter: formatter,
             wish: wish
         ))
-        XCTAssertEqual(content.wish, "Enjoy your evening")
+        XCTAssertEqual(content.wish, "Enjoy your evening 🌆")
         XCTAssertEqual(content.wish, rig.tripDetails().rideDetails(formatter)?.wish?.text, "The ride screen's wish")
         XCTAssertEqual(content.now, "Now")
         XCTAssertEqual(content.title, "This is Clarkson")

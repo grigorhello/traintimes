@@ -17,7 +17,7 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testArrivingDark() async throws { snap(await ride(at: DemoRideRig.time(17, 42, 20)), .dark) }
     @MainActor func testStoppedLight() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .light) }
     @MainActor func testStoppedDark() async throws { snap(await ride(at: DemoRideRig.time(17, 43, 5)), .dark) }
-    /// TT-223, D103: 5 s after Clarkson (30 s on the demo's clock) "Now" has rolled into the wish, "Enjoy your evening".
+    /// TT-223, D103: 5 s after Clarkson (30 s on the demo's clock) "Now" has rolled into the wish, "Enjoy your evening 🌆" (its emoji, TT-249, D126).
     @MainActor func testWishLight() async throws { snap(await wish(), .light) }
     @MainActor func testWishDark() async throws { snap(await wish(), .dark) }
     /// TT-232, D111 (Live view canvas, boards 36 and 38): the demo express, Union to Clarkson without stopping. At 5:29 PM

@@ -48,7 +48,7 @@ final class ArrivalWishTests: XCTestCase {
         for _ in 0..<50 {
             XCTAssertNotEqual(ArrivalWish.pick(at: at(22), after: "homeSafe", index: { Int.random(in: 0..<$0) }).id, "homeSafe")
         }
-        XCTAssertEqual(ArrivalWish(id: "goodDay", period: .morning).text, "Have a good day")
+        XCTAssertEqual(ArrivalWish(id: "goodDay", period: .morning).text, "Have a good day ☀️")
     }
 
     func testOneWishPerRideAndAnotherOneForTheNextRide() {

@@ -453,8 +453,9 @@ struct RideActivityCard: View {
     }
 
     /// "Not on it" in the right fact's place for a ride's first 10 min after it started by itself (TT-243, D120; board 41's
-    /// `.undo`); not on a stale card, as the question's buttons.
-    private var showsNotOnIt: Bool { state.undoable && !state.isDeparture && !style.isStale }
+    /// `.undo`); not on a stale card, as the question's buttons, and not at your stop, where the ride screen shows Done and
+    /// the wish needs the whole row (TT-249, D126).
+    private var showsNotOnIt: Bool { state.undoable && !state.isDeparture && !style.isStale && state.phase != .atYourStop }
 
     /// The pill before departure (the number, mint while the train is boarding, TT-233, or the dash while it is not posted:
     /// still, since an activity does not animate); the arrival during the ride, or Not on it, a glass pill like No, which ends

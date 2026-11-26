@@ -89,25 +89,27 @@ final class ScheduleTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute
         app.launch()
 
+        // 15 s waits: a slow runner can take several seconds to show what a Mac shows at once (CLAUDE.md).
         let card = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "The card is on the timeline")
         card.tap()
         let sheet = app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(sheet.waitForExistence(timeout: 15), "The card opens Trip details")
         let last = app.descendants(matching: .any).matching(identifier: "trip.stop.UN").firstMatch
-        XCTAssertTrue(last.waitForExistence(timeout: 5))
+        XCTAssertTrue(last.waitForExistence(timeout: 15), "The trip lists Union")
         let alert = app.buttons["trip.alert"]
-        XCTAssertTrue(alert.exists)
+        XCTAssertTrue(alert.waitForExistence(timeout: 15), "The alert bar shows")
         XCTAssertTrue(app.buttons["trip.directions"].exists, "Directions to Oakville GO before the train leaves (TT-188)")
 
         // The whole list is reachable: scroll to the last stop, which then sits above the floating button (TT-163).
         if !last.isHittable { sheet.swipeUp() }
-        XCTAssertTrue(last.isHittable)
+        let reachable = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: last)
+        XCTAssertEqual(XCTWaiter().wait(for: [reachable], timeout: 15), .completed, "Union is reachable at the end of the list")
         XCTAssertLessThanOrEqual(last.frame.maxY, alert.frame.minY)
 
         app.buttons["trip.close"].tap()
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(card.exists)
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15), "Close closes the sheet")
+        XCTAssertTrue(card.exists, "The timetable is back")
     }
 
     /// Interest taps (TT-209) change nothing: the line name opens nothing, a tap on a card's time still opens Trip details

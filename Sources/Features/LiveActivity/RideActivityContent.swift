@@ -98,8 +98,8 @@ extension RideActivityAttributes.ContentState {
     /// `LiveDeparture`'s, which follows `BoardingRule`; the last 2 min with no position to go by), and past its time, while
     /// it still stands there, "Departing" in the minutes' place; once it has left, "5:16 PM departed" over "On board?" with
     /// Yes and No (TT-231, D110), nothing at the right. `server/src/activity.ts` writes the same words for the same train,
-    /// so the alert server's activity and the app's look alike; only the app knows a posted platform (GO's feeds post none,
-    /// D35).
+    /// so the alert server's activity and the app's look alike, the platform too: both read GO's station board (D104), the
+    /// server from the window's start (TT-245, D122), Union's as a pair ("7/8").
     init(departure live: LiveDeparture, now: Date, deviceNow: Date, formatter: some TimeFormatting) {
         let leaves = formatter.time(live.leaves)
         let asks = live.phase == .departed

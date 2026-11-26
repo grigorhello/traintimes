@@ -73,19 +73,20 @@ final class PlatformWaitTests: XCTestCase {
         let cards = model.cards(formatter)
         XCTAssertEqual(cards.map(\.awaitsPlatform), [true, false, false, false])
         XCTAssertEqual(cards.map(\.hasPlatform), [false, false, false, false])
-        XCTAssertEqual(cards[0].relativeTime, "in 8 min")
+        XCTAssertTrue(cards[0].isNext)
+        XCTAssertNil(cards[0].relativeTime, "The dash pulses with no countdown beside it (TT-248, D125)")
         XCTAssertEqual(cards[0].time, "7:29 AM")
         XCTAssertEqual(cards[0].arrivalTime, "8:09 AM", "The arrival moves with the departure")
         XCTAssertEqual(cards[0].status, .onTime)
         XCTAssertEqual(Array(cards.map(\.time).dropFirst()), ["7:58 AM", "8:21 AM", "8:50 AM"], "The others keep their times")
     }
 
-    /// A train nearer than 8 min stays where it is; it still waits while its countdown shows.
+    /// A train nearer than 8 min stays where it is; it still waits for its platform, with no countdown beside the dash.
     func testAwaitingPlatformLeavesANearTrainAlone() async throws {
         let model = try await awaitingModel(minutesLater: 6) // 7:27 AM, the 7:32 train is 5 min away
         let cards = model.cards(formatter)
         XCTAssertEqual(cards[0].time, "7:32 AM")
-        XCTAssertEqual(cards[0].relativeTime, "in 5 min")
+        XCTAssertNil(cards[0].relativeTime)
         XCTAssertTrue(cards[0].awaitsPlatform)
     }
 

@@ -24,6 +24,10 @@ final class DepartureCardSnapshotTests: XCTestCase {
     /// with the alert on, and the clock's last minute with no train position.
     @MainActor func testBoardingLight() { snap(Self.boarding, .light) }
     @MainActor func testBoardingDark() { snap(Self.boarding, .dark) }
+    /// TT-245 (D122): Union's paired platforms in the pill: next on time, boarding (the filled pill), late with the alert
+    /// on and a long ride (the widest row), and 24-hour.
+    @MainActor func testUnionPairsLight() { snap(Self.unionPairs, .light) }
+    @MainActor func testUnionPairsDark() { snap(Self.unionPairs, .dark) }
 
     private struct Sample {
         let card: DepartureCard
@@ -71,6 +75,16 @@ final class DepartureCardSnapshotTests: XCTestCase {
             sample(17, 58, platform: .published("7"), express: true, status: .delayed(minutes: 6, reportedAt: reported),
                    delay: 6, isNext: true, nowBefore: 9 * 60, isBoarding: true, bell: .on),
             sample(17, 58, platform: .published("7"), express: true, isNext: true, nowBefore: 30),
+        ]
+    }
+
+    private static var unionPairs: [Sample] {
+        [
+            sample(8, 47, minutes: 36, platform: .published("5/6"), isNext: true),
+            sample(8, 47, minutes: 36, platform: .published("12/13"), express: true, isNext: true, nowBefore: 8 * 60, isBoarding: true),
+            sample(12, 32, minutes: 72, platform: .published("12/13"), express: true,
+                   status: .delayed(minutes: 15, reportedAt: reported), delay: 15, isNext: true, nowBefore: 14 * 60, bell: .on),
+            sample(17, 10, platform: .published("26/27"), express: true, isNext: true, formatter: TimeFormatter(format: .twentyFourHour)),
         ]
     }
 

@@ -14,8 +14,10 @@
 // port of the app's `BoardingRule` (`Sources/Core/Schedule/BoardingRule.swift`; change both together). The minute cycle
 // gives it where GO's train feed places the train, whether the feed still lists the rider's station, and the platform the
 // station's board posts (`src/monitor.ts`). With no fresh position the clock decides, as before: boarding for the last 2
-// min, left at its time. The pill carries the platform only while the train stands at the station, where the board is
-// read; otherwise it is the dash.
+// min, left at its time. The pill carries the platform the station's board posts, planned or posted, from the window's
+// start (TT-245, D122: before it, only while the train stood there), and the dash while it posts none or was not read.
+//
+// Two buzzes (TT-245, D122): the update that asks with its alert goes twice, ECHO_MS apart (`echo` in `src/monitor.ts`).
 
 import { DELAY_MIN } from './alerts.ts';
 import { duration, format, strings } from './copy.ts';
@@ -28,6 +30,8 @@ export const WINDOW_MS = 30 * MINUTE;
 export const BOARDING_MS = 2 * MINUTE;
 /** The question after departure stays this long at most, then the activity ends (TT-231, `LiveDeparture.askFor`). */
 export const ASK_MS = 10 * MINUTE;
+/** The question's second alert follows the first by this much, so the phone vibrates twice (TT-245, D122). */
+export const ECHO_MS = 1_500;
 /** A train this close to the station's place stands at it (`BoardingRule.radius`, TT-233). */
 export const BOARDING_RADIUS_M = 350;
 /** A position older than this says nothing (`BoardingRule.fixMaxAge`). */
@@ -76,8 +80,13 @@ export interface Departure {
   position?: { metres: number; at: number } | null;
   /** The origin has dropped out of the trip's TripUpdates: the train has left it (`hasLeftOrigin` in `realtime.ts`). */
   hasLeftOrigin?: boolean;
-  /** The platform the origin's board posts for the train; null or left out while none is posted or the board was not read. */
+  /** The platform the origin's board posts for the train, "7/8" at Union; null or left out while none is posted or the board was not read. */
   platform?: string | null;
+  /**
+   * The platform the card already shows (`platformIn` of its stored signature), set only while the origin's board was not
+   * read this cycle (TT-245, D122): the pill keeps it rather than dropping to the dash. Never counts for boarding.
+   */
+  keptPlatform?: string | null;
 }
 
 /** The activity's fixed part: which ride it is (the app's `Ride`), the line's tile, your stop and the stop count. */
@@ -107,7 +116,7 @@ export interface ContentState {
   now: string;
   label: string;
   delay?: string;
-  /** The posted platform in its pill, "3" (TT-233); left out, the app draws the dash. */
+  /** The posted platform in its pill, "3", Union's pair "7/8" (TT-233, TT-245); left out, the app draws the dash. */
   platformNumber?: string;
   late: boolean;
   position: number;
@@ -207,7 +216,7 @@ export function phaseAt(departure: Departure, now: number): Exclude<Phase, 'depa
 /**
  * The activity at `now` in `phase`, as the app writes it (`ContentState(departure:…)`): the expected departure's clock time
  * in the line and the countdown to it, "3 min late" beside it while late; "Departing" in the minutes' place once its time
- * has come and it has not left, and the posted platform in the pill when the cycle read it (TT-233).
+ * has come and it has not left, and the posted platform in the pill when the cycle read it (TT-233, TT-245).
  */
 export function contentState(departure: Departure, phase: Phase, now: number, timeFormat: TimeFormat): ContentState {
   const time = (ms: number) => formatTime(ms, timeFormat);
@@ -240,7 +249,8 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
     state.countdownEnd = Math.round(leavesAt / 1000);
     // Never "1 min" for a train that stands at its platform past its time (`LiveDeparture.isDeparting`).
     state.minutes = now >= leavesAt ? strings['schedule.departing'] : duration(minutesUntil(leavesAt, now));
-    if (departure.platform) state.platformNumber = departure.platform;
+    const platform = departure.platform ?? departure.keptPlatform;
+    if (platform) state.platformNumber = platform;
   }
   return state;
 }
@@ -264,6 +274,12 @@ export function signature(state: ContentState): string {
 }
 
 /** The stored signature is the question's: `signature` of a state that asks, which carries no platform, so it ends there. */
+/** The platform in a stored signature ("…|platform 7/8", `signature`), null without one (TT-245). */
+export function platformIn(shown: string | null): string | null {
+  const part = shown?.split('|').find((piece) => piece.startsWith('platform '));
+  return part ? part.slice('platform '.length) : null;
+}
+
 export function asksIn(shown: string | null): boolean {
   return shown?.endsWith('|asks') ?? false;
 }
@@ -310,8 +326,9 @@ export function startPayload(departure: Departure, attributes: Attributes, state
 
 /**
  * `event: update`: the minutes, the delay or the phase changed. The question's update carries an alert (TT-231): the Lock
- * Screen lights up, the phone buzzes once, and the island opens on it; "On the 4:29 PM train?" names the train as its
- * notification does. Not when `silent`: the app was in front as the train left, where Schedule asks.
+ * Screen lights up, the phone buzzes, and the island opens on it; "On the 4:29 PM train?" names the train as its
+ * notification does. The cycle sends it twice for two buzzes (TT-245). Not when `silent`: the app was in front as the
+ * train left, where Schedule asks.
  */
 export function updatePayload(departure: Departure, state: ContentState, now: number, timeFormat: TimeFormat = '12h', silent = false) {
   const aps: Record<string, unknown> = { timestamp: seconds(now), event: 'update', 'content-state': state, 'stale-date': seconds(staleDate(departure)) };

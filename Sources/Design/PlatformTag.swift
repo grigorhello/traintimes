@@ -16,6 +16,9 @@ struct PlatformTag: View {
     var isStacked = false
     /// The Express bolt in the accent before the label (Trip details' hero card, TT-207).
     var showsExpress = false
+    /// The "Platform" word; Schedule's card leaves it out when Union's pair leaves no room for it (TT-245, D122). The pill
+    /// still reads "Platform 7/8" in VoiceOver.
+    var showsLabel = true
     /// The number's pill filled: the number in on-accent on an accent ground, while the train is Boarding at that platform
     /// (TT-233, D114). The dash pill is never filled.
     var isFilled = false
@@ -32,17 +35,21 @@ struct PlatformTag: View {
             ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 6))
             : AnyLayout(HStackLayout(spacing: size * 0.55))
         layout {
-            HStack(spacing: size * 0.3) {
-                if showsExpress {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: size * 0.82, weight: .semibold))
-                        .foregroundStyle(TTColor.accent)
+            if showsExpress || showsLabel {
+                HStack(spacing: size * 0.3) {
+                    if showsExpress {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: size * 0.82, weight: .semibold))
+                            .foregroundStyle(TTColor.accent)
+                    }
+                    if showsLabel {
+                        Text("schedule.platform_label")
+                            .font(.system(size: size))
+                            .foregroundStyle(TTColor.inkSecondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
-                Text("schedule.platform_label")
-                    .font(.system(size: size))
-                    .foregroundStyle(TTColor.inkSecondary)
-                    .lineLimit(1)
-                    .fixedSize()
             }
             PlatformBadge(number: number, size: pillSize ?? size, palette: palette)
                 .opacity(dimmed ? 0.4 : 1)

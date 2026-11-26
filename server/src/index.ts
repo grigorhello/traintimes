@@ -9,7 +9,7 @@ import { handleFeedback } from './feedback.ts';
 import { ApnsClient } from './apns.ts';
 import { applyRetention, monitor } from './monitor.ts';
 import { decodeFeed } from './realtime.ts';
-import { downloadNextService, handlePlatforms, PlatformRelay } from './platforms.ts';
+import { downloadNextService, downloadUnionDepartures, handlePlatforms, PlatformRelay } from './platforms.ts';
 import { downloadFeed, FeedRelay, handleLive, vehiclesOf } from './relay.ts';
 import { GITHUB_JWKS_URL, handleTimetableUpload, type JWKS } from './upload.ts';
 
@@ -61,6 +61,7 @@ let platforms: PlatformRelay | null = null;
 function platformRelay(env: Env): PlatformRelay {
   platforms ??= new PlatformRelay({
     download: (stop) => downloadNextService(fetch, env.GO_FEEDS_URL, env.METROLINX_API_KEY, stop),
+    union: () => downloadUnionDepartures(fetch, env.GO_FEEDS_URL, env.METROLINX_API_KEY),
     cache: caches.default,
     now: Date.now,
   });
@@ -122,6 +123,8 @@ export default {
         }
       },
       platforms: (stop) => platformRelay(env).get(stop),
+      // The question's second buzz waits this long after the first (TT-245); the run's wall time, not its CPU.
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: Date.now() });
     if (sent.length) console.log(`Sent ${sent.length} alerts`);
   },

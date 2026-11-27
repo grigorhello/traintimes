@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { alertNotice, reviewNotice, strings } from '../src/copy.ts';
+import { alertNotice, duration, reviewNotice, strings } from '../src/copy.ts';
 import { addDays, formatTime, gtfsInstant, gtfsSeconds, isoWeekday, serviceDate } from '../src/time.ts';
 import { at } from './support.ts';
 
@@ -29,6 +29,11 @@ test('notifications read as the requirements table', () => {
     title: '7:32 AM train now delayed 15 min',
     body: 'Oakville to Union. Now expected 7:47 AM, as reported at 7:22 AM.',
   });
+  // TT-246 (D123): an hour or more reads in hours, never "75 min".
+  assert.equal(
+    alertNotice({ kind: 'delay', delayMin: 75, expected: at('8:47'), update: true }, train, direction, at('7:50'), '12h').title,
+    '7:32 AM train now delayed 1 h 15 min',
+  );
   assert.deepEqual(alertNotice({ kind: 'recovery', delayMin: 0, expected: at('7:32') }, train, direction, at('7:26'), '12h'), {
     title: '7:32 AM train back on time',
     body: 'Oakville to Union. Expected 7:32 AM, as reported at 7:26 AM.',
@@ -45,6 +50,19 @@ test('notifications read as the requirements table', () => {
     title: 'Your usual train has changed',
     body: 'Review your Oakville to Union weekday alert.',
   });
+});
+
+test('a count of minutes reads as the app writes it (TT-246, D123)', () => {
+  assert.equal(duration(0), '0 min');
+  assert.equal(duration(59), '59 min');
+  assert.equal(duration(60), '1 h');
+  assert.equal(duration(61), '1 h 1 min');
+  assert.equal(duration(80), '1 h 20 min');
+  assert.equal(duration(323), '5 h 23 min');
+  assert.equal(duration(24 * 60), '1 d');
+  assert.equal(duration(24 * 60 + 59), '1 d');
+  assert.equal(duration(29 * 60 + 10), '1 d 5 h');
+  assert.equal(duration(-3), '0 min');
 });
 
 test('times follow the app formatter: Toronto, 12 or 24 hour', () => {

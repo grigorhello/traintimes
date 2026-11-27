@@ -154,7 +154,7 @@ extension RideDetails {
         }
         let isComplete = moment == .atYourStop
         let passed = isComplete ? last : times.passed
-        let minutes = String(format: String(localized: "onboard.minutes"), max(1, times.minutes(to: last, from: now)))
+        let minutes = TimeFormatter.duration(minutes: max(1, times.minutes(to: last, from: now)))
         let isLate = times.delayMinutes >= 1
 
         let yours = Self.shortName(stops[last].station.name)
@@ -179,7 +179,8 @@ extension RideDetails {
         self.yoursIsNext = yoursIsNext
         isExpress = plan.isExpress
         self.wish = isComplete ? wish : nil
-        late = isLate && !isComplete ? String(format: String(localized: "onboard.late"), times.delayMinutes) : nil
+        late = isLate && !isComplete
+            ? String(format: String(localized: "onboard.late"), TimeFormatter.duration(minutes: times.delayMinutes)) : nil
 
         // Each stretch's skipped stations, and each stop's row with them between (TT-232).
         let between = (0..<last).map { index in plan.skipped.filter { $0.after == index } }

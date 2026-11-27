@@ -74,6 +74,22 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(train?.thenIsAlerted, false)
     }
 
+    /// TT-246 (D123): Your train 1 h 56 min out on the 24-hour clock. The note is wider than the 148 pt plate, so the view
+    /// falls back to the countdown alone, which is the note without the train after the dot.
+    func testTheCountdownAloneIsTheNoteWithoutTheTrainAfter() {
+        var trains = WidgetEntry.Trains(
+            header: WidgetFixtures.header(), trains: [WidgetFixtures.train(15, 13), WidgetFixtures.train(16, 58, alerted: true)]
+        )
+        trains.yourTrain = 1
+        trains.earlier = 0
+        let train = rectangular(WidgetFixtures.entry(WidgetFixtures.at(15, 2), .trains(trains), format: .twentyFourHour))
+        XCTAssertEqual(train?.note.plain, "in 1 h 56 min · earlier 15:13")
+        XCTAssertEqual(train?.lead.plain, "in 1 h 56 min")
+        XCTAssertEqual(strong(train?.lead), [])
+        XCTAssertEqual(rectangular(WidgetFixtures.lastTrain)?.lead.plain, "Last train · in 32 min")
+        XCTAssertEqual(rectangular(WidgetFixtures.leavingNow)?.lead.plain, "now")
+    }
+
     /// Your train that is the next to leave has no earlier train: the third row names the one after it.
     func testYourTrainThatLeavesFirstNamesTheTrainAfter() {
         var trains = WidgetEntry.Trains(
@@ -194,15 +210,16 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(yours.ringInterval, WidgetFixtures.at(7, 58)...WidgetFixtures.at(8, 28))
     }
 
-    /// More than 60 min away the circle shows the clock time; from 60 min, the minutes.
-    func testCircularShowsTheClockTimeUntil60MinutesBefore() {
+    /// An hour or more away the circle shows the clock time; from 59 min, the minutes, so it never reads "60 min" (TT-246,
+    /// D123).
+    func testCircularShowsTheClockTimeUntil59MinutesBefore() {
         let far = LockCircularContent(WidgetFixtures.farTrain())
         XCTAssertEqual(far.value, "7:58")
         XCTAssertNil(far.caption)
         XCTAssertEqual(far.ring, 1)
-        XCTAssertEqual(LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 57))).value, "7:58")
-        let hour = LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 58)))
-        XCTAssertEqual(hour.value, "60")
+        XCTAssertEqual(LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 58))).value, "7:58")
+        let hour = LockCircularContent(WidgetFixtures.farTrain(at: WidgetFixtures.at(6, 59)))
+        XCTAssertEqual(hour.value, "59")
         XCTAssertEqual(hour.caption, "min")
         XCTAssertEqual(hour.ring, 1)
     }

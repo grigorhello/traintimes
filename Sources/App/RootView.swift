@@ -199,6 +199,11 @@ struct RootView: View {
                 liveActivity?.alertsChanged()
                 onBoard.autoRide?.alertsChanged(alerts)
             }
+            // Schedule's time away is kept here, whichever tab is shown, so the Schedule tab coming back after more than
+            // 10 min in the background goes back to Now (TT-222, TT-246). Not during the welcome, which has no Schedule.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background, schedule.route != nil { schedule.wentToBackground() }
+            }
     }
 
     /// The screen on top: the presented sheet, else the selected tab (the welcome or its route form until a route is saved).

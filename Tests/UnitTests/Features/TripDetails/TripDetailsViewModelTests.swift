@@ -186,6 +186,14 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertTrue(model.followsClock)
     }
 
+    /// TT-246 (D123): the next train hours away counts down in hours, as on Schedule. 3:31 AM, the 7:32 in 241 min.
+    func testHeroCountsDownInHours() async throws {
+        let model = try await TripDetailsViewModel.loadedFixture(minutesLater: -230)
+        let hero = try XCTUnwrap(model.departureHero(formatter))
+        XCTAssertEqual(hero.line, "7:32 AM departs in")
+        XCTAssertEqual(hero.number, "4 h 1 min")
+    }
+
     /// Late: the countdown and the time are the expected ones, and the delay is said once.
     func testHeroLateNextTrainSaysTheDelayOnce() async throws {
         let model = try await TripDetailsViewModel.loadedFixture(.delayed)
@@ -446,7 +454,7 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(details.stopCount, "12 stops")
         XCTAssertEqual(details.origin, "West Harbour GO")
         XCTAssertEqual(details.destination, "Union Station GO")
-        XCTAssertEqual(details.tripLength, "64 min ride")
+        XCTAssertEqual(details.tripLength, "1 h 4 min ride", "TT-246, D123")
         XCTAssertEqual(details.stops.map(\.isEnd).filter { $0 }.count, 2)
         XCTAssertEqual(details.alertButton, "Alert me")
     }

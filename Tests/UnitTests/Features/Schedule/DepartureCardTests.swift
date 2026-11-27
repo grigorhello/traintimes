@@ -25,18 +25,21 @@ final class DepartureCardTests: XCTestCase {
         )
     }
 
-    func testTripLengthInMinutesUpTo99ThenHours() {
+    /// TT-246 (D123) revises D81: minutes up to 59, then hours, as every count of minutes reads.
+    func testTripLengthInMinutesUpTo59ThenHours() {
         let start = day.date(hour: 12, minute: 47)
         func length(_ minutes: Int) -> String {
             formatter.tripLength(from: start, to: start.addingTimeInterval(TimeInterval(minutes * 60)))
         }
         XCTAssertEqual(length(40), "40 min ride")
-        XCTAssertEqual(length(72), "72 min ride")
-        XCTAssertEqual(length(99), "99 min ride")
+        XCTAssertEqual(length(59), "59 min ride")
+        XCTAssertEqual(length(60), "1 h ride")
+        XCTAssertEqual(length(72), "1 h 12 min ride")
+        XCTAssertEqual(length(99), "1 h 39 min ride")
         XCTAssertEqual(length(100), "1 h 40 min ride")
         XCTAssertEqual(length(105), "1 h 45 min ride")
         XCTAssertEqual(length(120), "2 h ride")
-        XCTAssertEqual(card(minutes: 72).tripLength, "72 min ride")
+        XCTAssertEqual(card(minutes: 72).tripLength, "1 h 12 min ride")
     }
 
     func testPlatformSlotIsAlwaysThere() {

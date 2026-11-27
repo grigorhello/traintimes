@@ -142,7 +142,7 @@ struct NextTrainWidgetView: View {
             .widgetAccentable()
             .frame(height: 21)
             .padding(.top, 1)
-            // "Last train · 32 min" is the board's widest line: it may run 8 pt into the right margin.
+            // "Last train · 2 h 30 min" is the widest line: it may run 8 pt into the right margin.
             .padding(.trailing, -8)
 
         Spacer(minLength: 0)
@@ -164,7 +164,10 @@ struct NextTrainWidgetView: View {
                 } else {
                     Text("widget.in").fixedSize()
                 }
+                // "Last train · 2 h 30 min" (TT-246, D123: hours from 60 min) is the widest line: the countdown alone may
+                // shrink a little further than the rest of the line rather than end in dots.
                 Text(verbatim: train.countdown)
+                    .minimumScaleFactor(0.7)
                     .contentTransition(.numericText())
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -301,8 +304,9 @@ struct DeparturesWidgetView: View {
                 Link(destination: train.link) {
                     // Proportional digits (the countdown is not a clock time), a point into the margin as on the board,
                     // so "11 min" starts under the departure time.
-                    // A three-digit wait beside two 24-hour times shrinks rather than end in dots. It shrinks for width
-                    // only: the row is 46 pt high and a 44 pt line is taller, so the text keeps its own height.
+                    // A wait in hours ("2 h 43 min", TT-246) beside two 24-hour times shrinks rather than end in dots. It
+                    // shrinks for width only: the row is 46 pt high and a 44 pt line is taller, so the text keeps its own
+                    // height.
                     hero(train)
                         .font(TTFont.widgetHero)
                         .tracking(-1.4)

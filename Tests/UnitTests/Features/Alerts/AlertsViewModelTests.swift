@@ -218,6 +218,13 @@ final class AlertsViewModelTests: XCTestCase {
         XCTAssertEqual(trains.map(\.line), ["Oakville to Union · in 11 min", "Oakville to Union · in 37 min", "Oakville to Union · in 1 h"])
     }
 
+    /// TT-246 (D123): an hour and more reads in hours and minutes, no longer cut to whole hours.
+    func testTheNextTrainsCountdownKeepsTheMinutesPastAnHour() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertEqual(AlertsViewModel.countdown(to: now.addingTimeInterval(80 * 60), now: now), "in 1 h 20 min")
+        XCTAssertEqual(AlertsViewModel.countdown(to: now.addingTimeInterval(59 * 60), now: now), "in 59 min")
+    }
+
     func testWithNoRouteTheEmptyTabHasNoTrains() async {
         let model = await AlertsFixtures.model(AlertFixtures.rules(FakeAlertServer()))
         XCTAssertTrue(model.nextTrainRows(formatter).isEmpty)

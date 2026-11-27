@@ -1,14 +1,19 @@
 import Foundation
 
 /// How long and how often the ride screen was on screen during one ride (TT-224, D106): `ride_ended`'s `watched_seconds`
-/// and `opens`. Seconds count on the real clock, also on the demo ride's faster one.
+/// and `opens`, and `auto_opens`, how many of those opens the app made by itself (TT-256, D130). Seconds count on the real
+/// clock, also on the demo ride's faster one.
 struct RideWatch: Equatable, Sendable {
     private(set) var opens = 0
+    private(set) var autoOpens = 0
     private var total: TimeInterval = 0
     private var since: Date?
 
     /// The ride screen opened.
     mutating func opened() { opens += 1 }
+
+    /// The app opened the ride screen by itself (TT-256, D130; TT-242's automatic start too); `opened()` counts it as well.
+    mutating func openedByItself() { autoOpens += 1 }
 
     /// The ride screen is on screen with the app active from `now`, or stops being so.
     mutating func watching(_ isWatching: Bool, at now: Date) {
@@ -64,6 +69,11 @@ final class RideScreen {
         seen = nil
         engine.watch.opened()
         engine.watch.watching(isActive, at: now)
+    }
+
+    /// The app is about to open the ride screen by itself for `engine`'s ride (TT-256, D130): `ride_ended`'s `auto_opens`.
+    func opensByItself(_ engine: RideEngine?) {
+        engine?.watch.openedByItself()
     }
 
     /// The ride screen went away.

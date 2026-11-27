@@ -8,7 +8,8 @@ struct DepartureCard: Hashable, Identifiable {
     let isNext: Bool
     /// "7:32 AM": the expected departure, else the scheduled one.
     let time: String
-    /// The estimated arrival when the feed gives one, else the scheduled one; always labelled "Arrival" on the card.
+    /// The estimated arrival when the feed gives one, else the scheduled one; always labelled "Arrival" on the card. On the
+    /// train you ride, the ride's own arrival at your stop (TT-256, D130).
     let arrivalTime: String
     /// "40 min": arrival minus departure of the two times the card shows.
     let tripLength: String
@@ -43,6 +44,15 @@ struct DepartureCard: Hashable, Identifiable {
     /// The train stands at the rider's station with its platform posted (TT-233, D114, `BoardingRule`), on Today only: the
     /// platform pill is filled and the status row says "Boarding" (no outline or tint on the card since TT-248, D125).
     let isBoarding: Bool
+    /// The train you ride (TT-256, D130, Card states board 9, option A): a ride runs on this train between Schedule's two
+    /// stations, on Today. The status row says "You’re on board" with the train glyph in the accent, and the card keeps its
+    /// ordinary colour and size where it has left (its place and rail dot stay a departed train's).
+    let isOnBoard: Bool
+    /// The arrival time is amber: the train is late (D50), or on the train you ride, the ride is 1 min or more late.
+    let arrivesLate: Bool
+
+    /// The card is drawn flat, grey and pressed back (D86): it has left and you are not on it.
+    var looksDeparted: Bool { isDeparted && !isOnBoard }
 
     /// What the status row says: "Departed" once the train has left, unless it was cancelled; "Boarding" while it stands at
     /// its platform, a late train too (its times stay amber); else the train's status.
@@ -59,7 +69,8 @@ struct DepartureCard: Hashable, Identifiable {
 
     init(
         _ departure: Departure, isNext: Bool, nextUsableBelow: Bool = false, awaitsPlatform: Bool = false,
-        isDeparted: Bool = false, isBoarding: Bool = false, now: Date, formatter: some TimeFormatting
+        isDeparted: Bool = false, isBoarding: Bool = false, riding: RiddenTrain? = nil, now: Date,
+        formatter: some TimeFormatting
     ) {
         id = departure.id
         self.isDeparted = isDeparted
@@ -67,12 +78,23 @@ struct DepartureCard: Hashable, Identifiable {
         self.awaitsPlatform = awaitsPlatform
         self.isNext = isNext
         time = formatter.time(departure.departureTime)
-        let arrival = departure.expectedArrival ?? departure.trip.scheduledArrival
+        // The ride's arrival only where the caller matched the ride to this train on the ride's two stations.
+        let onBoard = riding != nil && departure.isUsable
+        isOnBoard = onBoard
+        let arrival = (onBoard ? riding?.arrival : departure.expectedArrival) ?? departure.trip.scheduledArrival
         arrivalTime = formatter.time(arrival)
         tripLength = formatter.tripLength(from: departure.departureTime, to: arrival)
         // Ring = Scheduled (D50): stale and offline read Scheduled on the card; the status row says Last reported or Offline.
         let resolved = TripStatus(departure.status, formatter: formatter)
-        status = resolved.isLive ? resolved : .scheduled
+        let shown: TripStatus = resolved.isLive ? resolved : .scheduled
+        status = shown
+        if onBoard {
+            arrivesLate = riding?.isLate ?? false
+        } else if case .delayed = shown {
+            arrivesLate = true
+        } else {
+            arrivesLate = false
+        }
         let value: String
         switch departure.trip.platform {
         case .published(let name):

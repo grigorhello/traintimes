@@ -7,6 +7,7 @@ final class FakeWrongTrainCard: WrongTrainShowing {
     struct Call {
         let wrong: RideActivityAttributes.ContentState.Wrong?
         let ride: Ride
+        let until: Date?
         let alert: WrongTrainAlert?
     }
 
@@ -17,7 +18,7 @@ final class FakeWrongTrainCard: WrongTrainShowing {
     func show(
         _ wrong: RideActivityAttributes.ContentState.Wrong?, for ride: Ride, until: Date?, alert: WrongTrainAlert?
     ) async -> Bool {
-        calls.append(Call(wrong: wrong, ride: ride, alert: alert))
+        calls.append(Call(wrong: wrong, ride: ride, until: until, alert: alert))
         return shows
     }
 
@@ -106,10 +107,10 @@ enum WrongTrainFixtures {
     /// 11:38 AM; 10 min to answer.
     static func warning(
         ride: Ride = OnBoardFixtures.ride, reason: WrongTrainReason = .skipsStop, nextStopTime: Date? = OnBoardFixtures.time(11, 38),
-        expires: Date = OnBoardFixtures.time(11, 30), isDemo: Bool = false
+        expires: Date = OnBoardFixtures.time(11, 30), isDemo: Bool = false, source: WrongTrainSource = .onBoard
     ) -> WrongTrainWarning {
         WrongTrainWarning(
-            ride: ride, reason: reason, evidence: .feed, source: .onBoard, stopName: "Clarkson", originId: ride.originId,
+            ride: ride, reason: reason, evidence: .feed, source: source, stopName: "Clarkson", originId: ride.originId,
             nextStopId: "OA", nextStopName: "Oakville", nextStopTime: nextStopTime, expires: expires, secondsAfter: 42,
             isDemo: isDemo
         )

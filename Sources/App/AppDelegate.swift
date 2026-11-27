@@ -23,12 +23,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     lazy var liveActivity = RideLiveActivity.app(following: ride)
     /// The ride that starts by itself on an alerted train (TT-242, D120); nil in fixture runs. It decides with the phone
     /// locked too, so it lives here rather than in `RootView`.
-    lazy var autoRide = AutoRideWatch.app(ride: ride, location: location, liveActivity: liveActivity, nudge: nudge)
+    lazy var autoRide = AutoRideWatch.app(
+        ride: ride, location: location, liveActivity: liveActivity, nudge: nudge, wrongTrain: wrongTrainCheck
+    )
     /// "When the app is closed" (TT-243, D120): the watch armed from a wake-up or the card's arrival; nil in fixture runs.
     lazy var autoRideWake = AutoRideWake.app(watch: autoRide, ride: ride)
     /// The wrong train warning's presenter (TT-250, D127), made in every run: fixture runs have no card and no notification,
     /// so the warning shows in the app only.
     lazy var wrongTrain = WrongTrain.app(card: liveActivity)
+    /// The wrong train check (TT-251, D127): what raises the warning for real trains, with the phone locked too; nil in
+    /// fixture runs, previews and the unit test host.
+    lazy var wrongTrainCheck = WrongTrainCheck.app(presenter: wrongTrain, ride: ride, location: location)
 
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -48,6 +53,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         nudge.follow(ride)
         wrongTrain.follow(ride)
         autoRide?.follow(ride)
+        // The wrong train check (TT-251, D127) reads the watch's and the ride's fixes, follows the rides the rider starts,
+        // and holds a ride's left-the-line end while it warns or follows another train. A warning with no ride declines
+        // its train for the day once answered or run out.
+        if let check = wrongTrainCheck {
+            let engine = ride
+            check.follow(engine)
+            engine.fixTap = { [weak check] fix in check?.receive(fix) }
+            autoRide?.fixTap = { [weak check] fix in check?.receive(fix) }
+            engine.holdsEnding = { [weak check, weak engine] reason in
+                reason == .leftTheLine && (check?.holdsLeftTheLine(of: engine?.ride) ?? false)
+            }
+        }
+        wrongTrain.decline = { ride in DetectionStore.silence([ride.tripKey], in: .standard) }
         // The server's card for an alerted train arriving with the app in the background arms the watch (TT-243).
         liveActivity?.departureArrived = { [weak self] ride in
             Task { await self?.autoRideWake?.cardArrived(ride) }

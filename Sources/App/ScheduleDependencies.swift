@@ -18,6 +18,8 @@ struct ScheduleDependencies {
     /// The trains leaving the rider's station close to an alerted one (TT-242, D120): the GO feed in the app; none in fixture
     /// runs.
     var rivals: (any RivalTrainsProviding)?
+    /// The wrong train check's timetable and live stops (TT-251, D127): the GO feed in the app; none in fixture runs.
+    var wrongTrainData: (any WrongTrainTimetable & LiveStopsProviding)?
 
     /// The app's schedule. Debug builds keep the fixtures for Xcode previews, the unit test host and UI tests, which set
     /// `TT_FIXTURES` in the launch environment so they never download the feed; `TT_FIXTURES=delayed` picks that fixture
@@ -38,7 +40,7 @@ struct ScheduleDependencies {
         )
         let live = ScheduleDependencies(
             repository: repository, stations: repository, clock: SystemClock(), rides: repository,
-            trains: RelayTrainPositions.shared, widgetData: repository, rivals: repository
+            trains: RelayTrainPositions.shared, widgetData: repository, rivals: repository, wrongTrainData: repository
         )
         return BuildChannel.showsTesting ? live.withTesting() : live
     }
@@ -58,7 +60,8 @@ struct ScheduleDependencies {
             rides: rides,
             trains: trains,
             widgetData: widgetData,
-            rivals: rivals
+            rivals: rivals,
+            wrongTrainData: wrongTrainData
         )
     }
 
@@ -100,7 +103,7 @@ extension AutoRideWatch {
     /// the Live Activity for the hold, and the device clock. None in fixture runs, previews and the unit test host.
     static func app(
         ride: RideEngine, location: any LocationProviding, liveActivity: RideLiveActivity?, nudge: ArrivalNudge,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        wrongTrain: WrongTrainCheck?, environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> AutoRideWatch? {
         let dependencies = ScheduleDependencies.app(environment: environment)
         guard let data = dependencies.widgetData, let trains = dependencies.trains else { return nil }
@@ -120,7 +123,43 @@ extension AutoRideWatch {
             isTesting: {
                 MockTime.stored != nil || DemoTrains.stored == .ride || DemoTrains.stored == .departure
             },
-            isActive: { UIApplication.shared.applicationState == .active }
+            isActive: { UIApplication.shared.applicationState == .active },
+            wrongTrain: wrongTrain
+        )
+    }
+}
+
+extension WrongTrainCheck {
+    /// The app's wrong train check (TT-251, D127): the GO feed as it is (never the Demo or Mock time wrapper) for trips,
+    /// candidates and live stops, GO's train positions with their history, the shared location provider, today's alerted
+    /// trains from the stored rules, and the device clock. None in fixture runs, previews and the unit test host.
+    static func app(
+        presenter: WrongTrain, ride: RideEngine, location: any LocationProviding,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> WrongTrainCheck? {
+        let dependencies = ScheduleDependencies.app(environment: environment)
+        guard let data = dependencies.wrongTrainData, let schedule = dependencies.widgetData else { return nil }
+        let departures = ScheduleDepartureReading(repository: schedule)
+        return WrongTrainCheck(
+            presenter: presenter,
+            location: location,
+            timetable: data,
+            liveStops: data,
+            positions: RelayTrainPositions.shared,
+            clock: SystemClock(),
+            store: WrongTrainStore(defaults: .standard),
+            alertedTrains: { [weak ride] now in
+                await AutoRideWake.alertedTrains(
+                    rules: AlertRules.stored(in: .standard), repository: schedule, departures: departures,
+                    plans: { await ride?.plan(for: $0) }, at: now
+                )
+            },
+            rideRuns: { [weak ride] in ride?.state.map { $0.phase != .ended } ?? false },
+            isDeclined: { DepartureQuestion.isDeclined($0, in: .standard) },
+            autoRideOff: { AutoRideStore(defaults: .standard).isOff },
+            isTesting: {
+                MockTime.stored != nil || DemoTrains.stored == .ride || DemoTrains.stored == .departure
+            }
         )
     }
 }

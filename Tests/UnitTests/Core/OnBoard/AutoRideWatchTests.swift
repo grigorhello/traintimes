@@ -200,6 +200,52 @@ final class AutoRideWatchTests: XCTestCase {
         XCTAssertEqual(checks(recorder).map { $0.properties["outcome"] }, [.string("started")])
     }
 
+    // MARK: The wrong train check (TT-251)
+
+    /// The check warns about the watched train: the watch finishes wrong_train, with no "On board?" and no release of the
+    /// hold (the warning's hand-off ends the server's part), and tells the check, which keeps the location.
+    func testAWrongTrainWarningFinishesTheWatchWithNoQuestion() async throws {
+        let recorder = RecordingAnalytics.install()
+        let check = FakeWrongTrainChecking()
+        let rig = try WatchRig(at: -300, wrongTrain: check)
+        rig.holder.departureRide = rig.ride
+        var tapped = 0
+        rig.watch.fixTap = { _ in tapped += 1 }
+        await rig.arm()
+        XCTAssertEqual(check.armed, [rig.ride])
+        await rig.play(from: -60, to: -50, phone: { _ in (0, true) })
+        XCTAssertEqual(tapped, 11, "Each fix reaches the check")
+        check.warned = true
+        check.keepsLocation = true
+        await rig.play(from: -49, to: -40, phone: { _ in (0, true) })
+
+        XCTAssertNil(rig.watch.watched)
+        XCTAssertEqual(rig.watch.lastCheck?.outcome, .wrongTrain)
+        XCTAssertEqual(check.ended, [.wrongTrain])
+        XCTAssertFalse(rig.holder.reports.contains { $0.asked })
+        XCTAssertFalse(rig.holder.holds.contains(false))
+        XCTAssertTrue(rig.location.isUpdating, "The check keeps the location")
+        XCTAssertEqual(checks(recorder).map { $0.properties["outcome"] }, [.string("wrong_train")])
+    }
+
+    /// While the check follows another train with the phone, "not on board" waits, at most 3 min from that train's first
+    /// moving fix, then goes on as before.
+    func testNotOnBoardWaitsWhileTheCheckFollowsUpToThreeMinutes() async throws {
+        let check = FakeWrongTrainChecking()
+        let rig = try WatchRig(at: -300, wrongTrain: check)
+        rig.holder.departureRide = rig.ride
+        check.following = rig.time(0)
+        await rig.arm()
+        await rig.play(from: -60, to: 175, phone: { _ in (0, true) })
+        XCTAssertNotNil(rig.watch.watched, "Waits while the check follows")
+        XCTAssertFalse(rig.holder.reports.contains { $0.asked })
+        await rig.play(from: 176, to: 300, phone: { _ in (0, true) })
+        await rig.eventually { rig.holder.reports.contains { $0.asked } }
+        XCTAssertNil(rig.watch.watched)
+        XCTAssertEqual(rig.watch.lastCheck?.outcome, .notOnBoard)
+        XCTAssertEqual(check.ended, [.notOnBoard])
+    }
+
     /// With no card on the phone, nothing hands the ride off: the watch reports it.
     func testWithNoCardTheWatchReportsTheHandOff() async throws {
         let rig = try WatchRig(at: -300)

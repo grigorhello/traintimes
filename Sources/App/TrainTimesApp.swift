@@ -13,7 +13,8 @@ struct TrainTimesApp: App {
             RootView(
                 router: appDelegate.router, ride: appDelegate.ride, nudge: appDelegate.nudge,
                 liveActivity: appDelegate.liveActivity, autoRide: appDelegate.autoRide,
-                autoRideWake: appDelegate.autoRideWake, wrongTrain: appDelegate.wrongTrain
+                autoRideWake: appDelegate.autoRideWake, wrongTrain: appDelegate.wrongTrain,
+                wrongTrainCheck: appDelegate.wrongTrainCheck
             )
         }
     }

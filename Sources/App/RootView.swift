@@ -44,6 +44,8 @@ struct RootView: View {
     private let autoRideWake: AutoRideWake?
     /// The wrong train warning's presenter (TT-250, D127, `AppDelegate.wrongTrain`); nil in previews and snapshots.
     private let wrongTrain: WrongTrain?
+    /// The wrong train check (TT-251, D127, `AppDelegate.wrongTrainCheck`); nil in fixture runs, previews and snapshots.
+    private let wrongTrainCheck: WrongTrainCheck?
     /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
     /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
     /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
@@ -73,6 +75,7 @@ struct RootView: View {
         autoRide: AutoRideWatch? = nil,
         autoRideWake: AutoRideWake? = nil,
         wrongTrain: WrongTrain? = nil,
+        wrongTrainCheck: WrongTrainCheck? = nil,
         feedbackNudge: FeedbackNudge = .app(),
         direction: DirectionDependencies = .app()
     ) {
@@ -138,7 +141,8 @@ struct RootView: View {
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
                 autoRideStore: autoRideStore, autoRideWake: autoRideWake, autoRideStrip: strip,
                 direction: location, directionStore: direction.store, look: look,
-                route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck }
+                route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck },
+                wrongTrainCheck: { [weak wrongTrainCheck] in wrongTrainCheck?.lastCheck }
             )
         )
         _welcome = State(
@@ -163,6 +167,7 @@ struct RootView: View {
         self.liveActivity = liveActivity
         self.autoRideWake = autoRideWake
         self.wrongTrain = wrongTrain
+        self.wrongTrainCheck = wrongTrainCheck
         _widgetFile = State(
             initialValue: dependencies.widgetData.flatMap {
                 WidgetFileWriter.app(
@@ -442,9 +447,13 @@ struct RootView: View {
     private func watchesAutoRide(_ content: some View) -> some View {
         content
             .task(id: scenePhase) {
-                guard scenePhase == .active, let watch = onBoard.autoRide else { return }
+                // The wrong train check (TT-251, D127) is offered today's alerted trains beside the watch, outside its
+                // `mayArm`: a train the watch did not arm for (a short ride, or one that left with the rider still at O).
+                let watch = onBoard.autoRide
+                guard scenePhase == .active, watch != nil || wrongTrainCheck != nil else { return }
                 while !Task.isCancelled {
-                    if watch.mayArm { await watch.consider(await autoRideCandidates()) }
+                    if let watch, watch.mayArm { await watch.consider(await autoRideCandidates()) }
+                    await wrongTrainCheck?.consider()
                     try? await Task.sleep(for: .seconds(5))
                 }
             }

@@ -108,6 +108,14 @@ final class FakeLocation: LocationProviding {
         onFix = nil
     }
 
+    /// The wrong train check's restarts on paused fixes (TT-251).
+    private(set) var restarts = 0
+
+    func restartUpdates() {
+        guard isUpdating else { return }
+        restarts += 1
+    }
+
     func send(_ fix: LocationFix) {
         onFix?(fix)
     }

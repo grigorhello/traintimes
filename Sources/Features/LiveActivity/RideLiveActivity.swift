@@ -107,6 +107,11 @@ final class RideLiveActivity: RideActivityFollowing {
     /// The wrong train warning on a ride's card (TT-250, D127, `show(_:for:until:alert:)`): put into the content each pass
     /// makes for that ride, or the next pass would wipe it.
     private var wrongOverlay: (ride: Ride, wrong: RideActivityAttributes.ContentState.Wrong)?
+    /// T's departure card while it carries the warning (TT-251, D127): the departure pass neither updates it nor ends it at
+    /// `LiveDeparture.endsAt`; its stale date is the warning's expiry.
+    private var wrongDeparture: Ride?
+    /// The trains whose warning was handed off to the server (once each: on the server `handedOff` is final).
+    private var wrongHandedOff: Set<Ride> = []
 
     init(
         app: RideEngine?,
@@ -360,7 +365,9 @@ final class RideLiveActivity: RideActivityFollowing {
             let card = Ride(activity.attributes)
             if let stale = activity.content.staleDate, stale <= deviceNow {
                 await Self.end(activity.id, content: nil, dismissal: nil)
-            } else if !Self.keepsDeparture(card, source: source?.ride, hasAlert: reporter?.hasAlert(for: card)) {
+            } else if !Self.keepsDeparture(
+                card, source: source?.ride, hasAlert: reporter?.hasAlert(for: card), warned: wrongDeparture
+            ) {
                 // Its alert is gone (TT-240, D118): nothing would update the card again, so it leaves now. Forgotten here,
                 // so Undo or a new bell tap starts it again when it is the source's train, and tells the server again that
                 // the question is silent (TT-231) if it comes back in the last 75 s.
@@ -388,7 +395,9 @@ final class RideLiveActivity: RideActivityFollowing {
         // strip. The server is told shortly before the departure, ahead of its minute cycle, and then sends the question
         // with no alert, and no notification. A train the feed places is told only once it has left (TT-233).
         // Not while the automatic ride's watch holds this train (TT-242, D120): its outcome says what the server does.
-        if canStart(), Self.tellsSilently(ride, held: heldRide, live: source.live, now: source.now), askedRides.insert(ride).inserted {
+        if canStart(),
+           Self.tellsSilently(ride, held: heldRide, live: source.live, now: source.now, warned: wrongHandedOff.contains(ride)),
+           askedRides.insert(ride).inserted {
             let silent = LiveActivityReport(
                 tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
                 destinationId: ride.destinationId, asked: true
@@ -397,6 +406,8 @@ final class RideLiveActivity: RideActivityFollowing {
             await report(silent)
         }
         let mine = current.filter { $0.attributes.shows(ride) }
+        // The wrong train warning is on this train's card (TT-251, D127): it stays as the warning left it.
+        if wrongDeparture == ride { return }
         if let shown = mine.first {
             departureStarted.insert(ride)
             // The server's start and the app's crossed: one stays, and its token is the one the server updates.
@@ -608,8 +619,9 @@ final class RideLiveActivity: RideActivityFollowing {
     /// (`AlertRules.hasAlert(for:)`). The rules are asked about the card itself, never "there is no source": the source is
     /// also nil while another day is picked, the route is turned or Schedule has not loaded, and none of those may end a
     /// card whose alert is on. `hasAlert` is nil before `RootView` connects the rules (a background launch): nothing ends.
-    static func keepsDeparture(_ card: Ride, source: Ride?, hasAlert: Bool?) -> Bool {
-        card == source || hasAlert != false
+    /// A card carrying the wrong train warning (`warned`, TT-251) stays until the warning leaves it.
+    static func keepsDeparture(_ card: Ride, source: Ride?, hasAlert: Bool?, warned: Ride? = nil) -> Bool {
+        card == source || card == warned || hasAlert != false
     }
 
     /// A departure's activity goes stale, and ends, 10 min after the train's time or at your stop if sooner, on the device
@@ -621,8 +633,9 @@ final class RideLiveActivity: RideActivityFollowing {
 
     /// The server is told to ask silently (TT-231), unless the automatic ride's watch holds this train (TT-242, D120): then
     /// its outcome says what the server does, or a "can’t tell" would never buzz.
-    static func tellsSilently(_ ride: Ride, held: Ride?, live: LiveDeparture, now: Date) -> Bool {
-        held != ride && asksSilently(live, now: now)
+    /// Nor once the wrong train warning was handed off for it (`warned`, TT-251, D127): nothing asks about that train again.
+    static func tellsSilently(_ ride: Ride, held: Ride?, live: LiveDeparture, now: Date, warned: Bool = false) -> Bool {
+        !warned && held != ride && asksSilently(live, now: now)
     }
 
     /// The app in front tells the server to ask "On board?" without an alert (TT-231) when the question is near as far as
@@ -735,8 +748,11 @@ extension RideLiveActivity: AutoRideHolding {}
 
 extension RideLiveActivity: WrongTrainShowing {
     /// Puts the warning on `ride`'s card (nil takes it away) and updates the card at once, alerting with `alert`; every pass
-    /// after it keeps it. False when no showing card is that ride's or Live Activities are off. This part shows on ride
-    /// cards only; `until` (a departure card's stale date while it warns) is TT-251's, and a ride card keeps its own.
+    /// after it keeps it. A ride card keeps its own stale date. On T's departure card (TT-251, D127, no ride) the server
+    /// hears `handedOff` first, as at a ride's start, since its next push would wipe the warning and its "On board?" would
+    /// buzz over it; the card's stale date is then `until`, the warning's expiry, and once the warning leaves the card ends
+    /// (the server never follows a handed-off card again). With no card the hand-off is reported all the same, so no
+    /// "On board?" comes for that train. False when no showing card is that ride's or Live Activities are off.
     func show(
         _ wrong: RideActivityAttributes.ContentState.Wrong?, for ride: Ride, until: Date?, alert: WrongTrainAlert?
     ) async -> Bool {
@@ -745,15 +761,51 @@ extension RideLiveActivity: WrongTrainShowing {
         } else if wrongOverlay?.ride == ride {
             wrongOverlay = nil
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled,
-              let activity = Activity<RideActivityAttributes>.activities.first(where: {
-                  Self.isShowing($0.activityState) && !$0.content.state.isDeparture && $0.attributes.shows(ride)
-              })
-        else { return false }
-        var content = activity.content.state
+        let showing = ActivityAuthorizationInfo().areActivitiesEnabled
+            ? Activity<RideActivityAttributes>.activities.filter { Self.isShowing($0.activityState) && $0.attributes.shows(ride) }
+            : []
+        if let activity = showing.first(where: { !$0.content.state.isDeparture }) {
+            var content = activity.content.state
+            content.wrong = wrong
+            let staleDate = activity.content.staleDate ?? Date().addingTimeInterval(Self.staleAfter)
+            await Self.update(activity.id, content: content, staleDate: staleDate, alert: alert)
+            return true
+        }
+        let departure = showing.first(where: { $0.content.state.isDeparture })
+        guard let wrong else {
+            // The warning left T's departure card: the card ends with it.
+            guard let departure, wrongDeparture == ride || departure.content.state.wrong != nil else {
+                if wrongDeparture == ride { wrongDeparture = nil }
+                return false
+            }
+            wrongDeparture = nil
+            departureStarted.insert(ride)
+            await Self.end(departure.id, content: nil, dismissal: nil)
+            return true
+        }
+        guard let departure else {
+            if wrongHandedOff.insert(ride).inserted {
+                await handOff(LiveActivityReport(
+                    tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
+                    destinationId: ride.destinationId, handedOff: true
+                ))
+            }
+            return false
+        }
+        wrongDeparture = ride
+        departureStarted.insert(ride)
+        var content = departure.content.state
         content.wrong = wrong
-        let staleDate = until ?? activity.content.staleDate ?? Date().addingTimeInterval(Self.staleAfter)
-        await Self.update(activity.id, content: content, staleDate: staleDate, alert: alert)
+        let staleDate = until ?? departure.content.staleDate ?? Date().addingTimeInterval(Self.staleAfter)
+        let id = departure.id
+        let update: @MainActor () async -> Void = { await Self.update(id, content: content, staleDate: staleDate, alert: alert) }
+        if wrongHandedOff.insert(ride).inserted {
+            let report = LiveActivityReport(departure.attributes, handedOff: true)
+            let reached = await Self.handOff(report: { await self.report(report) }, wait: Self.handOffWait, then: update)
+            if !reached { pendingHandOff = report }
+        } else {
+            await update()
+        }
         return true
     }
 }

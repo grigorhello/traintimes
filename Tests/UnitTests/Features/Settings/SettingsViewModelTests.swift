@@ -281,6 +281,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(text(.answered, seconds: 40), "Answered first")
         XCTAssertEqual(text(.stopped), "Stopped")
         XCTAssertEqual(text(.notArmed), "Not armed")
+        XCTAssertEqual(text(.wrongTrain, seconds: 95), "Wrong train warned after 95 s", "TT-251, D127")
 
         // 5:14 PM in Toronto on Thu Nov 5 2026 (EST).
         let hold = Date(timeIntervalSince1970: 1_793_916_840)
@@ -307,6 +308,48 @@ final class SettingsViewModelTests: XCTestCase {
             XCTAssertEqual(text, "Can’t tell after 12 s: \(words)", reason.rawValue)
             XCTAssertFalse(text.contains("settings.last_check"), "\(reason.rawValue) has no string")
         }
+    }
+
+    /// TT-251, D127: Last wrong train check in words: what the check decided, the seconds from the first moving fix (0
+    /// without them), why, and how the rider was tied to the train on a second line.
+    func testLastWrongTrainCheckInWords() {
+        func text(
+            _ outcome: WrongTrainCheckResult.Outcome, _ source: WrongTrainSource = .alert, seconds: Int? = nil,
+            reason: WrongTrainReason? = nil, why: WrongTrainCheckResult.Why? = nil
+        ) -> String {
+            SettingsViewModel.lastWrongText(
+                WrongTrainCheckResult(outcome: outcome, source: source, seconds: seconds, reason: reason, why: why)
+            )
+        }
+
+        XCTAssertEqual(SettingsViewModel.lastWrongText(nil), "None yet")
+        XCTAssertEqual(text(.warned, seconds: 95, reason: .wrongWay), "Warned 95 s after it moved: going the other way\nFrom an alert")
+        XCTAssertEqual(
+            text(.warned, .onBoard, seconds: 140, reason: .skipsStop),
+            "Warned 140 s after it moved: it doesn’t stop at your stop\nFrom I’m on board"
+        )
+        XCTAssertEqual(
+            text(.warned, .departure, seconds: 200, reason: .otherLine),
+            "Warned 200 s after it moved: another line\nFrom the departure question"
+        )
+        XCTAssertEqual(text(.withTrain, seconds: 75), "With your train after 75 s\nFrom an alert")
+        XCTAssertEqual(text(.withTrain), "With your train after 0 s\nFrom an alert", "no seconds read as 0")
+        XCTAssertEqual(text(.noMatch, why: .limit), "No other train: time ran out\nFrom an alert")
+        XCTAssertEqual(text(.noMatch, .onBoard, why: .rideEnded), "No other train: the ride ended\nFrom I’m on board")
+        XCTAssertEqual(text(.noMatch, .onBoard, why: .arrived), "No other train: reached your stop\nFrom I’m on board")
+        XCTAssertEqual(text(.stayed, why: .walkedAway), "Didn’t leave: walked away from the station\nFrom an alert")
+    }
+
+    /// The page reads the wrong train check through the closure RootView passes; none before any.
+    func testLastWrongTrainCheckReadsTheCheck() {
+        XCTAssertEqual(makeModel(showsTesting: true).lastWrongText, "None yet")
+        let result = WrongTrainCheckResult(outcome: .withTrain, source: .departure, seconds: 61, reason: nil, why: nil)
+        let model = SettingsViewModel(
+            settings: AppSettings(defaults: .ephemeral()), permissions: FakeNotificationPermission(.allowed),
+            appInfo: AppInfo(version: "1.0", build: "1"), showsTesting: true, wrongTrainCheck: { result },
+            defaults: .ephemeral()
+        )
+        XCTAssertEqual(model.lastWrongText, "With your train after 61 s\nFrom the departure question")
     }
 
     /// The page reads the check through the closure RootView passes; none before any.

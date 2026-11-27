@@ -140,7 +140,8 @@ struct WrongTrainRule {
     // MARK: State
 
     let ride: Ride
-    let tie: Tie
+    /// The check changes it when a ride starts by a tap on T while it watches the alert.
+    var tie: Tie
     /// The good fixes on T's track (Y1, Y3, the wrong way by the track, "parted").
     private var own: PlacedFixes
     private var raw: [Raw] = []
@@ -214,15 +215,28 @@ struct WrongTrainRule {
     /// When the phone was last seen at O (its stationary fix held), nil if never.
     func seenAtStation(now: Date) -> Date? { own.seenAtStation(now: now) }
 
-    /// Metres from O's point to the phone's latest good fix, and whether that fix lies on a candidate's track or T's
-    /// (150 m or less off it) and moves at train speed: the check's walk away.
-    func lastFix() -> (fromOrigin: Double, onTrack: Bool, at: Date, isStationary: Bool)? {
+    /// The phone's latest good fix as the check reads it: metres from O's point, whether it lies 150 m or less off T's track
+    /// or a candidate's, its straight-line speed over the last `AutoRideRule.speedSpan` (nil with no earlier fix in it),
+    /// whether it was stationary, and whether the phone was ever seen at O.
+    struct LastFix: Equatable {
+        let at: Date
+        let fromOrigin: Double
+        let onTrack: Bool
+        let speed: Double?
+        let isStationary: Bool
+        let wasAtStation: Bool
+    }
+
+    func lastFix() -> LastFix? {
         guard let last = own.marks.last else { return nil }
-        let index = own.marks.count - 1
-        let atTrainSpeed = own.speed(at: index).map { abs($0) >= AutoRideRule.leaveSpeed } ?? false
         let onTrack = last.off <= AutoRideRule.leaveOff
             || candidates.contains { $0.shape.project(last.point).off <= AutoRideRule.leaveOff }
-        return (last.fromOrigin, onTrack && atTrainSpeed, last.at, last.isStationary)
+        let earliest = raw.first { last.at.timeIntervalSince($0.at) <= AutoRideRule.speedSpan && $0.at < last.at }
+        let speed = earliest.map { TrackShape.distance($0.point, last.point) / last.at.timeIntervalSince($0.at) }
+        return LastFix(
+            at: last.at, fromOrigin: last.fromOrigin, onTrack: onTrack, speed: speed, isStationary: last.isStationary,
+            wasAtStation: own.atStation != nil
+        )
     }
 
     // MARK: The verdict

@@ -456,10 +456,14 @@ struct DepartureCardView: View {
                 timeRow
                     .departedLook(look.look)
                 // Union's pair ("12/13") on the next train leaves no room for the "Platform" word beside the trip length:
-                // then the pill stands alone (TT-245, D122).
+                // then the pill stands alone (TT-245, D122). A long wait ("in 5 h 23 min") beside a long ride ("1 h 45 min
+                // ride") can leave no room even then: the ride's length gives way next, since the other cards and Trip
+                // details show it (TT-246, D123).
                 ViewThatFits(in: .horizontal) {
                     detailRow(showsLabel: true)
                     detailRow(showsLabel: false)
+                    detailRow(showsLabel: true, showsLength: false)
+                    detailRow(showsLabel: false, showsLength: false)
                 }
                 .frame(height: Self.detailRowHeight)
                 .departedLook(look.look)
@@ -570,17 +574,19 @@ struct DepartureCardView: View {
         }
     }
 
-    /// The detail and the trip length at the right.
-    private func detailRow(showsLabel: Bool) -> some View {
+    /// The detail and the trip length at the right; `showsLength` false leaves the length out (TT-246, D123).
+    private func detailRow(showsLabel: Bool, showsLength: Bool = true) -> some View {
         HStack(spacing: TTSpace.s2) {
             detail(showsLabel: showsLabel)
             Spacer(minLength: 0)
-            Text(card.tripLength)
-                .font(TTFont.footnote)
-                .monospacedDigit()
-                .foregroundStyle(TTColor.inkSecondary)
-                .lineLimit(1)
-                .fixedSize()
+            if showsLength {
+                Text(card.tripLength)
+                    .font(TTFont.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(TTColor.inkSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
         }
     }
 

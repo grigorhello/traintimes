@@ -59,7 +59,15 @@ struct LockRectangularView<Plate: View>: View {
             VStack(alignment: .leading, spacing: 0) {
                 header(train.header)
                 time(train.time, isExpress: train.isExpress)
-                note(train.note, hasBell: train.thenIsAlerted)
+                // The whole note, or the countdown alone when the note is too wide even at its smallest: "in 1 h 56 min ·
+                // earlier 15:13" on the 24-hour clock was drawn at 75 % on the iPhone 17 Pro's 148 pt and still cut
+                // mid-time (TT-246, D123). The bell goes with the train it marks. `ViewThatFits` compares a line's full
+                // size with the plate, but most notes fit only once they shrink ("in 41 min · earlier 7:58" at 94 %,
+                // "in 11 min · then 16:58" and the bell at 83 %), so the whole note's text counts at its smallest.
+                ViewThatFits(in: .horizontal) {
+                    note(train.note, hasBell: train.thenIsAlerted, shrinks: true)
+                    note(train.lead, hasBell: false)
+                }
             }
         case .noTrains(let quiet):
             VStack(alignment: .leading, spacing: 0) {
@@ -153,12 +161,15 @@ struct LockRectangularView<Plate: View>: View {
         .frame(height: 26)
     }
 
-    /// "in 5 min · then 8:28" and the bell of an alerted train.
-    private func note(_ text: WidgetText, hasBell: Bool) -> some View {
+    /// "in 5 min · then 8:28" and the bell of an alerted train. `shrinks` measures the text at its smallest for
+    /// `ViewThatFits` (the bell and the space before it do not shrink); it is drawn as before.
+    private func note(_ text: WidgetText, hasBell: Bool, shrinks: Bool = false) -> some View {
         HStack(spacing: 3) {
-            Text(lockLine(text))
-                .tracking(-0.1)
-                .contentTransition(.numericText())
+            if shrinks {
+                ShrinksToFit { noteText(text) }
+            } else {
+                noteText(text)
+            }
             if hasBell {
                 Image(systemName: LockWidgetGlyph.bell.symbol)
                     .font(LockWidgetSymbol.mark)
@@ -168,6 +179,12 @@ struct LockRectangularView<Plate: View>: View {
         .lineLimit(1)
         .minimumScaleFactor(0.75)
         .frame(height: 16)
+    }
+
+    private func noteText(_ text: WidgetText) -> some View {
+        Text(lockLine(text))
+            .tracking(-0.1)
+            .contentTransition(.numericText())
     }
 
     /// "No trains" at the time's size and "tonight" at AM's, one text so a narrow widget shrinks them together.
@@ -181,6 +198,25 @@ struct LockRectangularView<Plate: View>: View {
         var result = title + tail
         result.foregroundColor = Color.primary
         return result
+    }
+}
+
+/// Gives `ViewThatFits` a text's width at its smallest, so a line that fits once it shrinks (`minimumScaleFactor`) is
+/// taken, and draws it as given. The note's text shrinks to 75 %, but SF spaces a shrunk line a little wider: "in 1 h
+/// 56 min · earlier 15:13" at its smallest took 77.3 % of its full width (TT-246, D123), so it counts at 78 %.
+private struct ShrinksToFit: Layout {
+    var scale: CGFloat = 0.78
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        var size = content.sizeThatFits(proposal)
+        if proposal.width == nil { size.width *= scale }
+        return size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let given = ProposedViewSize(width: proposal.width ?? bounds.width, height: proposal.height ?? bounds.height)
+        subviews.first?.place(at: bounds.origin, proposal: given)
     }
 }
 

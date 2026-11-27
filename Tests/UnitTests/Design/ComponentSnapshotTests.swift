@@ -29,6 +29,7 @@ final class TripStatusTests: XCTestCase {
     func testCopyComesFromLocalizableStrings() {
         XCTAssertEqual(TripStatus.onTime.text, "On time")
         XCTAssertEqual(TripStatus.delayed(minutes: 9).text, "Delayed 9 min")
+        XCTAssertEqual(TripStatus.delayed(minutes: 80).text, "Delayed 1 h 20 min", "TT-246, D123")
         XCTAssertEqual(TripStatus.stopSkipped.text, "Stop skipped")
         XCTAssertEqual(TripStatus.lastReported(time: "7:29 AM").text, "Last reported 7:29 AM")
         XCTAssertEqual(TripStatus.offline.text, "Offline")

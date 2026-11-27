@@ -263,7 +263,7 @@ struct ScheduleTimeline: View {
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DeparturePlaying(cue: departure, involved: departure.moves(card.id)) { elapsed, reduceMotion in
+                DeparturePlaying(cue: departure, involved: departure.moves(card.id)) { elapsed, _, reduceMotion in
                     let rail = railPose(card, at: elapsed, reduceMotion: reduceMotion)
                     // The glint leaves the departing train at the tick and starts on the next one a moment later (D86).
                     let holdsGlint = elapsed.map { departure.next == card.id && $0 < DeparturePlay.glintDelay } ?? false
@@ -295,7 +295,7 @@ struct ScheduleTimeline: View {
                         .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: false)
                         .centred(x: Self.railX, y: scheduledY)
                 }
-                DeparturePlaying(cue: departure, involved: departure.departing.contains(card.id)) { elapsed, reduceMotion in
+                DeparturePlaying(cue: departure, involved: departure.departing.contains(card.id)) { elapsed, _, reduceMotion in
                     let rail = railPose(card, at: elapsed, reduceMotion: reduceMotion)
                     marker(for: card, fill: rail.fill)
                         .offset(y: rail.offsetY)

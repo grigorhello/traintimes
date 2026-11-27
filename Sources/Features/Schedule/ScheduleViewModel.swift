@@ -929,11 +929,12 @@ final class ScheduleViewModel {
             daySelection += 1
         }
         guard hasLoaded else { return }
-        let shown = (day: selectedDay, route: self.route)
+        let shown = (day: selectedDay, route: self.route, scroll: scrollRequest)
         let newTrains = routeChanges || dayChanges
         if newTrains { await loadNewTrains() }
-        // A newer day or route was picked while this one loaded.
-        guard selectedDay == shown.day, self.route == shown.route else { return }
+        // A newer day or route was picked while this one loaded, or the rider went back to Now (the tab tapped again): theirs
+        // wins, with no landing scroll and no swell.
+        guard selectedDay == shown.day, self.route == shown.route, scrollRequest == shown.scroll else { return }
         let focus = focus(for: target)
         requestScroll(jumping: newTrains, focus: focus)
         guard case .card(let key) = target, focus == key else { return }

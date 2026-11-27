@@ -225,6 +225,22 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result.scrollOffset(showing: card.id)), card.top - TTTimeline.minCardGap, accuracy: 0.001)
     }
 
+    /// A train 50 min late behind an hourly one: its delay bar, never folded, would leave the card under the tab bar, so the
+    /// timeline goes on until the whole card shows, its top still in view.
+    func testLandingBehindALongDelayStillShowsTheWholeCard() throws {
+        let late = train("b", 22, 0, status: .delayed(minutes: 50, reportedAt: at(20, 45)), expected: at(22, 50))
+        let result = layout([train("a", 21, 0), late, train("c", 23, 0)], now: at(20, 50))
+        let cards = result.cards
+        let card = try XCTUnwrap(cards.first { $0.id == late.id })
+        let gap = TTTimeline.minCardGap
+        let before = max(cards[0].top - gap, result.initialScrollOffset)
+        XCTAssertGreaterThan(card.bottom - before, TimelineLayout.landingWindow, "The train before it alone would push it out of view")
+
+        let offset = try XCTUnwrap(result.scrollOffset(showing: card.id))
+        XCTAssertLessThanOrEqual(card.bottom - offset, TimelineLayout.landingWindow - gap + 0.001, "The whole card shows")
+        XCTAssertGreaterThanOrEqual(card.top - offset, gap - 0.001, "Its top too")
+    }
+
     // MARK: Departed (TT-203, D86)
 
     /// Trains that have left sit 88 pt above their place, the last one just above the Now line at its minute, tied to the

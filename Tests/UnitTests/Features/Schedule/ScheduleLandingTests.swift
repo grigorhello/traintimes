@@ -21,6 +21,14 @@ final class ScheduleLandingTests: XCTestCase {
 
     private func key(_ id: String, on day: ServiceDay) -> TripKey { TripKey(serviceDay: day, tripId: id) }
 
+    private func eventually(_ condition: () async -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<500 {
+            if await condition() { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out", file: file, line: line)
+    }
+
     // MARK: See trains
 
     /// Today's card on the route and day already shown: no new trains, a glide to the card, then its swell.
@@ -120,6 +128,26 @@ final class ScheduleLandingTests: XCTestCase {
         XCTAssertNil(model.scrollFocus)
         XCTAssertEqual(model.scrollOffset, model.layout.initialScrollOffset, accuracy: 0.001)
         XCTAssertEqual(model.landingRequest, 1, "Nothing swells again")
+    }
+
+    /// The Schedule tab tapped again while the landing's trains load: back to Now wins, with no landing scroll and no swell.
+    func testBackToNowDuringTheLoadWins() async throws {
+        let timetable = try await TurnFixtures.timetable()
+        let repository = timetable.repository()
+        let model = ScheduleViewModel(route: timetable.route, repository: repository, clock: FixedClock(now: timetable.now))
+        await model.loadIfNeeded()
+        await repository.holdTrips(from: timetable.reversed.from.id)
+
+        let landing = Task { await model.land(.card(timetable.reverseTrips[1].key), on: timetable.reversed, day: model.today) }
+        await eventually { await repository.tripsWaiting == 1 }
+        await model.backToNow()
+        await repository.releaseTrips()
+        await landing.value
+
+        XCTAssertEqual(model.route, timetable.reversed, "The route still turned")
+        XCTAssertNil(model.scrollFocus)
+        XCTAssertEqual(model.scrollOffset, model.layout.initialScrollOffset, accuracy: 0.001, "Now near the top")
+        XCTAssertEqual(model.landingRequest, 0)
     }
 
     // MARK: Pick a new train

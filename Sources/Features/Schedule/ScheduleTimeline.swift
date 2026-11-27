@@ -380,6 +380,8 @@ struct DepartureCardView: View {
     var bellID: String?
     /// Interest taps on the time, status and platform (TT-209): Schedule's card only.
     var tracksInterest = true
+    /// The bell stays on a cancelled train's card: the Alerts tab's bell is the alert's only switch (TT-253, D129).
+    var keepsBell = false
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
@@ -438,7 +440,7 @@ struct DepartureCardView: View {
             .onChange(of: card.shownStatus, initial: true) { _, shown in noteStatus(shown) }
             // The bell sits over the time row, outside the card's one element, so it is a separate button.
             .overlay(alignment: .topTrailing) {
-                if !card.isCancelled {
+                if !card.isCancelled || keepsBell {
                     bellButton
                         .departedLook(look.look)
                         .padding(.top, Self.bellTop)
@@ -562,7 +564,7 @@ struct DepartureCardView: View {
                 ExpressBolt(isExpress: card.isExpress)
                     .padding(.leading, timeWidth * (look.timeScale - 1))
             }
-            Spacer(minLength: card.isCancelled ? 0 : Self.bellRoom)
+            Spacer(minLength: card.isCancelled && !keepsBell ? 0 : Self.bellRoom)
         }
         .frame(height: Self.timeRowHeight)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {

@@ -139,15 +139,19 @@ struct AlertsView: View {
                     footerAccessory: AnyView(seeTrains(item)),
                     cardID: "alerts.card.\(trip.key.tripId)",
                     bellID: "alerts.bell.\(trip.key.tripId)",
-                    tracksInterest: false
+                    tracksInterest: false,
+                    keepsBell: true
                 )
                 // The card moving on to its next train: rows 1 to 3 cross-fade; the days row stays as it is.
                 .animation(reduceMotion ? TTMotion.fade : TTMotion.cross, value: card.id)
             case .pending, .noTrain, .changed:
+                // The permission rule is asked about the alert's own train while there is none read (`mayAlert`).
+                let trip = viewModel.rule(item.id).map { AlertsViewModel.departure(of: $0).trip }
+                let asks = trip != nil && bells?.asking == trip?.key
                 AlertPlainCard(
                     item: item,
-                    bell: item.bell,
-                    shakes: 0,
+                    bell: asks ? item.bell.map { _ in BellFace.asking } : item.bell,
+                    shakes: trip.flatMap { bells?.shakes(for: $0) } ?? 0,
                     onBell: { viewModel.tapBell(item.id) },
                     accessory: item.bell == nil ? AnyView(pickNewTrain(item)) : AnyView(seeTrains(item))
                 )

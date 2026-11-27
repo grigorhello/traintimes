@@ -165,8 +165,10 @@ final class AlertsViewModelTests: XCTestCase {
     }
 
     func testCardsDrawnFromTheAlertAlone() async {
+        // Its own usual train: a second alert for the 7:32 AM would be saved over "morning" (`AlertRules.save`).
         let sunday = AlertRule(
-            id: "sunday", kind: .repeating, trip: AlertFixtures.trip(), route: AlertsFixtures.oakvilleToUnion, weekdays: [7]
+            id: "sunday", kind: .repeating, trip: AlertsFixtures.train("LW-0850", "08:50"), route: AlertsFixtures.oakvilleToUnion,
+            weekdays: [7]
         )
         let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, sunday])
 
@@ -211,6 +213,11 @@ final class AlertsViewModelTests: XCTestCase {
 
         let online = await AlertsFixtures.model(rules)
         XCTAssertNil(online.offlineLine(formatter))
+
+        let never = await AlertsFixtures.model(
+            rules, repository: AlertsFixtures.trains(live: ["OA>UN": LiveSnapshot(updatedAt: nil, isOffline: true)])
+        )
+        XCTAssertEqual(never.offlineLine(formatter), "Offline · showing saved schedule", "offline since launch")
     }
 
     // MARK: The bell
@@ -413,6 +420,18 @@ final class AlertsViewModelTests: XCTestCase {
         paused.paused = true
         let off = await AlertsFixtures.model(await AlertsFixtures.rules(FakeAlertServer(), on: [paused]), repository: late)
         XCTAssertFalse(off.hasChangedTrain, "an alert switched off says nothing")
+    }
+
+    func testTheDotGoesOnceTheLateTrainHasLeftBeforeTheNextRead() async {
+        let at735 = AlertsFixtures.now.addingTimeInterval(14 * 60)
+        let clock = TestClock(now: at735)
+        let live = AlertsFixtures.live(delays: ["LW-0732": 9], at: at735)
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning])
+        let model = await AlertsFixtures.model(rules, repository: AlertsFixtures.trains(live: ["OA>UN": live]), clock: clock)
+        XCTAssertTrue(model.hasChangedTrain)
+
+        clock.advance(minutes: 7)
+        XCTAssertFalse(model.hasChangedTrain, "7:42 AM: the 7:41 has left")
     }
 
     func testTheRedDotWinsOverTheAccentDotAndHidesOnAlerts() async {

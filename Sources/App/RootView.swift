@@ -283,6 +283,16 @@ struct RootView: View {
             await refreshAlerts()
             await bells.cameBack()
         }
+        // While another tab shows, the Alerts cards' trains are read again each minute, so the tab's dot follows a train
+        // that turns late, is cancelled or leaves (TT-253, D129); the open tab polls by itself every 30 s.
+        .task(id: scenePhase == .active && router.selectedTab != .alerts) {
+            guard scenePhase == .active, router.selectedTab != .alerts else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: AlertsViewModel.backgroundPollInterval)
+                guard !Task.isCancelled else { return }
+                await alertsModel.load()
+            }
+        }
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).
         .task {

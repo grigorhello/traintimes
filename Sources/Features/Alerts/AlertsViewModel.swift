@@ -115,6 +115,8 @@ final class AlertsViewModel {
 
     /// Schedule's 30 s live poll.
     static let pollInterval: Duration = .seconds(30)
+    /// While another tab shows: enough for the tab's dot.
+    static let backgroundPollInterval: Duration = .seconds(60)
     /// Every card counts the minutes from 60 min before its train leaves.
     static let countdownLead: TimeInterval = 60 * 60
     /// A one-day alert further away than this names its date ("Fri 6"), not its weekday.
@@ -242,6 +244,7 @@ final class AlertsViewModel {
         for rule in listedRules {
             guard case .train(let run)? = runs[rule.id], run.isToday, case .offline(let updated) = run.freshness else { continue }
             return updated.map { String(format: String(localized: "freshness.offline"), formatter.time($0)) }
+                ?? String(localized: "schedule.offline")
         }
         return nil
     }
@@ -507,7 +510,9 @@ final class AlertsViewModel {
     /// A switched-on alert's train today is late or cancelled, as its card says.
     var hasChangedTrain: Bool {
         listedRules.contains { rule in
-            guard !rule.paused, case .train(let run)? = runs[rule.id], run.isToday else { return false }
+            guard !rule.paused, case .train(let run)? = runs[rule.id], run.isToday, !run.departure.hasLeft(at: clock.now) else {
+                return false
+            }
             return switch run.departure.status {
             case .delayed, .cancelled, .stopSkipped: true
             default: false
@@ -530,7 +535,7 @@ final class AlertsViewModel {
             guard let key = rule.trip, key.serviceDay >= today else { return false }
             switch runs[rule.id] {
             case .left?: return false
-            case .train?: return true
+            case .train(let run)?: return !run.departure.hasLeft(at: now)
             case .noTrain?, .failed?, nil: return !Self.departure(of: rule).hasLeft(at: now)
             }
         }

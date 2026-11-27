@@ -5,7 +5,9 @@ import XCTest
 /// and the strip goes (TT-221). TT-177: Demo trains › Departure counts down to the same train; the Live Activity's link opens
 /// its hero card (TT-205: Schedule has no countdown strip), and "I’m on board" turns it into the ride. TT-242 (D120): with
 /// Demo trains › Depart › Automatic ride, the ride starts by itself when the demo phone leaves Union with the train, and not
-/// when it stays. TT-243 (D120): Not on it ends that ride, and the one-time strip's OK and Turn off.
+/// when it stays. TT-243 (D120): Not on it ends that ride, and the one-time strip's OK and Turn off. TT-250 (D127): with
+/// Demo trains › Ride › Wrong train, the wrong train warning comes about 10 s into the ride; "I’m fine" takes it away and
+/// "Trains from Oakville" ends the ride and shows the way back.
 final class OnBoardTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -202,6 +204,67 @@ final class OnBoardTests: XCTestCase {
     private func waitForValue(_ element: XCUIElement, _ value: String) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: element)
         return XCTWaiter.wait(for: [expectation], timeout: 15) == .completed
+    }
+
+    /// TT-250 (D127): the warning takes the ride strip's place on Schedule; "I’m fine" takes it away and the ride goes on.
+    @MainActor
+    func testWrongTrainWarningComesAndImFineTakesItAway() {
+        let app = launchWrongTrain()
+        let warning = app.descendants(matching: .any).matching(identifier: "schedule.wrongTrain").firstMatch
+        XCTAssertTrue(warning.waitForExistence(timeout: 30), "the warning comes about 10 s into the demo ride")
+        let fine = app.buttons["schedule.wrongTrain.fine"]
+        XCTAssertTrue(fine.exists)
+        XCTAssertTrue(app.buttons["schedule.wrongTrain.trains"].label.hasPrefix("Trains from Oakville"))
+        fine.tap()
+        XCTAssertTrue(warning.waitForNonExistence(timeout: 15), "I’m fine takes it away")
+        let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
+        XCTAssertTrue(strip.waitForExistence(timeout: 15), "and the ride goes on")
+    }
+
+    /// TT-250 (D127): on the ride screen the warning stands in the hero's place; "Trains from Oakville" ends the ride, closes
+    /// the sheet and turns Schedule to the way back. The fixture route is Oakville to Union, so the route is swapped first;
+    /// on fixtures only Oakville to Union has trains, so the way back lands on the fall-back, from Oakville either way.
+    @MainActor
+    func testTrainsFromOakvilleEndsTheRideAndShowsTheWayBack() {
+        let app = launchWrongTrain()
+        let from = app.buttons["schedule.from"]
+        app.buttons["schedule.swap"].tap()
+        expect(from, beginsWith: "Union")
+
+        // A tap on the warning's strip, away from its buttons, opens the ride's sheet.
+        let warning = app.descendants(matching: .any).matching(identifier: "schedule.wrongTrain").firstMatch
+        XCTAssertTrue(warning.waitForExistence(timeout: 30), "the warning comes about 10 s into the demo ride")
+        warning.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.12)).tap()
+        let card = app.descendants(matching: .any).matching(identifier: "trip.wrongTrain").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 30), "the ride screen shows the warning")
+        let trains = app.buttons["trip.wrongTrain.trains"]
+        XCTAssertTrue(trains.label.hasPrefix("Trains from Oakville"), trains.label)
+        trains.tap()
+
+        XCTAssertTrue(card.waitForNonExistence(timeout: 15), "the sheet closes")
+        let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
+        XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "the ride ended")
+        XCTAssertFalse(warning.exists)
+        expect(from, beginsWith: "Oakville")
+    }
+
+    /// Demo trains › Ride with Wrong train on, on Schedule.
+    @MainActor
+    private func launchWrongTrain() -> XCUIApplication {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute
+            + ["-settings.demoTrains", "ride", "-settings.demoWrongTrain", "on"]
+        app.launch()
+        XCTAssertTrue(app.buttons["schedule.from"].waitForExistence(timeout: 15))
+        return app
+    }
+
+    /// Waits up to 15 s for the element's value to begin with `prefix` (slow runners, CLAUDE.md).
+    @MainActor
+    private func expect(_ element: XCUIElement, beginsWith prefix: String, line: UInt = #line) {
+        let predicate = NSPredicate(format: "value BEGINSWITH %@", prefix)
+        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: 15)
+        XCTAssertEqual(result, .completed, "line \(line): \(String(describing: element.value)) does not begin with \(prefix)", line: line)
     }
 
     /// The demo departure with Automatic ride on Boards, nothing held back by an earlier run, on Schedule.

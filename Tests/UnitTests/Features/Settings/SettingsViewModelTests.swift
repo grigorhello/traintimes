@@ -139,6 +139,33 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.testingValue, "Off")
     }
 
+    /// TT-250, D127: Ride › Wrong train shows with Ride only, is named on the row under Ride only, is stored in the "on"
+    /// form `-settings.demoWrongTrain on` writes, and Reset turns it off.
+    func testWrongTrainShowsUnderRideAndResetTurnsItOff() {
+        let defaults = UserDefaults.ephemeral()
+        let settings = AppSettings(defaults: defaults)
+        let model = makeModel(settings: settings, showsTesting: true)
+        XCTAssertFalse(model.showsDemoWrongTrain)
+        model.demoTrains = .ride
+        XCTAssertTrue(model.showsDemoWrongTrain)
+        XCTAssertEqual(model.testingValue, "Ride")
+
+        model.demoWrongTrain = true
+        XCTAssertEqual(defaults.string(forKey: AppSettings.demoWrongTrainKey), "on")
+        XCTAssertTrue(AppSettings(defaults: defaults).demoWrongTrain, "Read back, as a launch argument sets it")
+        XCTAssertEqual(model.testingValue, "Ride · Wrong train")
+
+        model.demoTrains = .departure
+        XCTAssertFalse(model.showsDemoWrongTrain)
+        XCTAssertEqual(model.testingValue, "Depart", "Its stored choice plays nothing under another mode")
+
+        model.demoTrains = .ride
+        model.resetTesting()
+        XCTAssertFalse(settings.demoWrongTrain)
+        XCTAssertNil(defaults.object(forKey: AppSettings.demoWrongTrainKey))
+        XCTAssertEqual(model.testingValue, "Off")
+    }
+
     /// TT-195: Live data and the Demo trains modes that make their own live status are one at a time; the row names it and
     /// Reset turns it off. Ride and Departure keep Live data on.
     func testLiveDataAndDemoTrainsAreOneAtATime() {

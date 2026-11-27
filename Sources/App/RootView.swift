@@ -42,6 +42,8 @@ struct RootView: View {
     private let liveActivity: RideLiveActivity?
     /// When the app is closed (TT-243, D120): its wake-ups start again when the app comes to the front; nil in fixture runs.
     private let autoRideWake: AutoRideWake?
+    /// The wrong train warning's presenter (TT-250, D127, `AppDelegate.wrongTrain`); nil in previews and snapshots.
+    private let wrongTrain: WrongTrain?
     /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
     /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
     /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
@@ -70,6 +72,7 @@ struct RootView: View {
         liveActivity: RideLiveActivity? = nil,
         autoRide: AutoRideWatch? = nil,
         autoRideWake: AutoRideWake? = nil,
+        wrongTrain: WrongTrain? = nil,
         feedbackNudge: FeedbackNudge = .app(),
         direction: DirectionDependencies = .app()
     ) {
@@ -115,7 +118,8 @@ struct RootView: View {
             wishes: ArrivalWishes(defaults: .standard, haptics: TTHaptics.shared),
             declines: ScheduleDependencies.isFixtureRun(environment) ? nil : .standard,
             autoRide: autoRide,
-            autoRideStore: autoRideStore
+            autoRideStore: autoRideStore,
+            wrongTrain: wrongTrain
         )
         // The strip shows while Automatic ride reads on, as the Settings switch does.
         let strip = AutoRideStrip(store: autoRideStore) { [weak settings] in
@@ -158,6 +162,7 @@ struct RootView: View {
         _feedbackNudge = State(initialValue: feedbackNudge)
         self.liveActivity = liveActivity
         self.autoRideWake = autoRideWake
+        self.wrongTrain = wrongTrain
         _widgetFile = State(
             initialValue: dependencies.widgetData.flatMap {
                 WidgetFileWriter.app(
@@ -261,9 +266,10 @@ struct RootView: View {
         // Demo trains › Ride (TT-172) and › Departure (TT-177), while chosen, in TestFlight and Debug builds only: the demo
         // ride plays at once (TT-243: its question went with train detection); the demo departure plays from 5:01 PM.
         // Leaving Departure also stops the ride it handed over to.
-        .task(id: demoTrains) {
+        // Settings › Testing › Wrong train (TT-250): turned on or off while Ride is chosen, the demo ride starts again.
+        .task(id: DemoPlay(trains: demoTrains, wrongTrain: demoWrongTrain)) {
             onBoard.setDemoDeparture(demoTrains == .departure)
-            await onBoard.setDemo(demoTrains == .ride)
+            await onBoard.setDemo(demoTrains == .ride, wrongTrain: demoWrongTrain)
         }
         // Mock time (TT-158): the timeline starts again at the new present, as a relaunch would.
         .onChange(of: settings.mockTime) { Task { await schedule.restart() } }
@@ -291,6 +297,8 @@ struct RootView: View {
             // runs again for every RootView init SwiftUI makes and would point it at an OnBoard that was thrown away.
             let kept = onBoard
             liveActivity?.demoNotOnIt = { [weak kept] ride in kept?.demoCardNotOnIt(ride) }
+            // The wrong train warning's "Trains from …" and its expiry end the ride here (TT-250, D127), the demo's too.
+            wrongTrain?.endRide = { [weak kept] ride in kept?.endWrongTrain(ride) ?? false }
             liveActivity?.connect(reporter: alerts, wishes: onBoard) { departureForActivity() }
         }
         // The ride's Live Activity (TT-174): a tap opens Trip details on the ride, the expanded island's button ends it.
@@ -309,6 +317,9 @@ struct RootView: View {
                     try? await Task.sleep(for: .seconds(15))
                     opensRide = false
                 }
+            case .wrong:
+                // The wrong train warning's card (TT-250, D127): the app opens on the warning.
+                openWrongTrain()
             case .end:
                 // Like End ride on the sheet: the ride ends, and its Trip details closes if it is open.
                 let ride = onBoard.activeRide
@@ -332,6 +343,13 @@ struct RootView: View {
             guard opensRide, onBoard.activeRide != nil else { return }
             Task { await openRideFromActivity() }
         }
+        // The wrong train warning (TT-250, D127): "Trains from …", also from the notification's action on a cold start, and
+        // a tap on its notification.
+        .onChange(of: wrongTrain?.routeRequest, initial: true) { _, request in
+            guard let request else { return }
+            Task { await showWrongTrainRoute(request) }
+        }
+        .onChange(of: wrongTrain?.openRequest ?? 0) { openWrongTrain() }
         // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
         .onChange(of: router.selectedTab) { old, tab in
             if old == .alerts {
@@ -597,6 +615,47 @@ struct RootView: View {
     /// Demo trains, in a build that shows Settings › Testing (an App Store build ignores a stored value).
     private var demoTrains: DemoTrains {
         BuildChannel.showsTesting ? settings.demoTrains : .off
+    }
+
+    /// Settings › Testing › Demo trains › Ride › Wrong train (TT-250), in a build that shows Settings › Testing.
+    private var demoWrongTrain: Bool {
+        BuildChannel.showsTesting && settings.demoWrongTrain
+    }
+
+    /// What the demo plays: its task starts again when either changes.
+    private struct DemoPlay: Equatable {
+        let trains: DemoTrains
+        let wrongTrain: Bool
+    }
+
+    /// The wrong train warning's card or notification was tapped (TT-250, D127): ride mode while a ride runs, where the
+    /// warning stands in the hero's place; else Schedule with nothing over it, where the strip shows it.
+    private func openWrongTrain() {
+        guard onBoard.activeRide != nil else {
+            router.dismissSheet()
+            router.showSchedule()
+            return
+        }
+        opensRide = true
+        Task {
+            await openRideFromActivity()
+            try? await Task.sleep(for: .seconds(15))
+            opensRide = false
+        }
+    }
+
+    /// "Trains from …" (TT-250, D127): as a widget's route link does, nothing over Schedule, the route from X's next stop
+    /// to the rider's stop when a train still leaves today, else back to where they got on, at Today and Now. Shown as a
+    /// train's link is: kept as a choice by hand, so Automatic direction does not turn it back.
+    private func showWrongTrainRoute(_ request: WrongTrainRouteRequest) async {
+        wrongTrain?.routeHandled(request)
+        router.dismissSheet()
+        router.showSchedule()
+        guard let route = await WrongTrainRoute.route(
+            for: request, stations: stations, repository: repository, now: clock.now
+        ) else { return }
+        await schedule.show(route, chosen: .trainLink)
+        await schedule.backToNow()
     }
 
     /// The Live Activity's train before it leaves (TT-178): the demo departure's while it plays, else Schedule's alerted train

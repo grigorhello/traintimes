@@ -79,7 +79,9 @@ struct TripDetailsView: View {
                         if let ride {
                             RideContent(
                                 ride: ride, risesIn: !viewModel.ridesInPlace, wishes: viewModel.onBoard?.wishes,
-                                screen: viewModel.onBoard?.screen, engine: viewModel.onBoard?.engine
+                                screen: viewModel.onBoard?.screen, engine: viewModel.onBoard?.engine,
+                                onWrongTrains: { viewModel.wrongTrainTrains() },
+                                onWrongFine: { viewModel.wrongTrainFine() }
                             )
                         } else if let hero, let details {
                             departureContent(hero, details: details)

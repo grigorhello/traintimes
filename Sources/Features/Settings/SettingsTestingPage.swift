@@ -158,6 +158,9 @@ struct SettingsTestingPage: View {
                     .padding(.horizontal, 2)
                     .accessibilityIdentifier("settings.demoExpress")
                 }
+                if viewModel.showsDemoWrongTrain {
+                    wrongTrain
+                }
                 if viewModel.showsDemoAutoRide {
                     autoRide
                 }
@@ -165,6 +168,23 @@ struct SettingsTestingPage: View {
             .padding(TTSpace.s3)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoExpress)
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : SettingsMotion.reveal, value: viewModel.showsDemoWrongTrain)
+    }
+
+    /// Under Ride (TT-250, D127): the demo ride from 5:13 PM, and about 10 s in the wrong train warning with its five buzzes.
+    private var wrongTrain: some View {
+        VStack(alignment: .leading, spacing: TTSpace.s1) {
+            Toggle(isOn: $viewModel.demoWrongTrain) {
+                Text("settings.demo_wrong_train").font(TTFont.body).foregroundStyle(TTColor.ink)
+            }
+            .tint(TTColor.accent)
+            .accessibilityIdentifier("settings.demoWrongTrain")
+            Text("settings.demo_wrong_train.detail")
+                .font(TTFont.footnote)
+                .foregroundStyle(TTColor.inkSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 2)
     }
 
     // MARK: Automatic ride (TT-242, D120)

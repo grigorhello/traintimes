@@ -6,7 +6,8 @@ import XCTest
 /// On board against the canvas's Live-Ride-Lean (TT-204) and the Live view canvas's boards (TT-205, D93), light and dark:
 /// the demo ride riding (5:32 PM), with your stop next (5:38), arriving (5:42) and stopped at Clarkson (5:43); Trip details
 /// with "I'm on board" (the hero card over the folded trip); a ride that started by itself, with Not on it; the location sheet;
-/// the one-line ride strip. Glass is drawn as its solid fallback, and the motion is off
+/// the one-line ride strip; the wrong train warning in the hero's place, the stops faded (TT-250, D127, boards 54 and 55).
+/// Glass is drawn as its solid fallback, and the motion is off
 /// (rows settled, ripples still).
 final class RideSnapshotTests: XCTestCase {
     @MainActor func testRidingLight() async throws { snap(await ride(at: DemoRideRig.time(17, 32)), .light) }
@@ -39,6 +40,8 @@ final class RideSnapshotTests: XCTestCase {
     @MainActor func testNotOnItDark() async { snap(await notOnIt(), .dark) }
     @MainActor func testStripLight() async { snap(await strip(), .light) }
     @MainActor func testStripDark() async { snap(await strip(), .dark) }
+    @MainActor func testWrongTrainLight() async { snap(TripDetailsView(viewModel: await DemoRideRig.warned().tripDetails()), .light) }
+    @MainActor func testWrongTrainDark() async { snap(TripDetailsView(viewModel: await DemoRideRig.warned().tripDetails()), .dark) }
 
     @MainActor
     private func ride(at time: Date) async -> some View {

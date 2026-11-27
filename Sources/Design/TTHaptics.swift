@@ -29,9 +29,12 @@ enum HapticFeel: String, CaseIterable, Sendable {
     case arriving
     /// One light, crisp transient (0.5, 0.7) as the first launch's tiles pop (TT-215). First launch only.
     case bloom
+    /// Wrong train (TT-250, D127): five sharp transients 180 ms apart, with no rumble, so it is never taken for Arriving.
+    /// Ambient, like a watched train's Warning: bad news about the train the rider is in.
+    case alarm
 
-    /// The nine feels of the Haptics page, in the canvas's order (the wait tap is felt in its slow bell).
-    static let listed: [HapticFeel] = [.tick, .tap, .click, .drop, .railJoint, .done, .warning, .fail, .arriving]
+    /// The ten feels of the Haptics page, in the canvas's order (the wait tap is felt in its slow bell).
+    static let listed: [HapticFeel] = [.tick, .tap, .click, .drop, .railJoint, .done, .warning, .fail, .arriving, .alarm]
 
     /// The Haptics page's row title.
     var titleKey: String { "haptics.feel.\(rawValue)" }
@@ -51,6 +54,13 @@ enum HapticFeel: String, CaseIterable, Sendable {
 
     /// Bloom: one transient at 0.5 intensity and 0.7 sharpness.
     static let bloomPattern = ArrivingHaptics.Pattern(events: [.init(kind: .transient, time: 0, intensity: 0.5, sharpness: 0.7)])
+
+    /// Alarm: five transients at 1.0 intensity and 0.6 sharpness, 180 ms apart (0 to 0.72 s).
+    static let alarmPattern = ArrivingHaptics.Pattern(
+        events: (0..<5).map { beat in
+            ArrivingHaptics.Event(kind: .transient, time: Double(beat) * 0.18, intensity: 1, sharpness: 0.6)
+        }
+    )
 }
 
 /// The haptics map (TT-215, D100): each everyday moment, its feel and when it plays after the tap or the event. Call sites
@@ -78,6 +88,8 @@ enum HapticMoment: String, CaseIterable, Sendable {
     case boarding
     /// The first launch's tiles popping (Bloom).
     case tiles
+    /// The wrong train warning with the app open (TT-250, D127): Alarm, at once.
+    case wrongTrain
 
     var feel: HapticFeel {
         switch self {
@@ -88,6 +100,7 @@ enum HapticMoment: String, CaseIterable, Sendable {
         case .late: .warning
         case .firstTrains, .onBoard, .boarding: .railJoint
         case .tiles: .bloom
+        case .wrongTrain: .alarm
         }
     }
 
@@ -166,6 +179,7 @@ final class TTHaptics: HapticPlaying {
         case .railJoint: play(HapticFeel.railJointPattern)
         case .arriving: play(ArrivingHaptics.arriving)
         case .bloom: play(HapticFeel.bloomPattern)
+        case .alarm: play(HapticFeel.alarmPattern)
         }
     }
 

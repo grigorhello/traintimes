@@ -122,7 +122,25 @@ final class HapticsTests: XCTestCase {
         XCTAssertEqual(ring.duration, 0.06)
         XCTAssertEqual(pattern.fade?.points.last?.value, 0)
         XCTAssertNoThrow(try ArrivingHaptics.pattern(pattern))
-        XCTAssertEqual(HapticFeel.listed.count, 9)
+        XCTAssertEqual(HapticFeel.listed.count, 10)
+    }
+
+    // MARK: Alarm (TT-250, D127)
+
+    /// Five strong, crisp transients 0.18 s apart: the wrong train warning, in the app once and on the card five times.
+    func testAlarmIsFiveStrongBeats() throws {
+        let pattern = HapticFeel.alarmPattern
+        XCTAssertEqual(pattern.events.map(\.kind), Array(repeating: .transient, count: 5))
+        let times = pattern.events.map(\.time)
+        for (time, expected) in zip(times, [0, 0.18, 0.36, 0.54, 0.72]) {
+            XCTAssertEqual(time, expected, accuracy: 0.0001)
+        }
+        XCTAssertEqual(pattern.events.map(\.intensity), Array(repeating: 1, count: 5))
+        XCTAssertEqual(pattern.events.map(\.sharpness), Array(repeating: 0.6, count: 5))
+        XCTAssertNoThrow(try ArrivingHaptics.pattern(pattern))
+        XCTAssertTrue(HapticFeel.listed.contains(.alarm))
+        XCTAssertEqual(HapticMoment.wrongTrain.feel, .alarm)
+        XCTAssertEqual(HapticMoment.wrongTrain.delay, .zero)
     }
 
     private func eventually(

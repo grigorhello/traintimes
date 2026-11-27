@@ -21,6 +21,9 @@ struct RideActivityStyle {
     static let lockGround = Color(red: 28 / 255, green: 32 / 255, blue: 42 / 255).opacity(0.78)
     /// The train's disc on the Lock Screen card, which hides the stop line under it.
     static let lockDisc = Color(red: 30 / 255, green: 35 / 255, blue: 46 / 255)
+    /// The wrong train warning's ground on the Lock Screen, #92400E, the app's Delay ink, all text white on it (TT-250,
+    /// D127): it wins over the arriving green and over Not on it.
+    static let wrongGround = Color(red: 146 / 255, green: 64 / 255, blue: 14 / 255)
 
     /// The platform pill (TT-199): the number in white on a white tint, the dash in grey on a grey one.
     static let platform = PlatformBadge.Palette(
@@ -43,6 +46,8 @@ struct RideActivityStyle {
     let isLate: Bool
     /// What the train's disc is filled with: the card's colour, the island's black or the green.
     let surface: Color
+    /// The Dynamic Island: the wrong train question in amber on its black (TT-250).
+    var isIsland = false
 
     /// The Lock Screen card.
     static func lock(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> RideActivityStyle {
@@ -54,7 +59,9 @@ struct RideActivityStyle {
 
     /// The Dynamic Island, black in every moment (iOS draws it so).
     static func island(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> RideActivityStyle {
-        RideActivityStyle(isGreen: false, isStale: isStale, isClose: state.isClose, isLate: state.late, surface: .black)
+        RideActivityStyle(
+            isGreen: false, isStale: isStale, isClose: state.isClose, isLate: state.late, surface: .black, isIsland: true
+        )
     }
 
     private var grey: Color { .white.opacity(0.45) }
@@ -360,12 +367,60 @@ struct RideActivityCard: View {
     let style: RideActivityStyle
 
     var body: some View {
-        // A stale question (nobody ended it) has no buttons: "Updated 5:26 PM" on the plain card.
-        if state.isAsking, !style.isStale {
+        // A stale question or warning (nobody ended it) has no buttons: "Updated 5:26 PM" on the plain card.
+        if let wrong = state.wrong, !style.isStale {
+            warning(wrong)
+        } else if state.isAsking, !style.isStale {
             asking
         } else {
             card
         }
+    }
+
+    /// The wrong train warning (TT-250, D127; the Live view canvas's boards 51 to 53): the tile and why ("Doesn’t stop at
+    /// **Clarkson**"), then "Wrong train?" at 26 pt with one 44 pt pill, "I’m fine" (white on white at 24 %, at least 104 pt),
+    /// then X's next stop and its time ("Next stop **Oakville** · 5:38 PM"), every line white at 15 pt. The same on a ride card
+    /// and a departure card; on the Lock Screen on the amber ground, in the island on black with the question in amber.
+    /// "I’m fine" takes the warning away in the background (`WrongTrainFineIntent`) and keeps the ride's card.
+    private func warning(_ wrong: RideActivityAttributes.ContentState.Wrong) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                RideActivityTile(attributes: attributes, size: .card, edge: style.tileEdge)
+                Text(Self.strong(wrong.reason, wrong.stop))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 10) {
+                Text("wrong.title")
+                    .font(.system(size: 26, weight: .bold))
+                    .tracking(-0.6)
+                    .foregroundStyle(style.isIsland ? RideActivityStyle.amber : .white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Button(intent: WrongTrainFineIntent(attributes)) {
+                    RideActivityAnswer(title: "wrong.fine", ink: .white, fill: .white.opacity(0.24), minWidth: 104)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 44)
+            Text(Self.strong(wrong.next, wrong.nextStop))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    /// A warning's line at 15 pt, white and medium, with the station's name in it bold.
+    private static func strong(_ words: String, _ name: String) -> AttributedString {
+        var text = AttributedString(words)
+        text.font = .system(size: 15, weight: .medium)
+        text.foregroundColor = .white
+        text.tracking = -0.2
+        if !name.isEmpty, let range = text.range(of: name) {
+            text[range].font = .system(size: 15, weight: .bold)
+        }
+        return text
     }
 
     /// The departure question (TT-231, D110; the Live view canvas's boards 31 and 32): "**4:29 PM** departed" in the line,
@@ -529,9 +584,11 @@ struct RideActivityLockView: View {
             .padding(.vertical, 14)
     }
 
-    /// The card's colour behind it: the activity's background tint.
-    static func background(_ state: RideActivityAttributes.ContentState) -> Color {
-        state.isGreen ? RideActivityStyle.alertGreen : RideActivityStyle.lockGround
+    /// The card's colour behind it: the activity's background tint. The wrong train warning's amber wins over green, but not
+    /// on a stale card, which is the plain card on the plain ground (TT-250).
+    static func background(_ state: RideActivityAttributes.ContentState, isStale: Bool = false) -> Color {
+        if state.wrong != nil, !isStale { return RideActivityStyle.wrongGround }
+        return state.isGreen ? RideActivityStyle.alertGreen : RideActivityStyle.lockGround
     }
 }
 
@@ -575,7 +632,10 @@ struct RideActivityCompactTrailing: View {
     let style: RideActivityStyle
 
     var body: some View {
-        if state.isAsking {
+        if state.wrong != nil, !style.isStale {
+            // The wrong train warning (TT-250, board 53): the amber mark.
+            RideActivityWarningMark(size: 20)
+        } else if state.isAsking {
             // Until the question is answered: the mint train glyph (TT-231, board 32).
             TrainGlyph()
                 .fill(RideActivityStyle.mint, style: FillStyle(eoFill: true))
@@ -583,6 +643,34 @@ struct RideActivityCompactTrailing: View {
                 .accessibilityLabel(Text("depart.ask.question"))
         } else if state.phase != .departed {
             RideActivityCountdown(state: state, color: style.number, fontSize: 15, width: 48, minutesWidth: 48, alignment: .trailing)
+        }
+    }
+}
+
+/// The wrong train warning's mark in the small island (TT-250, D127; board 53): an amber warning triangle.
+struct RideActivityWarningMark: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: size * 0.8, weight: .semibold))
+            .foregroundStyle(RideActivityStyle.amber)
+            .frame(width: size, height: size)
+            .accessibilityLabel(Text("wrong.title"))
+    }
+}
+
+/// The minimal island: the line's tile, or the wrong train warning's mark while it shows (TT-250).
+struct RideActivityMinimal: View {
+    let attributes: RideActivityAttributes
+    let state: RideActivityAttributes.ContentState
+    var isStale = false
+
+    var body: some View {
+        if state.wrong != nil, !isStale {
+            RideActivityWarningMark(size: 22)
+        } else {
+            RideActivityTile(attributes: attributes, size: .minimal)
         }
     }
 }

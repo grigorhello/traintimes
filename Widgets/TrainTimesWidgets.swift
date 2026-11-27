@@ -21,9 +21,9 @@ struct RideActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RideActivityAttributes.self) { context in
             RideActivityLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
-                .activityBackgroundTint(RideActivityLockView.background(context.state))
+                .activityBackgroundTint(RideActivityLockView.background(context.state, isStale: context.isStale))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(Self.link(context.state).url)
+                .widgetURL(Self.link(context.state, isStale: context.isStale).url)
         } dynamicIsland: { context in
             let attributes = context.attributes
             let state = context.state
@@ -38,15 +38,23 @@ struct RideActivityWidget: Widget {
             } compactTrailing: {
                 RideActivityCompactTrailing(state: state, style: style)
             } minimal: {
-                RideActivityTile(attributes: attributes, size: .minimal)
+                RideActivityMinimal(attributes: attributes, state: state, isStale: context.isStale)
             }
-            .keylineTint(state.isClose || state.isAsking ? RideActivityStyle.mint : .white.opacity(0.3))
-            .widgetURL(Self.link(state).url)
+            .keylineTint(Self.keyline(state, isStale: context.isStale))
+            .widgetURL(Self.link(state, isStale: context.isStale).url)
         }
     }
 
-    /// A tap opens the ride, or before departure the train's Trip details.
-    static func link(_ state: RideActivityAttributes.ContentState) -> RideActivityLink {
-        state.isDeparture ? .departure : .open
+    /// A tap opens the ride, or before departure the train's Trip details; while the card warns of a wrong train, the app
+    /// on the warning (TT-250, D127), except on a stale card, which draws the plain card.
+    static func link(_ state: RideActivityAttributes.ContentState, isStale: Bool = false) -> RideActivityLink {
+        if state.wrong != nil, !isStale { return .wrong }
+        return state.isDeparture ? .departure : .open
+    }
+
+    /// The island's keyline: amber while it warns of a wrong train, mint once close or asking, else faint white.
+    static func keyline(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> Color {
+        if state.wrong != nil, !isStale { return RideActivityStyle.amber }
+        return state.isClose || state.isAsking ? RideActivityStyle.mint : .white.opacity(0.3)
     }
 }

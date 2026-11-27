@@ -15,6 +15,8 @@ import XCTest
 /// 32: "On board?" with Yes and No once the train has left) and stale; the island compact and expanded, and asking.
 /// Boarding at the platform (TT-233, D114): the card of a train the feed places at its station, before and past its time.
 /// Not on it (TT-243, D120): the card of a ride that started by itself, with its pill.
+/// The wrong train warning (TT-250, D127, boards 51 to 53): amber, "Wrong train?" with "I’m fine", on a ride, on a departure
+/// card, over the arriving green and over Not on it; stale, the plain card; in the island expanded, compact and minimal.
 final class RideActivitySnapshotTests: XCTestCase {
     @MainActor func testLockScreenLight() async throws { snap(try await lockScreen(), .light) }
     @MainActor func testLockScreenDark() async throws { snap(try await lockScreen(), .dark) }
@@ -56,6 +58,10 @@ final class RideActivitySnapshotTests: XCTestCase {
     /// as "Departing" is), the open island and the Lock Screen card.
     @MainActor func testLongRideLight() async throws { snap(try await longRide(), .light) }
     @MainActor func testLongRideDark() async throws { snap(try await longRide(), .dark) }
+    @MainActor func testWrongTrainLockScreenLight() async throws { snap(try await wrongTrainLockScreen(), .light) }
+    @MainActor func testWrongTrainLockScreenDark() async throws { snap(try await wrongTrainLockScreen(), .dark) }
+    @MainActor func testWrongTrainIslandLight() async throws { snap(try await wrongTrainIsland(), .light) }
+    @MainActor func testWrongTrainIslandDark() async throws { snap(try await wrongTrainIsland(), .dark) }
 
     private struct Moment {
         let attributes: RideActivityAttributes
@@ -266,11 +272,66 @@ final class RideActivitySnapshotTests: XCTestCase {
         .background(Wallpaper())
     }
 
+    /// The demo's warning on `moment`'s card: the train does not stop at Clarkson, next stop Oakville at 5:35 PM.
+    @MainActor
+    private func wrong(_ moment: Moment, undoable: Bool = false) -> Moment {
+        var state = moment.state
+        state.wrong = DemoRide.wrongTrainWarning(for: DemoRide.ride(on: DemoRideRig.day))
+            .card(formatter: TimeFormatter(format: .twelveHour), beat: 1)
+        if undoable { state.undoable = true }
+        return Moment(attributes: moment.attributes, state: state)
+    }
+
+    /// On a ride (board 52), on the alerted train's card once it left (board 51), over arriving's green and over Not on it,
+    /// then stale: the ride's plain card.
+    @MainActor
+    private func wrongTrainLockScreen() async throws -> some View {
+        let riding = wrong(try await moment(DemoRideRig.time(17, 32)))
+        let departed = wrong(try departure(DepartureRig.time(17, 16, 30)))
+        let arriving = wrong(try await moment(DemoRideRig.time(17, 42, 20)))
+        let undoable = wrong(try await moment(DemoRideRig.time(17, 34)), undoable: true)
+        return VStack(spacing: 14) {
+            lockCard(riding, isStale: false)
+            lockCard(departed, isStale: false)
+            lockCard(arriving, isStale: false)
+            lockCard(undoable, isStale: false)
+            lockCard(riding, isStale: true)
+            Spacer()
+        }
+        .padding(.top, 60)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
+    /// The island (board 53): compact with the amber mark, minimal, and expanded with the question in amber.
+    @MainActor
+    private func wrongTrainIsland() async throws -> some View {
+        let riding = wrong(try await moment(DemoRideRig.time(17, 32)))
+        let departed = wrong(try departure(DepartureRig.time(17, 16, 30)))
+        return VStack(spacing: 18) {
+            compact(riding)
+            HStack(spacing: 8) {
+                Capsule().fill(.black).frame(width: 126, height: 37)
+                RideActivityMinimal(attributes: riding.attributes, state: riding.state)
+                    .frame(width: 37, height: 37)
+                    .background(.black, in: Circle())
+            }
+            expanded(riding)
+            expanded(departed)
+            Spacer()
+        }
+        .padding(.top, 11)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Wallpaper())
+    }
+
     /// The card as the Lock Screen draws an activity: its background tint behind it, rounded.
     @MainActor
     private func lockCard(_ moment: Moment, isStale: Bool) -> some View {
         RideActivityLockView(attributes: moment.attributes, state: moment.state, isStale: isStale)
-            .background(RideActivityLockView.background(moment.state))
+            .background(RideActivityLockView.background(moment.state, isStale: isStale))
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 

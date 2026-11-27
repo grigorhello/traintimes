@@ -44,13 +44,16 @@
 "schedule.platform_pending" = "Platform pending";
 "schedule.platform_label" = "Platform";
 "schedule.platform_placeholder" = "—";
-"schedule.trip_minutes" = "%d min ride";
-"schedule.trip_hours" = "%d h ride";
-"schedule.trip_hours_minutes" = "%d h %d min ride";
-"schedule.in_minutes" = "in %d min";
+"schedule.trip_length" = "%@ ride";
+"schedule.in_wait" = "in %@";
 "schedule.departing" = "Departing";
-"schedule.minutes_ago" = "%d min";
-"schedule.no_trains_gap" = "No trains for %d min · next %@";
+"schedule.no_trains_gap" = "No trains for %1$@ · next %2$@";
+/* A count of minutes, one wording everywhere minutes show: never "75 min", always "1 h 15 min" (TT-246, D123) */
+"duration.minutes" = "%d min";
+"duration.hours" = "%d h";
+"duration.hours_minutes" = "%1$d h %2$d min";
+"duration.days" = "%d d";
+"duration.days_hours" = "%1$d d %2$d h";
 "schedule.next_usable_below" = "Next usable below";
 "schedule.empty.title" = "No direct trains";
 "schedule.empty.body" = "There are no direct trains between these stations on this day.";
@@ -84,8 +87,7 @@
 "onboard.done" = "Done";
 "onboard.notOnIt" = "Not on it";
 "onboard.now" = "Now";
-"onboard.minutes" = "%d min";
-"onboard.late" = "%d min late";
+"onboard.late" = "%@ late";
 "onboard.yourStopIn" = "%@ in";
 "onboard.isNext" = "%@ is next";
 "onboard.arrivingAt" = "Arriving at %@";
@@ -168,7 +170,7 @@
 
 /* Status badges */
 "status.on_time" = "On time";
-"status.delayed" = "Delayed %d min";
+"status.delayed" = "Delayed %@";
 "status.cancelled" = "Cancelled";
 "status.scheduled" = "Scheduled";
 "status.stop_skipped" = "Stop skipped";
@@ -254,8 +256,8 @@
 "alerts.off.line_plural" = "%d alerts can’t reach you.";
 
 /* Notifications (title / body). Every change carries the time it was reported. */
-"notif.delay.title" = "%@ train delayed %d min";
-"notif.delay.update.title" = "%@ train now delayed %d min";
+"notif.delay.title" = "%1$@ train delayed %2$@";
+"notif.delay.update.title" = "%1$@ train now delayed %2$@";
 "notif.delay.body" = "%@. Now expected %@, as reported at %@.";
 "notif.recovery.title" = "%@ train back on time";
 "notif.recovery.body" = "%@. Expected %@, as reported at %@.";
@@ -527,7 +529,6 @@
 "widget.to" = "to";
 "widget.in" = "in";
 "widget.now" = "now";
-"widget.minutes" = "%d min";
 "widget.last_train" = "Last train";
 "widget.your_train" = "Your train";
 "widget.then" = "Then";

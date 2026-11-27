@@ -144,8 +144,11 @@ extension AnalyticsEvent {
     enum BackToNowSource: String, Sendable {
         /// The Schedule tab tapped again.
         case tab
-        /// The app back in the foreground after more than 10 min away (TT-222).
+        /// The app back in the foreground after more than 10 min away (TT-222), also when Schedule's tab comes back
+        /// only after it (TT-246).
         case reopen
+        /// Schedule's tab back after more than 10 min on another tab, with the app in front all along (TT-246).
+        case otherTab = "other_tab"
     }
 
     /// Back to today at Now.

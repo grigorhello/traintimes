@@ -146,8 +146,16 @@ struct ScheduleView: View {
                 }
             }
             // Now plays each time the timeline shows again: back to the tab, back to the app (TT-197, D80). The launch's own
-            // play waits for its scroll to settle, so the first appearance asks for nothing.
-            .onAppear { viewModel.timelineAppeared() }
+            // play waits for its scroll to settle, so the first appearance asks for nothing. After more than 10 min out of
+            // view, on another tab or in the background, the tab coming back returns to Now on Today (TT-246).
+            .onAppear {
+                if viewModel.isInView {
+                    viewModel.timelineAppeared()
+                } else {
+                    comeBack(fromTab: true)
+                }
+            }
+            .onDisappear { viewModel.leftView() }
             // The weather (TT-226): asked for when Schedule shows, on each return to the foreground and for a new From station.
             .task(id: WeatherRefresh(station: viewModel.route?.from.id, isActive: scenePhase == .active)) {
                 guard scenePhase == .active else { return }
@@ -165,28 +173,35 @@ struct ScheduleView: View {
                         }
                 }
             }
-            // Back after more than 10 min away, the timeline returns to Now on Today (TT-222).
+            // Back after more than 10 min away, the timeline returns to Now on Today (TT-222). `RootView` keeps the moment
+            // the app went to the background, whichever tab is shown (TT-246).
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .background:
-                    viewModel.wentToBackground()
                     feedbackNudge?.wentToBackground()
                     direction?.wentToBackground()
                 case .active:
                     feedbackNudge?.cameToForeground()
-                    // The look decides first, 1 s at most, so there is one arrival and one Now play (TT-234, D116).
-                    let scene = directionScene(isActive: true)
-                    let look = direction
-                    Task {
-                        if let look {
-                            await viewModel.cameToForeground { await look.cameBack(scene) }
-                        } else {
-                            await viewModel.cameToForeground()
-                        }
-                    }
+                    comeBack(fromTab: false)
                 default: break
                 }
             }
+    }
+
+    /// Back to Schedule: the app came to the foreground, or Schedule's tab came back from another (`fromTab`, TT-246). The
+    /// look decides first, 1 s at most, so there is one arrival and one Now play (TT-234, D116).
+    private func comeBack(fromTab: Bool) {
+        let scene = directionScene(isActive: true)
+        let look = direction
+        let model = viewModel
+        Task {
+            switch (look, fromTab) {
+            case (let found?, true): await model.cameIntoView { await found.cameBack(scene) }
+            case (let found?, false): await model.cameToForeground { await found.cameBack(scene) }
+            case (nil, true): await model.cameIntoView()
+            case (nil, false): await model.cameToForeground()
+            }
+        }
     }
 
     // MARK: Automatic direction (TT-234, D116)

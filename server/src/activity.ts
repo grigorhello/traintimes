@@ -25,7 +25,7 @@
 // seen inside it.
 
 import { DELAY_MIN } from './alerts.ts';
-import { format, strings } from './copy.ts';
+import { duration, format, strings } from './copy.ts';
 import type { LiveStatus } from './realtime.ts';
 import { formatTime, MINUTE, type TimeFormat } from './time.ts';
 
@@ -255,11 +255,11 @@ export function contentState(departure: Departure, phase: Phase, now: number, ti
     updated: format(strings['live.updated'], time(now)),
   };
   if (phase === 'asking') state.asks = true;
-  if (late) state.delay = format(strings['onboard.late'], delay);
+  if (late) state.delay = format(strings['onboard.late'], duration(delay));
   if (!left) {
     state.countdownEnd = Math.round(leavesAt / 1000);
     // Never "1 min" for a train that stands at its platform past its time (`LiveDeparture.isDeparting`).
-    state.minutes = now >= leavesAt ? strings['schedule.departing'] : format(strings['onboard.minutes'], minutesUntil(leavesAt, now));
+    state.minutes = now >= leavesAt ? strings['schedule.departing'] : duration(minutesUntil(leavesAt, now));
     const platform = departure.platform ?? departure.keptPlatform;
     if (platform) state.platformNumber = platform;
   }

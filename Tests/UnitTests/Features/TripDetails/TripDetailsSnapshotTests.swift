@@ -32,6 +32,9 @@ final class TripDetailsSnapshotTests: XCTestCase {
     /// The hero's accent outline and tint, "7:32 AM boarding now" in the accent over "8 min", the pill filled.
     @MainActor func testBoardingLight() async throws { snap(try await boarding(), .light) }
     @MainActor func testBoardingDark() async throws { snap(try await boarding(), .dark) }
+    /// TT-246 (D123): 3:31 AM, the 7:32 AM train 241 min away: the hero's number in hours, "4 h 1 min", shrunk to fit.
+    @MainActor func testLongWaitLight() async throws { snap(try await .loadedFixture(minutesLater: -230), .light) }
+    @MainActor func testLongWaitDark() async throws { snap(try await .loadedFixture(minutesLater: -230), .dark) }
 
     /// The 7:32 AM train at 7:24 AM, placed 120 m from Oakville by the train feed, its platform posted.
     @MainActor

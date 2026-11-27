@@ -325,7 +325,7 @@ final class WidgetEntryBuilderTests: XCTestCase {
     // MARK: - The Lock Screen sizes (TT-184)
 
     /// The Lock Screen's switches all land on entries the timeline already has (the minutes of a countdown, D113), so it
-    /// adds none: 60 min before a train the circular turns from the clock time to the minutes, 30 min before it the ring
+    /// adds none: 59 min before a train the circular turns from the clock time to the minutes, 30 min before it the ring
     /// starts to empty and an alerted train goes to its Live Activity, and the last minute reads "now". From 10:20 AM
     /// with the alerted 11:30 next.
     func testTheLockScreensSwitchesLandOnTheTimelinesEntries() {
@@ -336,12 +336,12 @@ final class WidgetEntryBuilderTests: XCTestCase {
         func circular(_ time: String) -> LockCircularContent? {
             entry(time).map { LockCircularContent($0) }
         }
-        // Your train, with the bell: the clock time until 60 min before, then the minutes, the ring still whole.
-        XCTAssertEqual(circular("10:29")?.glyph, .bell)
-        XCTAssertEqual(circular("10:29")?.value, "11:30")
-        XCTAssertNil(circular("10:29")?.caption)
-        XCTAssertEqual(circular("10:30")?.value, "60")
-        XCTAssertEqual(circular("10:30")?.caption, "min")
+        // Your train, with the bell: the clock time until 59 min before, then the minutes, the ring still whole.
+        XCTAssertEqual(circular("10:30")?.glyph, .bell)
+        XCTAssertEqual(circular("10:30")?.value, "11:30")
+        XCTAssertNil(circular("10:30")?.caption)
+        XCTAssertEqual(circular("10:31")?.value, "59")
+        XCTAssertEqual(circular("10:31")?.caption, "min")
         XCTAssertEqual(circular("10:59")?.glyph, .bell)
         XCTAssertEqual(circular("10:59")?.ring, 1)
         // 30 min before: the hand-over (the train, not the bell) and the ring's start.
@@ -350,11 +350,11 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertEqual(circular("11:00")?.ring, 1)
         XCTAssertEqual(circular("11:00")?.ringInterval, at(wed, "11:00")...at(wed, "11:30"))
         XCTAssertEqual(circular("11:15")?.ring, 0.5)
-        // The last minute, and at the departure the next train, an hour away.
+        // The last minute, and at the departure the next train, an hour away: its clock time.
         XCTAssertEqual(circular("11:29")?.value, "now")
         XCTAssertEqual(circular("11:29")?.caption, "11:30")
         XCTAssertEqual(circular("11:29")?.ring, 0)
-        XCTAssertEqual(circular("11:30")?.value, "60")
+        XCTAssertEqual(circular("11:30")?.value, "12:30")
 
         // The rectangular at the same moments: Your train until 30 min before, then the next train.
         func header(_ time: String) -> LockRectangularContent.Header? {

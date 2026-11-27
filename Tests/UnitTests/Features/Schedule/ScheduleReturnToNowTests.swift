@@ -163,6 +163,161 @@ final class ScheduleReturnToNowTests: XCTestCase {
     }
 }
 
+// MARK: Back to the Schedule tab (TT-246, D123)
+
+@MainActor
+final class ScheduleTabReturnTests: XCTestCase {
+    override func tearDown() async throws {
+        Analytics.tracker = nil
+        try await super.tearDown()
+    }
+
+    private func loadedModel() async throws -> (ScheduleViewModel, TestClock) {
+        let repository = try FixtureScheduleRepository(bundle: Bundle(for: ScheduleTabReturnTests.self))
+        let clock = TestClock(now: repository.now)
+        let model = ScheduleViewModel(route: repository.route, repository: repository, clock: clock)
+        await model.loadIfNeeded()
+        return (model, clock)
+    }
+
+    /// Grigor's path: the Alerts tab, the background for an hour, back in the app on the Alerts tab, then the Schedule
+    /// tab. Coming to the foreground on the Alerts tab does nothing; Schedule's tab coming back returns to Now on Today.
+    func testTheTabBackAfterTheBackgroundReturnsToNow() async throws {
+        let analytics = RecordingAnalytics.install()
+        let (model, clock) = try await loadedModel()
+        await model.select(model.days[1])
+        let scrolls = model.scrollRequest
+        let pulses = model.nowPulse
+
+        model.leftView()
+        clock.advance(minutes: 1)
+        model.wentToBackground()
+        clock.advance(minutes: 60)
+        await model.cameToForeground()
+        XCTAssertFalse(model.isInView)
+        XCTAssertEqual(model.scrollRequest, scrolls, "Nothing while the Alerts tab shows")
+        XCTAssertEqual(model.nowPulse, pulses)
+        XCTAssertFalse(analytics.names.contains("back_to_now"))
+
+        clock.advance(minutes: 1)
+        await model.cameIntoView()
+
+        XCTAssertTrue(model.isInView)
+        XCTAssertEqual(model.selectedDay, model.today)
+        XCTAssertEqual(model.now, clock.now, "The Now line is at the present before the scroll")
+        XCTAssertEqual(model.scrollRequest, scrolls + 1, "Scrolled to Now")
+        XCTAssertEqual(model.nowPulse, pulses + 1, "Now plays once")
+        XCTAssertEqual(analytics.events.last, AnalyticsEvent("back_to_now", ["source": .string("reopen")]))
+    }
+
+    /// More than 10 min on another tab with the app in front all along: the same return, sent as `other_tab`.
+    func testTheTabBackAfterTenMinutesOnAnotherTabReturnsToNow() async throws {
+        let analytics = RecordingAnalytics.install()
+        let (model, clock) = try await loadedModel()
+        await model.select(model.days[1])
+        let scrolls = model.scrollRequest
+        let pulses = model.nowPulse
+
+        model.leftView()
+        clock.advance(minutes: 11)
+        await model.cameIntoView()
+
+        XCTAssertEqual(model.selectedDay, model.today)
+        XCTAssertEqual(model.scrollRequest, scrolls + 1)
+        XCTAssertEqual(model.nowPulse, pulses + 1)
+        XCTAssertEqual(analytics.events.last, AnalyticsEvent("back_to_now", ["source": .string("other_tab")]))
+    }
+
+    /// The time on another tab counts too: 6 min on the Alerts tab and 6 min in the background are more than 10.
+    func testTimeOnAnotherTabCountsTowardTheReturn() async throws {
+        let (model, clock) = try await loadedModel()
+        await model.backToNow()
+        let scrolls = model.scrollRequest
+
+        model.leftView()
+        clock.advance(minutes: 6)
+        model.wentToBackground()
+        clock.advance(minutes: 6)
+        await model.cameToForeground()
+        await model.cameIntoView()
+
+        XCTAssertEqual(model.scrollRequest, scrolls + 1, "Scrolled to Now")
+    }
+
+    /// Back within 10 min: the day and the scroll stay, and Now plays where it is on Today (D80).
+    func testTheTabBackWithinTenMinutesKeepsTheDayAndTheScroll() async throws {
+        let analytics = RecordingAnalytics.install()
+        let (model, clock) = try await loadedModel()
+        await model.backToNow()
+        let scrolls = model.scrollRequest
+        let pulses = model.nowPulse
+
+        model.leftView()
+        clock.advance(minutes: 9)
+        await model.cameIntoView()
+
+        XCTAssertEqual(model.scrollRequest, scrolls, "No scroll")
+        XCTAssertEqual(model.nowPulse, pulses + 1, "Now plays where it is")
+        XCTAssertFalse(analytics.names.contains("back_to_now"))
+
+        await model.select(model.days[1])
+        let picked = model.selectedDay
+        model.leftView()
+        clock.advance(minutes: 9)
+        await model.cameIntoView()
+        XCTAssertEqual(model.selectedDay, picked, "Another day stays picked")
+    }
+
+    /// The first appearance, with no tab left before it, plays Now where it is and scrolls nowhere.
+    func testAppearingWithoutLeavingOnlyPlaysNow() async throws {
+        let (model, clock) = try await loadedModel()
+        await model.backToNow()
+        let scrolls = model.scrollRequest
+        let pulses = model.nowPulse
+        clock.advance(minutes: 30)
+        await model.cameIntoView()
+        XCTAssertEqual(model.scrollRequest, scrolls)
+        XCTAssertEqual(model.nowPulse, pulses + 1)
+    }
+
+    /// The look is awaited first on the tab's return too (D116): a turn is the one arrival.
+    func testTheTabBackAwaitsTheLook() async throws {
+        let (model, clock) = try await loadedModel()
+        await model.backToNow()
+        let scrolls = model.scrollRequest
+        let pulses = model.nowPulse
+        let look = LookRecord()
+
+        model.leftView()
+        clock.advance(minutes: 11)
+        await model.cameIntoView {
+            look.runs += 1
+            return true
+        }
+
+        XCTAssertEqual(look.runs, 1)
+        XCTAssertEqual(model.nowPulse, pulses, "No Now play beside the turn's")
+        XCTAssertEqual(model.scrollRequest, scrolls)
+    }
+
+    /// Back in the foreground with Schedule's tab shown after the tab returned: the away time was used up by the tab, so
+    /// a short trip to the background plays Now where it is.
+    func testTheTabReturnUsesUpTheAwayTime() async throws {
+        let (model, clock) = try await loadedModel()
+        await model.backToNow()
+        model.leftView()
+        clock.advance(minutes: 11)
+        await model.cameIntoView()
+        let scrolls = model.scrollRequest
+
+        model.wentToBackground()
+        clock.advance(minutes: 2)
+        await model.cameToForeground()
+
+        XCTAssertEqual(model.scrollRequest, scrolls, "Counted from this background, 2 min")
+    }
+}
+
 /// What the look's closure saw when `cameToForeground(looking:)` ran it.
 @MainActor
 private final class LookRecord {

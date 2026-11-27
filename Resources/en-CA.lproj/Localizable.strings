@@ -104,6 +104,16 @@
 "depart.ask.notif" = "On the %@ train?";
 /* Time to board (TT-247, D124): the alert the alert server sends three times on the Live Activity card when an alerted train starts boarding or is 5 min away, whichever comes first. %@ is a time from the one formatter. */
 "depart.board.notif" = "Time to board the %@ train";
+/* The wrong train warning (TT-250, D127): the Live Activity card, the ride screen, Schedule's strip and the notification. In wrong.why.*: %@ is the rider's stop. In wrong.next and the notification's body: the next stop of the train they are in, and its time from the one formatter. wrong.why.away is for a train going the other way; wrong.why.skips for one that passes the stop or is on another line. The .station lines are for a warning with no time. No emoji: a warning is not a warm line (D126). */
+"wrong.title" = "Wrong train?";
+"wrong.fine" = "I’m fine";
+"wrong.why.away" = "Going away from %@";
+"wrong.why.skips" = "Doesn’t stop at %@";
+"wrong.next" = "Next stop %1$@ · %2$@";
+"wrong.next.station" = "Next station %@";
+"wrong.trains" = "Trains from %@";
+"wrong.notif.body" = "%1$@. Next stop %2$@, %3$@.";
+"wrong.notif.body.station" = "%1$@. Next station %2$@.";
 "loc.title" = "Train Times needs your location";
 "loc.subtitle" = "To show the minutes to your stop and tell you before it. Also to open with trains from the station you’re closer to. Your location stays on the phone.";
 "loc.allow" = "Allow location";
@@ -375,6 +385,8 @@
 "haptics.feel.fail.detail" = "It broke";
 "haptics.feel.arriving" = "Arriving";
 "haptics.feel.arriving.detail" = "Your stop is next";
+"haptics.feel.alarm" = "Alarm";
+"haptics.feel.alarm.detail" = "Wrong train: five sharp beats";
 "haptics.moments" = "Moments";
 "haptics.moment.tab" = "Tab bar";
 "haptics.moment.tab.detail" = "Tick";
@@ -398,6 +410,8 @@
 "haptics.moment.boarding.detail" = "Rail joint";
 "haptics.moment.tiles" = "Bloom";
 "haptics.moment.tiles.detail" = "Light tap at 600 ms";
+"haptics.moment.wrongTrain" = "Wrong train warning";
+"haptics.moment.wrongTrain.detail" = "Alarm";
 "haptics.bell" = "Bell on";
 "haptics.bell.fast" = "Fast save";
 "haptics.bell.slow" = "Slow save";
@@ -434,6 +448,9 @@
 "settings.last_look.reason.noRoute" = "no route at the start";
 "settings.last_look.reason.restarted" = "the route changed";
 "settings.last_look.reason.rideProof" = "a ride ended at your stop";
+/* Settings › Testing › Demo trains › Ride › Wrong train (TT-250, D127), TestFlight and Xcode builds only. */
+"settings.demo_wrong_train" = "Wrong train";
+"settings.demo_wrong_train.detail" = "About 10 s into the ride the card asks Wrong train? and buzzes five times. Trains from Oakville changes your route.";
 /* Settings › Testing › Demo trains › Depart › Automatic ride and Last check (TT-242, D120), TestFlight and Xcode builds only. In last_check.*: %@ is the whole seconds after the train left, then the reason; in last_check.hold, the time. */
 "settings.demo_auto_ride" = "Automatic ride";
 "settings.demo_auto_ride.off" = "Off";

@@ -263,6 +263,58 @@ final class RideActivityContentTests: XCTestCase {
         XCTAssertEqual(layout.x(5), 318, accuracy: 0.001)
     }
 
+    // MARK: The wrong train warning (TT-250, D127)
+
+    private func warned(_ rig: DemoRideRig, beat: Int = 1) throws -> RideActivityAttributes.ContentState {
+        var content = try content(rig)
+        content.wrong = DemoRide.wrongTrainWarning(for: DemoRide.ride(on: DemoRideRig.day)).card(formatter: formatter, beat: beat)
+        return content
+    }
+
+    func testTheWarningRidesOnTheRidesCardAndReadsBack() async throws {
+        let rig = await DemoRideRig.started(at: t(17, 34), from: t(17, 32))
+        let content = try warned(rig, beat: 3)
+        let wrong = try XCTUnwrap(content.wrong)
+        XCTAssertEqual(wrong.reason, "Doesn’t stop at Clarkson")
+        XCTAssertEqual(wrong.stop, "Clarkson")
+        XCTAssertEqual(wrong.next, "Next stop Oakville · 5:35 PM")
+        XCTAssertEqual(wrong.nextStop, "Oakville")
+        XCTAssertEqual(wrong.beat, 3)
+
+        let decoded = try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: JSONEncoder().encode(content))
+        XCTAssertEqual(decoded, content)
+        XCTAssertEqual(decoded.wrong, wrong)
+    }
+
+    func testWithNoWarningTheKeyIsLeftOutAndAnOlderPushReadsNone() async throws {
+        let rig = await DemoRideRig.started()
+        let json = try XCTUnwrap(String(data: JSONEncoder().encode(try content(rig)), encoding: .utf8))
+        XCTAssertFalse(json.contains("\"wrong\""), "Older builds and the server never see it")
+
+        let older = """
+        {"phase":"riding","title":"Clarkson","detail":"","now":"","time":"","departure":"","arrival":"","arrives":"",
+        "position":0,"button":"","updated":"","platform":"","pill":false,"late":false}
+        """
+        XCTAssertNil(try JSONDecoder().decode(RideActivityAttributes.ContentState.self, from: Data(older.utf8)).wrong)
+    }
+
+    func testTheWarnedCardStaysWellUnderFourKilobytes() async throws {
+        let rig = await DemoRideRig.started(at: t(17, 34), from: t(17, 32))
+        let attributes = RideActivityAttributes(ride: DemoRide.ride(on: DemoRideRig.day), plan: rig.plan, line: DemoRide.line)
+        var content = try warned(rig)
+        content.title = "Arriving at Bloomington"
+        content.wrong?.reason = "Doesn’t stop at Bloomington"
+        content.wrong?.next = "Next stop Niagara Falls · 12:59 PM"
+        let size = try JSONEncoder().encode(attributes).count + JSONEncoder().encode(content).count
+        XCTAssertLessThan(size, 1024)
+    }
+
+    func testTheWarningsLinkOpensTheApp() throws {
+        XCTAssertEqual(RideActivityLink.wrong.url.absoluteString, "traintimes://wrong")
+        XCTAssertEqual(RideActivityLink(RideActivityLink.wrong.url), .wrong)
+        XCTAssertNil(RideActivityLink(try XCTUnwrap(URL(string: "traintimes://wrong/other"))))
+    }
+
     // MARK: Links
 
     func testTheLinksOpenTheRideAndEndIt() throws {

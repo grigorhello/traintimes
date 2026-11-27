@@ -49,6 +49,14 @@ final class AppSettings {
         didSet { demoWeather ? defaults.set("on", forKey: DemoWeather.key) : defaults.removeObject(forKey: DemoWeather.key) }
     }
 
+    /// Settings › Testing › Demo trains › Ride › Wrong train (TT-250, D127): the demo ride plays the wrong train warning.
+    /// Stored in Demo weather's string form, so `-settings.demoWrongTrain on` works as a launch argument.
+    var demoWrongTrain: Bool {
+        didSet { demoWrongTrain ? defaults.set("on", forKey: Self.demoWrongTrainKey) : defaults.removeObject(forKey: Self.demoWrongTrainKey) }
+    }
+
+    static let demoWrongTrainKey = "settings.demoWrongTrain"
+
     /// The one formatter (D17), following the Time format setting.
     var timeFormatter: TimeFormatter { TimeFormatter(format: timeFormat) }
 
@@ -63,5 +71,6 @@ final class AppSettings {
         mockLive = defaults.string(forKey: MockLive.key).flatMap(MockLive.init(rawValue:)) ?? .off
         mockTime = MockTime.read(from: defaults)
         demoWeather = defaults.string(forKey: DemoWeather.key) == "on"
+        demoWrongTrain = defaults.string(forKey: Self.demoWrongTrainKey) == "on"
     }
 }

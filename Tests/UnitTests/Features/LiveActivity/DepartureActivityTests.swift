@@ -336,7 +336,7 @@ final class DepartureActivityTests: XCTestCase {
     func testTheDepartureLinks() throws {
         XCTAssertEqual(RideActivityLink.departure.url.absoluteString, "traintimes://departure")
         XCTAssertEqual(RideActivityLink.board.url.absoluteString, "traintimes://departure/board")
-        for link in [RideActivityLink.open, .end, .departure, .board] {
+        for link in [RideActivityLink.open, .end, .departure, .board, .wrong] {
             XCTAssertEqual(RideActivityLink(link.url), link)
         }
         XCTAssertNil(RideActivityLink(try XCTUnwrap(URL(string: "traintimes://departure/other"))))

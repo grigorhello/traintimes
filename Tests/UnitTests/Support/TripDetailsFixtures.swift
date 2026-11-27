@@ -186,7 +186,8 @@ struct DemoRideRig {
     /// `express` (TT-232): the same train not stopping between Union and Clarkson (5:13 to 5:39 PM), started at `start`.
     static func started(
         at moment: Date = DemoRideRig.time(17, 32), makeNudge: @escaping @MainActor () -> ArrivalNudge? = { nil },
-        wishes: ArrivalWishes? = nil, express: Bool = false, from start: Date = DemoRideRig.time(17, 32)
+        wishes: ArrivalWishes? = nil, express: Bool = false, from start: Date = DemoRideRig.time(17, 32),
+        wrongTrain: WrongTrain? = nil
     ) async -> DemoRideRig {
         // The first wish of the pool, so the at-your-stop snapshots stay the same (TT-223).
         let wishes = wishes ?? ArrivalWishes(defaults: nil, haptics: FakeHaptics(), index: { _ in 0 })
@@ -199,11 +200,23 @@ struct DemoRideRig {
                 (engine: DemoRide.engine(on: day, clock: clock, tickInterval: nil, express: express), ride: DemoRide.ride(on: day))
             },
             makeDemoNudge: makeNudge,
-            wishes: wishes
+            wishes: wishes,
+            wrongTrain: wrongTrain
         )
         await onBoard.setDemo(true)
         let rig = DemoRideRig(clock: clock, onBoard: onBoard, plan: DemoRide.plan(on: day, express: express))
         if moment != start { rig.drive(to: moment) }
+        return rig
+    }
+
+    /// The demo ride from Union at 5:13 PM moved on to `moment`, with Settings › Testing's wrong train warning on it (TT-250,
+    /// D127): the train does not stop at Clarkson, next stop Oakville at 5:35 PM. The app is in front.
+    static func warned(at moment: Date = DemoRideRig.time(17, 20)) async -> DemoRideRig {
+        let wrong = WrongTrainRig()
+        wrong.active.isActive = true
+        let rig = await started(at: moment, from: DemoRideRig.time(17, 13), wrongTrain: wrong.presenter)
+        let warning = DemoRide.wrongTrainWarning(for: DemoRide.ride(on: DemoRideRig.day))
+        await wrong.presenter.raise(warning, now: moment, rate: DemoRide.speed)?.value
         return rig
     }
 

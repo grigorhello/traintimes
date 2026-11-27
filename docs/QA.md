@@ -264,3 +264,14 @@ Real alerted trains now start rides by themselves, and Detect my train, its offe
 - Phone only (Grigor's iPhone, TestFlight): on rides that started by themselves, nothing ends the ride while the train moves smoothly, stands at a station or the phone sends nothing for a while. If one ever starts while you stay on the platform, it ends by itself soon after the train has gone, with no sound or buzz: the card goes and nothing asks about that train that day.
 - [ ] Real rides never ended by themselves while on the train
 - [ ] A wrong start ended silently (if seen)
+
+## TT-250 · Wrong train warning, part 1 (D127)
+
+Only Settings › Testing raises the warning in this part; real trains get it with TT-251. Simulator and CI: `WrongTrainTests` (the presenter: in front, five buzzes, the notification, the answers, expiry, withdraw), `WrongTrainDemoTests` (the demo, the ride's ending, the way back, the ride screen and the strip), the content and link tests in `RideActivityContentTests`, `HapticsTests.testAlarmIsFiveStrongBeats`, the snapshots (`RideActivitySnapshotTests.testWrongTrain…`, `RideSnapshotTests.testWrongTrain…`, `DetectionSnapshotTests.testWrongTrain…`, `SettingsSnapshotTests.testTestingDemoWrongTrain…`, the Haptics page) and the UI tests `OnBoardTests.testWrongTrainWarningComesAndImFineTakesItAway` and `testTrainsFromOakvilleEndsTheRideAndShowsTheWayBack`. Haptics and card alerts cannot be felt on the simulator, so the checks below are on Grigor's iPhone, in a TestFlight build.
+
+- [ ] 1. Testing › Demo trains › Ride with Wrong train on, then lock the phone at once: in about 10 s the card turns amber, asks "Wrong train?" and buzzes. **How many buzzes, and do they read as an alarm?**
+- [ ] 2. The same with the app open: Alarm, five quick beats, with the warning on the ride screen and on Schedule. Can it be told from the arriving taps?
+- [ ] 3. "I’m fine" on the Lock Screen: the ride's card is back, no buzz, the ride goes on.
+- [ ] 4. The island: expanded, compact, and the tap opening the warning.
+- [ ] 5. "Trains from Oakville": the ride ends and Schedule shows Oakville → Clarkson (late in the evening, Oakville → Union).
+- [ ] 6. iOS Settings › Train Times › Live Activities off, then step 1 again: the notification comes once, with its two actions under press and hold.

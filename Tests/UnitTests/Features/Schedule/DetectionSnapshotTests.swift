@@ -5,12 +5,15 @@ import XCTest
 
 /// The departure question on Schedule against board 9 of the Live view canvas (TT-231; one line, Yes and No since TT-205,
 /// D93; it was train detection's until TT-243), and the automatic ride's one-time strip (TT-243, D120), light and dark.
-/// Drawn under the top of the screen on the canvas ground, with the ripple still.
+/// The wrong train warning in the strip's place (TT-250, D127; board 55). Drawn under the top of the screen on the canvas
+/// ground, with the ripple still.
 final class DetectionSnapshotTests: XCTestCase {
     @MainActor func testQuestionLight() { snap(question, .light) }
     @MainActor func testQuestionDark() { snap(question, .dark) }
     @MainActor func testAutoRideStripLight() { snap(autoRideStrip, .light) }
     @MainActor func testAutoRideStripDark() { snap(autoRideStrip, .dark) }
+    @MainActor func testWrongTrainLight() { snap(wrongTrain, .light) }
+    @MainActor func testWrongTrainDark() { snap(wrongTrain, .dark) }
 
     private let formatter = TimeFormatter(format: .twelveHour)
 
@@ -22,6 +25,13 @@ final class DetectionSnapshotTests: XCTestCase {
     @MainActor
     private var autoRideStrip: some View {
         screen { DirectionStripCard.autoRide() }
+    }
+
+    /// The demo's warning: the train does not stop at Clarkson, next stop Oakville at 5:35 PM.
+    @MainActor
+    private var wrongTrain: some View {
+        let warning = DemoRide.wrongTrainWarning(for: DemoRide.ride(on: DemoRideRig.day))
+        return screen { WrongTrainCard(display: WrongTrainDisplay(warning, formatter: formatter), size: .strip, id: "schedule.wrongTrain") }
     }
 
     @MainActor

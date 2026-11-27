@@ -85,6 +85,7 @@ enum TTFont {
     static let rideKicker = Font.system(size: 26, weight: .semibold)                          // "Clarkson in" over them
     static let rideWish = Font.system(size: 32, weight: .bold)                                // the arrival wish in "Now"'s place (TT-223, D103)
     static let question   = Font.system(size: 20, weight: .bold)                              // "On the train to Clarkson?" (TT-175, TT-205)
+    static let wrongTitle = Font.system(size: 26, weight: .bold)                              // "Wrong train?" on the ride screen (TT-250, D127)
     static let stripMinutes = Font.system(size: 22, weight: .bold)                            // the minutes on Schedule's ride strip (TT-205)
     static let departLine = Font.system(size: 22, weight: .semibold)                          // "5:13 PM departs in" over the minutes (TT-205)
     static let lineCodeTiny = Font.system(size: 9, weight: .bold)                             // the code in the Next train widget's 20 pt tile (TT-183)

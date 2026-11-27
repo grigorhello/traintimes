@@ -141,6 +141,15 @@ final class SettingsViewModel {
 
     var showsDemoExpress: Bool { demoTrains == .ride || demoTrains == .departure }
 
+    /// Settings › Testing › Demo trains › Ride › Wrong train (TT-250, D127): about 10 s into the demo ride the wrong train
+    /// warning comes and buzzes five times. The switch shows with Ride only; turning it on or off starts the ride again.
+    var demoWrongTrain: Bool {
+        get { settings.demoWrongTrain }
+        set { settings.demoWrongTrain = newValue }
+    }
+
+    var showsDemoWrongTrain: Bool { demoTrains == .ride }
+
     /// Settings › Testing › Demo trains › Depart › Automatic ride (TT-242, D120): the demo watch decides whether the phone
     /// left with the demo departure's train. The switch shows with Depart only.
     var demoAutoRide: DemoAutoRide {
@@ -554,6 +563,8 @@ final class SettingsViewModel {
         }
         // Automatic ride counts only under Depart: with another mode its stored choice plays nothing.
         if showsDemoAutoRide, demoAutoRide != .off { parts.append(String(localized: "settings.demo_auto_ride")) }
+        // Wrong train counts only under Ride, for the same reason.
+        if showsDemoWrongTrain, demoWrongTrain { parts.append(String(localized: "settings.demo_wrong_train")) }
         if let live = mockLive.labelKey {
             let word = String(localized: String.LocalizationValue(live))
             parts.append(String(format: String(localized: "settings.live_data.value"), word))
@@ -568,6 +579,7 @@ final class SettingsViewModel {
     func resetTesting() {
         demoTrains = .off
         demoExpress = false
+        demoWrongTrain = false
         demoAutoRide = .off
         mockLive = .off
         if storedDemoPlace != nil { demoPlace = nil }

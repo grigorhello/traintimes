@@ -21,7 +21,7 @@ struct RideActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RideActivityAttributes.self) { context in
             RideActivityLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
-                .activityBackgroundTint(RideActivityLockView.background(context.state))
+                .activityBackgroundTint(RideActivityLockView.background(context.state, isStale: context.isStale))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(Self.link(context.state).url)
         } dynamicIsland: { context in
@@ -38,15 +38,23 @@ struct RideActivityWidget: Widget {
             } compactTrailing: {
                 RideActivityCompactTrailing(state: state, style: style)
             } minimal: {
-                RideActivityTile(attributes: attributes, size: .minimal)
+                RideActivityMinimal(attributes: attributes, state: state, isStale: context.isStale)
             }
-            .keylineTint(state.isClose || state.isAsking ? RideActivityStyle.mint : .white.opacity(0.3))
+            .keylineTint(Self.keyline(state, isStale: context.isStale))
             .widgetURL(Self.link(state).url)
         }
     }
 
-    /// A tap opens the ride, or before departure the train's Trip details.
+    /// A tap opens the ride, or before departure the train's Trip details; while the card warns of a wrong train, the app
+    /// on the warning (TT-250, D127).
     static func link(_ state: RideActivityAttributes.ContentState) -> RideActivityLink {
-        state.isDeparture ? .departure : .open
+        if state.wrong != nil { return .wrong }
+        return state.isDeparture ? .departure : .open
+    }
+
+    /// The island's keyline: amber while it warns of a wrong train, mint once close or asking, else faint white.
+    static func keyline(_ state: RideActivityAttributes.ContentState, isStale: Bool) -> Color {
+        if state.wrong != nil, !isStale { return RideActivityStyle.amber }
+        return state.isClose || state.isAsking ? RideActivityStyle.mint : .white.opacity(0.3)
     }
 }

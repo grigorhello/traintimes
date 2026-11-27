@@ -21,6 +21,35 @@ enum DemoRide {
     /// The express reaches Clarkson at 5:39 PM, in minutes after 5:00 PM.
     static let expressArrivalMinute = 39
 
+    // Settings › Testing › Wrong train (TT-250, D127): the demo ride from Union at 5:13 PM, and about 10 s in the warning
+    // that the train does not stop at Clarkson, its next stop Oakville at 5:35 PM, running out at 5:37 PM, before the ride
+    // reaches Clarkson at 5:43 PM. About 4 min of warning at 6x.
+
+    /// The ride starts here with Wrong train on: Union, as the train leaves.
+    static let wrongTrainStartSeconds = 17 * 3600 + 13 * 60
+    /// How long into the ride, in real time, the warning comes.
+    static let wrongTrainDelay: Duration = .seconds(10)
+    static let wrongTrainNextStop = Station(id: "OA", name: "Oakville GO")
+    static let wrongTrainNextSeconds = 17 * 3600 + 35 * 60
+    static let wrongTrainExpirySeconds = 17 * 3600 + 37 * 60
+
+    /// 5:13 PM today, where the demo ride starts with Wrong train on.
+    static func wrongTrainStart(realStart: Date = Date()) -> Date {
+        ServiceDay(calendarDayContaining: realStart).gtfsTime(wrongTrainStartSeconds)
+    }
+
+    /// The demo's warning for its ride: `skipsStop` on the feed's word, from "I’m on board".
+    static func wrongTrainWarning(for ride: Ride) -> WrongTrainWarning {
+        let day = ride.tripKey.serviceDay
+        return WrongTrainWarning(
+            ride: ride, reason: .skipsStop, evidence: .feed, source: .onBoard,
+            stopName: RideDetails.shortName(route.to.name), originId: ride.originId,
+            nextStopId: wrongTrainNextStop.id, nextStopName: RideDetails.shortName(wrongTrainNextStop.name),
+            nextStopTime: day.gtfsTime(wrongTrainNextSeconds), expires: day.gtfsTime(wrongTrainExpirySeconds),
+            secondsAfter: 0, isDemo: true
+        )
+    }
+
     private struct Call {
         let station: Station
         let place: GeoPoint

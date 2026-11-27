@@ -76,7 +76,11 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testTestingDemoAutoRideLight() { snap(autoRidePage(), .light) }
     @MainActor func testTestingDemoAutoRideDark() { snap(autoRidePage(), .dark) }
 
-    // MARK: Haptics (TT-214)
+    /// TT-250, D127: Ride with Express off and Wrong train on, its line under the switch.
+    @MainActor func testTestingDemoWrongTrainLight() { snap(SettingsTestingPage(viewModel: wrongTrainModel()), .light) }
+    @MainActor func testTestingDemoWrongTrainDark() { snap(SettingsTestingPage(viewModel: wrongTrainModel()), .dark) }
+
+    // MARK: Haptics (TT-214; Alarm and its moment since TT-250)
 
     @MainActor func testHapticsLight() { snap(SettingsHapticsPage(), .light) }
     @MainActor func testHapticsDark() { snap(SettingsHapticsPage(), .dark) }
@@ -93,6 +97,14 @@ final class SettingsSnapshotTests: XCTestCase {
     private func liveModel() -> SettingsViewModel {
         let page = testingModel()
         page.mockLive = .mixed
+        return page
+    }
+
+    @MainActor
+    private func wrongTrainModel() -> SettingsViewModel {
+        let page = testingModel()
+        page.demoTrains = .ride
+        page.demoWrongTrain = true
         return page
     }
 

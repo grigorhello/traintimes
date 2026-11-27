@@ -469,6 +469,20 @@ final class TripDetailsViewModel {
         onBoard?.notOnIt()
     }
 
+    /// "I’m fine" on the wrong train warning (TT-250, D127): Tap, the warning goes and the ride carries on.
+    func wrongTrainFine() {
+        guard onBoard?.wrongTrainWarning != nil else { return }
+        haptics.play(.undo)
+        onBoard?.wrongTrain?.fine(surface: .ride)
+    }
+
+    /// "Trains from …" on the wrong train warning: Tap, the ride ends, the sheet closes and Schedule shows the way back.
+    func wrongTrainTrains() {
+        guard onBoard?.wrongTrainWarning != nil else { return }
+        haptics.play(.undo)
+        onBoard?.wrongTrain?.trains(surface: .ride)
+    }
+
     /// Loads, then reloads on the timetable's foreground refresh interval while the sheet is open, so the sheet moves
     /// with the schedule and never holds it up.
     func run() async {

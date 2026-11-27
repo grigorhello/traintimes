@@ -80,6 +80,20 @@ struct RideActivityAttributes: ActivityAttributes, Sendable {
         /// fact's place ("Arrives" and its time), and the 45 s refresh after the window takes it away. Only the app writes
         /// it; the alert server never does.
         var undoable = false
+        /// The wrong train warning (TT-250, D127): the card turns amber and asks "Wrong train?" with "I’m fine". Only the
+        /// app writes it; the alert server never does, and a push without it decodes nil.
+        var wrong: Wrong? = nil
+
+        /// The warning's words, made in the app: `reason` and `next` are whole lines ("Doesn’t stop at Clarkson", "Next stop
+        /// Oakville · 5:38 PM"), `stop` and `nextStop` the station names inside them, set bold. `beat` counts 1 to 5 over the
+        /// five buzzes so no two updates are equal; no view draws it.
+        struct Wrong: Codable, Hashable, Sendable {
+            var reason: String
+            var stop: String
+            var next: String
+            var nextStop: String
+            var beat: Int
+        }
 
         /// About a minute before your stop: the activity alerts once.
         var isAlert: Bool { phase == .arriving }
@@ -111,6 +125,7 @@ extension RideActivityAttributes.ContentState {
         case phase, title, countdownEnd, minutes, now, label, value, delay, platformNumber, late, position, isClose, updated, wish
         case stations, skipped, express
         case asks, undoable
+        case wrong
         /// Written by the alert server before TT-205: the label's fallback, "Check the board".
         case platform
     }
@@ -141,6 +156,7 @@ extension RideActivityAttributes.ContentState {
         asks = try container.decodeIfPresent(Bool.self, forKey: .asks) ?? false
         wish = try container.decodeIfPresent(String.self, forKey: .wish)
         undoable = try container.decodeIfPresent(Bool.self, forKey: .undoable) ?? false
+        wrong = try container.decodeIfPresent(Wrong.self, forKey: .wrong)
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -165,17 +181,20 @@ extension RideActivityAttributes.ContentState {
         if asks { try container.encode(asks, forKey: .asks) }
         try container.encodeIfPresent(wish, forKey: .wish)
         if undoable { try container.encode(undoable, forKey: .undoable) }
+        try container.encodeIfPresent(wrong, forKey: .wrong)
     }
 }
 
 /// The app's links from the activity: during the ride a tap opens Trip details on the ride; before departure (TT-178) a tap
 /// opens the train's Trip details. The card's only buttons are the departure question's (TT-231, D110): Yes is `board`, No
-/// is `DeclineDepartureIntent`; `end` stays as a link the app understands.
+/// is `DeclineDepartureIntent`; `end` stays as a link the app understands. While the card warns of a wrong train (TT-250,
+/// D127) a tap is `wrong`: the app opens on the warning, never on the train's Trip details.
 enum RideActivityLink: Equatable {
     case open
     case end
     case departure
     case board
+    case wrong
 
     static let scheme = "traintimes"
 
@@ -185,6 +204,7 @@ enum RideActivityLink: Equatable {
         case .end: URL(string: "\(Self.scheme)://ride/end")!
         case .departure: URL(string: "\(Self.scheme)://departure")!
         case .board: URL(string: "\(Self.scheme)://departure/board")!
+        case .wrong: URL(string: "\(Self.scheme)://wrong")!
         }
     }
 
@@ -195,6 +215,7 @@ enum RideActivityLink: Equatable {
         case ("ride", "/end"): self = .end
         case ("departure", ""), ("departure", "/"): self = .departure
         case ("departure", "/board"): self = .board
+        case ("wrong", ""), ("wrong", "/"): self = .wrong
         default: return nil
         }
     }

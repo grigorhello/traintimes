@@ -144,7 +144,11 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 110 | TT-236 · Automatic direction, part 3: the one-time strip, and no capsule after the first 8 turns | [#226](https://github.com/grigorhello/traintimes/issues/226) | P1 | 2 | Grigor, 2026-11-19, D116. Blocked by TT-235 (#225, merged) |
 | 116 | TT-242 · Rides start by themselves, part 1: the ride starts when you leave with your alerted train (the rule, the watch, the server's hold, the Testing demo; real trains off) | [#238](https://github.com/grigorhello/traintimes/issues/238) | P1 | 8 | Grigor, 2026-11-23, D120 |
 | 117 | TT-243 · Rides start by themselves, part 2: on for real trains, Not on it, the switches, the app-closed tier; the any-train detection goes | [#239](https://github.com/grigorhello/traintimes/issues/239) | P1 | 7 | Grigor, 2026-11-23, D120. Blocked by TT-242 (#238) |
+| 124 | TT-250 · Wrong train warning, part 1: the warning on the card, the ride screen and Schedule, with five buzzes, on the demo (real trains off) | [#254](https://github.com/grigorhello/traintimes/issues/254) | P1 | 5 | Grigor, 2026-11-26, D127 |
+| 125 | TT-251 · Wrong train warning, part 2: the detection, on for real trains | [#255](https://github.com/grigorhello/traintimes/issues/255) | P1 | 5 | Grigor, 2026-11-26, D127. Blocked by TT-250 (#254) |
 
 TT-234, TT-235 and TT-236 go into the same TestFlight build: no build with only one or two of them.
 
 TT-242 and TT-243 go into the same TestFlight build. Real trains stay off behind `AutoRideWatch.isLive` until TT-243, so a build cut between the two merges is unchanged for riders.
+
+TT-250 builds the wrong train warning with nothing that detects: only Settings › Testing's demo raises it, so a build cut between the TT-250 and TT-251 merges shows no warning for real trains.

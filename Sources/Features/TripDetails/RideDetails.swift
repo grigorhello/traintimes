@@ -103,6 +103,8 @@ struct RideDetails: Equatable {
 
     /// End ride, Done at your stop, or Not on it while the ride that started by itself may still be undone.
     let button: Button
+    /// The wrong train warning on this ride (TT-250, D127): it stands in the hero's place and the rail dims; nil otherwise.
+    var wrongTrain: WrongTrainDisplay? = nil
 
     var isComplete: Bool { moment == .atYourStop }
     /// Arriving and at your stop tint the hero card.
@@ -399,10 +401,15 @@ extension OnBoard {
     /// Trip details' ride mode for `key`, at the engine's clock; nil when the engine's ride is another trip's.
     func details(for key: TripKey, formatter: some TimeFormatting) -> RideDetails? {
         guard let engine, engine.ride?.tripKey == key, let plan = engine.plan, let state = engine.state else { return nil }
-        return RideDetails(
+        var details = RideDetails(
             plan: plan, state: state, now: engine.now, formatter: formatter, wish: arrivalWish,
             undoable: autoUndoUntil.map { engine.now < $0 } ?? false
         )
+        // The wrong train warning while it is this ride's and the ride runs (TT-250, D127).
+        if let warning = wrongTrainWarning, warning.ride == engine.ride, state.phase != .ended {
+            details?.wrongTrain = WrongTrainDisplay(warning, formatter: formatter)
+        }
+        return details
     }
 
     /// The ride strip on Schedule; nil with no ride running.

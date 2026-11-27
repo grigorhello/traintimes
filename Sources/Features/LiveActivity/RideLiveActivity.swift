@@ -104,6 +104,9 @@ final class RideLiveActivity: RideActivityFollowing {
     private weak var wishes: (any ArrivalWishSource)?
     /// At your stop with no wish yet: a pass a second later, since no ride event comes when the wish is due.
     private var wishWait: Task<Void, Never>?
+    /// The wrong train warning on a ride's card (TT-250, D127, `show(_:for:until:alert:)`): put into the content each pass
+    /// makes for that ride, or the next pass would wipe it.
+    private var wrongOverlay: (ride: Ride, wrong: RideActivityAttributes.ContentState.Wrong)?
 
     init(
         app: RideEngine?,
@@ -251,6 +254,8 @@ final class RideLiveActivity: RideActivityFollowing {
         // Not on it for the ride's first 10 min after it started by itself (TT-243, D120); the pass after the window, at
         // the latest the 45 s refresh, takes it away.
         content.undoable = engine.autoUndoUntil.map { engine.now < $0 } ?? false
+        // The wrong train warning while it shows (TT-250, D127): wins over the rest of the card.
+        if let overlay = wrongOverlay, overlay.ride == ride { content.wrong = overlay.wrong }
         let current = activities.first(where: fits)
         let staleDate = deviceNow.addingTimeInterval(Self.staleAfter)
         if let current {
@@ -261,7 +266,10 @@ final class RideLiveActivity: RideActivityFollowing {
                 self.sentAt = deviceNow
                 let alerts = Self.alerts(from: shown, to: content) && self.alertedRide != ride
                 if alerts { self.alertedRide = ride }
-                await Self.update(id, content: content, staleDate: staleDate, alerts: alerts)
+                await Self.update(
+                    id, content: content, staleDate: staleDate,
+                    alert: alerts ? WrongTrainAlert(title: content.title, body: "") : nil
+                )
                 if content.wish != nil { self.wishes?.wishReachedLockScreen() }
             }
             if shown.isDeparture {
@@ -303,9 +311,10 @@ final class RideLiveActivity: RideActivityFollowing {
     private func endRide(
         engine: RideEngine, ride: Ride, plan: RidePlan, state: RideState, activities: [Activity<RideActivityAttributes>]
     ) async {
-        // The same trip can be ridden again: it gets a new activity and a new alert.
+        // The same trip can be ridden again: it gets a new activity and a new alert. A warning ends with its ride.
         startedRide = nil
         alertedRide = nil
+        if wrongOverlay?.ride == ride { wrongOverlay = nil }
         let deviceNow = Date()
         guard let current = activities.first(where: { !$0.content.state.isDeparture && $0.attributes.shows(ride) }),
               let content = RideActivityAttributes.ContentState(
@@ -400,7 +409,7 @@ final class RideLiveActivity: RideActivityFollowing {
             guard Self.needsUpdate(from: shown.content.state, to: content, sentAt: departureSentAt, now: deviceNow) else { return }
             departureSentAt = deviceNow
             // The app's own update never alerts: the question's buzz is the alert server's (TT-231).
-            await Self.update(shown.id, content: content, staleDate: staleDate, alerts: false)
+            await Self.update(shown.id, content: content, staleDate: staleDate, alert: nil)
             return
         }
         // Started by the app in front, once a window, and not once the train has left.
@@ -525,18 +534,20 @@ final class RideLiveActivity: RideActivityFollowing {
 
     // An `Activity` is not Sendable, so its async calls run off the main actor, on an activity looked up there by id.
 
+    /// `alert`: the update alerts with these words and the system's default sound (the arriving alert: the card's title; the
+    /// wrong train's five: "Wrong train?" and the notification's body, TT-250).
     private nonisolated static func update(
-        _ id: String, content: RideActivityAttributes.ContentState, staleDate: Date, alerts: Bool
+        _ id: String, content: RideActivityAttributes.ContentState, staleDate: Date, alert: WrongTrainAlert?
     ) async {
         guard let activity = Activity<RideActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
-        let alert = alerts
-            ? AlertConfiguration(
-                title: LocalizedStringResource(stringLiteral: content.title),
-                body: "",
+        let configuration = alert.map {
+            AlertConfiguration(
+                title: LocalizedStringResource(stringLiteral: $0.title),
+                body: LocalizedStringResource(stringLiteral: $0.body),
                 sound: .default
             )
-            : nil
-        await activity.update(ActivityContent(state: content, staleDate: staleDate), alertConfiguration: alert)
+        }
+        await activity.update(ActivityContent(state: content, staleDate: staleDate), alertConfiguration: configuration)
     }
 
     /// Ends the activity with its last content, leaving the Lock Screen at `dismissal`, or at once with none.
@@ -719,3 +730,30 @@ extension RideLiveActivity {
 }
 
 extension RideLiveActivity: AutoRideHolding {}
+
+// MARK: Wrong train (TT-250, D127)
+
+extension RideLiveActivity: WrongTrainShowing {
+    /// Puts the warning on `ride`'s card (nil takes it away) and updates the card at once, alerting with `alert`; every pass
+    /// after it keeps it. False when no showing card is that ride's or Live Activities are off. This part shows on ride
+    /// cards only; `until` (a departure card's stale date while it warns) is TT-251's, and a ride card keeps its own.
+    func show(
+        _ wrong: RideActivityAttributes.ContentState.Wrong?, for ride: Ride, until: Date?, alert: WrongTrainAlert?
+    ) async -> Bool {
+        if let wrong {
+            wrongOverlay = (ride, wrong)
+        } else if wrongOverlay?.ride == ride {
+            wrongOverlay = nil
+        }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled,
+              let activity = Activity<RideActivityAttributes>.activities.first(where: {
+                  Self.isShowing($0.activityState) && !$0.content.state.isDeparture && $0.attributes.shows(ride)
+              })
+        else { return false }
+        var content = activity.content.state
+        content.wrong = wrong
+        let staleDate = until ?? activity.content.staleDate ?? Date().addingTimeInterval(Self.staleAfter)
+        await Self.update(activity.id, content: content, staleDate: staleDate, alert: alert)
+        return true
+    }
+}

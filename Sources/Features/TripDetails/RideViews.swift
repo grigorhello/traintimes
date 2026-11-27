@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Trip details in ride mode (TT-204, D87, *Live-Ride-Lean*): the hero card with the minutes to your stop, and the stop
-/// list with the train riding its rail. The two rise into place when the sheet opens on a ride.
+/// Trip details in ride mode (TT-204, D87, *Live-Ride-Lean*): the line naming the train you ride (TT-256, D130), the hero card
+/// with the minutes to your stop, and the stop list with the train riding its rail. They rise into place when the sheet
+/// opens on a ride, the line with the hero card.
 struct RideContent: View {
     let ride: RideDetails
     /// False when the ride takes the departure card's place (TT-177, D69): the rows are there in the same update, with
@@ -26,6 +27,8 @@ struct RideContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
+            RideTrainLine(text: ride.onTrain)
+                .modifier(RideRise(order: 0, hasRisen: settled))
             RideHero(ride: ride, wishes: wishes)
                 .modifier(RideRise(order: 0, hasRisen: settled))
             RideStopList(ride: ride)
@@ -72,6 +75,40 @@ private struct RideRise: ViewModifier {
                 (moves ? RideMotion.rise : TTMotion.fade).delay(RideMotion.riseDelay(order: order)),
                 value: hasRisen
             )
+    }
+}
+
+// MARK: The train you ride
+
+/// "You’re on the 4:29 PM" on a line of its own between the header and the hero card (TT-256, D130, Card states boards 16
+/// and 18): the train glyph in the accent and the words at 26 pt bold in ink, like the Schedule header's line name, so it
+/// reads as the screen's title and leaves the green to the minutes (D87's three sizes, 64, 26 and 17, stay). The train's
+/// scheduled time, which stays put for the whole ride. No motion, haptic or event of its own.
+struct RideTrainLine: View {
+    let text: String
+
+    private static let glyph: CGFloat = 26
+
+    var body: some View {
+        HStack(spacing: TTSpace.s2) {
+            TrainGlyph()
+                .fill(TTColor.accent, style: FillStyle(eoFill: true))
+                .frame(width: Self.glyph, height: Self.glyph)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(TTFont.lineName)
+                .tracking(-0.6)
+                .monospacedDigit()
+                .foregroundStyle(TTColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("trip.onTrain")
     }
 }
 

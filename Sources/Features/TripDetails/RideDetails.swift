@@ -53,6 +53,9 @@ struct RideDetails: Equatable {
     let moment: Moment
     /// "5:13 PM train": the sheet's accessibility label.
     let title: String
+    /// "You’re on the 5:13 PM": the line of its own between the header and the hero card (TT-256, D130), the train named by
+    /// its scheduled departure from where you got on (D9). It stays put for the whole ride.
+    let onTrain: String
     /// "Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson": the stop named, so a guessed stop
     /// can be checked at a glance.
     let kicker: String
@@ -230,6 +233,7 @@ extension RideDetails {
         rows = Self.rows(built, at: place)
         trainPosition = place
         title = String(format: String(localized: "trip.title"), formatter.time(stops[0].departure))
+        onTrain = RideStrip.onTrain(plan, formatter: formatter)
         button = isComplete ? .done : undoable ? .notOnIt : .end
     }
 }
@@ -319,9 +323,11 @@ extension RideDetails {
     static let maxRows = 7
 }
 
-/// The ride strip on Schedule (TT-172; one line since TT-205, D93, *Live-Schedule*): the ride screen's line and minutes. A
-/// tap opens Trip details in ride mode.
+/// The ride strip on Schedule (TT-172; one line since TT-205, D93, *Live-Schedule*; the train named over it since TT-256,
+/// D130): the train, the ride screen's line and minutes. A tap opens Trip details in ride mode.
 struct RideStrip: Equatable {
+    /// "You’re on the 5:13 PM": the train you ride, by its scheduled departure from where you got on (D9).
+    let train: String
     /// "Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson": the ride screen's kicker.
     let line: String
     /// "11 min" to your stop, or "Now" at it.
@@ -331,10 +337,30 @@ struct RideStrip: Equatable {
 
     init?(plan: RidePlan, state: RideState, now: Date, formatter: some TimeFormatting) {
         guard let details = RideDetails(plan: plan, state: state, now: now, formatter: formatter) else { return nil }
+        train = details.onTrain
         line = details.kicker
         countdown = details.countdown
         isLive = state.source != .timetable
     }
+
+    /// "You’re on the 5:13 PM": the ride's train by its scheduled departure from its first stop, where you got on (D9).
+    static func onTrain(_ plan: RidePlan, formatter: some TimeFormatting) -> String {
+        let departure = plan.stops.first?.departure ?? .distantPast
+        return String(format: String(localized: "onboard.youreOnThe"), formatter.time(departure))
+    }
+}
+
+/// The train a running ride is on, as Schedule marks its card (TT-256, D130, Card states boards 6 to 12): "You’re on board"
+/// on that train's card, on Today, while Schedule shows the ride's two stations.
+struct RiddenTrain: Equatable {
+    let key: TripKey
+    let originId: String
+    let destinationId: String
+    /// Your stop's expected time from the ride, the one behind the strip's minutes: the timetable moved by the ride's delay
+    /// (`RideTimes`). The card's Arrival once the train has left.
+    let arrival: Date
+    /// That time is 1 min or more after the timetable's: the card's Arrival is amber.
+    let isLate: Bool
 }
 
 /// The ride's times as the card, the strip and the Live Activity (TT-174) read them: the timetable moved by the ride's
@@ -409,5 +435,16 @@ extension OnBoard {
     func strip(formatter: some TimeFormatting) -> RideStrip? {
         guard activeRide != nil, let engine, let plan = engine.plan, let state = engine.state else { return nil }
         return RideStrip(plan: plan, state: state, now: engine.now, formatter: formatter)
+    }
+
+    /// The train the running ride is on, for its Schedule card (TT-256, D130); nil with no ride running. A ride that ended
+    /// (at your stop, End ride, Not on it) marks nothing: its card goes back to Departed.
+    var riddenTrain: RiddenTrain? {
+        guard let ride = activeRide, let engine, let plan = engine.plan, let state = engine.state,
+              let times = RideTimes(plan: plan, state: state) else { return nil }
+        return RiddenTrain(
+            key: ride.tripKey, originId: ride.originId, destinationId: ride.destinationId,
+            arrival: times.time(at: times.last), isLate: times.delayMinutes >= 1
+        )
     }
 }

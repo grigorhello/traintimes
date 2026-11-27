@@ -1,8 +1,8 @@
 import XCTest
 
 /// TT-172: Demo trains › Ride starts the ride from Union to Clarkson at once (TT-243: its question went with train
-/// detection); the strip opens Trip details in ride mode, closing the sheet keeps the ride, and Done at your stop closes it
-/// and the strip goes (TT-221). TT-177: Demo trains › Departure counts down to the same train; the Live Activity's link opens
+/// detection); the ride opens by itself at launch and on coming back (TT-256, D130), the strip opens Trip details in ride
+/// mode, closing the sheet keeps the ride, and Done at your stop closes it and the strip goes (TT-221). TT-177: Demo trains › Departure counts down to the same train; the Live Activity's link opens
 /// its hero card (TT-205: Schedule has no countdown strip), and "I’m on board" turns it into the ride. TT-242 (D120): with
 /// Demo trains › Depart › Automatic ride, the ride starts by itself when the demo phone leaves Union with the train, and not
 /// when it stays. TT-243 (D120): Not on it ends that ride, and the one-time strip's OK and Turn off.
@@ -12,27 +12,37 @@ final class OnBoardTests: XCTestCase {
     }
 
     @MainActor
-    func testDemoRideStartsAtOnceAndDoneAtYourStopClosesIt() {
+    func testDemoRideOpensByItselfAndDoneAtYourStopClosesIt() {
         let app = XCUIApplication.onFixtures()
         app.launchArguments += LaunchArguments.fixtureRoute + ["-settings.demoTrains", "ride"]
         app.launch()
 
-        // No question first: the demo ride runs from launch, and its strip is on Schedule.
+        // No question first: the demo ride runs from launch, and with a ride running the ride opens by itself over Schedule
+        // (TT-256, D130), naming the train on its own line.
+        let card = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "The ride opens by itself at launch")
+        XCTAssertTrue(app.buttons["trip.endRide"].exists, "A ride the rider started has End ride, not Not on it")
+        let train = app.descendants(matching: .any).matching(identifier: "trip.onTrain").firstMatch
+        XCTAssertTrue(train.exists)
+        XCTAssertTrue(train.label.contains("You’re on the"), train.label)
+
+        // Closing the sheet keeps the ride: the strip names the train and opens it again.
+        app.buttons["trip.close"].tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 15))
         let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
         XCTAssertTrue(strip.waitForExistence(timeout: 15))
         XCTAssertTrue(strip.label.contains("Clarkson"), strip.label)
+        XCTAssertTrue(strip.label.contains("You’re on the"), strip.label)
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "schedule.question").firstMatch.exists)
         strip.tap()
-        let card = app.descendants(matching: .any).matching(identifier: "trip.ride").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 15), "The strip opens Trip details in ride mode")
-        XCTAssertTrue(app.buttons["trip.endRide"].exists, "A ride the rider started has End ride, not Not on it")
 
-        // Closing the sheet keeps the ride: the strip opens it again.
+        // Closed again and back from the background, the ride opens by itself again (TT-256, D130).
         app.buttons["trip.close"].tap()
         XCTAssertTrue(card.waitForNonExistence(timeout: 15))
-        XCTAssertTrue(strip.waitForExistence(timeout: 15))
-        strip.tap()
-        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "The ride opens by itself on coming back")
 
         // TT-221: at Clarkson the button is Done (the demo reaches it about 2 min after launch, at 6×), and Done closes the
         // sheet and ends the ride. The departure test below covers End ride.

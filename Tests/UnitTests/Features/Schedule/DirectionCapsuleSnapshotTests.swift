@@ -13,6 +13,27 @@ import XCTest
 /// Part 3 (TT-236): the first turn with the one-time strip under the day strip and the capsule (board 15), the strip alone
 /// after a first Switch, and a quiet turn from the 9th on, with the arrow on From and no capsule (board 16).
 final class DirectionCapsuleSnapshotTests: XCTestCase {
+    /// The strip snapshots hung on CI twice after TT-256 (main on 4bb750a, PR #262; the host was killed with SIGTERM, which
+    /// leaves no crash report) and passed on three other runs of the same code, with no cause found in the code. A test here
+    /// takes a few seconds even on a slow runner, so one still running after 90 s aborts the host: the crash report carries
+    /// every thread's stack, which `scripts/ci-test.sh` prints, and the run goes red in 90 s instead of 5 to 10 min.
+    private var watchdog: DispatchSourceTimer?
+
+    override func setUp() {
+        super.setUp()
+        let timer = DispatchSource.makeTimerSource(queue: .global())
+        timer.schedule(deadline: .now() + 90)
+        timer.setEventHandler { abort() }
+        timer.resume()
+        watchdog = timer
+    }
+
+    override func tearDown() {
+        watchdog?.cancel()
+        watchdog = nil
+        super.tearDown()
+    }
+
     @MainActor func testTurnedLight() async throws { try await snap(turned(), .turned(station: "Union"), .light) }
     @MainActor func testTurnedDark() async throws { try await snap(turned(), .turned(station: "Union"), .dark) }
     @MainActor func testAsksLight() async throws { try await snap(.loadedFixture(), .asks(station: "Union"), .light) }

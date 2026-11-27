@@ -297,10 +297,17 @@ final class OnBoardTests: XCTestCase {
     @MainActor
     private func notOnIt(_ app: XCUIApplication, ride: XCUIElement) {
         let notOnIt = app.buttons["trip.notOnIt"]
-        XCTAssertTrue(notOnIt.waitForExistence(timeout: 5), "Not on it in End ride's place")
+        XCTAssertTrue(notOnIt.waitForExistence(timeout: 15), "Not on it in End ride's place")
         XCTAssertFalse(app.buttons["trip.endRide"].exists)
+        // The sheet rises in place when the ride opens by itself (TT-256): on a slow runner the button exists before it
+        // has settled, and a tap then can miss it (main's run after TT-256 failed here once, its twin passed).
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: notOnIt)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 15), .completed, "Not on it can be tapped")
         notOnIt.tap()
-        XCTAssertTrue(ride.waitForNonExistence(timeout: 15), "Not on it closes the sheet")
+        XCTAssertTrue(
+            ride.waitForNonExistence(timeout: 15),
+            "Not on it closes the sheet (button still there: \(notOnIt.exists), hittable: \(notOnIt.isHittable))"
+        )
         let strip = app.descendants(matching: .any).matching(identifier: "schedule.ride").firstMatch
         XCTAssertTrue(strip.waitForNonExistence(timeout: 15), "and ends the ride")
     }

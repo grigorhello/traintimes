@@ -70,6 +70,8 @@ enum TTMotion {
 
     /// A held train card coming back from 0.98 once the finger lifts or the scroll takes it (TT-214, D95).
     static let cardPressBackCurve = Curve(response: 0.32, damping: 0.78)
+    /// The card See trains lands on settling back from its 1.035 swell, with its raised shadow (TT-255, D129).
+    static let landBackCurve = Curve(response: 0.5, damping: 0.75)
 
     static var cross: Animation { crossCurve.animation }
     static var turn: Animation { turnCurve.animation }

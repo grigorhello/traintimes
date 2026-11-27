@@ -166,20 +166,3 @@ final class FeedbackSnapshotTests: XCTestCase {
     /// on 22f362d drew the other one, the same 0.9970913 / 0.92964846 in two tests), and it is not what these test.
     private static let headerHeight: CGFloat = 300
 }
-
-private extension Snapshotting where Format == UIImage {
-    /// The capture's top `points` only.
-    func keepingTop(_ points: CGFloat) -> Snapshotting {
-        let capture = snapshot
-        return Snapshotting(pathExtension: pathExtension, diffing: diffing, asyncSnapshot: { value in
-            capture(value).map { image in
-                guard let cgImage = image.cgImage else { return image }
-                let height = min(points * image.scale, CGFloat(cgImage.height))
-                guard let top = cgImage.cropping(to: CGRect(x: 0, y: 0, width: CGFloat(cgImage.width), height: height)) else {
-                    return image
-                }
-                return UIImage(cgImage: top, scale: image.scale, orientation: image.imageOrientation)
-            }
-        })
-    }
-}

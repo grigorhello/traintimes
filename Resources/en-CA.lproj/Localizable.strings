@@ -102,6 +102,8 @@
 "depart.ask.line" = "%@ departed";
 "depart.ask.question" = "On board?";
 "depart.ask.notif" = "On the %@ train?";
+/* Time to board (TT-247, D124): the alert the alert server sends three times on the Live Activity card when an alerted train starts boarding or is 5 min away, whichever comes first. %@ is a time from the one formatter. */
+"depart.board.notif" = "Time to board the %@ train";
 "loc.title" = "Train Times needs your location";
 "loc.subtitle" = "To show the minutes to your stop and tell you before it. Also to open with trains from the station you’re closer to. Your location stays on the phone.";
 "loc.allow" = "Allow location";

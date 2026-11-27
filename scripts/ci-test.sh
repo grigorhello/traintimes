@@ -105,7 +105,23 @@ if [[ "$status" -ne 0 ]]; then
   report=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/TrainTimes*.ips 2>/dev/null | head -n 1 || true)
   if [[ -n "$report" ]]; then
     echo "::group::Crash report $report"
-    head -c 12000 "$report"
+    # The report is a JSON header line and a JSON body; print the exception and the stacks by name (the main thread and
+    # the crashed one in full, the first frames of the rest), since a hung test's abort only shows where in these.
+    python3 - "$report" <<'PY' || head -c 12000 "$report"
+import json, sys
+text = open(sys.argv[1]).read()
+body = json.loads(text[text.index("\n") + 1:])
+images = body.get("usedImages", [])
+print(body.get("exception"), body.get("termination", {}).get("indicator"))
+faulting = body.get("faultingThread", 0)
+for index, thread in enumerate(body.get("threads", [])):
+    full = index in (0, faulting)
+    print("Thread", index, thread.get("name", thread.get("queue", "")), "(crashed)" if index == faulting else "")
+    for frame in thread.get("frames", [])[: 60 if full else 8]:
+        image = frame.get("imageIndex")
+        name = images[image].get("name", "?") if image is not None and image < len(images) else "?"
+        print("   ", name, frame.get("symbol", hex(frame.get("imageOffset", 0))))
+PY
     echo
     echo "::endgroup::"
   fi

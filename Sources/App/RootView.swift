@@ -30,9 +30,15 @@ struct RootView: View {
     @State private var onBoard: OnBoard
     /// The ride's Live Activity was tapped before the ride was restored at launch: its Trip details opens once it is.
     @State private var opensRide = false
-    /// A ride that started by itself (TT-242, D120) whose ride mode has not opened yet: it opens once, at rest, as soon as
-    /// Schedule shows in the foreground with nothing over it.
+    /// A ride that started by itself with the app in front (TT-242, D120) whose ride mode has not opened yet: it opens at
+    /// once, at rest, if Schedule shows with nothing over it. One that started in the background opens at the next arrival,
+    /// as every running ride does (TT-256, D130).
     @State private var opensAutoRide: AutoRideWatch.Started?
+    /// The ride opening by itself each time the app opens or comes back (TT-256, D130); Schedule reports to it.
+    @State private var rideOpening = RideOpening()
+    /// The app has just launched or has been in the background since the last arrival: the next time it is active is an
+    /// arrival (TT-256, D130). Back from Notification Centre or Control Centre is not one.
+    @State private var arrives = true
     /// Schedule's Feedback button asking now and then (TT-228, D112); Settings opens the sheet through it too.
     @State private var feedbackNudge: FeedbackNudge
     /// Automatic direction's look (TT-234, D116): one per app, fed by Schedule.
@@ -178,7 +184,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        writesWidgetFile(watchesAutoRide(followsRides(tabs)))
+        writesWidgetFile(opensRideByItself(watchesAutoRide(followsRides(tabs))))
             // Each screen the rider sees, named by us (TT-208, D92): SwiftUI has no view controllers worth naming.
             .onChange(of: analyticsScreen, initial: true) { _, screen in Analytics.screen(screen) }
             // A before-departure card lives only while its alert is switched on (TT-240, D118): a bell turned off, an
@@ -216,6 +222,7 @@ struct RootView: View {
                     .environment(\.feedbackNudge, feedbackNudge)
                     .environment(\.directionLook, direction)
                     .environment(\.autoRideStrip, autoRideStrip)
+                    .environment(\.rideOpening, rideOpening)
                     .environment(\.scheduleCovered, router.presentedSheet != nil || router.selectedTab != .schedule)
                     .environment(\.visibleTab, router.presentedSheet == nil ? router.selectedTab : nil)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
@@ -450,20 +457,64 @@ struct RootView: View {
                 }
             }
             .task(id: demoAutoRide) { onBoard.setDemoAutoRide(demoAutoRide) }
-            // Decided once: in front, at once if Schedule is at rest, else the ride strip waits on Schedule; after a start in
-            // the background, at the next foreground on the same terms. Never later, so no sheet pops up mid-ride.
+            // Decided once in front: at once if Schedule is at rest, else the ride strip waits on Schedule; a start while the
+            // app is inactive (Notification Centre or Control Centre over it), as it becomes active again. A start in the
+            // background opens at the next arrival, as any running ride does (TT-256, D130, revising D120's next
+            // foreground). Never later, so no sheet pops up mid-ride.
             .onChange(of: onBoard.autoRideStarted) { _, started in
                 guard let started else { return }
                 if router.presentedSheet == .tripDetails, let details = tripDetails, details.key == started.ride.tripKey {
                     details.adoptRide()
                     return
                 }
+                guard scenePhase != .background else { return }
                 opensAutoRide = started
                 if scenePhase == .active { openAutoRideIfAtRest() }
             }
+    }
+
+    /// The ride opens by itself (TT-256, D130, Card states board 13), apart from `tabs` so each chain type-checks in
+    /// reasonable time: with a ride running, each time the app opens or comes back from the background, ride mode opens
+    /// over Schedule, also after the rider closed it.
+    private func opensRideByItself(_ content: some View) -> some View {
+        content
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { openAutoRideIfAtRest() }
+                if phase == .background {
+                    // The arrival opens a ride that started by itself while the app was away.
+                    arrives = true
+                    opensAutoRide = nil
+                } else if phase == .active {
+                    openAutoRideIfAtRest()
+                }
             }
+            .task(id: scenePhase) {
+                guard scenePhase == .active, arrives else { return }
+                arrives = false
+                await openRideOnArrival()
+            }
+    }
+
+    /// An arrival: after a beat, once the launch splash has gone and a ride restored at launch is back (up to 3 s after
+    /// the splash), ride mode opens if a ride runs, Schedule's tab is in front with nothing of the app's or of Schedule's
+    /// own over it, no Live Activity tap is opening the ride already and nobody touched Schedule meanwhile.
+    private func openRideOnArrival() async {
+        rideOpening.arrived()
+        try? await Task.sleep(for: RideOpening.beat)
+        var deadline: ContinuousClock.Instant?
+        while !Task.isCancelled {
+            if !showsSplash {
+                let until = deadline ?? ContinuousClock.now + RideOpening.rideWait
+                deadline = until
+                if onBoard.activeRide != nil || ContinuousClock.now >= until { break }
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        guard !Task.isCancelled else { return }
+        let inFront = router.selectedTab == .schedule && router.presentedSheet == nil && schedule.route != nil
+            && !showsSplash && !opensRide
+        guard rideOpening.decide(rideRuns: onBoard.activeRide != nil, inFront: inFront),
+              let ride = onBoard.activeRide else { return }
+        await openRideInPlace(ride, risesIn: true)
     }
 
     /// Ride mode for the ride that started by itself when Schedule is at rest; otherwise it is let go.
@@ -491,11 +542,19 @@ struct RootView: View {
     private func openAutoRide() async {
         guard let started = opensAutoRide else { return }
         opensAutoRide = nil
-        guard onBoard.activeRide == started.ride, let route = await onBoard.rideRoute(stations: stations),
+        guard onBoard.activeRide == started.ride else { return }
+        await openRideInPlace(started.ride, risesIn: false)
+    }
+
+    /// Ride mode that nobody tapped open (TT-242, TT-256): no `trip_opened`, counted as `ride_ended`'s `auto_opens`.
+    /// `risesIn` false draws it at rest, as the automatic start's; an arrival's rows rise as the strip's tap does.
+    private func openRideInPlace(_ ride: Ride, risesIn: Bool) async {
+        guard let route = await onBoard.rideRoute(stations: stations), onBoard.activeRide == ride,
               router.presentedSheet == nil else { return }
+        onBoard.screen.opensByItself(onBoard.engine)
         tripDetails = TripDetailsViewModel(
-            route: route, key: started.ride.tripKey, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
-            bells: bells.sibling(), boardingShown: BoardingShown(), ridesInPlace: true
+            route: route, key: ride.tripKey, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
+            bells: bells.sibling(), boardingShown: BoardingShown(), ridesInPlace: !risesIn
         )
         router.present(.tripDetails)
     }

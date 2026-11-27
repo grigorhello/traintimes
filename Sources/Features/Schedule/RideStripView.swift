@@ -2,22 +2,46 @@ import SwiftUI
 
 /// The ride strip under the day strip while a ride runs (TT-172; one line since TT-205, D93, *Live-Schedule*): the Live dot,
 /// the ride screen's line ("Clarkson in", "Clarkson is next", "Arriving at Clarkson", "This is Clarkson"), the minutes in
-/// the accent, a chevron. A tap opens Trip details in ride mode.
+/// the accent, a chevron. Over the line, the train you ride: the train glyph and "You’re on the 4:29 PM" in the accent, the
+/// glyph in the Live dot's column (TT-256, D130, Card states board 6; 62 pt where it was 46). The minutes keep their room:
+/// the train's line gives way first. A tap opens Trip details in ride mode.
 struct RideStripView: View {
     let strip: RideStrip
     var onOpen: () -> Void = {}
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// The glyph is 16 pt where the Live dot is 8, so it hangs 4 pt left of the dot's column and both share a centre.
+    private static let glyph: CGFloat = 16
+    private static let dot: CGFloat = 8
+
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: TTSpace.s2) {
-                LiveDot(isLive: strip.isLive)
-                Text(strip.line)
-                    .font(TTFont.headline)
-                    .tracking(-0.4)
-                    .foregroundStyle(TTColor.ink)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: TTSpace.s1) {
+                        TrainGlyph()
+                            .fill(TTColor.accent, style: FillStyle(eoFill: true))
+                            .frame(width: Self.glyph, height: Self.glyph)
+                            .accessibilityHidden(true)
+                        Text(strip.train)
+                            .font(TTFont.badgeLarge)
+                            .tracking(-0.2)
+                            .monospacedDigit()
+                            .foregroundStyle(TTColor.accent)
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, -(Self.glyph - Self.dot) / 2)
+                    .frame(minHeight: 20)
+                    HStack(spacing: TTSpace.s2) {
+                        LiveDot(isLive: strip.isLive)
+                        Text(strip.line)
+                            .font(TTFont.headline)
+                            .tracking(-0.4)
+                            .foregroundStyle(TTColor.ink)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer(minLength: TTSpace.s2)
                 Text(strip.countdown)
                     .font(TTFont.stripMinutes)
@@ -33,7 +57,7 @@ struct RideStripView: View {
                     .foregroundStyle(TTColor.inkTertiary)
                     .accessibilityHidden(true)
             }
-            .padding(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 12))
+            .padding(EdgeInsets(top: 9, leading: 14, bottom: 9, trailing: 12))
             .background(TTColor.accentSoft, in: RoundedRectangle(cornerRadius: TTRadius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: TTRadius.lg)

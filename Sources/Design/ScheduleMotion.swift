@@ -141,6 +141,17 @@ enum DeparturePlay {
         static func rest(departed: Bool) -> Card {
             departed ? Card(scale: TTTimeline.departedScale, look: 1, statusIn: 1, statusOut: 0) : Card()
         }
+
+        /// The train you ride (TT-256, D130): where it moves in a play (the step up, the fade under Reduce Motion), it keeps
+        /// its colour, size and status row, so it never goes grey or presses back.
+        var onBoard: Card {
+            var pose = self
+            pose.scale = max(scale, 1)
+            pose.look = 0
+            pose.statusIn = 0
+            pose.statusOut = 1
+            return pose
+        }
     }
 
     /// A departing train's ring on the rail: offset above its rest place, and how far it has filled into the small dot.

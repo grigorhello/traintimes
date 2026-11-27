@@ -109,23 +109,23 @@
 "loc.allow" = "Allow location";
 "loc.later" = "Not now";
 
-/* The arrival wish in "Now"'s place, 5 s after your stop (TT-223, D103). Picked by time of day in Toronto. */
-"wish.goodDay" = "Have a good day";
-"wish.greatDay" = "Have a great day";
-"wish.goodOne" = "Make it a good one";
-"wish.enjoyDay" = "Enjoy your day";
-"wish.goodAfternoon" = "Good afternoon";
-"wish.enjoyAfternoon" = "Enjoy the afternoon";
-"wish.haveGoodOne" = "Have a good one";
-"wish.takeCare" = "Take care";
-"wish.enjoyEvening" = "Enjoy your evening";
-"wish.goodEvening" = "Have a good evening";
-"wish.restWell" = "Rest well";
-"wish.goodNight" = "Good night";
-"wish.homeSafe" = "Get home safe";
-"wish.sleepWell" = "Sleep well";
-"wish.enjoyWeekend" = "Enjoy your weekend";
-"wish.happyFriday" = "Happy Friday";
+/* The arrival wish in "Now"'s place, 5 s after your stop (TT-223, D103). Picked by time of day in Toronto. Each ends with an emoji that fits its mood (TT-249, D126). */
+"wish.goodDay" = "Have a good day ☀️";
+"wish.greatDay" = "Have a great day 😄";
+"wish.goodOne" = "Make it a good one 💪";
+"wish.enjoyDay" = "Enjoy your day 😊";
+"wish.goodAfternoon" = "Good afternoon 🌤️";
+"wish.enjoyAfternoon" = "Enjoy the afternoon 😎";
+"wish.haveGoodOne" = "Have a good one 👋";
+"wish.takeCare" = "Take care 💛";
+"wish.enjoyEvening" = "Enjoy your evening 🌆";
+"wish.goodEvening" = "Have a good evening ✨";
+"wish.restWell" = "Rest well 😌";
+"wish.goodNight" = "Good night 🌙";
+"wish.homeSafe" = "Get home safe 🏡";
+"wish.sleepWell" = "Sleep well 😴";
+"wish.enjoyWeekend" = "Enjoy your weekend 🎉";
+"wish.happyFriday" = "Happy Friday 🥳";
 
 /* The departure question (TT-231, D110) on Schedule, the Live Activity card and its notification; train detection's question that shared them went with TT-243 (D120). %@ is a station. */
 "detect.question" = "On the train to %@?";
@@ -301,7 +301,7 @@
 "feedback.try_again" = "Try again";
 "feedback.failed" = "Couldn’t send. Check your connection and try again.";
 "feedback.email_instead" = "Email us instead";
-"feedback.sent.title" = "Thank you";
+"feedback.sent.title" = "Thank you 🙏";
 "feedback.sent.body" = "We read every message.";
 "feedback.sent.reply" = "We’ll reply by email.";
 "feedback.done" = "Done";

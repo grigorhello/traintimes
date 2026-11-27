@@ -642,10 +642,10 @@ final class AlertsViewModel {
 
     /// The seven dots, Monday first: the days a repeating alert rings, a one-day alert's own day as a ring.
     static func dots(of rule: AlertRule) -> [Dot] {
-        AlertDays.week.map { day in
+        AlertDays.week.map { day -> Dot in
             switch rule.kind {
-            case .repeating: rule.weekdays.contains(day) ? .on : .off
-            case .thisTrip: rule.trip?.serviceDay.isoWeekday == day ? .ring : .off
+            case .repeating: return rule.weekdays.contains(day) ? .on : .off
+            case .thisTrip: return rule.trip?.serviceDay.isoWeekday == day ? .ring : .off
             }
         }
     }

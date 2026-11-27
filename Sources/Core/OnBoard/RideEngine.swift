@@ -214,6 +214,12 @@ final class RideEngine: DirectionRideSource {
         return SavedRide.read(from: defaults, key: Self.storageKey) != nil
     }
 
+    /// The ride, or before a launch's restore the one saved on device: the wrong train notification's "Trains from …"
+    /// ends only that train's ride on a cold launch (TT-250, D127).
+    var rideOrSaved: Ride? {
+        ride ?? SavedRide.read(from: defaults, key: Self.storageKey)?.ride
+    }
+
     // MARK: Start, restore, end
 
     /// Starts a ride. One the rider asked for (`asks`) asks for When In Use location here, the engine's only ask (the

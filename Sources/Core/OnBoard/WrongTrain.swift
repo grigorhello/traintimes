@@ -353,7 +353,7 @@ final class WrongTrain {
             return
         }
         let isDemo = ride.tripId == DemoRide.tripId
-        if !isDemo, let appEngine, appEngine.ride == nil || appEngine.ride == ride {
+        if !isDemo, let appEngine, appEngine.rideOrSaved == ride {
             appEngine.end(.wrongTrain)
         }
         Analytics.track(.wrongTrainAnswered(.trains, surface: surface, seconds: 0, demo: isDemo))
@@ -430,6 +430,11 @@ final class WrongTrain {
     // MARK: Showing
 
     private func present(_ warning: WrongTrainWarning, id: Int) async {
+        // Answered or withdrawn before this task ran: nothing shows.
+        guard isCurrent(id) else {
+            releaseAwake()
+            return
+        }
         let formatter = self.formatter()
         if isActive() {
             // In front: the app shows the warning, Alarm plays once, the card changes with no alert.

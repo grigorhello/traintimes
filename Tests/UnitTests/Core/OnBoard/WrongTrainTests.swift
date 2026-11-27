@@ -213,6 +213,45 @@ final class WrongTrainTests: XCTestCase {
         XCTAssertEqual(answered?.properties["surface"], .string("notification"))
     }
 
+    /// The notification's "Trains from …" on a cold launch, before the restore: the ride saved on device is that train's,
+    /// so it ends and the train is declined today.
+    func testTrainsFromTheNotificationBeforeTheRestoreEndsThatTrainsSavedRide() {
+        let rig = WrongTrainRig(setsEndRide: false)
+        let defaults = UserDefaults.ephemeral()
+        SavedRide(ride: ride, startedAt: WrongTrainFixtures.now, startSource: .onBoard).write(to: defaults, key: RideEngine.storageKey)
+        let engine = RideEngine(
+            data: FakeRideData(plan: nil), location: FakeLocation(authorized: true),
+            clock: TestClock(now: WrongTrainFixtures.now), defaults: defaults, tickInterval: nil
+        )
+        rig.presenter.follow(engine)
+
+        rig.presenter.trains(for: ride, nextStopId: "OA", originId: "UN", surface: .notification)
+
+        XCTAssertNil(SavedRide.read(from: defaults, key: RideEngine.storageKey))
+        XCTAssertTrue(DepartureQuestion.isDeclined(ride.tripKey, in: defaults))
+        XCTAssertEqual(rig.presenter.routeRequest?.nextStopId, "OA")
+    }
+
+    /// The same before the restore when the saved ride is another train (a later ride than the warned one): it carries on;
+    /// only the route is shown.
+    func testTrainsFromTheNotificationLeavesAnotherTrainsSavedRide() {
+        let rig = WrongTrainRig(setsEndRide: false)
+        let defaults = UserDefaults.ephemeral()
+        let other = Ride(trip: TripKey(serviceDay: OnBoardFixtures.friday, tripId: "20261127-LW-1115"), from: "UN", to: "CL")
+        SavedRide(ride: other, startedAt: WrongTrainFixtures.now, startSource: .onBoard).write(to: defaults, key: RideEngine.storageKey)
+        let engine = RideEngine(
+            data: FakeRideData(plan: nil), location: FakeLocation(authorized: true),
+            clock: TestClock(now: WrongTrainFixtures.now), defaults: defaults, tickInterval: nil
+        )
+        rig.presenter.follow(engine)
+
+        rig.presenter.trains(for: ride, nextStopId: "OA", originId: "UN", surface: .notification)
+
+        XCTAssertEqual(SavedRide.read(from: defaults, key: RideEngine.storageKey)?.ride, other)
+        XCTAssertFalse(DepartureQuestion.isDeclined(other.tripKey, in: defaults))
+        XCTAssertEqual(rig.presenter.routeRequest?.nextStopId, "OA")
+    }
+
     // MARK: Endings
 
     func testUnansweredItEndsTheRideAtItsExpiryOnTheDemosRate() async throws {
@@ -222,7 +261,7 @@ final class WrongTrainTests: XCTestCase {
         let warning = WrongTrainFixtures.warning(expires: WrongTrainFixtures.now.addingTimeInterval(6))
         await rig.presenter.raise(warning, now: WrongTrainFixtures.now, rate: 60)?.value
 
-        try await Task.sleep(for: .milliseconds(600))
+        for _ in 0..<300 where rig.presenter.warning != nil { try await Task.sleep(for: .milliseconds(10)) }
 
         XCTAssertNil(rig.presenter.warning)
         XCTAssertEqual(rig.ended, [ride])
@@ -246,6 +285,7 @@ final class WrongTrainTests: XCTestCase {
 
     func testAnAnswerInTheMiddleOfTheFiveStopsTheRest() async {
         let rig = WrongTrainRig(gap: .seconds(30))
+        rig.presenter.keepAwake()
         let showing = rig.presenter.raise(WrongTrainFixtures.warning(), now: WrongTrainFixtures.now)
         for _ in 0..<1000 where rig.card.beats.isEmpty { await Task.yield() }
 
@@ -253,7 +293,8 @@ final class WrongTrainTests: XCTestCase {
         await showing?.value
 
         XCTAssertEqual(rig.card.beats, [1])
-        XCTAssertEqual(rig.background.begun, rig.background.ended, "No background time left taken")
+        XCTAssertEqual(rig.background.begun, 1)
+        XCTAssertEqual(rig.background.ended, 1, "No background time left taken")
     }
 
     func testEndRideWhileItShowsCountsAsEndRide() async {
@@ -282,6 +323,7 @@ final class WrongTrainTests: XCTestCase {
         engine.end(.arrived)
         for _ in 0..<1000 where rig.presenter.warning != nil { await Task.yield() }
 
+        XCTAssertNil(rig.presenter.warning)
         XCTAssertEqual(events("wrong_train_answered").first?.properties["answer"], .string("withdrawn"))
     }
 

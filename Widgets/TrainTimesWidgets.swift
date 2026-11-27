@@ -23,7 +23,7 @@ struct RideActivityWidget: Widget {
             RideActivityLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(RideActivityLockView.background(context.state, isStale: context.isStale))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(Self.link(context.state).url)
+                .widgetURL(Self.link(context.state, isStale: context.isStale).url)
         } dynamicIsland: { context in
             let attributes = context.attributes
             let state = context.state
@@ -41,14 +41,14 @@ struct RideActivityWidget: Widget {
                 RideActivityMinimal(attributes: attributes, state: state, isStale: context.isStale)
             }
             .keylineTint(Self.keyline(state, isStale: context.isStale))
-            .widgetURL(Self.link(state).url)
+            .widgetURL(Self.link(state, isStale: context.isStale).url)
         }
     }
 
     /// A tap opens the ride, or before departure the train's Trip details; while the card warns of a wrong train, the app
-    /// on the warning (TT-250, D127).
-    static func link(_ state: RideActivityAttributes.ContentState) -> RideActivityLink {
-        if state.wrong != nil { return .wrong }
+    /// on the warning (TT-250, D127), except on a stale card, which draws the plain card.
+    static func link(_ state: RideActivityAttributes.ContentState, isStale: Bool = false) -> RideActivityLink {
+        if state.wrong != nil, !isStale { return .wrong }
         return state.isDeparture ? .departure : .open
     }
 

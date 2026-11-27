@@ -20,4 +20,20 @@ extension Snapshotting where Format == UIImage {
             }
         })
     }
+
+    /// The capture's top `points` only: a snapshot that leaves the system glass tab bar out, which in dark settles in one
+    /// of two looks from run to run (`FeedbackSnapshotTests`, `ScheduleLandingSnapshotTests`).
+    func keepingTop(_ points: CGFloat) -> Snapshotting {
+        let capture = snapshot
+        return Snapshotting(pathExtension: pathExtension, diffing: diffing, asyncSnapshot: { value in
+            capture(value).map { image in
+                guard let cgImage = image.cgImage else { return image }
+                let height = min(points * image.scale, CGFloat(cgImage.height))
+                guard let top = cgImage.cropping(to: CGRect(x: 0, y: 0, width: CGFloat(cgImage.width), height: height)) else {
+                    return image
+                }
+                return UIImage(cgImage: top, scale: image.scale, orientation: image.imageOrientation)
+            }
+        })
+    }
 }

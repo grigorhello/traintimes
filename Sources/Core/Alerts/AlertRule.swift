@@ -57,7 +57,7 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
     func nextRingDay(today: ServiceDay, now: Date) -> ServiceDay {
         let minutes = ServiceDay.minutesIntoServiceDay(scheduledDeparture)
         guard kind == .repeating else { return max(trip?.serviceDay ?? today, today) }
-        return (0...7).map(today.adding).first { day in
+        return (0...7).map(today.adding(days:)).first { day in
             weekdays.contains(day.isoWeekday) && (day != today || day.date(minutesIntoDay: minutes) > now)
         } ?? today
     }

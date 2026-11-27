@@ -329,7 +329,6 @@ struct ScheduleView: View {
         )
     }
 
-    /// Started on the next turn, like the cascade, so its first frames are drawn.
     /// The card See trains landed on (TT-255): its swell, at rest unless it plays. Nothing under Reduce Motion.
     private var landing: LandingCue {
         LandingCue(clock: motion, plays: playsMotion && !reduceMotion, frozenAt: landingFrozenAt)
@@ -351,6 +350,7 @@ struct ScheduleView: View {
         }
     }
 
+    /// Started on the next turn, like the cascade, so its first frames are drawn.
     private func startDeparture() {
         let request = viewModel.departureRequest
         let motion = motion

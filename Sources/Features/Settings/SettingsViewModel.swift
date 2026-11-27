@@ -46,7 +46,7 @@ final class SettingsViewModel {
     /// nil until the first read from the system; refreshed each time Settings appears or the app returns to the foreground.
     var permission: NotificationPermission?
     private let permissions: any NotificationPermissionProviding
-    /// The alert rules, for the Notifications page's "My alerts" count and its "Turn on notifications" button; nil in tests
+    /// The alert rules, for the Notifications page's "My trains" count and its "Turn on notifications" button; nil in tests
     /// that need neither.
     private let alerts: AlertRules?
     /// The app's clock (with Mock time off, the device or fixture clock): Mock time starts from its "now".
@@ -199,7 +199,7 @@ final class SettingsViewModel {
         }
     }
 
-    /// "My alerts · N": every saved rule, paused or not.
+    /// "My trains · N": every saved rule, paused or not.
     var alertCount: Int {
         alerts?.rules.count ?? 0
     }

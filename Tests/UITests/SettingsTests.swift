@@ -77,7 +77,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["settings.title"].waitForExistence(timeout: 15))
     }
 
-    /// "My alerts" on the Notifications page switches to the Alerts tab (TT-168).
+    /// "My trains" on the Notifications page switches to the My trains tab (TT-168).
     @MainActor
     func testMyAlertsOpensTheAlertsTab() {
         let app = XCUIApplication.onFixtures()
@@ -89,8 +89,8 @@ final class SettingsTests: XCTestCase {
         app.buttons["settings.notifications"].tap()
         XCTAssertTrue(app.staticTexts["Notifications are on"].waitForExistence(timeout: 15))
         app.buttons["settings.myAlerts"].tap()
-        XCTAssertTrue(app.staticTexts["Tap a bell to hear if a train is delayed or cancelled."].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.tabBars.buttons["Alerts"].isSelected)
+        XCTAssertTrue(app.staticTexts[MyTrainsCopy.emptyLead].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.tabBars.buttons[MyTrainsCopy.tab].isSelected)
     }
 
     /// Settings › Testing › Demo trains (D49), in Debug and TestFlight builds: Offline shows the cached timetable with the

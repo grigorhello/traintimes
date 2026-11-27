@@ -20,7 +20,7 @@ final class LaunchTests: XCTestCase {
         XCTAssertLessThan(line.frame.minY, 100, "The line row sits right under the status bar, as on the canvas")
         XCTAssertLessThan(route.frame.minY, 170, "The route card follows the line row")
         XCTAssertTrue(app.tabBars.buttons["Schedule"].isSelected)
-        XCTAssertTrue(app.tabBars.buttons["Alerts"].exists)
+        XCTAssertTrue(app.tabBars.buttons[MyTrainsCopy.tab].exists)
         XCTAssertFalse(app.alerts.firstMatch.exists)
 
         app.tabBars.buttons["Settings"].tap()

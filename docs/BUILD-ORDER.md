@@ -150,6 +150,7 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 127 | TT-253 · Alerts tab as train cards: Schedule's card for each alert, the days row and See trains | [#258](https://github.com/grigorhello/traintimes/issues/258) | P1 | 5 | Grigor, 2026-11-27, D129 |
 | 128 | TT-254 · Alert-first Trip details: the alert card on top (switch, round day marks, Remove alert) from every door | [#259](https://github.com/grigorhello/traintimes/issues/259) | P1 | 3 | Grigor, 2026-11-27, D129. Blocked by TT-253 (#258) |
 | 129 | TT-255 · See trains lands on the alert's own card in Schedule, with one swell and the bell's pop | [#260](https://github.com/grigorhello/traintimes/issues/260) | P2 | 2 | Grigor, 2026-11-27, D129. Blocked by TT-254 (#259) |
+| 133 | TT-259 · Rename the Alerts tab to "My trains" (tab, title, empty state, Settings row) | [#270](https://github.com/grigorhello/traintimes/issues/270) | P2 | 1 | Grigor, 2026-11-27, D133 (widget redesign, ticket C of three) |
 
 TT-234, TT-235 and TT-236 go into the same TestFlight build: no build with only one or two of them.
 

@@ -4,7 +4,7 @@
 /* Navigation and tabs */
 "app.name" = "Train Times";
 "tab.schedule" = "Schedule";
-"tab.alerts" = "Alerts";
+"tab.alerts" = "My trains";
 "tab.settings" = "Settings";
 "nav.settings" = "Settings";
 "button.now" = "Now";
@@ -242,7 +242,7 @@
 "capsule.new_train" = "Tap the bell of your new train";
 "alerts.time_changed" = "Time changed";
 "alerts.no_train" = "No train today";
-"alerts.empty.lead" = "Tap a bell to hear if a train is delayed or cancelled.";
+"alerts.empty.lead" = "Tap the bell on a train you take. It stays here and on your widgets, and we tell you if it is late or cancelled.";
 "alerts.see_trains" = "See trains";
 "alerts.when.today" = "Today";
 "alerts.when.tomorrow" = "Tomorrow";
@@ -306,7 +306,7 @@
 "settings.notifications.kind_back_on_time" = "Back on time";
 "settings.notifications.kind_line_notices" = "Line notices on your train";
 "settings.notifications.kind_usual_train" = "Changes to your usual train";
-"settings.notifications.my_alerts" = "My alerts";
+"settings.notifications.my_alerts" = "My trains";
 "settings.notifications.footnote" = "Updates start 1 hour before departure. No promotions, ever.";
 "settings.support.feedback" = "Send feedback";
 "settings.support.email" = "Email us";

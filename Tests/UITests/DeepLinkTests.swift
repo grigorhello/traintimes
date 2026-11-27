@@ -38,7 +38,7 @@ final class DeepLinkTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "alerts.root").firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.tabBars.buttons["Alerts"].isSelected)
+        XCTAssertTrue(app.tabBars.buttons[MyTrainsCopy.tab].isSelected)
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch.exists)
     }
 

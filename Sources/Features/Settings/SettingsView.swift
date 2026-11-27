@@ -15,7 +15,7 @@ enum SettingsPage: Hashable {
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
     @State private var path: [SettingsPage] = []
-    /// "My alerts" on the Notifications page: switches to the Alerts tab.
+    /// "My trains" on the Notifications page: switches to the My trains (Alerts) tab.
     private let onShowAlerts: () -> Void
     @Environment(\.scenePhase) private var scenePhase
 

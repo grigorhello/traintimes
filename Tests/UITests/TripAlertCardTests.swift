@@ -83,7 +83,7 @@ final class TripAlertCardTests: XCTestCase {
         XCTAssertTrue(bell.waitForExistence(timeout: 20))
         bell.tap()
         XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
-        app.tabBars.buttons["Alerts"].tap()
+        app.tabBars.buttons[MyTrainsCopy.tab].tap()
         let alerts = app.descendants(matching: .any).matching(identifier: "alerts.root").firstMatch
         let item = alerts.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
         XCTAssertTrue(item.waitForExistence(timeout: 15))

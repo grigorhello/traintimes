@@ -81,8 +81,8 @@ final class FeedbackTests: XCTestCase {
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
         app.launch()
 
-        XCTAssertTrue(app.tabBars.buttons["Alerts"].waitForExistence(timeout: 20))
-        app.tabBars.buttons["Alerts"].tap()
+        XCTAssertTrue(app.tabBars.buttons[MyTrainsCopy.tab].waitForExistence(timeout: 20))
+        app.tabBars.buttons[MyTrainsCopy.tab].tap()
         let alertsButton = app.buttons["alerts.feedbackButton"]
         XCTAssertTrue(alertsButton.waitForExistence(timeout: 15))
         alertsButton.tap()

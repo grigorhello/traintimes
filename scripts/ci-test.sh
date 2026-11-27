@@ -83,10 +83,20 @@ run_tests
 SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device'
 if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
   echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
+  # The disk and the runtime's state before and after the restart, so a run that loses the simulator shows why: on PR #266
+  # the runtime was listed after the restart twice in a row, and xcodebuild still read it as "(null)".
+  echo "::group::Simulator state before the restart"
+  grep -nE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 5 | cut -c1-400 || true
+  df -h / /System/Volumes/Data 2>/dev/null || true
+  xcrun simctl runtime list -v 2>&1 | head -n 80 || true
+  echo "::endgroup::"
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
   xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the restart."
-  xcrun simctl bootstatus "$UDID" -b >/dev/null || true
+  echo "::group::Simulator state after the restart"
+  xcrun simctl bootstatus "$UDID" -b 2>&1 | tail -n 20 || true
+  xcrun simctl runtime list -v 2>&1 | head -n 80 || true
+  echo "::endgroup::"
   cp build/xcodebuild.log build/xcodebuild-first.log
   run_tests
 fi

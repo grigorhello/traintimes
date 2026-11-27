@@ -95,6 +95,7 @@ final class TimelineLayoutTests: XCTestCase {
         let fold = try XCTUnwrap(result.folds.first)
         XCTAssertEqual(fold.next, at(18, 10))
         XCTAssertEqual(fold.minutes, 70, "Counted from the 5:00 PM train to the 6:10 PM one it names")
+        XCTAssertEqual(fold.label(TimeFormatter(format: .twelveHour)), "No trains for 1 h 10 min · next 6:10 PM", "TT-246, D123")
     }
 
     /// TT-153: a cancelled train at the start of a fold is left out too, so the label gives the real wait.
@@ -130,6 +131,7 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertEqual(result.folds.count, 1)
         XCTAssertEqual(fold.minutes, 350)
         XCTAssertEqual(fold.next, at(15, 50))
+        XCTAssertEqual(fold.label(TimeFormatter(format: .twelveHour)), "No trains for 5 h 50 min · next 3:50 PM", "TT-246, D123")
         let nowY = try XCTUnwrap(result.nowY)
         XCTAssertEqual(nowY - result.initialScrollOffset, 5 * 7, accuracy: 0.001)
         XCTAssertEqual(result.cards[0].markerY - nowY, 30 * 7, accuracy: 0.001, "The first train is on the first screen")

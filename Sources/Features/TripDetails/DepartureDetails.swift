@@ -12,8 +12,8 @@ struct DepartureHero: Equatable {
     let line: String
     /// "5:13 PM": the expected departure, in ink, or delay-ink while late (in `line`, or as `number`).
     let time: String
-    /// The big number: "12 min" to the expected departure while counting down, "Departing" once its time has come and it
-    /// still stands at the station, else the expected clock time.
+    /// The big number: "12 min" ("5 h 23 min" from an hour, TT-246) to the expected departure while counting down,
+    /// "Departing" once its time has come and it still stands at the station, else the expected clock time.
     let number: String
     /// The number counts down; false shows the expected clock time ("Departs at" over it, unless the train is boarding).
     let showsCountdown: Bool
@@ -63,14 +63,14 @@ struct DepartureHero: Equatable {
         if isDeparting {
             number = String(localized: "schedule.departing")
         } else if counts {
-            number = String(format: String(localized: "onboard.minutes"), max(1, Int(untilDeparture / 60)))
+            number = TimeFormatter.duration(minutes: max(1, Int(untilDeparture / 60)))
         } else {
             number = time
         }
         self.time = time
         self.showsCountdown = counts
         late = if case .delayed(let minutes, _) = departure.status {
-            String(format: String(localized: "onboard.late"), minutes)
+            String(format: String(localized: "onboard.late"), TimeFormatter.duration(minutes: minutes))
         } else {
             nil
         }

@@ -454,12 +454,10 @@ final class AlertsViewModel {
         return String(format: String(localized: "alert.days.date_only"), day.weekdayShort, day.day)
     }
 
-    /// "in 11 min", "in 1 h".
+    /// "in 11 min", "in 1 h 20 min" (TT-246, D123: never "in 80 min", and no longer cut to whole hours).
     static func countdown(to date: Date, now: Date) -> String {
         let minutes = max(0, Int(date.timeIntervalSince(now) / 60))
-        return minutes < 60
-            ? String(format: String(localized: "schedule.in_minutes"), minutes)
-            : String(format: String(localized: "alerts.in_hours"), minutes / 60)
+        return String(format: String(localized: "schedule.in_wait"), TimeFormatter.duration(minutes: minutes))
     }
 
     /// "7:29 AM" today, "Yesterday", else "Mon", by the calendar day in Toronto.

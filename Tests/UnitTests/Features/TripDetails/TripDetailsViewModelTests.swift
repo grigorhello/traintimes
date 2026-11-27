@@ -139,6 +139,51 @@ final class TripDetailsViewModelTests: XCTestCase {
         XCTAssertEqual(model.alertCard(formatter)?.isOn, true)
     }
 
+    /// The switch turned while a day mark still saves waits for it, and a day tapped while the switch saves goes after it:
+    /// both changes are kept on the same alert (a second save in flight would send nothing).
+    func testTheSwitchAndTheDaysSaveOneAfterTheOther() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let model = try await alertModel(rules)
+        await model.tapAlert()
+        let id = try XCTUnwrap(rules.rules.first?.id)
+
+        await server.holdSaves()
+        model.tapAlertDay(1)
+        await server.waitUntilHolding()
+        let off = Task { await model.setAlertOn(false) }
+        await server.release()
+        await off.value
+        await eventually { rules.rules.first?.paused == true }
+        XCTAssertEqual(rules.rules.map(\.id), [id])
+        XCTAssertEqual(rules.rules.first?.weekdays, [1, 4], "the day was kept")
+
+        await server.holdSaves()
+        let on = Task { await model.setAlertOn(true) }
+        await server.waitUntilHolding()
+        model.tapAlertDay(2)
+        await server.release()
+        await on.value
+        await eventually { rules.rules.first?.weekdays == [1, 2, 4] }
+        XCTAssertEqual(rules.rules.first?.paused, false, "the switch was kept")
+        XCTAssertEqual(rules.rules.map(\.id), [id])
+    }
+
+    /// A day change the server cannot take goes back with Fail and "Couldn't change days".
+    func testAFailedDayChangeGoesBackWithFail() async throws {
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let haptics = FakeHaptics()
+        let model = try await alertModel(rules, haptics: haptics)
+        await model.tapAlert()
+
+        await server.setFailing(true)
+        model.tapAlertDay(1)
+        await eventually { model.capsule?.kind == .failed(.changeDays) }
+        XCTAssertEqual(rules.rules.first?.kind, .thisTrip, "back to what was saved")
+        XCTAssertEqual(haptics.played.last, .fail)
+    }
+
     /// A save the server cannot take goes back, with Fail and "Couldn't turn alert off · Try again" in the sheet.
     func testAFailedSwitchGoesBackWithTryAgain() async throws {
         let server = FakeAlertServer()

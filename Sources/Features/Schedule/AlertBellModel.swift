@@ -120,6 +120,9 @@ final class AlertBellModel {
     private var wanted: WantedDays?
     /// Trip details' alert switch while its save is on its way: the switch shows the new value at once (TT-254).
     private var switching: (ruleID: AlertRule.ID, isOn: Bool)?
+    /// The switch's save on its way: a day mark tapped meanwhile saves once it is back, so neither change is lost (an alert's
+    /// second save in flight would send nothing, TT-254).
+    @ObservationIgnored private var switchSaving: Task<Bool, Never>?
     @ObservationIgnored private var daySaving: Task<Void, Never>?
     /// A one-day alert's delete on its way to the server: Undo waits for it, so its save lands after it.
     @ObservationIgnored private var offTask: Task<Void, Never>?
@@ -434,6 +437,8 @@ final class AlertBellModel {
         defer { busy.remove(trip.key) }
         switching = (ruleID, isOn)
         SwitchClick.tapped(from: !isOn, to: isOn, haptics: haptics)
+        // A day mark of this alert still saving: the switch saves once it has settled, on what was saved.
+        if let saving = daySaving, wanted?.ruleID == ruleID { await saving.value }
         if isOn, !(await mayAlert(trip, on: route)) {
             switching = nil
             return
@@ -443,7 +448,11 @@ final class AlertBellModel {
             return
         }
         current.paused = !isOn
-        let saved = await rules.commit(current)
+        let change = current
+        let save = Task { await self.rules.commit(change) }
+        switchSaving = save
+        let saved = await save.value
+        switchSaving = nil
         switching = nil
         guard saved else {
             haptics.play(.fail)
@@ -608,6 +617,8 @@ final class AlertBellModel {
     @discardableResult
     private func saveWantedDays() async -> Bool {
         while let asked = wanted {
+            // Trip details' switch saving: the days go after it, on the alert as it saved it (TT-254).
+            if let switchSaving { _ = await switchSaving.value }
             guard let rule = rules.rules.first(where: { $0.id == asked.ruleID }), !Self.rule(rule, has: asked.days, for: asked.trip) else {
                 break
             }
@@ -629,6 +640,7 @@ final class AlertBellModel {
                     // The rider took the change back before it failed: what was saved is what they want.
                     return true
                 }
+                haptics.play(.fail)
                 show(
                     .failed(.changeDays), trip: latest.trip, route: latest.route,
                     retry: .changeDays(latest.days, ruleID: latest.ruleID, latest.trip, latest.route)

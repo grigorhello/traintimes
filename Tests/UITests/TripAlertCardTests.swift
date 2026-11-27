@@ -128,14 +128,17 @@ final class TripAlertCardTests: XCTestCase {
 
     /// The capsule's Undo: Schedule's capsule stays in the tab view's tree under the Alerts tab, so the action is told by its
     /// word.
+    @MainActor
     private func undo(_ app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(identifier: "alert.capsule.action").matching(NSPredicate(format: "label == 'Undo'")).firstMatch
     }
 
+    @MainActor
     private func sheet(_ app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "sheet.tripDetails").firstMatch
     }
 
+    @MainActor
     private func card(_ app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "trip.alertCard").firstMatch
     }

@@ -36,6 +36,28 @@ final class AnalyticsTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.rideEnded(.arrived, watchedSeconds: 95, opens: 2).properties["opens"], .int(2))
     }
 
+    func testTheWrongTrainWarningCarriesNoStationLineTripOrPlace() {
+        // TT-250, D127.
+        XCTAssertEqual(AnalyticsEvent.rideEnded(.wrongTrain).properties["reason"], .string("wrong_train"))
+        let warned = AnalyticsEvent.wrongTrainWarned(WrongTrainFixtures.warning(), shown: .card)
+        XCTAssertEqual(warned.name, "wrong_train_warned")
+        XCTAssertEqual(warned.properties, [
+            "reason": .string("skips_stop"), "evidence": .string("feed"), "source": .string("on_board"),
+            "shown": .string("card"), "seconds_after": .int(42), "demo": .bool(false),
+        ])
+        let fine = AnalyticsEvent.wrongTrainAnswered(.fine, surface: .notification, seconds: 12, demo: true)
+        XCTAssertEqual(fine.name, "wrong_train_answered")
+        XCTAssertEqual(fine.properties, [
+            "answer": .string("fine"), "surface": .string("notification"), "seconds": .int(12), "demo": .bool(true),
+        ])
+        let ended = AnalyticsEvent.wrongTrainAnswered(.endRide, surface: .ride, seconds: 3, demo: false)
+        XCTAssertEqual(ended.properties, ["answer": .string("end_ride"), "seconds": .int(3), "demo": .bool(false)])
+        XCTAssertEqual(
+            AnalyticsEvent.notificationOpened(kind: WrongTrainNotice.analyticsKind, action: "trains").properties,
+            ["kind": .string("wrong_train"), "action": .string("trains")]
+        )
+    }
+
     func testLaunchSplashEnded() {
         let event = AnalyticsEvent.launchSplashEnded(scheduleReady: true, full: false)
         XCTAssertEqual(event.name, "launch_splash_ended")

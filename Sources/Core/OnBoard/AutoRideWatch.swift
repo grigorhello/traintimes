@@ -713,9 +713,11 @@ final class AutoRideWatch {
     /// With no train watched and nothing left to tell the server, the location stops: after a start the ride has the
     /// updates (the shared provider, or the watch's `BackgroundFixes` it took over), while the demo's phone is the watch's
     /// own.
-    /// Reports an ended watch still owes the server keep location going (D120): the wrong train check leaves the updates
-    /// running when it closes meanwhile, and `stopUpdatesIfIdle()` stops them once the reports went.
-    var holdsLocation: Bool { !pending.isEmpty }
+    /// Reports an ended watch still owes the server keep location going (D120): the wrong train check leaves `reader`
+    /// running when it closes meanwhile, if it is the one `stopUpdatesIfIdle()` stops once the reports went.
+    func holdsLocation(_ reader: any LocationProviding) -> Bool {
+        !pending.isEmpty && ((watchLocation ?? location) as AnyObject) === (reader as AnyObject)
+    }
 
     private func stopUpdatesIfIdle() {
         // The wrong train check keeps them while it is open (TT-251, D127), as a ride does after a start.
@@ -756,6 +758,11 @@ final class AutoRideWatch {
         if !isDemo, holding?.heldRide == saved.ride { holding?.heldRide = nil }
         // The wrong train check takes the location over while it stays open with no ride (TT-251, D127).
         if !isDemo { wrongTrain?.watchEnded(saved.ride, outcome: outcome) }
+        // A ride started elsewhere (a tap, the card's Yes) runs on the shared reader: the closed tier's would otherwise run
+        // on, since `stopUpdatesIfIdle()` leaves the updates to a running ride.
+        if outcome == .answered, isRiding, !isDemo, let reader = watchLocation, (reader as AnyObject) !== (location as AnyObject) {
+            reader.stopUpdates()
+        }
         // The location keeps going while a report still waits for the server, so the app is not suspended before it goes.
         stopUpdatesIfIdle()
     }

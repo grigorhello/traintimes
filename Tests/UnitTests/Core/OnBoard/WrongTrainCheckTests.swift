@@ -256,6 +256,65 @@ final class WrongTrainCheckTests: XCTestCase {
         XCTAssertEqual(rig.check.source, .departure)
     }
 
+    func testTheFirstFixAfterTheRoofDoesNotCloseAMissedTrainsCheck() async {
+        // A missed train at Union: the phone was under the roof (no good fix), then boards a later train; its first fix is
+        // 700 m out with no speed yet. The next fix decides.
+        let rig = CheckRig(at: -60, origin: "UN", candidates: [World.westbound(after: 600)])
+        await rig.armWatch()
+        rig.at(700)
+        rig.phone(at: rig.point("T", 700))
+        await rig.check.look()
+        XCTAssertEqual(rig.check.checked, rig.ride, "No speed yet: it may be the first moving fix")
+        rig.at(746)
+        await rig.check.look()
+        XCTAssertNil(rig.check.checked, "No fix after it within 45 s: not at the station")
+    }
+
+    func testAWatchOnAnotherTrainStopsTheReaderTheCheckRan() async {
+        // The check took the closed tier's reader over when its watch ended; the watch then arms on the next train with the
+        // app open, on the shared reader.
+        let rig = CheckRig(candidates: [World.westbound(after: 600)])
+        let closed = FakeLocation(authorized: true)
+        closed.startUpdates { _ in }
+        rig.check.watchArmed(rig.ride, plan: rig.plan, departure: World.departure, reader: closed)
+        await rig.settle()
+        rig.check.watchEnded(rig.ride, outcome: .notOnBoard)
+        XCTAssertTrue(closed.isUpdating)
+        let next = Ride(trip: TripKey(serviceDay: rig.ride.tripKey.serviceDay, tripId: "NEXT"), from: "O", to: "D")
+        rig.check.watchArmed(next, plan: rig.plan, departure: rig.time(1_800), reader: rig.location)
+        XCTAssertFalse(closed.isUpdating)
+    }
+
+    func testACheckOnAnotherTrainTakesTheWatchsReaderWhenTheWatchEnds() async {
+        // A check opened for another alerted train while the watch was armed reads the watch's fixes; when the watch ends
+        // with no ride, the check runs that reader and stops it when it closes.
+        let rig = CheckRig(at: 300, candidates: [World.westbound()])
+        let other = Ride(trip: TripKey(serviceDay: rig.ride.tripKey.serviceDay, tripId: "OTHER"), from: "O", to: "D")
+        // Declined, so the watch's own train opens no check here.
+        rig.declined.insert(other.tripKey)
+        rig.location.startUpdates { _ in }
+        rig.check.watchArmed(other, plan: rig.plan, departure: rig.time(1_200), reader: rig.location)
+        let trip = Trip(
+            key: rig.ride.tripKey, scheduledDeparture: World.departure, scheduledArrival: rig.time(480), platform: .pending,
+            tags: []
+        )
+        let route = Route(from: Station(id: "O", name: "O"), to: Station(id: "D", name: "D"), line: nil)
+        rig.alerted = [AutoRideTrain(
+            candidate: AutoRideWatch.Candidate(route: route, trip: trip, departure: World.departure, arrival: rig.time(480)),
+            plan: rig.plan
+        )]
+        await rig.check.consider()
+        await rig.settle()
+        XCTAssertEqual(rig.check.checked, rig.ride)
+        rig.check.watchEnded(other, outcome: .notOnBoard)
+        XCTAssertTrue(rig.location.isUpdating)
+        rig.phone(at: rig.point("T", 0))
+        rig.at(310)
+        rig.phone(at: rig.point("T", 0, north: 500))
+        XCTAssertNil(rig.check.checked)
+        XCTAssertFalse(rig.location.isUpdating, "The check ran the watch's reader and stopped it")
+    }
+
     func testItLeavesTheUpdatesRunningWhileTheWatchOwesReports() async {
         let rig = CheckRig(at: 300, candidates: [World.westbound()])
         let trip = Trip(
@@ -267,7 +326,7 @@ final class WrongTrainCheckTests: XCTestCase {
             candidate: AutoRideWatch.Candidate(route: route, trip: trip, departure: World.departure, arrival: rig.time(480)),
             plan: rig.plan
         )]
-        rig.check.locationHeld = { true }
+        rig.check.locationHeld = { _ in true }
         await rig.check.consider()
         await rig.settle()
         XCTAssertTrue(rig.location.isUpdating)

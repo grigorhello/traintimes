@@ -500,6 +500,23 @@ final class AutoRideWatchTests: XCTestCase {
         XCTAssertTrue(rig.location.isUpdating, "The ride keeps the updates")
     }
 
+    /// Armed with the app closed (on `BackgroundFixes`), then the rider's Yes: the ride runs on the shared reader, so the
+    /// closed tier's fixes stop.
+    func testTheRidersOwnStartStopsTheClosedTiersFixes() async throws {
+        let rig = try WatchRig(at: -600)
+        rig.store.closed = true
+        rig.watch.follow(rig.engine)
+        XCTAssertTrue(rig.watch.armClosed(rig.candidate, plan: rig.plan, armed: .card))
+        await rig.settle()
+        XCTAssertTrue(rig.closedLocation.isUpdating)
+        rig.at(30)
+        await rig.engine.start(rig.ride, source: .departure)
+        await rig.eventually { rig.watch.watched == nil }
+        XCTAssertEqual(rig.watch.lastCheck?.outcome, .answered)
+        XCTAssertFalse(rig.closedLocation.isUpdating)
+        XCTAssertTrue(rig.location.isUpdating, "The ride keeps the shared updates")
+    }
+
     func testNoOnTheQuestionEndsTheWatchAsAnswered() async throws {
         let rig = try WatchRig(at: -600)
         await rig.arm()

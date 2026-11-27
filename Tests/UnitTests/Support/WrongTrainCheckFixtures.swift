@@ -196,7 +196,7 @@ final class CheckRig {
     func settle() async {
         for _ in 0..<200 {
             await Task.yield()
-            if check.checked != nil { return }
+            if check.checked != nil, !check.isLooking { return }
             try? await Task.sleep(for: .milliseconds(1))
         }
     }

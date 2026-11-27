@@ -38,7 +38,8 @@ final class ScheduleStatesTests: XCTestCase {
         XCTAssertEqual(model.statusRowMode(formatter), .offline(lastUpdated: "6:52 AM"))
         XCTAssertEqual(Set(cards.map(\.hasPlatform)), [false])
         XCTAssertNotNil(model.layout.nowY, "The Now line still follows the device clock")
-        XCTAssertEqual(cards.first?.relativeTime, "in 11 min")
+        XCTAssertEqual(cards.first?.isNext, true)
+        XCTAssertNil(cards.first?.relativeTime, "Offline every platform reads pending, so no countdown (TT-248, D125)")
     }
 
     func testFutureDayShowsScheduledTimesOnly() async throws {

@@ -33,6 +33,8 @@ struct ScheduleView: View {
     @State private var picker: RouteFormViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playsScheduleMotion) private var playsMotion
+    /// Snapshots freeze the landed card's swell (TT-255).
+    @Environment(\.landingSwellFrozenAt) private var landingFrozenAt
     @Environment(\.launchCovers) private var launchCovers
     /// The Now pulse asked for while the launch's splash covered the timeline; it plays as the splash lifts (TT-227).
     @State private var pulseWaits = false
@@ -134,6 +136,7 @@ struct ScheduleView: View {
             .task(id: nudgeStillness) { await waitToAskForFeedback() }
             .onChange(of: viewModel.nowPulse) { startPulse() }
             .onChange(of: viewModel.departureRequest) { startDeparture() }
+            .onChange(of: viewModel.landingRequest) { startLanding() }
             // A turn made under the launch's splash trades its names once the splash has gone (TT-235, D116).
             .onChange(of: launchCovers, initial: true) { _, covers in viewModel.setSplashCovers(covers) }
             // The launch's splash lifted (TT-227): the cascade and the Now pulse that waited under it play now.
@@ -327,6 +330,27 @@ struct ScheduleView: View {
     }
 
     /// Started on the next turn, like the cascade, so its first frames are drawn.
+    /// The card See trains landed on (TT-255): its swell, at rest unless it plays. Nothing under Reduce Motion.
+    private var landing: LandingCue {
+        LandingCue(clock: motion, plays: playsMotion && !reduceMotion, frozenAt: landingFrozenAt)
+    }
+
+    /// The swell starts once the scroll's glide or the new trains' cascade has brought the card in (`LandingSwell.wait`);
+    /// a newer landing takes its own start.
+    private func startLanding() {
+        let request = viewModel.landingRequest
+        let motion = motion
+        guard playsMotion, !reduceMotion else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(LandingSwell.wait))
+            guard request == viewModel.landingRequest else { return }
+            let start = Date()
+            motion.landingStart = start
+            try? await Task.sleep(for: .seconds(LandingSwell.duration))
+            if motion.landingStart == start { motion.landingStart = nil }
+        }
+    }
+
     private func startDeparture() {
         let request = viewModel.departureRequest
         let motion = motion
@@ -763,11 +787,10 @@ struct ScheduleView: View {
                     ScheduleTimeline(
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
                         onBell: tapBell(_:), cascade: cascade, departure: departure, motion: motion, outgoing: outgoing,
-                        outgoingBell: outgoingBell(for:), riding: onBoard?.riddenTrain
+                        outgoingBell: outgoingBell(for:), riding: onBoard?.riddenTrain, landing: landing,
+                        landingCard: viewModel.landedCard
                     )
-                    .background(
-                        ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
-                    )
+                    .background(ScrollOffsetSetter(offset: viewModel.scrollOffset, order: scrollOrder))
                 // The empty states only fade in with a new set of trains, never cascade.
                 case .noTrains(let title, let message, let showDay):
                     noTrains(title: title, message: message, showDay: showDay)
@@ -806,7 +829,8 @@ struct ScheduleView: View {
         .accessibilityIdentifier("schedule.timeline")
     }
 
-    /// Today shows Now near the top, another day its first train: `ScrollOffsetSetter` moves the scroll view there.
+    /// Today shows Now near the top, another day its first train, a landing its card (TT-255): `ScrollOffsetSetter` moves
+    /// the scroll view there.
     private func scroll(animated: Bool) {
         scrollOrder = ScrollOrder(token: scrollOrder.token + 1, animated: animated)
     }

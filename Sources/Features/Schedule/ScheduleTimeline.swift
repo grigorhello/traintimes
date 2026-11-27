@@ -27,6 +27,9 @@ struct ScheduleTimeline: View {
     var outgoingBell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
     /// The train a ride runs on (TT-256, D130): its card says "You’re on board" where Schedule shows the ride's two stations.
     var riding: RiddenTrain?
+    /// The swell of the card See trains landed on (TT-255, D129), and that card: lifted over its neighbours.
+    var landing: LandingCue = .rest
+    var landingCard: TripKey?
 
     @Environment(\.playsScheduleMotion) private var playsMotion
 
@@ -50,8 +53,9 @@ struct ScheduleTimeline: View {
         let layout = viewModel.layout
         let cards = viewModel.cards(formatter, riding: riding)
         let places = Dictionary(layout.cards.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        // The cascade starts with the first card where the timeline opens (Now on today, the first train on another day).
-        let orders = layout.cascadeOrder(scrolledTo: viewModel.isToday ? layout.initialScrollOffset : 0)
+        // The cascade starts with the first card where the timeline opens (Now on today, the first train on another day, the
+        // train before the card a landing shows).
+        let orders = layout.cascadeOrder(scrolledTo: viewModel.scrollOffset)
         ZStack(alignment: .topLeading) {
             Group {
                 gridlines(layout)
@@ -121,13 +125,18 @@ struct ScheduleTimeline: View {
     ) -> some View {
         ForEach(cards) { card in
             if let place = places[card.id] {
-                DeparturePlaying(cue: departure, involved: departure.moves(card.id)) { elapsed, reduceMotion in
+                DeparturePlaying(
+                    cue: departure, involved: departure.moves(card.id), landing: card.id == landingCard ? landing : .rest
+                ) { elapsed, swell, reduceMotion in
                     let pose = cardPose(card, at: elapsed, reduceMotion: reduceMotion)
+                    let lift = swell.map(LandingSwell.pose(at:)) ?? LandingSwell.rest
                     DepartureCardView(
                         card: card, bell: bell(card.id), shakes: shakes(card.id), pose: pose, onOpen: { onOpen(card.id) },
                         onBell: { onBell(card.id) },
-                        onSize: { size in viewModel.setCardSize(size, for: card.id) }
+                        onSize: { size in viewModel.setCardSize(size, for: card.id) },
+                        bellPop: lift.bellScale
                     )
+                    .landingLift(lift)
                     .scaleEffect(pose.scale)
                     .offset(y: pose.offsetY)
                     .opacity(pose.opacity)
@@ -138,6 +147,8 @@ struct ScheduleTimeline: View {
                 .padding(.leading, Self.cardX)
                 .padding(.trailing, TTSpace.s5)
                 .offset(y: place.top)
+                // The landed card's swell and shadow go over the cards next to it.
+                .zIndex(card.id == landingCard ? 1 : 0)
             }
         }
     }
@@ -400,6 +411,8 @@ struct DepartureCardView: View {
     var tracksInterest = true
     /// The bell stays on a cancelled train's card: the Alerts tab's bell is the alert's only switch (TT-253, D129).
     var keepsBell = false
+    /// The bell's scale in the landed card's swell (TT-255, D129), its pop; 1 at rest.
+    var bellPop: CGFloat = 1
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
@@ -461,6 +474,7 @@ struct DepartureCardView: View {
                 if !card.isCancelled || keepsBell {
                     bellButton
                         .departedLook(look.look)
+                        .scaleEffect(bellPop)
                         .padding(.top, Self.bellTop)
                 }
             }
@@ -800,12 +814,16 @@ private struct DeparturePlaying<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let cue: DepartureCue
     let involved: Bool
-    @ViewBuilder let content: (Double?, Bool) -> Content
+    /// The landed card's swell (TT-255): `rest` on every other card.
+    var landing: LandingCue = .rest
+    /// The departure play's seconds, the swell's seconds (nil at rest) and Reduce Motion.
+    @ViewBuilder let content: (Double?, Double?, Bool) -> Content
 
     var body: some View {
         let run = involved ? cue.run : .rest
-        TimelineView(.animation(paused: run.start == nil)) { context in
-            content(run.elapsed(at: context.date), reduceMotion)
+        let swell = landing.run
+        TimelineView(.animation(paused: run.start == nil && swell.start == nil)) { context in
+            content(run.elapsed(at: context.date), landing.elapsed(at: context.date), reduceMotion)
         }
     }
 }

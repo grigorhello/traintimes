@@ -52,6 +52,16 @@ struct AlertRule: Codable, Hashable, Sendable, Identifiable {
         kind == .repeating || (trip?.serviceDay ?? today) >= today
     }
 
+    /// The day Pick a new train opens Schedule on (TT-255, D129): the next day the alert rings, Today while its old time is
+    /// still ahead today; a This-trip alert's own day, or Today once that has passed. Nothing rings in the next week: Today.
+    func nextRingDay(today: ServiceDay, now: Date) -> ServiceDay {
+        let minutes = ServiceDay.minutesIntoServiceDay(scheduledDeparture)
+        guard kind == .repeating else { return max(trip?.serviceDay ?? today, today) }
+        return (0...7).map(today.adding).first { day in
+            weekdays.contains(day.isoWeekday) && (day != today || day.date(minutesIntoDay: minutes) > now)
+        } ?? today
+    }
+
     /// A Repeat rule stands for the usual train: same line, stations and scheduled departure time of day, whatever the day.
     func isSameUsualTrain(as other: AlertRule) -> Bool {
         line == other.line && origin.id == other.origin.id && destination.id == other.destination.id

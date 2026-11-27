@@ -57,6 +57,17 @@ final class ScheduleViewModel {
     private(set) var rescrollRequest = 0
     /// A scroll request is waiting for the cards to be measured.
     @ObservationIgnored private var awaitsMeasurement = false
+    /// The card the last scroll request shows, with the train before it above, instead of Now or the first train: See trains
+    /// and Pick a new train (TT-255, D129). Nil for every other request; kept for that request's settle and rescrolls.
+    private(set) var scrollFocus: TripKey?
+    /// The card See trains landed on (TT-255, D129): it swells once and its bell pops, after the scroll or the cascade has
+    /// brought it in. Kept after, so a redraw never plays it again.
+    private(set) var landedCard: TripKey?
+    /// Bumped once per landing on an alert's card: the view plays the swell.
+    private(set) var landingRequest = 0
+    /// See trains is about to land with Schedule's tab coming back from another: that return is the landing, so it neither
+    /// goes back to Now nor plays Now (`expectLanding()`).
+    @ObservationIgnored private var landsOnReturn = false
     /// Bumped when a new set of trains is shown: a day picked, the route swapped or picked, the first load, back to Today
     /// from another day. The cards cascade in (TT-164, D61). A minute tick, a status change, a refresh or poll and the
     /// midnight turn never bump it.
@@ -238,6 +249,13 @@ final class ScheduleViewModel {
         stripDays.firstIndex(of: day).map { $0 - Self.pastDayCount }
     }
 
+    /// Where a scroll request puts the timeline: the focused card with the train before it above (TT-255), else Now near
+    /// the top on Today and the first train on another day.
+    var scrollOffset: CGFloat {
+        if let scrollFocus, let offset = layout.scrollOffset(showing: scrollFocus) { return offset }
+        return isToday ? layout.initialScrollOffset : 0
+    }
+
     /// "Oakville to Union".
     var routeTitle: String? {
         route.map { String(format: String(localized: "schedule.route_title"), $0.from.name, $0.to.name) }
@@ -365,9 +383,10 @@ final class ScheduleViewModel {
     /// A scroll request, then another once every card has its measured size (D49): the first scroll ran before the cards
     /// were measured, so the Now line has moved since. The view makes the launch's second scroll without animation and
     /// later ones with.
-    private func requestScroll(jumping: Bool = false) {
+    private func requestScroll(jumping: Bool = false, focus: TripKey? = nil) {
         pulsesOnSettle = false
         scrollJumps = jumping
+        if focus != scrollFocus { scrollFocus = focus }
         scrollRequest += 1
         awaitsMeasurement = !departures.allSatisfy { cardSizes[$0.id] != nil }
         let request = scrollRequest
@@ -674,7 +693,10 @@ final class ScheduleViewModel {
         let reopened = wasInBackground
         leftViewAt = nil
         wasInBackground = false
-        let returns = hasLoaded && away > Self.returnToNowAfter
+        // See trains (TT-255): the landing is this return, with its own day, scroll and swell.
+        let lands = landsOnReturn
+        landsOnReturn = false
+        let returns = hasLoaded && away > Self.returnToNowAfter && !lands
         var jumping = false
         if returns {
             Analytics.track(.backToNow(reopened ? .reopen : .otherTab))
@@ -687,6 +709,7 @@ final class ScheduleViewModel {
             }
         }
         if let look, await look() { return }
+        if lands { return }
         guard returns else { return timelineAppeared() }
         if jumping { await loadNewTrains() }
         requestScroll(jumping: jumping)
@@ -853,6 +876,14 @@ final class ScheduleViewModel {
     /// A route to show, saved on device so the next launch opens it (TT-120), with who chose it (TT-234, D116): by hand
     /// (the station picker, a Recent row, the welcome), one train's link, or a widget's route link.
     func show(_ route: Route, chosen choice: RouteChoice = .byHand) async {
+        setRoute(route, chosen: choice)
+        // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
+        guard hasLoaded else { return }
+        await loadNewTrains()
+        requestScroll(jumping: true)
+    }
+
+    private func setRoute(_ route: Route, chosen choice: RouteChoice) {
         routeCount.set(route, isFirst: self.route == nil)
         // The arrow on From goes when the route changes by hand or by a link (TT-235, D116).
         if marksFrom, route != self.route { marksFrom = false }
@@ -860,10 +891,68 @@ final class ScheduleViewModel {
         routeStore?.save(route)
         recents.record(route)
         choices?.chose(route, by: choice)
-        // On first use the timeline appears only now and loads itself (`loadIfNeeded`), scrolling to Now.
+    }
+
+    // MARK: Landing (TT-255, D129)
+
+    /// Where See trains or Pick a new train lands.
+    enum LandingTarget: Equatable, Sendable {
+        /// An Alerts card's train: its card comes into view and swells once, with its bell's pop.
+        case card(TripKey)
+        /// A time-changed alert's old time: the first train at or after that time of day, with no swell, the place to pick
+        /// a new train.
+        case time(Date)
+    }
+
+    /// Called before Schedule's tab is shown for a landing, while another tab shows: that return to the tab is the landing,
+    /// so it does not go back to Now after a long time away, nor play Now. With Schedule in view nothing is held.
+    func expectLanding() {
+        guard !isInView else { return }
+        landsOnReturn = true
+    }
+
+    /// See trains on an Alerts card, or Pick a new train (TT-255, D129): Schedule on `route` and `day` in one load, so one
+    /// cascade, the day tile gliding there, then scrolled to the target with the train before it above. The route is one
+    /// train's link (Automatic direction keeps it as a choice by hand); a day before Today keeps the day shown. A card that
+    /// is found swells once the scroll or the cascade has brought it in (`landingRequest`); a target that is not found
+    /// scrolls as the day would open.
+    func land(_ target: LandingTarget, on route: Route, day: ServiceDay) async {
+        let routeChanges = self.route.map { !$0.isSameDirection(as: route) } ?? true
+        if routeChanges {
+            setRoute(route, chosen: .trainLink)
+        } else {
+            choices?.chose(route, by: .trainLink)
+        }
+        let dayChanges = day >= today && day != selectedDay
+        if dayChanges {
+            selectedDay = day
+            daySelection += 1
+        }
         guard hasLoaded else { return }
-        await loadNewTrains()
-        requestScroll(jumping: true)
+        let shown = (day: selectedDay, route: self.route)
+        let newTrains = routeChanges || dayChanges
+        if newTrains { await loadNewTrains() }
+        // A newer day or route was picked while this one loaded.
+        guard selectedDay == shown.day, self.route == shown.route else { return }
+        let focus = focus(for: target)
+        requestScroll(jumping: newTrains, focus: focus)
+        guard case .card(let key) = target, focus == key else { return }
+        landedCard = key
+        landingRequest += 1
+    }
+
+    /// The card a landing shows: the alert's train, or the first train at or after the old time of day (the last train when
+    /// every one leaves before it). Nil when the day has no such card.
+    private func focus(for target: LandingTarget) -> TripKey? {
+        switch target {
+        case .card(let key):
+            return departures.contains { $0.id == key } ? key : nil
+        case .time(let time):
+            let minutes = ServiceDay.minutesIntoServiceDay(time)
+            func minutesOf(_ departure: Departure) -> Int { ServiceDay.minutesIntoServiceDay(departure.trip.scheduledDeparture) }
+            let later = departures.filter { minutesOf($0) >= minutes }
+            return (later.min { minutesOf($0) < minutesOf($1) } ?? departures.max { minutesOf($0) < minutesOf($1) })?.id
+        }
     }
 
     /// A load for another day or route: the old cards hide at once and the new ones cascade in once it lands.

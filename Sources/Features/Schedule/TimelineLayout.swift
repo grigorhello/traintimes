@@ -258,6 +258,19 @@ extension TimelineLayout {
         }
     }
 
+    /// Where See trains or Pick a new train scrolls the timeline (TT-255, D129): the card `id` in view with the train before
+    /// it above, that train's top `TTTimeline.minCardGap` under the top edge (the first card shows from the top). On Today
+    /// Now stays near the top when it falls between the two, as when the card is the next train and the one before it has
+    /// left: the departed train stays out of the way, as the Schedule tab puts it. The card's own top always shows. Nil when
+    /// no card has that id.
+    func scrollOffset(showing id: TripKey) -> CGFloat? {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return nil }
+        let gap = TTTimeline.minCardGap
+        var offset = index > 0 ? max(0, cards[index - 1].top - gap) : 0
+        if nowY != nil { offset = max(offset, initialScrollOffset) }
+        return min(offset, max(0, cards[index].top - gap))
+    }
+
     /// Each card's place in the cascade when a new set of trains is shown (TT-164, D61), counted from the first card in view
     /// with the timeline scrolled to `scrollOffset` (where it opens: Now on today, the first train on another day). The
     /// cards above count as the first, so the stagger starts where the rider looks.

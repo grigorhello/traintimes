@@ -123,14 +123,8 @@ struct AutoRideRule {
         var answered = false
     }
 
-    /// One good fix, placed on the track: along from the origin stop, off the track, from the origin point.
-    private struct Mark {
-        let at: Date
-        let along: Double
-        let off: Double
-        let fromOrigin: Double
-        let isStationary: Bool
-    }
+    /// One good fix, placed on the track (`PlacedFixes`, shared with `WrongTrainRule` since TT-251).
+    private typealias Mark = PlacedFixes.Mark
 
     /// A good fix's place, kept `keepsFixes` for the rivals' tracks.
     private struct Place {
@@ -154,18 +148,15 @@ struct AutoRideRule {
     // MARK: State
 
     let originId: String
-    private let shape: TrackShape
-    private let originAlong: Double
-    private let originPoint: GeoPoint
+    private var shape: TrackShape { fixes.shape }
+    private var originAlong: Double { fixes.originAlong }
     /// The watch armed at or after L (an app opened on the moving train): the covered form counts at any station.
     private let armedLate: Bool
-    /// iOS sends a stationary update when the phone stops (iOS 18); without it a gap is a pause.
-    private let reportsStationary: Bool
 
-    private var marks: [Mark] = []
+    /// The good fixes placed on the track, with Y1, Y2 and the phone's place at a moment (`PlacedFixes`).
+    private var fixes: PlacedFixes
+    private var marks: [Mark] { fixes.marks }
     private var places: [Place] = []
-    /// The latest good fix within `stationRadius` of the origin point, by its index in `marks`.
-    private var lastAtStation: Int?
     private var sightings: [Sighting] = []
     private var rivals: [RivalTrain] = []
     private var rivalSightings: [String: [Sighting]] = [:]
@@ -176,29 +167,17 @@ struct AutoRideRule {
     init?(plan: RidePlan, originId: String, armedLate: Bool, reportsStationary: Bool) {
         guard let track = plan.track, let first = track.stopDistances.first else { return nil }
         self.originId = originId
-        shape = track.shape
-        originAlong = first
-        originPoint = track.shape.point(at: first)
+        fixes = PlacedFixes(shape: track.shape, originAlong: first, reportsStationary: reportsStationary)
         self.armedLate = armedLate
-        self.reportsStationary = reportsStationary
     }
 
     // MARK: Observations
 
     /// A fix from the phone as it came at `now`; only good ones count.
     mutating func observe(_ fix: LocationFix, at now: Date) {
-        guard fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= Self.goodAccuracy, fix.age < Self.goodAge else { return }
-        let at = now.addingTimeInterval(-fix.age)
         // Fixes come in order; one measured before the last is dropped.
-        if let last = marks.last, at < last.at { return }
-        let projection = shape.project(fix.coordinate)
-        let mark = Mark(
-            at: at, along: projection.along - originAlong, off: projection.off,
-            fromOrigin: TrackShape.distance(fix.coordinate, originPoint), isStationary: fix.isStationary
-        )
-        marks.append(mark)
-        if mark.fromOrigin <= Self.stationRadius { lastAtStation = marks.count - 1 }
-        let place = Place(at: at, point: fix.coordinate, along: mark.along, off: mark.off)
+        guard let mark = fixes.add(fix, at: now) else { return }
+        let place = Place(at: mark.at, point: mark.point, along: mark.along, off: mark.off)
         places.append(place)
         places.removeAll { now.timeIntervalSince($0.at) > Self.keepsFixes }
         for rival in rivals where !parted.contains(rival.trip.tripId) && hasParted(from: rival, at: place) {
@@ -282,22 +261,13 @@ struct AutoRideRule {
 
     private func isAtStation(_ moment: Moment) -> Bool {
         if armedLate || isCovered, coveredForm(moment) { return true }
-        guard !isCovered, let index = lastAtStation else { return false }
-        let station = marks[index]
-        var seen = station.at
         // iOS sends nothing while the phone is still: its stationary fix holds while it is the latest, until the next fix.
-        if station.isStationary {
-            let until = index + 1 < marks.count ? marks[index + 1].at : moment.now
-            seen = min(until, station.at.addingTimeInterval(RideEngine.stationaryTimeout))
-        }
+        guard !isCovered, let seen = fixes.seenAtStation(now: moment.now) else { return false }
         return seen >= moment.departure.addingTimeInterval(-Self.stationLead)
     }
 
     private func coveredForm(_ moment: Moment) -> Bool {
-        let from = moment.departure.addingTimeInterval(-Self.coveredLead)
-        guard let index = marks.firstIndex(where: { $0.at > from }), index + 1 < marks.count else { return false }
-        let first = marks[index], next = marks[index + 1]
-        return first.off <= Self.coveredOff && Self.coveredAlong.contains(first.along) && next.along > first.along
+        fixes.coveredStart(after: moment.departure.addingTimeInterval(-Self.coveredLead)) != nil
     }
 
     // MARK: Y2
@@ -305,95 +275,18 @@ struct AutoRideRule {
     /// Tp: the start of the latest run of good fixes 300 m or more along (a phone that came in along the track and stood
     /// at the station starts a new run when it leaves); with the covered form, from the first good fix after L − 60 s.
     private func tp() -> Date? {
-        guard let lastBelow = marks.lastIndex(where: { $0.along < Self.leaveAlong }) else {
-            return marks.first?.at
-        }
-        let start = lastBelow + 1
-        return start < marks.count ? marks[start].at : nil
+        fixes.tp()
     }
 
     private func leavesWith(from tp: Date) -> Bool {
-        guard let first = marks.firstIndex(where: { $0.at >= tp }) else { return false }
-        var start = first
-        var standingSince: Date?
-        var index = first
-        while index < marks.count {
-            let mark = marks[index]
-            defer { index += 1 }
-            // A gap: a pause where iOS sends no stationary update, and a break always.
-            if index > start {
-                let gap = mark.at.timeIntervalSince(marks[index - 1].at)
-                if gap > Self.breakGap || (!reportsStationary && gap > Self.pauseGap) {
-                    start = index
-                    standingSince = nil
-                    continue
-                }
-            }
-            // Standing: a stationary update (which holds until the next fix), or under 2 m/s over the last 8 s.
-            let speed = self.speed(at: index)
-            let heldStill = index > start && marks[index - 1].isStationary
-            let stands = mark.isStationary || heldStill || (speed.map { $0 < Self.standSpeed } ?? false)
-            if stands {
-                let since = standingSince ?? (heldStill ? marks[index - 1].at : mark.at)
-                standingSince = since
-                if mark.at.timeIntervalSince(since) > Self.standLimit {
-                    // A standstill starts the 45 s again, from the next fix that moves.
-                    start = index + 1
-                    standingSince = nil
-                    continue
-                }
-            } else {
-                standingSince = nil
-            }
-            let windowStart = marks[start].at
-            let tooSlow = mark.at.timeIntervalSince(windowStart) >= Self.leaveSpeedFrom
-                && (speed.map { $0 < Self.leaveSpeed } ?? false)
-            if mark.off > Self.leaveOff || tooSlow {
-                start = index + 1
-                standingSince = nil
-                continue
-            }
-            if mark.at.timeIntervalSince(windowStart) >= Self.leaveSpan {
-                let offs = marks[start...index].map(\.off).sorted()
-                if median(offs) <= Self.leaveMedianOff, mark.along >= Self.leavePast { return true }
-                // Not yet: the window slides on by one fix.
-                start += 1
-            }
-        }
-        return false
-    }
-
-    /// Metres a second along the track over the last 8 s of good fixes; nil with no earlier fix in them.
-    private func speed(at index: Int) -> Double? {
-        let mark = marks[index]
-        var earliest: Mark?
-        var cursor = index - 1
-        while cursor >= 0, mark.at.timeIntervalSince(marks[cursor].at) <= Self.speedSpan {
-            earliest = marks[cursor]
-            cursor -= 1
-        }
-        guard let earliest, mark.at > earliest.at else { return nil }
-        return (mark.along - earliest.along) / mark.at.timeIntervalSince(earliest.at)
-    }
-
-    private func median(_ sorted: [Double]) -> Double {
-        guard !sorted.isEmpty else { return .infinity }
-        let middle = sorted.count / 2
-        return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+        fixes.leaves(from: tp) { $0.along >= Self.leavePast }
     }
 
     // MARK: Y3
 
     /// The phone's place along the track at `time`, between the good fixes either side of it (20 s apart at most).
     private func phoneAlong(at time: Date) -> Double? {
-        guard let after = marks.firstIndex(where: { $0.at >= time }) else { return nil }
-        let b = marks[after]
-        if b.at == time { return b.along }
-        guard after > 0 else { return nil }
-        let a = marks[after - 1]
-        let span = b.at.timeIntervalSince(a.at)
-        guard span > 0, span <= Self.breakGap else { return nil }
-        return a.along + (b.along - a.along) * time.timeIntervalSince(a.at) / span
+        fixes.phoneAlong(at: time)
     }
 
     /// The phone's gaps to the trip's usable positions from Tp on, oldest first.
@@ -515,20 +408,11 @@ struct AutoRideRule {
     /// `phoneAlong(at:)` between two fixes that are not stationary: a stationary one says the phone stood, which on a smooth
     /// train can be iOS taking it for still.
     private func movingPhoneAlong(at time: Date) -> Double? {
-        guard let after = marks.firstIndex(where: { $0.at >= time }), !marks[after].isStationary else { return nil }
-        if marks[after].at == time { return marks[after].along }
-        guard after > 0, !marks[after - 1].isStationary else { return nil }
-        return phoneAlong(at: time)
+        fixes.movingPhoneAlong(at: time)
     }
 
     /// Every good fix of the last 60 s after the train left matches, and they cover the 60 s with no gap over 10 s.
     private func spans(after leftAt: Date, where matches: (Mark) -> Bool) -> Bool {
-        guard let last = marks.last else { return false }
-        let from = last.at.addingTimeInterval(-Self.staySpan)
-        guard from >= leftAt.addingTimeInterval(-Self.pauseGap) else { return false }
-        let window = marks.filter { $0.at >= from }
-        guard let first = window.first, first.at.timeIntervalSince(from) <= Self.pauseGap else { return false }
-        for (a, b) in zip(window, window.dropFirst()) where b.at.timeIntervalSince(a.at) > Self.pauseGap { return false }
-        return window.allSatisfy(matches)
+        fixes.spans(after: leftAt, where: matches)
     }
 }

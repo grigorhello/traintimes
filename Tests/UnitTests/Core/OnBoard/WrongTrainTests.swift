@@ -269,6 +269,38 @@ final class WrongTrainTests: XCTestCase {
         XCTAssertNil(events("wrong_train_answered").first?.properties["surface"])
     }
 
+    /// TT-251 (D127): a warning with no ride (its departure card's) declines its train for the day once answered "I’m
+    /// fine", "Trains from …" or run out, never on a withdrawal; each card update carries the warning's expiry as the card's
+    /// stale date.
+    func testAWarningWithNoRideDeclinesItsTrainOnAnAnswerOrItsExpiry() async throws {
+        for answer in ["fine", "trains", "expired", "withdrawn"] {
+            let rig = WrongTrainRig()
+            rig.active.isActive = true
+            var declined: [Ride] = []
+            rig.presenter.decline = { declined.append($0) }
+            let expires = answer == "expired" ? WrongTrainFixtures.now.addingTimeInterval(0.05) : WrongTrainFixtures.now.addingTimeInterval(600)
+            let warning = WrongTrainFixtures.warning(expires: expires, source: .alert)
+            await rig.presenter.raise(warning, now: WrongTrainFixtures.now)?.value
+            XCTAssertEqual(rig.card.calls.first?.until, expires, answer)
+            switch answer {
+            case "fine": rig.presenter.fine(surface: .card)
+            case "trains": rig.presenter.trains(surface: .schedule)
+            case "withdrawn": rig.presenter.withdraw()
+            default:
+                for _ in 0..<300 where rig.presenter.warning != nil { try await Task.sleep(for: .milliseconds(5)) }
+            }
+            XCTAssertNil(rig.presenter.warning, answer)
+            XCTAssertEqual(declined, answer == "withdrawn" ? [] : [ride], answer)
+        }
+        // A ride's warning declines nothing here: its ride's end does.
+        let rig = WrongTrainRig()
+        var declined: [Ride] = []
+        rig.presenter.decline = { declined.append($0) }
+        await rig.presenter.raise(WrongTrainFixtures.warning(), now: WrongTrainFixtures.now)?.value
+        rig.presenter.fine(surface: .ride)
+        XCTAssertTrue(declined.isEmpty)
+    }
+
     func testWithdrawTakesItAwaySilently() async {
         let rig = WrongTrainRig()
         await rig.presenter.raise(WrongTrainFixtures.warning(), now: WrongTrainFixtures.now)?.value

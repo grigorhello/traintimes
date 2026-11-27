@@ -80,6 +80,14 @@ final class SettingsSnapshotTests: XCTestCase {
     @MainActor func testTestingDemoWrongTrainLight() { snap(SettingsTestingPage(viewModel: wrongTrainModel()), .light) }
     @MainActor func testTestingDemoWrongTrainDark() { snap(SettingsTestingPage(viewModel: wrongTrainModel()), .dark) }
 
+    /// TT-251, D127: the automatic ride's Last check after a wrong train warning, and Last wrong train check under Last
+    /// look. Drawn taller than the screen so both lines show.
+    @MainActor func testTestingWrongTrainCheckLight() { snap(wrongTrainCheckPage(), .light, layout: Self.tall) }
+    @MainActor func testTestingWrongTrainCheckDark() { snap(wrongTrainCheckPage(), .dark, layout: Self.tall) }
+
+    /// The iPhone 17 Pro's width and a page's length past the fold.
+    private static var tall: SwiftUISnapshotLayout { .fixed(width: 402, height: 1500) }
+
     // MARK: Haptics (TT-214; Alarm and its moment since TT-250)
 
     @MainActor func testHapticsLight() { snap(SettingsHapticsPage(), .light) }
@@ -128,6 +136,18 @@ final class SettingsSnapshotTests: XCTestCase {
         return SettingsTestingPage(viewModel: page).environment(\.timeFormatter, TimeFormatter(format: .twelveHour))
     }
 
+    /// The Testing page with Depart and Automatic ride on Boards, the watch finished by a wrong train warning 95 s after
+    /// the train left, and the wrong train check's warning: 95 s after the phone moved, the other way, from an alert.
+    @MainActor
+    private func wrongTrainCheckPage() -> some View {
+        let check = AutoRideCheck(outcome: .wrongTrain, reason: nil, secondsAfter: 95, holdReachedAt: nil)
+        let wrong = WrongTrainCheckResult(outcome: .warned, source: .alert, seconds: 95, reason: .wrongWay, why: nil)
+        let page = model(.allowed, showsTesting: true, route: AlertFixtures.route, autoRideCheck: check, wrongTrainCheck: wrong)
+        page.demoTrains = .departure
+        page.demoAutoRide = .boards
+        return SettingsTestingPage(viewModel: page).environment(\.timeFormatter, TimeFormatter(format: .twelveHour))
+    }
+
     /// `direction` is Automatic direction's location reader, with nothing stored; nil is no reader, which reads off.
     /// Demo place is kept in defaults of its own, never the app's. `autoRideCheck` is what Last check shows. `wake` is When
     /// the app is closed; `autoRideStore` keeps Automatic ride's "off".
@@ -135,7 +155,7 @@ final class SettingsSnapshotTests: XCTestCase {
     private func model(
         _ permission: NotificationPermission, showsTesting: Bool = false, testingOn: Bool = false, alerts: AlertRules? = nil,
         direction: (any DirectionLocating)? = nil, route: Route? = nil, autoRideCheck: AutoRideCheck? = nil,
-        autoRideStore: AutoRideStore? = nil, wake: AutoRideWake? = nil
+        wrongTrainCheck: WrongTrainCheckResult? = nil, autoRideStore: AutoRideStore? = nil, wake: AutoRideWake? = nil
     ) -> SettingsViewModel {
         let settings = AppSettings(defaults: .ephemeral())
         if testingOn {
@@ -148,7 +168,7 @@ final class SettingsSnapshotTests: XCTestCase {
             settings: settings, permissions: FakeNotificationPermission(permission), appInfo: AppInfo(version: "1.0", build: "12"),
             showsTesting: showsTesting, alerts: alerts, autoRideStore: autoRideStore, autoRideWake: wake, direction: direction,
             directionStore: DirectionStore(defaults: nil), route: { route }, autoRideCheck: { autoRideCheck },
-            defaults: .ephemeral()
+            wrongTrainCheck: { wrongTrainCheck }, defaults: .ephemeral()
         )
         model.permission = permission
         return model
@@ -193,7 +213,8 @@ final class SettingsSnapshotTests: XCTestCase {
 
     @MainActor
     private func snap(
-        _ view: some View, _ style: UIUserInterfaceStyle, waits: Bool = false, testName: String = #function, line: UInt = #line
+        _ view: some View, _ style: UIUserInterfaceStyle, waits: Bool = false,
+        layout: SwiftUISnapshotLayout = .device(config: .iPhone17Pro), testName: String = #function, line: UInt = #line
     ) {
         let content = AnyView(view.environment(\.rendersGlass, false).environment(\.playsSettingsMotion, false))
         let image = Snapshotting<AnyView, UIImage>.image(
@@ -202,7 +223,7 @@ final class SettingsSnapshotTests: XCTestCase {
             // differently from run to run, so the Mock time page waits a moment and tolerates 1 % of pixels (TT-159).
             precision: waits ? 0.99 : 1,
             perceptualPrecision: 0.98,
-            layout: .device(config: .iPhone17Pro),
+            layout: layout,
             traits: UITraitCollection(userInterfaceStyle: style)
         ).comparedAsRecorded
         let strategy: Snapshotting<AnyView, UIImage> = waits ? .wait(for: 0.5, on: image) : image

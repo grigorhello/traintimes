@@ -151,7 +151,8 @@ struct WrongTrainNote: Equatable, Sendable {
 @MainActor
 protocol WrongTrainShowing: AnyObject {
     /// Puts `wrong` on `ride`'s card (nil takes it away), alerting with `alert`; false when no showing card is that ride's or
-    /// Live Activities are off. `until`: the card's stale date while it warns (TT-251's departure card); nil keeps its own.
+    /// Live Activities are off. `until`: a departure card's stale date while it warns (TT-251, the warning's expiry); a
+    /// ride card keeps its own. Taken off a departure card, the card ends.
     func show(
         _ wrong: RideActivityAttributes.ContentState.Wrong?, for ride: Ride, until: Date?, alert: WrongTrainAlert?
     ) async -> Bool
@@ -234,6 +235,9 @@ final class WrongTrain {
     /// Ends T's ride for "Trains from …" and the expiry: `RootView` sets it on the `OnBoard` it keeps (the demo's ride
     /// ends on the demo engine); tests set it. Unset (a cold launch), the app's engine ends it. True when a ride ended.
     @ObservationIgnored var endRide: (@MainActor (Ride) -> Bool)?
+    /// Declines T for today (`DetectionStore.silence`) after "I’m fine", the expiry or "Trains from …" on a warning with
+    /// no ride (TT-251, D127), so nothing asks about it again; a withdrawal does not. Set by `AppDelegate`; tests set it.
+    @ObservationIgnored var decline: (@MainActor (Ride) -> Void)?
 
     private let card: (any WrongTrainShowing)?
     private let notifier: (any WrongTrainNotifying)?
@@ -331,6 +335,8 @@ final class WrongTrain {
         }
         let isDemo = ride.tripId == DemoRide.tripId
         rememberFine(ride, isDemo: isDemo)
+        // No ride for that train: the warning was on its departure card.
+        if !isDemo, appEngine?.rideOrSaved != ride { decline?(ride) }
         Analytics.track(.wrongTrainAnswered(.fine, surface: surface, seconds: 0, demo: isDemo))
     }
 
@@ -440,13 +446,17 @@ final class WrongTrain {
             // In front: the app shows the warning, Alarm plays once, the card changes with no alert.
             haptics.play(.wrongTrain)
             Analytics.track(.wrongTrainWarned(warning, shown: .app))
-            _ = await card?.show(warning.card(formatter: formatter, beat: 1), for: warning.ride, until: nil, alert: nil)
+            _ = await card?.show(
+                warning.card(formatter: formatter, beat: 1), for: warning.ride, until: warning.expires, alert: nil
+            )
             settle(warning.ride, id: id)
             releaseAwake()
             return
         }
         let alert = WrongTrainAlert(title: String(localized: "wrong.title"), body: warning.notificationBody(formatter: formatter))
-        let shows = await card?.show(warning.card(formatter: formatter, beat: 1), for: warning.ride, until: nil, alert: alert) ?? false
+        let shows = await card?.show(
+            warning.card(formatter: formatter, beat: 1), for: warning.ride, until: warning.expires, alert: alert
+        ) ?? false
         guard isCurrent(id) else {
             settle(warning.ride, id: id)
             return
@@ -456,7 +466,9 @@ final class WrongTrain {
             for beat in 2...Self.buzzes {
                 try? await Task.sleep(for: gap)
                 guard !Task.isCancelled, isCurrent(id) else { break }
-                _ = await card?.show(warning.card(formatter: formatter, beat: beat), for: warning.ride, until: nil, alert: alert)
+                _ = await card?.show(
+                    warning.card(formatter: formatter, beat: beat), for: warning.ride, until: warning.expires, alert: alert
+                )
             }
             settle(warning.ride, id: id)
         } else {
@@ -505,6 +517,10 @@ final class WrongTrain {
         Task { _ = await card?.show(nil, for: warning.ride, until: nil, alert: nil) }
         notifier?.remove()
         releaseAwake()
+        // A warning with no ride (its departure card's): an answer or its expiry declines T for today.
+        if warning.source == .alert, !warning.isDemo, answer == .fine || answer == .expired || answer == .trains {
+            decline?(warning.ride)
+        }
         Analytics.track(.wrongTrainAnswered(answer, surface: surface, seconds: seconds, demo: warning.isDemo))
     }
 

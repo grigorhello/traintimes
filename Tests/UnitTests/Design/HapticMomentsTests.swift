@@ -119,10 +119,7 @@ final class HapticMomentsTests: XCTestCase {
     func testRemoveDropsAndUndoTaps() async {
         let haptics = FakeHaptics()
         let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.evening])
-        let model = AlertsViewModel(
-            rules: rules, updates: await AlertsFixtures.updates([]), clock: FixedClock(now: AlertsFixtures.now),
-            actionDuration: .seconds(60), haptics: haptics
-        )
+        let model = await AlertsFixtures.model(rules, haptics: haptics)
         await model.remove("evening")?.value
         XCTAssertEqual(haptics.played, [.drop])
         await model.undo()

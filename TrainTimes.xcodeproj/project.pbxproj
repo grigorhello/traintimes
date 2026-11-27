@@ -492,6 +492,47 @@
 			};
 			name = Release;
 		};
+		11FE0777656B06C69204F1FEA5582D53 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = Config/TrainTimes.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					.gitkeep,
+					Fixtures.json,
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Train Times starts the ride when your alerted train leaves with you, even when the app is closed. Your location stays on the phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, starts the ride when a train you set an alert on leaves with you, warns you if you board the wrong train, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(TT_APP_PROFILE)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		192EA7740768A54B391B91991E3F8189 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -525,7 +566,7 @@
 			};
 			name = Release;
 		};
-		52BEF4387C79C22F70559350372FFC0B /* Release */ = {
+		910A57A5E1568E124B52A419F594A4E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
 			buildSettings = {
@@ -537,16 +578,13 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					.gitkeep,
-					Fixtures.json,
-				);
+				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Train Times starts the ride when your alerted train leaves with you, even when the app is closed. Your location stays on the phone.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, starts the ride when a train you set an alert on leaves with you, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, starts the ride when a train you set an alert on leaves with you, warns you if you board the wrong train, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -562,9 +600,8 @@
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
-				VALIDATE_PRODUCT = YES;
 			};
-			name = Release;
+			name = Debug;
 		};
 		933617F0635E3508B2F1EEF5B8F22490 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -636,43 +673,6 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		9A4C6B099A17F936D24A0412863345C3 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = E219CB52DAB543474EB3DAA90C11C1AD /* App.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = Accent;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_ENTITLEMENTS = Config/TrainTimes.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
-				ENABLE_PREVIEWS = YES;
-				EXCLUDED_SOURCE_FILE_NAMES = .gitkeep;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Train Times";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Train Times starts the ride when your alerted train leaves with you, even when the app is closed. Your location stays on the phone.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location shows trains from the station you’re closer to when you open the app, starts the ride when a train you set an alert on leaves with you, shows which station is next while you ride, and tells you before your stop. It stays on the phone.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ca.traintimes.TrainTimes;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "$(TT_APP_PROFILE)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -796,8 +796,8 @@
 		378E434833C7FF4B0C54105730829BEE /* Build configuration list for PBXNativeTarget "TrainTimes" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				52BEF4387C79C22F70559350372FFC0B /* Release */,
-				9A4C6B099A17F936D24A0412863345C3 /* Debug */,
+				11FE0777656B06C69204F1FEA5582D53 /* Release */,
+				910A57A5E1568E124B52A419F594A4E1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

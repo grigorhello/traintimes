@@ -135,6 +135,13 @@ final class RideEngine: DirectionRideSource {
     /// How this ride started (TT-242, D120), saved with it, so `ride_ended` says it after a relaunch; nil for a ride saved
     /// before the app kept it. Not `source`: `RideState.source` is what placed the train.
     private(set) var startSource: RideStartSource?
+    /// Each fix as it comes, before the engine's own filter (TT-251, D127): the wrong train check reads the ride's fixes
+    /// through it. Set by `AppDelegate`.
+    @ObservationIgnored var fixTap: (@MainActor (LocationFix) -> Void)?
+    /// Asked before the ride ends as left the line (TT-251, D127): true while the wrong train warning shows for this ride
+    /// or the check follows another train on it, so a rider in a train of another line gets the warning, not a silent end.
+    /// The other endings are never held. Set by `AppDelegate`.
+    @ObservationIgnored var holdsEnding: (@MainActor (RideEndReason) -> Bool)?
 
     private let data: (any RideDataProviding)?
     private let location: any LocationProviding
@@ -414,6 +421,7 @@ final class RideEngine: DirectionRideSource {
     /// A fix from the phone, placed at the time iOS measured it. A fix more than 1 km off the line does not place the train
     /// and starts the off-the-line count, from the scheduled departure on. A fix older than 60 s says nothing about now.
     func receive(_ fix: LocationFix) {
+        fixTap?(fix)
         // The undo by itself counts only good fixes, by its own rule (TT-243).
         if state?.phase != .ended { undoRule?.observe(fix, at: clock.now) }
         guard let plan, let track = plan.track, state?.phase != .ended, fix.age < Self.fixTimeout,
@@ -549,7 +557,8 @@ final class RideEngine: DirectionRideSource {
         arrivedAt = saved.arrivedAt
         let ending: RideEndReason? = if status.isCancelled {
             .cancelled
-        } else if let offLineSince, now.timeIntervalSince(offLineSince) >= Self.offLineDuration {
+        } else if let offLineSince, now.timeIntervalSince(offLineSince) >= Self.offLineDuration,
+                  !(holdsEnding?(.leftTheLine) ?? false) {
             .leftTheLine
         } else if let arrivedAt = saved.arrivedAt, now.timeIntervalSince(arrivedAt) >= Self.endAfterArrival {
             .arrived

@@ -108,6 +108,14 @@ final class FakeLocation: LocationProviding {
         onFix = nil
     }
 
+    /// The wrong train check's restarts on paused fixes (TT-251).
+    private(set) var restarts = 0
+
+    func restartUpdates() {
+        guard isUpdating else { return }
+        restarts += 1
+    }
+
     func send(_ fix: LocationFix) {
         onFix?(fix)
     }
@@ -194,4 +202,13 @@ final class FakeArrivalFeedback: ArrivalFeedback {
 
     func arriving() { arrivals += 1 }
     func atYourStop() { stops += 1 }
+}
+
+/// What the closures a test hands to `fixTap` and `holdsEnding` record (TT-251, D127): a `@MainActor` closure is
+/// `Sendable`, so it changes this rather than a captured `var`.
+@MainActor
+final class TapRecord {
+    var taps = 0
+    var holds = true
+    var asked: [RideEndReason] = []
 }

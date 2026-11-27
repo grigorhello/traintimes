@@ -1,50 +1,51 @@
 import XCTest
 
-/// The Alerts tab as one list (TT-193): a row opens in place, a day tile changes the same alert, Remove alert removes it
-/// and Undo brings it back; the empty tab's next trains set the first alert with their bells; with notifications off the
-/// card tops the list and the switches are disabled. The app runs on the fixture schedule and alert server.
+/// The Alerts tab as cards (TT-253, D129): the bell switches an alert off in place and on again, See trains opens Schedule
+/// on the alert's route; the empty tab's next trains set the first alert with their bells and the card grows its days row;
+/// with notifications off the card tops the tab. The app runs on the fixture schedule and alert server.
 final class AlertsTabTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// The 7:32 AM train's bell on Schedule, then on Alerts: open the row, light Thursday, Remove alert, Undo.
+    /// The 7:32 AM train's bell on Schedule, then on Alerts: its card, the bell off and on in place, See trains.
     @MainActor
-    func testOpenARowChangeADayRemoveAndUndo() {
+    func testTheBellSwitchesOffInPlaceAndSeeTrainsOpensSchedule() {
         let app = XCUIApplication.onFixtures()
         app.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
-        app.launchEnvironment["TT_TOAST_SECONDS"] = "60"
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
         app.launch()
 
-        let bell = app.buttons["schedule.bell.LW-0732-20261105"]
-        XCTAssertTrue(bell.waitForExistence(timeout: 20))
-        bell.tap()
-        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
+        let scheduleBell = app.buttons["schedule.bell.LW-0732-20261105"]
+        XCTAssertTrue(scheduleBell.waitForExistence(timeout: 20))
+        scheduleBell.tap()
+        XCTAssertTrue(wait(for: scheduleBell, label: "Alert on for 7:32 AM train"))
 
         app.tabBars.buttons["Alerts"].tap()
-        // Schedule stays in the tab view with its own capsule and day panel, so look inside the Alerts tab only.
+        // Schedule stays in the tab view with its own card and bell, so look inside the Alerts tab only.
         let alerts = app.descendants(matching: .any).matching(identifier: "alerts.root").firstMatch
-        let row = alerts.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15))
-        let open = row.buttons["alerts.rule.open"]
-        XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Today only"))
+        let item = alerts.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 15))
+        let card = item.buttons["alerts.card.LW-0732-20261105"]
+        let bell = item.buttons["alerts.bell.LW-0732-20261105"]
+        XCTAssertTrue(wait(for: card, labelContains: "Once"))
+        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
 
-        open.tap()
-        XCTAssertTrue(row.staticTexts["Repeat on"].waitForExistence(timeout: 15))
-        row.buttons["alert.day.4"].tap()
-        XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Thu"))
+        bell.tap()
+        XCTAssertTrue(wait(for: bell, label: "Alert for 7:32 AM train"))
+        XCTAssertTrue(wait(for: card, labelContains: "Off"), "switched off in place")
+        bell.tap()
+        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
+        XCTAssertTrue(wait(for: card, labelContains: "Once"))
 
-        row.buttons["alerts.remove"].tap()
-        XCTAssertTrue(alerts.staticTexts["Alert removed"].waitForExistence(timeout: 15))
-        XCTAssertTrue(row.waitForNonExistence(timeout: 15))
-
-        alerts.buttons["alert.capsule.action"].tap()
-        XCTAssertTrue(row.waitForExistence(timeout: 15))
-        XCTAssertTrue(wait(for: open, labelContains: "Oakville to Union · Thu"), "back with the same days")
+        item.buttons["alerts.seeTrains"].tap()
+        XCTAssertTrue(wait(for: app.tabBars.buttons["Schedule"], selected: true))
+        XCTAssertEqual(app.buttons["schedule.from"].value as? String, "Oakville")
+        XCTAssertEqual(app.buttons["schedule.to"].value as? String, "Union")
     }
 
-    /// With no alert, the next trains stand in; a bell there sets the first alert, which takes their place.
+    /// With no alert, the next trains stand in; a bell there sets the first alert and its card grows the days row and See
+    /// trains; back on the tab, the alert is a card of its own.
     @MainActor
     func testTheFirstAlertFromTheNextTrains() {
         let app = XCUIApplication.onFixtures()
@@ -56,29 +57,34 @@ final class AlertsTabTests: XCTestCase {
         // Schedule has loaded today's trains before the tab opens.
         XCTAssertTrue(app.buttons["schedule.bell.LW-0732-20261105"].waitForExistence(timeout: 20))
         app.tabBars.buttons["Alerts"].tap()
-        XCTAssertTrue(app.staticTexts["Next trains"].waitForExistence(timeout: 15))
-        let bell = app.buttons["alerts.next.bell.LW-0732-20261105"]
+        XCTAssertTrue(app.staticTexts["Tap a bell to hear if a train is delayed or cancelled."].waitForExistence(timeout: 15))
+        let empty = app.descendants(matching: .any).matching(identifier: "alerts.empty").firstMatch
+        let bell = empty.buttons["alerts.next.bell.LW-0732-20261105"]
         XCTAssertTrue(bell.waitForExistence(timeout: 15))
+        XCTAssertFalse(empty.buttons["alerts.seeTrains"].exists)
         bell.tap()
+        XCTAssertTrue(empty.buttons["alerts.seeTrains"].waitForExistence(timeout: 15), "the card grows its days row")
 
-        let row = app.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Alerts start 1 hour before each train leaves."].exists)
+        app.tabBars.buttons["Schedule"].tap()
+        app.tabBars.buttons["Alerts"].tap()
+        let item = app.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Tap a bell to hear if a train is delayed or cancelled."].exists)
     }
 
-    /// TT-169 and TT-193: with notifications off and an alert on, the card tops the tab and the switch is disabled.
+    /// TT-169: with notifications off and an alert on, the card tops the tab and a bell nudges it instead of saving.
     @MainActor
-    func testNotificationsOffShowsTheCardAndDisablesTheSwitches() {
+    func testNotificationsOffShowsTheCard() {
         // The 7:32 AM train's alert is turned on from its bell with notifications allowed (a tap with them off saves
         // nothing, TT-190), then the app comes back with them off: the alert is kept, not delivered.
         let setup = XCUIApplication.onFixtures()
         setup.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
         setup.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
         setup.launch()
-        let bell = setup.buttons["schedule.bell.LW-0732-20261105"]
-        XCTAssertTrue(bell.waitForExistence(timeout: 20))
-        bell.tap()
-        XCTAssertTrue(wait(for: bell, label: "Alert on for 7:32 AM train"))
+        let scheduleBell = setup.buttons["schedule.bell.LW-0732-20261105"]
+        XCTAssertTrue(scheduleBell.waitForExistence(timeout: 20))
+        scheduleBell.tap()
+        XCTAssertTrue(wait(for: scheduleBell, label: "Alert on for 7:32 AM train"))
         setup.terminate()
 
         let app = XCUIApplication.onFixtures()
@@ -93,10 +99,10 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(warning.staticTexts["Notifications are off"].exists)
         XCTAssertTrue(warning.staticTexts["1 alert can’t reach you."].exists)
         XCTAssertTrue(app.buttons["alerts.turnOnInSettings"].exists)
-        let row = app.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15))
-        XCTAssertFalse(row.switches["alerts.rule.switch"].isEnabled, "disabled while notifications are off")
-        XCTAssertFalse(app.staticTexts["Alerts start 1 hour before each train leaves."].exists)
+        let item = app.descendants(matching: .any).matching(identifier: "alerts.rule.LW-0732-20261105").firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 15))
+        item.buttons["alerts.bell.LW-0732-20261105"].tap()
+        XCTAssertTrue(wait(for: item.buttons["alerts.card.LW-0732-20261105"], labelContains: "Once"), "still on: nothing saved")
     }
 
     private func wait(for element: XCUIElement, labelContains text: String) -> Bool {
@@ -106,6 +112,11 @@ final class AlertsTabTests: XCTestCase {
 
     private func wait(for element: XCUIElement, label: String) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 15) == .completed
+    }
+
+    private func wait(for element: XCUIElement, selected: Bool) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isSelected == %@", NSNumber(value: selected)), object: element)
         return XCTWaiter.wait(for: [expectation], timeout: 15) == .completed
     }
 }

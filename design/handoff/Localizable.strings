@@ -215,7 +215,6 @@
 "alert.repeat" = "Repeat";
 "alert.bell.label" = "Alert for %@ train";
 "alert.bell.label_on" = "Alert on for %@ train";
-"alerts.rule.title" = "%@ · %@";
 "alerts.today_only" = "Today only";
 "alerts.off.detail" = "Your alert is saved, but it can't reach you.";
 "alerts.off.detail_plural" = "Your %d alerts are saved, but they can't reach you.";
@@ -242,17 +241,19 @@
 "capsule.new_train" = "Tap the bell of your new train";
 "alerts.time_changed" = "Time changed";
 "alerts.no_train" = "No train today";
-"alerts.start_note" = "Alerts start 1 hour before each train leaves.";
-"alerts.recent" = "Recent";
-"alerts.yesterday" = "Yesterday";
 "alerts.empty.lead" = "Tap a bell to hear if a train is delayed or cancelled.";
-"alerts.next_trains" = "Next trains";
 "alerts.see_trains" = "See trains";
+"alerts.when.today" = "Today";
+"alerts.when.tomorrow" = "Tomorrow";
+"alerts.when.date" = "%1$@ %2$d";
+"alerts.days.once" = "Once";
+"alerts.days.off" = "Off";
+"alerts.days.every" = "Every %@";
+"alerts.days.count" = "%d days";
 "alerts.pick_new_train" = "Pick a new train";
 "alerts.remove" = "Remove alert";
 "alerts.off.line" = "1 alert can’t reach you.";
 "alerts.off.line_plural" = "%d alerts can’t reach you.";
-"alert.repeat_on" = "Repeat on";
 
 /* Notifications (title / body). Every change carries the time it was reported. */
 "notif.delay.title" = "%1$@ train delayed %2$@";
@@ -480,6 +481,23 @@
 "settings.last_check.reason.rival" = "another train beside it";
 "settings.last_check.reason.weak_fixes" = "weak location";
 "settings.last_check.reason.short" = "too close to your stop";
+"settings.last_check.wrong_train" = "Wrong train warned after %@ s";
+"settings.last_wrong" = "Last wrong train check";
+"settings.last_wrong.none" = "None yet";
+"settings.last_wrong.warned" = "Warned %@ s after it moved: %@";
+"settings.last_wrong.reason.wrong_way" = "going the other way";
+"settings.last_wrong.reason.skips_stop" = "it doesn’t stop at your stop";
+"settings.last_wrong.reason.other_line" = "another line";
+"settings.last_wrong.with_train" = "With your train after %@ s";
+"settings.last_wrong.no_match" = "No other train: %@";
+"settings.last_wrong.stayed" = "Didn’t leave: %@";
+"settings.last_wrong.why.walked_away" = "walked away from the station";
+"settings.last_wrong.why.limit" = "time ran out";
+"settings.last_wrong.why.ride_ended" = "the ride ended";
+"settings.last_wrong.why.arrived" = "reached your stop";
+"settings.last_wrong.source.alert" = "From an alert";
+"settings.last_wrong.source.on_board" = "From I’m on board";
+"settings.last_wrong.source.departure" = "From the departure question";
 "weather.tile" = "Weather";
 "weather.sky.clear" = "Clear";
 "weather.sky.partly" = "Partly cloudy";

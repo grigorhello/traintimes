@@ -141,4 +141,11 @@ protocol LocationProviding: AnyObject {
     /// updates over to the ride engine this way, TT-242, D120).
     func startUpdates(_ onFix: @escaping @MainActor @Sendable (LocationFix) -> Void)
     func stopUpdates()
+    /// Starts the running updates again with the same session and callback (TT-251, D127: the wrong train check, when iOS
+    /// may have paused them for a phone it took to be at rest). Nothing while no updates run.
+    func restartUpdates()
+}
+
+extension LocationProviding {
+    func restartUpdates() {}
 }

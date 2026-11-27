@@ -159,6 +159,21 @@ actor FakeDepartures: AutoRideDepartureReading {
     }
 }
 
+/// The wrong train check as the watch sees it (TT-251): what it was told, and what it answers.
+@MainActor
+final class FakeWrongTrainChecking: WrongTrainChecking {
+    var following: Date?
+    var warned = false
+    var keepsLocation = false
+    private(set) var armed: [Ride] = []
+    private(set) var ended: [AutoRideCheck.Outcome] = []
+
+    func watchArmed(_ ride: Ride, plan: RidePlan, departure: Date, reader: any LocationProviding) { armed.append(ride) }
+    func watchEnded(_ ride: Ride, outcome: AutoRideCheck.Outcome) { ended.append(outcome) }
+    func followingSince(_ ride: Ride) -> Date? { following }
+    func hasWarned(_ ride: Ride) -> Bool { warned }
+}
+
 /// The automatic ride's watch (TT-242) on the On board tests' train, Union to Clarkson at 11:17 AM on the synthetic track,
 /// with a clock in seconds after L, the shared fake location, the app's ride engine and fakes for everything else. The
 /// watch looks only when a test calls `look()` (or `play`).
@@ -190,7 +205,8 @@ final class WatchRig {
     /// `at`: the clock, in seconds after L. `defaults`: where the watch keeps its train (relaunch tests share one);
     /// `rideDefaults`: the engine's.
     init(
-        at seconds: Double = -300, defaults: UserDefaults? = .ephemeral(), rideDefaults: UserDefaults? = nil
+        at seconds: Double = -300, defaults: UserDefaults? = .ephemeral(), rideDefaults: UserDefaults? = nil,
+        wrongTrain: FakeWrongTrainChecking? = nil
     ) throws {
         plan = try OnBoardFixtures.plan()
         departure = AutoRideFixtures.departure(plan)
@@ -206,7 +222,8 @@ final class WatchRig {
             isDeclined: { [weak self] in self?.declined.contains($0) ?? false },
             isTesting: { [weak self] in self?.testing ?? false },
             isActive: { [weak self] in self?.active ?? true },
-            reportsStationary: true
+            reportsStationary: true,
+            wrongTrain: wrongTrain
         )
     }
 

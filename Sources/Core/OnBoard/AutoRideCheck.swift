@@ -16,6 +16,8 @@ struct AutoRideCheck: Equatable, Sendable {
         case stopped
         /// An alerted train in its window that a gate kept from arming.
         case notArmed = "not_armed"
+        /// The wrong train check warned about this train (TT-251, D127): the warning's hand-off ends the server's part.
+        case wrongTrain = "wrong_train"
     }
 
     /// Why the rule could not tell, the first that applies (`AutoRideRule`).

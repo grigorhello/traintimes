@@ -69,6 +69,8 @@ final class SettingsViewModel {
     private let route: @MainActor () -> Route?
     /// How the automatic ride's last watch ended (TT-242, D120), for Settings › Testing › Last check; nil before any.
     private let autoRideCheck: @MainActor () -> AutoRideCheck?
+    /// How the last wrong train check ended (TT-251, D127), for Settings › Testing › Last wrong train check; nil before any.
+    private let wrongTrainCheck: @MainActor () -> WrongTrainCheckResult?
     /// Where Demo place is stored: the app's defaults, as `AppSettings` stores Demo trains; tests pass their own.
     private let defaults: UserDefaults
     /// Opens a page of the Settings app, as the Notifications page does with `openURL`; tests record the page instead.
@@ -95,6 +97,7 @@ final class SettingsViewModel {
         look: DirectionLook? = nil,
         route: @escaping @MainActor () -> Route? = { nil },
         autoRideCheck: @escaping @MainActor () -> AutoRideCheck? = { nil },
+        wrongTrainCheck: @escaping @MainActor () -> WrongTrainCheckResult? = { nil },
         defaults: UserDefaults = .standard,
         openSettings: @escaping @MainActor (URL) -> Void = { UIApplication.shared.open($0, options: [:], completionHandler: nil) }
     ) {
@@ -113,6 +116,7 @@ final class SettingsViewModel {
         self.look = look
         self.route = route
         self.autoRideCheck = autoRideCheck
+        self.wrongTrainCheck = wrongTrainCheck
         self.defaults = defaults
         self.openSettings = openSettings
         storedDemoPlace = defaults.string(forKey: DemoPlace.key).flatMap { $0.isEmpty ? nil : $0 }
@@ -538,11 +542,39 @@ final class SettingsViewModel {
             text = String(localized: "settings.last_check.stopped")
         case .notArmed:
             text = String(localized: "settings.last_check.not_armed")
+        case .wrongTrain:
+            text = String(format: String(localized: "settings.last_check.wrong_train"), seconds)
         }
         if let hold = check.holdReachedAt {
             text += "\n" + String(format: String(localized: "settings.last_check.hold"), formatter.time(hold))
         }
         return text
+    }
+
+    /// Settings › Testing › Last wrong train check (TT-251, D127): how the last check ended.
+    var lastWrongText: String {
+        Self.lastWrongText(wrongTrainCheck())
+    }
+
+    /// A wrong train check in words: what it decided, after how many whole seconds from the first moving fix, and why.
+    /// Never a place.
+    static func lastWrongText(_ result: WrongTrainCheckResult?) -> String {
+        guard let result else { return String(localized: "settings.last_wrong.none") }
+        let seconds = String(result.seconds ?? 0)
+        let text: String
+        switch result.outcome {
+        case .warned:
+            let why = String(localized: String.LocalizationValue("settings.last_wrong.reason." + (result.reason ?? .skipsStop).rawValue))
+            text = String(format: String(localized: "settings.last_wrong.warned"), seconds, why)
+        case .withTrain:
+            text = String(format: String(localized: "settings.last_wrong.with_train"), seconds)
+        case .noMatch, .stayed:
+            let key = result.outcome == .noMatch ? "settings.last_wrong.no_match" : "settings.last_wrong.stayed"
+            let why = String(localized: String.LocalizationValue("settings.last_wrong.why." + (result.why ?? .limit).rawValue))
+            text = String(format: String(localized: String.LocalizationValue(key)), why)
+        }
+        let source = String(localized: String.LocalizationValue("settings.last_wrong.source." + result.source.rawValue))
+        return text + "\n" + source
     }
 
     /// Anything on the Testing page is switched on: the row turns amber and Reset appears.

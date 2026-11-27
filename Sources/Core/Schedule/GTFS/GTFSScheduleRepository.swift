@@ -155,6 +155,63 @@ extension GTFSScheduleRepository: RivalTrainsProviding {
     }
 }
 
+extension GTFSScheduleRepository: WrongTrainTimetable, LiveStopsProviding {
+    /// The trains a rider at `station` may take by mistake (TT-251, D127): `GTFSTimetable.candidates(leaving:on:)`.
+    func candidates(leaving station: String, on day: ServiceDay) async -> [WrongTrainCandidate] {
+        (try? await store.timetable().candidates(leaving: station, on: day)) ?? []
+    }
+
+    func trip(_ key: TripKey) async -> TimetableTrip? {
+        try? await store.timetable().trip(id: key.tripId, on: key.serviceDay)
+    }
+
+    /// The line's stations in `GONetwork`'s order, Union first, with the timetable's places.
+    func stations(onLine lineId: String) async -> [Station] {
+        guard let line = GONetwork.line(lineId), let timetable = try? await store.timetable() else { return [] }
+        let places = Dictionary(timetable.stations.map { ($0.id, $0.place) }, uniquingKeysWith: { first, _ in first })
+        return ([GONetwork.union] + line.stations).map { station in
+            var placed = station
+            placed.place = places[station.id] ?? nil
+            return placed
+        }
+    }
+
+    /// The stops the TripUpdates feed still lists for the trip (D89), skipped ones apart, each at the feed's expected time
+    /// (its time, else its delay on the timetable's), read as `liveStatus` reads a route: fresh while the feed is under
+    /// 3 min old (`Freshness.isLive`). Nil with no feed or no update for the trip. No other API tells "left" from "no data"
+    /// for any trip.
+    func stopsAhead(of trip: TripKey) async -> LiveStopsAhead? {
+        guard let live else { return nil }
+        let result = await live.latest()
+        guard let feed = result.feed, let fetchedAt = result.fetchedAt,
+              let update = feed.tripUpdates(on: trip.serviceDay)[trip.tripId] else { return nil }
+        let updatedAt = min(feed.timestamp ?? fetchedAt, fetchedAt)
+        let isFresh = Freshness(LiveSnapshot(updatedAt: updatedAt, isOffline: result.isOffline), now: clock.now).isLive
+        let scheduled = await self.trip(trip)?.stops ?? []
+        var ahead = LiveStopsAhead(stops: [], isCancelled: update.isCancelled, isFresh: isFresh)
+        for stop in update.stopTimeUpdates {
+            guard let id = stop.stopId else { continue }
+            if stop.relationship == .skipped {
+                ahead.skipped.insert(id)
+                continue
+            }
+            let timetable = scheduled.first { $0.station.id == id }
+            let departs = Self.expected(stop.departure, scheduled: timetable?.departure)
+            let time = departs ?? Self.expected(stop.arrival, scheduled: timetable?.arrival)
+            ahead.stops.append(LiveStopsAhead.Stop(id: id, time: time))
+        }
+        return ahead
+    }
+
+    /// An event's time, else its delay on the scheduled time.
+    private static func expected(_ event: GTFSRealtimeFeed.Event?, scheduled: Date?) -> Date? {
+        guard let event else { return nil }
+        if let time = event.time { return time }
+        guard let delay = event.delay, let scheduled else { return nil }
+        return scheduled.addingTimeInterval(TimeInterval(delay))
+    }
+}
+
 /// Downloads the GO GTFS feed, imports its rail part and keeps the last good import on device, so the timetable works
 /// offline (TT-130, D35). The first use waits for the download; after that the copy on device answers at once and is
 /// refreshed in the background once it is a week old. A copy that no longer covers today waits for its refresh. A failed

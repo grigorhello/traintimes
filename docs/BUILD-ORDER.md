@@ -147,6 +147,9 @@ Changes Grigor asks for after testing a TestFlight build. Each gets a GitHub iss
 | 117 | TT-243 · Rides start by themselves, part 2: on for real trains, Not on it, the switches, the app-closed tier; the any-train detection goes | [#239](https://github.com/grigorhello/traintimes/issues/239) | P1 | 7 | Grigor, 2026-11-23, D120. Blocked by TT-242 (#238) |
 | 124 | TT-250 · Wrong train warning, part 1: the warning on the card, the ride screen and Schedule, with five buzzes, on the demo (real trains off) | [#254](https://github.com/grigorhello/traintimes/issues/254) | P1 | 5 | Grigor, 2026-11-26, D127 |
 | 125 | TT-251 · Wrong train warning, part 2: the detection, on for real trains | [#255](https://github.com/grigorhello/traintimes/issues/255) | P1 | 5 | Grigor, 2026-11-26, D127. Blocked by TT-250 (#254) |
+| 127 | TT-253 · Alerts tab as train cards: Schedule's card for each alert, the days row and See trains | [#258](https://github.com/grigorhello/traintimes/issues/258) | P1 | 5 | Grigor, 2026-11-27, D129 |
+| 128 | TT-254 · Alert-first Trip details: the alert card on top (switch, round day marks, Remove alert) from every door | [#259](https://github.com/grigorhello/traintimes/issues/259) | P1 | 3 | Grigor, 2026-11-27, D129. Blocked by TT-253 (#258) |
+| 129 | TT-255 · See trains lands on the alert's own card in Schedule, with one swell and the bell's pop | [#260](https://github.com/grigorhello/traintimes/issues/260) | P2 | 2 | Grigor, 2026-11-27, D129. Blocked by TT-254 (#259) |
 
 TT-234, TT-235 and TT-236 go into the same TestFlight build: no build with only one or two of them.
 

@@ -50,6 +50,8 @@ struct RootView: View {
     private let autoRideWake: AutoRideWake?
     /// The wrong train warning's presenter (TT-250, D127, `AppDelegate.wrongTrain`); nil in previews and snapshots.
     private let wrongTrain: WrongTrain?
+    /// The wrong train check (TT-251, D127, `AppDelegate.wrongTrainCheck`); nil in fixture runs, previews and snapshots.
+    private let wrongTrainCheck: WrongTrainCheck?
     /// The widget file (TT-182, D107); nil in fixture runs. Kept in state so it stays the writer made beside the settings,
     /// alert rules and recent routes the screens change: SwiftUI makes `RootView` again now and then, and a writer made
     /// then held copies of its own that nothing changes, so a Time format change or a new alert wrote the same file
@@ -71,7 +73,6 @@ struct RootView: View {
         dismissedNotices: DismissedNotices = DismissedNotices(),
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
-        alertUpdates: AlertUpdates? = nil,
         alertsModel: AlertsViewModel? = nil,
         ride: RideEngine? = nil,
         nudge: ArrivalNudge? = nil,
@@ -79,6 +80,7 @@ struct RootView: View {
         autoRide: AutoRideWatch? = nil,
         autoRideWake: AutoRideWake? = nil,
         wrongTrain: WrongTrain? = nil,
+        wrongTrainCheck: WrongTrainCheck? = nil,
         feedbackNudge: FeedbackNudge = .app(),
         direction: DirectionDependencies = .app()
     ) {
@@ -144,7 +146,8 @@ struct RootView: View {
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,
                 autoRideStore: autoRideStore, autoRideWake: autoRideWake, autoRideStrip: strip,
                 direction: location, directionStore: direction.store, look: look,
-                route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck }
+                route: { [weak schedule] in schedule?.route }, autoRideCheck: { [weak onBoard] in onBoard?.autoRideCheck },
+                wrongTrainCheck: { [weak wrongTrainCheck] in wrongTrainCheck?.lastCheck }
             )
         )
         _welcome = State(
@@ -157,9 +160,10 @@ struct RootView: View {
         _alertsModel = State(
             initialValue: alertsModel ?? AlertsViewModel(
                 rules: bells.rules,
-                updates: alertUpdates ?? alertDependencies.updates(clock: dependencies.clock),
+                repository: dependencies.repository,
                 nextTrains: schedule,
                 clock: dependencies.clock,
+                mayAlert: { [bells] trip, route in await bells.mayAlert(trip, on: route) },
                 actionDuration: alertDependencies.capsuleActionDuration,
                 plainDuration: alertDependencies.capsulePlainDuration
             )
@@ -169,6 +173,7 @@ struct RootView: View {
         self.liveActivity = liveActivity
         self.autoRideWake = autoRideWake
         self.wrongTrain = wrongTrain
+        self.wrongTrainCheck = wrongTrainCheck
         _widgetFile = State(
             initialValue: dependencies.widgetData.flatMap {
                 WidgetFileWriter.app(
@@ -302,6 +307,16 @@ struct RootView: View {
             await refreshAlerts()
             await bells.cameBack()
         }
+        // While another tab shows, the Alerts cards' trains are read again each minute, so the tab's dot follows a train
+        // that turns late, is cancelled or leaves (TT-253, D129); the open tab polls by itself every 30 s.
+        .task(id: scenePhase == .active && router.selectedTab != .alerts) {
+            guard scenePhase == .active, router.selectedTab != .alerts else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: AlertsViewModel.backgroundPollInterval)
+                guard !Task.isCancelled else { return }
+                await alertsModel.load()
+            }
+        }
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).
         .task {
@@ -362,15 +377,12 @@ struct RootView: View {
             Task { await showWrongTrainRoute(request) }
         }
         .onChange(of: wrongTrain?.openRequest ?? 0) { openWrongTrain() }
-        // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
+        // Opening the Alerts tab turns its dot off and reads its trains again; leaving it lets the empty tab's suggestions go
+        // and deletes one-day alerts switched off there (TT-253, D129).
         .onChange(of: router.selectedTab) { old, tab in
-            if old == .alerts {
-                alertsModel.markReviewsSeen()
-                alertsModel.leftTab()
-            }
+            if old == .alerts { alertsModel.leftTab() }
             guard tab == .alerts else { return }
             router.showsAlertsDot = false
-            alertsModel.markReviewsSeen()
             Task { await refreshAlerts() }
         }
     }
@@ -401,8 +413,9 @@ struct RootView: View {
                 viewModel: alertsModel,
                 bells: bells,
                 onSeeTrains: { router.showSchedule() },
-                onPickNewTrain: { pickNewTrain(replacing: $0) },
-                onOpenUpdate: { link in Task { await open(link) } }
+                onShowInSchedule: { showInSchedule($0) },
+                onOpenTrip: { openAlertTrip($0) },
+                onPickNewTrain: { pickNewTrain(replacing: $0) }
             )
             .tabItem {
                 let isSelected = router.selectedTab == .alerts
@@ -455,9 +468,13 @@ struct RootView: View {
     private func watchesAutoRide(_ content: some View) -> some View {
         content
             .task(id: scenePhase) {
-                guard scenePhase == .active, let watch = onBoard.autoRide else { return }
+                // The wrong train check (TT-251, D127) is offered today's alerted trains beside the watch, outside its
+                // `mayArm`: a train the watch did not arm for (a short ride, or one that left with the rider still at O).
+                let watch = onBoard.autoRide
+                guard scenePhase == .active, watch != nil || wrongTrainCheck != nil else { return }
                 while !Task.isCancelled {
-                    if watch.mayArm { await watch.consider(await autoRideCandidates()) }
+                    if let watch, watch.mayArm { await watch.consider(await autoRideCandidates()) }
+                    await wrongTrainCheck?.consider()
                     try? await Task.sleep(for: .seconds(5))
                 }
             }
@@ -632,10 +649,33 @@ struct RootView: View {
         )
     }
 
-    /// The rules' states and the recent updates; a rule needing review shown on the open Alerts tab is seen.
+    /// The rules' states and the Alerts cards' trains.
     private func refreshAlerts() async {
         await alertsModel.refresh()
-        if router.selectedTab == .alerts { alertsModel.markReviewsSeen() }
+    }
+
+    /// An Alerts card's "See trains" (TT-253, D129): Schedule on the alert's route and its train's day, nothing over it, the
+    /// way a notification's train link opens them, and the route stays until swapped. Landing on the card itself is TT-255.
+    private func showInSchedule(_ jump: AlertsViewModel.Jump) {
+        router.dismissSheet()
+        router.showSchedule()
+        Task {
+            let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            await showTrainRoute(route)
+            let day = jump.key.serviceDay
+            // Today goes back to Now; another day opens at its first train (a past service day keeps what shows).
+            if day >= schedule.today { await schedule.select(day) }
+        }
+    }
+
+    /// A tap on an Alerts card: its train's Trip details on the alert's route (`trip_opened`, source `alerts`).
+    private func openAlertTrip(_ jump: AlertsViewModel.Jump) {
+        Task {
+            let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            openTrip(jump.key, on: route, source: .alerts)
+        }
     }
 
     /// "Pick a new train" on a Time changed row (TT-193): Schedule on that alert's route, with "Tap the bell of your new

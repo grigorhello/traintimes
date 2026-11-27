@@ -71,8 +71,9 @@ enum Analytics {
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
     /// Live Activity before departure; `link` a `traintimes://trip` link, a widget's train (TT-182). `detection`, the
-    /// background question's notification, went with train detection (TT-243, D120).
-    case schedule, notification, ride, departure, link
+    /// background question's notification, went with train detection (TT-243, D120). `alerts` a card on the Alerts tab
+    /// (TT-253, D129).
+    case schedule, notification, ride, departure, link, alerts
 }
 
 /// How a ride started. Saved with the ride (`SavedRide.startSource`), so `ride_ended` can say it after a relaunch.
@@ -162,6 +163,14 @@ extension AnalyticsEvent {
 
     static func tripOpened(source: TripOpenSource, isToday: Bool) -> Self {
         Self("trip_opened", ["source": .string(source.rawValue), "is_today": .bool(isToday)])
+    }
+
+    /// An Alerts card's "See trains" (TT-253, D129): Schedule opens on the alert's route and its train's day. Whether that
+    /// day is today, whether Schedule's route changed for it and whether the alert is switched on; no station.
+    static func alertShownInSchedule(isToday: Bool, routeChanged: Bool, isOn: Bool) -> Self {
+        Self("alert_shown_in_schedule", [
+            "is_today": .bool(isToday), "route_changed": .bool(routeChanged), "is_on": .bool(isOn)
+        ])
     }
 
     /// An alert saved and kept: turned on or off, its days changed, or a new one.
@@ -268,6 +277,19 @@ extension AnalyticsEvent {
         ]
         if answer == .fine || answer == .trains, let surface { properties["surface"] = .string(surface.rawValue) }
         return Self("wrong_train_answered", properties)
+    }
+
+    /// A wrong train check closed (TT-251, D127), once per train and day: what it found (`warned`, `with_train`, `no_match`,
+    /// `stayed`), how the rider was tied to the train (`alert`, `on_board`, `departure`) and, on `warned` and `with_train`,
+    /// the whole seconds from the first moving fix to the verdict. No station, line, trip or place.
+    static func wrongTrainChecked(_ result: WrongTrainCheckResult) -> Self {
+        var properties: [String: AnalyticsValue] = [
+            "outcome": .string(result.outcome.rawValue), "source": .string(result.source.rawValue),
+        ]
+        if result.outcome == .warned || result.outcome == .withTrain, let seconds = result.seconds {
+            properties["seconds"] = .int(seconds)
+        }
+        return Self("wrong_train_checked", properties)
     }
 
     /// The automatic ride's watch on an alerted train finished (TT-242, D120), once per train and day: how (`outcome`), why

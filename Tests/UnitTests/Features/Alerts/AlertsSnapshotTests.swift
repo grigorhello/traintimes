@@ -101,6 +101,8 @@ final class AlertsSnapshotTests: XCTestCase {
             of: view,
             as: .image(
                 drawHierarchyInKeyWindow: true,
+                // The tab bar's glass, which `rendersGlass` does not reach, differs by a few pixels from run to run.
+                precision: glassSnapshotPrecision,
                 perceptualPrecision: 0.98,
                 layout: .device(config: .iPhone17Pro),
                 traits: UITraitCollection(userInterfaceStyle: style)

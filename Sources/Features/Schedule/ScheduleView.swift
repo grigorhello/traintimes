@@ -46,6 +46,9 @@ struct ScheduleView: View {
     @Environment(\.directionLook) private var direction
     /// The automatic ride's one-time strip (TT-243, D120), from `RootView`; nil in previews and snapshots of Schedule alone.
     @Environment(\.autoRideStrip) private var autoRideStrip
+    /// The ride opening by itself on each arrival (TT-256, D130), from `RootView`: told what of Schedule's own is up and
+    /// its touches.
+    @Environment(\.rideOpening) private var rideOpening
     @State private var feedbackOpen = false
     /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
     @State private var nudgeWaiting = false
@@ -111,6 +114,10 @@ struct ScheduleView: View {
                 direction?.update(scene)
             }
             .onChange(of: viewModel.isToday) { direction?.update(directionScene(isActive: scenePhase == .active)) }
+            // The ride opens by itself only with nothing of Schedule's own up (TT-256, D130).
+            .onChange(of: isPicking || weatherSheet != nil || feedbackOpen || isPanelOpen, initial: true) { _, busy in
+                rideOpening?.scheduleBusy = busy
+            }
             // The selection haptic when a day tile lights (TT-191). The bell's own feels play from `AlertBellModel` (TT-214).
             .sensoryFeedback(.selection, trigger: bells?.dayOnCount ?? 0)
             .onDisappear { bells?.closePanel() }
@@ -372,6 +379,7 @@ struct ScheduleView: View {
             dayTaps[tile.id, default: 0] += 1
         }
         direction?.touched()
+        rideOpening?.touched()
         Task { await viewModel.dayTapped(tile.day) }
     }
 
@@ -758,7 +766,7 @@ struct ScheduleView: View {
                     ScheduleTimeline(
                         viewModel: viewModel, formatter: formatter, onOpen: onOpenTrip, bell: bell(for:), shakes: shakes(for:),
                         onBell: tapBell(_:), cascade: cascade, departure: departure, motion: motion, outgoing: outgoing,
-                        outgoingBell: outgoingBell(for:)
+                        outgoingBell: outgoingBell(for:), riding: onBoard?.riddenTrain
                     )
                     .background(
                         ScrollOffsetSetter(offset: viewModel.isToday ? viewModel.layout.initialScrollOffset : 0, order: scrollOrder)
@@ -792,6 +800,7 @@ struct ScheduleView: View {
         .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
             if !riderScrolled { riderScrolled = true }
             direction?.touched()
+            rideOpening?.touched()
             // A scroll cancels the Feedback button's wait (TT-228).
             if nudgeWaiting { nudgeTouches += 1 }
             // A scroll closes the day panel (TT-191).

@@ -25,6 +25,10 @@ struct ScheduleTimeline: View {
     var outgoing: ScheduleViewModel.OutgoingTrains?
     /// Each fading card's bell, as it stood.
     var outgoingBell: (TripKey) -> AlertBellModel.Bell = { _ in .off }
+    /// The train a ride runs on (TT-256, D130): its card says "You’re on board" where Schedule shows the ride's two stations.
+    var riding: RiddenTrain?
+
+    @Environment(\.playsScheduleMotion) private var playsMotion
 
     /// The right edge of the label column.
     private static let labelColumn = TTTimeline.leftInset + TTTimeline.labelWidth
@@ -44,7 +48,7 @@ struct ScheduleTimeline: View {
 
     var body: some View {
         let layout = viewModel.layout
-        let cards = viewModel.cards(formatter)
+        let cards = viewModel.cards(formatter, riding: riding)
         let places = Dictionary(layout.cards.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         // The cascade starts with the first card where the timeline opens (Now on today, the first train on another day).
         let orders = layout.cascadeOrder(scrolledTo: viewModel.isToday ? layout.initialScrollOffset : 0)
@@ -95,7 +99,7 @@ struct ScheduleTimeline: View {
                         )
                     DepartureCardView(card: card, bell: outgoingBell(card.id), onOpen: {}, onSize: { _ in })
                         // The timeline scales a departed card (0.96): as it stood.
-                        .scaleEffect(DeparturePlay.Card.rest(departed: card.isDeparted).scale)
+                        .scaleEffect(DeparturePlay.Card.rest(departed: card.looksDeparted).scale)
                         .padding(.leading, Self.cardX)
                         .padding(.trailing, TTSpace.s5)
                         .offset(y: place.top + shift)
@@ -128,6 +132,8 @@ struct ScheduleTimeline: View {
                     .scaleEffect(pose.scale)
                     .offset(y: pose.offsetY)
                     .opacity(pose.opacity)
+                    // A ride that starts or ends on this train cross-fades its card, like Boarding (TT-256, D130).
+                    .animation(onBoardFade(reduceMotion: reduceMotion), value: card.isOnBoard)
                 }
                 .cascadeEntrance(cascade, order: orders[card.id] ?? 0, moves: !viewModel.isPastDay)
                 .padding(.leading, Self.cardX)
@@ -137,14 +143,26 @@ struct ScheduleTimeline: View {
         }
     }
 
-    /// A card's pose in a departure's play, or at rest.
+    /// A card's pose in a departure's play, or at rest. The train you ride steps up with the others but keeps its colour and
+    /// size (TT-256, D130).
     private func cardPose(_ card: DepartureCard, at elapsed: Double?, reduceMotion: Bool) -> DeparturePlay.Card {
+        let pose = playPose(card, at: elapsed, reduceMotion: reduceMotion)
+        return card.isOnBoard ? pose.onBoard : pose
+    }
+
+    private func playPose(_ card: DepartureCard, at elapsed: Double?, reduceMotion: Bool) -> DeparturePlay.Card {
         guard let elapsed else { return .rest(departed: card.isDeparted) }
         if departure.departing.contains(card.id) {
             return DeparturePlay.departing(at: elapsed, wasLead: departure.lead == card.id, reduceMotion: reduceMotion)
         }
         if departure.next == card.id { return DeparturePlay.next(at: elapsed, reduceMotion: reduceMotion) }
         return .rest(departed: card.isDeparted)
+    }
+
+    /// The on-board cross-fade: `TTMotion.cross`, `TTMotion.fade` under Reduce Motion, none when Schedule's motion is off.
+    private func onBoardFade(reduceMotion: Bool) -> Animation? {
+        guard playsMotion else { return nil }
+        return reduceMotion ? TTMotion.fade : TTMotion.cross
     }
 
     /// A departing train's ring in the play, or at rest.
@@ -401,7 +419,7 @@ struct DepartureCardView: View {
     private static let bellRoom = bellTarget - padding.trailing + TTSpace.s2
     private static let timeMinimumScale: CGFloat = 0.85
 
-    private var look: DeparturePlay.Card { pose ?? .rest(departed: card.isDeparted) }
+    private var look: DeparturePlay.Card { pose ?? .rest(departed: card.looksDeparted) }
 
     var body: some View {
         // A button, so the card sinks while held and a scroll that starts on it does not press it (TT-214). No haptic:
@@ -452,6 +470,7 @@ struct DepartureCardView: View {
                 HStack(spacing: TTSpace.s2) {
                     status
                         .animation(boardingFade, value: card.isBoarding)
+                        .animation(onBoardFade, value: card.isOnBoard)
                         .cardInterest("schedule.card.status") { interestFrames[$0] = $1 }
                     Spacer(minLength: 0)
                     arrival
@@ -470,10 +489,22 @@ struct DepartureCardView: View {
         .contentShape(RoundedRectangle(cornerRadius: TTRadius.lg))
     }
 
-    /// The status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so it
-    /// reads (D86). A cancelled train keeps "Cancelled". "Boarding" lies over the train's own status and cross-fades with
-    /// it (TT-233, D114); a train that leaves from Boarding fades from "Boarding" to "Departed" in the departure's play.
+    /// The status line, or on the train you ride "You’re on board" with the train glyph (TT-256, D130), cross-faded on
+    /// `TTMotion.cross` as the ride starts or ends, like Boarding.
     private var status: some View {
+        ZStack(alignment: .leading) {
+            if card.isOnBoard {
+                OnBoardMark().transition(.opacity)
+            } else {
+                trainStatus.transition(.opacity)
+            }
+        }
+    }
+
+    /// The train's status line; a departed train's cross-fades to the grey dot and "Departed", kept at full ink-secondary so
+    /// it reads (D86). A cancelled train keeps "Cancelled". "Boarding" lies over the train's own status and cross-fades
+    /// with it (TT-233, D114); a train that leaves from Boarding fades from "Boarding" to "Departed" in the departure's play.
+    private var trainStatus: some View {
         let departed = card.shownStatus == .departed
         let boarding = card.isBoarding || (departed && wasBoarding)
         // What the row said before the train left, fading out in the departure's play; at full strength until then.
@@ -503,6 +534,13 @@ struct DepartureCardView: View {
     private var boardingFade: Animation? {
         guard playsMotion else { return nil }
         if card.isDeparted, look.statusOut == 0 { return nil }
+        return reduceMotion ? TTMotion.fade : TTMotion.cross
+    }
+
+    /// The cross-fade into and out of "You’re on board" (TT-256, D130), on the same springs; none when Schedule's motion is
+    /// off.
+    private var onBoardFade: Animation? {
+        guard playsMotion else { return nil }
         return reduceMotion ? TTMotion.fade : TTMotion.cross
     }
 
@@ -607,7 +645,7 @@ struct DepartureCardView: View {
                 .font(TTFont.timeArrival)
                 .monospacedDigit()
                 .strikethrough(card.isCancelled)
-                .foregroundStyle(timeInk)
+                .foregroundStyle(arrivalInk)
         }
         .lineLimit(1)
         .fixedSize()
@@ -616,6 +654,12 @@ struct DepartureCardView: View {
     private var timeInk: Color {
         if card.isCancelled { return TTColor.inkTertiary }
         return card.isDelayed ? TTColor.delayInk : TTColor.ink
+    }
+
+    /// The arrival's ink: as the time, except that on the train you ride it follows the ride's own lateness (TT-256, D130).
+    private var arrivalInk: Color {
+        if card.isCancelled { return TTColor.inkTertiary }
+        return card.arrivesLate ? TTColor.delayInk : TTColor.ink
     }
 
     /// One tap arms a This-trip alert and fills the bell; another turns it off (TT-141), with the pop (TT-166). The bell's

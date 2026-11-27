@@ -28,6 +28,11 @@ final class DepartureCardSnapshotTests: XCTestCase {
     /// on and a long ride (the widest row), and 24-hour.
     @MainActor func testUnionPairsLight() { snap(Self.unionPairs, .light) }
     @MainActor func testUnionPairsDark() { snap(Self.unionPairs, .dark) }
+    /// TT-256 (D130), Card states board 9, option A: the train you ride, "You’re on board", in its ordinary colours with the
+    /// ride's arrival: left and late (the board's 4:29 PM, alert on), left on time, the widest row ("Arrival 12:58 PM"),
+    /// 24-hour, and boarding before it leaves (the filled pill stays).
+    @MainActor func testOnBoardLight() { snap(Self.onBoard, .light) }
+    @MainActor func testOnBoardDark() { snap(Self.onBoard, .dark) }
 
     private struct Sample {
         let card: DepartureCard
@@ -41,7 +46,7 @@ final class DepartureCardSnapshotTests: XCTestCase {
         _ hour: Int, _ minute: Int, minutes: Int = 40, platform: Platform = .pending, express: Bool = false,
         status: TrainStatus = .onTime, delay: Int = 0, isNext: Bool = false, nowBefore: TimeInterval = 11 * 60,
         nextUsableBelow: Bool = true, awaitsPlatform: Bool = false, isDeparted: Bool = false, isBoarding: Bool = false,
-        formatter: TimeFormatter = twelve, bell: AlertBellModel.Bell = .off
+        formatter: TimeFormatter = twelve, bell: AlertBellModel.Bell = .off, ride: (minutes: Int, isLate: Bool)? = nil
     ) -> Sample {
         let departure = day.date(hour: hour, minute: minute)
         let trip = Trip(
@@ -59,9 +64,15 @@ final class DepartureCardSnapshotTests: XCTestCase {
             expectedArrival: delay > 0 ? trip.scheduledArrival.addingTimeInterval(shift) : nil
         )
         let now = resolved.departureTime.addingTimeInterval(-nowBefore)
+        let riding = ride.map {
+            RiddenTrain(
+                key: trip.key, originId: "UN", destinationId: "CL",
+                arrival: resolved.departureTime.addingTimeInterval(TimeInterval($0.minutes * 60)), isLate: $0.isLate
+            )
+        }
         let card = DepartureCard(
             resolved, isNext: isNext, nextUsableBelow: nextUsableBelow, awaitsPlatform: awaitsPlatform, isDeparted: isDeparted,
-            isBoarding: isBoarding, now: now, formatter: formatter
+            isBoarding: isBoarding, riding: riding, now: now, formatter: formatter
         )
         return Sample(card: card, bell: bell)
     }
@@ -85,6 +96,18 @@ final class DepartureCardSnapshotTests: XCTestCase {
             sample(12, 32, minutes: 72, platform: .published("12/13"), express: true,
                    status: .delayed(minutes: 15, reportedAt: reported), delay: 15, isNext: true, nowBefore: 14 * 60, bell: .on),
             sample(17, 10, platform: .published("26/27"), express: true, isNext: true, formatter: TimeFormatter(format: .twentyFourHour)),
+        ]
+    }
+
+    private static var onBoard: [Sample] {
+        [
+            sample(16, 29, minutes: 25, express: true, nowBefore: -5 * 60, isDeparted: true, bell: .on, ride: (29, true)),
+            sample(16, 29, minutes: 25, express: true, nowBefore: -5 * 60, isDeparted: true, ride: (25, false)),
+            sample(12, 29, minutes: 25, express: true, nowBefore: -5 * 60, isDeparted: true, bell: .on, ride: (29, true)),
+            sample(16, 29, minutes: 25, express: true, nowBefore: -5 * 60, isDeparted: true,
+                   formatter: TimeFormatter(format: .twentyFourHour), ride: (29, true)),
+            sample(16, 29, minutes: 25, platform: .published("7"), express: true, isNext: true, nowBefore: 3 * 60,
+                   isBoarding: true, ride: (25, false)),
         ]
     }
 

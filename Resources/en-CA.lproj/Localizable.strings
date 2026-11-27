@@ -92,6 +92,9 @@
 "onboard.isNext" = "%@ is next";
 "onboard.arrivingAt" = "Arriving at %@";
 "onboard.thisIs" = "This is %@";
+/* The train you ride (TT-256, D130): its Schedule card's status row, and the ride strip's and ride screen's line naming it. %@ is the train's scheduled time from the one formatter (D9). */
+"onboard.youreOnBoard" = "You’re on board";
+"onboard.youreOnThe" = "You’re on the %@";
 "live.updated" = "Updated %@";
 "depart.platformLabel" = "Platform";
 "depart.line" = "%@ departs in";

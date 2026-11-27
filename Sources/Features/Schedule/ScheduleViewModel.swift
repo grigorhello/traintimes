@@ -283,8 +283,11 @@ final class ScheduleViewModel {
     }
 
     /// The timeline cards in departure order, times from the one formatter the view passes in.
-    func cards(_ formatter: some TimeFormatting) -> [DepartureCard] {
+    /// `riding`: the train a ride runs on (`OnBoard.riddenTrain`, TT-256, D130); its card is marked "You’re on board" with the
+    /// ride's arrival, only on Today and only where Schedule's route is the ride's two stations.
+    func cards(_ formatter: some TimeFormatting, riding: RiddenTrain? = nil) -> [DepartureCard] {
         let next = nextDepartureId
+        let ridden = riding.flatMap { ridesHere($0) ? $0.key : nil }
         return departures.indices.map { index in
             let departure = departures[index]
             let usableBelow = departures[(index + 1)...].contains { $0.isUsable }
@@ -294,9 +297,16 @@ final class ScheduleViewModel {
             } ?? false
             return DepartureCard(
                 departure, isNext: isNext, nextUsableBelow: usableBelow, awaitsPlatform: awaitsPlatform,
-                isDeparted: hasDeparted(departure), isBoarding: isBoarding(departure), now: now, formatter: formatter
+                isDeparted: hasDeparted(departure), isBoarding: isBoarding(departure),
+                riding: departure.id == ridden ? riding : nil, now: now, formatter: formatter
             )
         }
+    }
+
+    /// The ride is on Schedule's route today: Schedule on Today, from the ride's station to its stop (TT-256, D130).
+    private func ridesHere(_ riding: RiddenTrain) -> Bool {
+        guard isToday, let route else { return false }
+        return route.from.id == riding.originId && route.to.id == riding.destinationId
     }
 
     /// The cards of the trains a turn has just replaced, as they stood (TT-235, D116): only those near where the timeline

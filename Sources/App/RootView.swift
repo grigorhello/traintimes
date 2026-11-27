@@ -71,7 +71,6 @@ struct RootView: View {
         dismissedNotices: DismissedNotices = DismissedNotices(),
         alertDependencies: AlertDependencies = .app(),
         bells: AlertBellModel? = nil,
-        alertUpdates: AlertUpdates? = nil,
         alertsModel: AlertsViewModel? = nil,
         ride: RideEngine? = nil,
         nudge: ArrivalNudge? = nil,
@@ -157,9 +156,10 @@ struct RootView: View {
         _alertsModel = State(
             initialValue: alertsModel ?? AlertsViewModel(
                 rules: bells.rules,
-                updates: alertUpdates ?? alertDependencies.updates(clock: dependencies.clock),
+                repository: dependencies.repository,
                 nextTrains: schedule,
                 clock: dependencies.clock,
+                mayAlert: { [bells] trip, route in await bells.mayAlert(trip, on: route) },
                 actionDuration: alertDependencies.capsuleActionDuration,
                 plainDuration: alertDependencies.capsulePlainDuration
             )
@@ -302,6 +302,16 @@ struct RootView: View {
             await refreshAlerts()
             await bells.cameBack()
         }
+        // While another tab shows, the Alerts cards' trains are read again each minute, so the tab's dot follows a train
+        // that turns late, is cancelled or leaves (TT-253, D129); the open tab polls by itself every 30 s.
+        .task(id: scenePhase == .active && router.selectedTab != .alerts) {
+            guard scenePhase == .active, router.selectedTab != .alerts else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: AlertsViewModel.backgroundPollInterval)
+                guard !Task.isCancelled else { return }
+                await alertsModel.load()
+            }
+        }
         // Before departure the Live Activity follows the alerted train, and the alert rules take its tokens to the alert
         // server (TT-178).
         .task {
@@ -362,15 +372,12 @@ struct RootView: View {
             Task { await showWrongTrainRoute(request) }
         }
         .onChange(of: wrongTrain?.openRequest ?? 0) { openWrongTrain() }
-        // Opening the Alerts tab turns its dot off, and leaving it keeps it off for what the rider saw there (TT-143).
+        // Opening the Alerts tab turns its dot off and reads its trains again; leaving it lets the empty tab's suggestions go
+        // and deletes one-day alerts switched off there (TT-253, D129).
         .onChange(of: router.selectedTab) { old, tab in
-            if old == .alerts {
-                alertsModel.markReviewsSeen()
-                alertsModel.leftTab()
-            }
+            if old == .alerts { alertsModel.leftTab() }
             guard tab == .alerts else { return }
             router.showsAlertsDot = false
-            alertsModel.markReviewsSeen()
             Task { await refreshAlerts() }
         }
     }
@@ -401,8 +408,9 @@ struct RootView: View {
                 viewModel: alertsModel,
                 bells: bells,
                 onSeeTrains: { router.showSchedule() },
-                onPickNewTrain: { pickNewTrain(replacing: $0) },
-                onOpenUpdate: { link in Task { await open(link) } }
+                onShowInSchedule: { showInSchedule($0) },
+                onOpenTrip: { openAlertTrip($0) },
+                onPickNewTrain: { pickNewTrain(replacing: $0) }
             )
             .tabItem {
                 let isSelected = router.selectedTab == .alerts
@@ -632,10 +640,33 @@ struct RootView: View {
         )
     }
 
-    /// The rules' states and the recent updates; a rule needing review shown on the open Alerts tab is seen.
+    /// The rules' states and the Alerts cards' trains.
     private func refreshAlerts() async {
         await alertsModel.refresh()
-        if router.selectedTab == .alerts { alertsModel.markReviewsSeen() }
+    }
+
+    /// An Alerts card's "See trains" (TT-253, D129): Schedule on the alert's route and its train's day, nothing over it, the
+    /// way a notification's train link opens them, and the route stays until swapped. Landing on the card itself is TT-255.
+    private func showInSchedule(_ jump: AlertsViewModel.Jump) {
+        router.dismissSheet()
+        router.showSchedule()
+        Task {
+            let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            await showTrainRoute(route)
+            let day = jump.key.serviceDay
+            // Today goes back to Now; another day opens at its first train (a past service day keeps what shows).
+            if day >= schedule.today { await schedule.select(day) }
+        }
+    }
+
+    /// A tap on an Alerts card: its train's Trip details on the alert's route (`trip_opened`, source `alerts`).
+    private func openAlertTrip(_ jump: AlertsViewModel.Jump) {
+        Task {
+            let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
+            guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
+            openTrip(jump.key, on: route, source: .alerts)
+        }
     }
 
     /// "Pick a new train" on a Time changed row (TT-193): Schedule on that alert's route, with "Tap the bell of your new

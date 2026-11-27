@@ -125,10 +125,9 @@ struct ScheduleTimeline: View {
                     let pose = cardPose(card, at: elapsed, reduceMotion: reduceMotion)
                     DepartureCardView(
                         card: card, bell: bell(card.id), shakes: shakes(card.id), pose: pose, onOpen: { onOpen(card.id) },
-                        onBell: { onBell(card.id) }
-                    ) { size in
-                        viewModel.setCardSize(size, for: card.id)
-                    }
+                        onBell: { onBell(card.id) },
+                        onSize: { size in viewModel.setCardSize(size, for: card.id) }
+                    )
                     .scaleEffect(pose.scale)
                     .offset(y: pose.offsetY)
                     .opacity(pose.opacity)
@@ -389,6 +388,18 @@ struct DepartureCardView: View {
     let onOpen: () -> Void
     var onBell: () -> Void = {}
     let onSize: (TimelineCardSize) -> Void
+    /// The Alerts tab's fourth row under a hairline (TT-253, D129): the days at the left, part of the card's button, and
+    /// `footerAccessory` (the "See trains" pill) at the right, a button of its own over the card. None on Schedule.
+    var footer: AnyView?
+    var footerAccessory: AnyView?
+    /// The card's and the bell's UI test ids; Schedule's by default. The Alerts tab gives its own, so the same train's
+    /// card on both tabs never shares an id.
+    var cardID: String?
+    var bellID: String?
+    /// Interest taps on the time, status and platform (TT-209): Schedule's card only.
+    var tracksInterest = true
+    /// The bell stays on a cancelled train's card: the Alerts tab's bell is the alert's only switch (TT-253, D129).
+    var keepsBell = false
 
     @State private var height: CGFloat = 0
     @State private var anchor: CGFloat = 0
@@ -418,6 +429,13 @@ struct DepartureCardView: View {
     /// The time row keeps the bell's width (less the trailing padding it bleeds into) plus the 8 pt gap free.
     private static let bellRoom = bellTarget - padding.trailing + TTSpace.s2
     private static let timeMinimumScale: CGFloat = 0.85
+    /// The fourth row (TT-253, D129): 10 pt down from the status row (its 4 pt gap and 6 more), a hairline, 8 pt, the 32 pt
+    /// row; the card's bottom padding is 4 pt less with it, so the card is 165 pt.
+    private static let footerTop: CGFloat = 6
+    private static let footerGap: CGFloat = 8
+    private static let footerRowHeight: CGFloat = 32
+    private static let footerBottomPadding: CGFloat = 10
+    private static let footerHeight = rowGap + footerTop + 1 + footerGap + footerRowHeight - (padding.bottom - footerBottomPadding)
 
     private var look: DeparturePlay.Card { pose ?? .rest(departed: card.looksDeparted) }
 
@@ -428,10 +446,11 @@ struct DepartureCardView: View {
             .buttonStyle(CardPressStyle(isPressed: $isPressed))
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
-            .accessibilityIdentifier("schedule.card.\(card.id.tripId)")
+            .accessibilityIdentifier(cardID ?? "schedule.card.\(card.id.tripId)")
             // Interest taps (TT-209) on the button itself: a gesture on the time, status or platform inside it would take the
             // tap from the button, so the card would neither open nor press.
             .simultaneousGesture(SpatialTapGesture().onEnded { tap in
+                guard tracksInterest else { return }
                 if let element = interestFrames.first(where: { $0.value.contains(tap.location) })?.key {
                     InterestTracker.tap(element)
                 }
@@ -439,10 +458,18 @@ struct DepartureCardView: View {
             .onChange(of: card.shownStatus, initial: true) { _, shown in noteStatus(shown) }
             // The bell sits over the time row, outside the card's one element, so it is a separate button.
             .overlay(alignment: .topTrailing) {
-                if !card.isCancelled {
+                if !card.isCancelled || keepsBell {
                     bellButton
                         .departedLook(look.look)
                         .padding(.top, Self.bellTop)
+                }
+            }
+            // The fourth row's pill is a button of its own, so it sits over the card like the bell.
+            .overlay(alignment: .bottomTrailing) {
+                if let footerAccessory {
+                    footerAccessory
+                        .padding(.trailing, Self.padding.trailing)
+                        .padding(.bottom, Self.footerBottomPadding)
                 }
             }
             .cardPress(isPressed, reduceMotion: reduceMotion)
@@ -477,9 +504,19 @@ struct DepartureCardView: View {
                         .departedLook(look.look)
                 }
                 .frame(height: Self.statusRowHeight)
+                if let footer {
+                    VStack(alignment: .leading, spacing: Self.footerGap) {
+                        Rectangle().fill(TTColor.hairline).frame(height: 1)
+                        footer.frame(height: Self.footerRowHeight)
+                    }
+                    .padding(.top, Self.footerTop)
+                }
             }
-            .padding(Self.padding)
-            .frame(height: TimelineCardSize.standard.height, alignment: .top)
+            .padding(footer == nil ? Self.padding : EdgeInsets(
+                top: Self.padding.top, leading: Self.padding.leading, bottom: Self.footerBottomPadding,
+                trailing: Self.padding.trailing
+            ))
+            .frame(height: TimelineCardSize.standard.height + (footer == nil ? 0 : Self.footerHeight), alignment: .top)
         }
         .coordinateSpace(.named(cardSpace))
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
@@ -551,7 +588,8 @@ struct DepartureCardView: View {
                 .font(card.isNext ? TTFont.timeLead : TTFont.timeRow)
                 .monospacedDigit()
                 .strikethrough(card.isCancelled)
-                .foregroundStyle(timeInk)
+                .foregroundStyle(card.isQuiet ? TTColor.inkTertiary : timeInk)
+                .animation(TTMotion.fade, value: card.isQuiet)
                 .lineLimit(1)
                 // "12:47 PM" may shrink a little across, never to fit the 38 pt row: a 34 pt line is taller than the row.
                 .minimumScaleFactor(Self.timeMinimumScale)
@@ -565,7 +603,7 @@ struct DepartureCardView: View {
                 ExpressBolt(isExpress: card.isExpress)
                     .padding(.leading, timeWidth * (look.timeScale - 1))
             }
-            Spacer(minLength: card.isCancelled ? 0 : Self.bellRoom)
+            Spacer(minLength: card.isCancelled && !keepsBell ? 0 : Self.bellRoom)
         }
         .frame(height: Self.timeRowHeight)
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(cardSpace)).midY } action: {
@@ -595,7 +633,7 @@ struct DepartureCardView: View {
     /// others, "Next usable below" when cancelled. `showsLabel` false leaves out the word "Platform" (TT-245, D122).
     @ViewBuilder private func detail(showsLabel: Bool) -> some View {
         if card.isCancelled {
-            if let note = card.note {
+            if let note = card.note ?? card.dayWord {
                 Text(note)
                     .font(TTFont.subhead)
                     .foregroundStyle(TTColor.inkSecondary)
@@ -628,6 +666,14 @@ struct DepartureCardView: View {
                         .monospacedDigit()
                         .foregroundStyle(TTColor.ink)
                         .opacity(opacity)
+                } else if let day = card.dayWord {
+                    // The Alerts tab's card: when its train runs, in grey (TT-253, D129).
+                    Text(verbatim: "·")
+                        .font(TTFont.subhead)
+                        .foregroundStyle(TTColor.inkTertiary)
+                    Text(day)
+                        .font(TTFont.subhead)
+                        .foregroundStyle(TTColor.inkSecondary)
                 }
             }
             .lineLimit(1)
@@ -674,7 +720,7 @@ struct DepartureCardView: View {
             target: Self.bellTarget,
             action: onBell
         )
-        .accessibilityIdentifier("schedule.bell.\(card.id.tripId)")
+        .accessibilityIdentifier(bellID ?? "schedule.bell.\(card.id.tripId)")
     }
 
     private func report() {

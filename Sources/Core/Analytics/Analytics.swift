@@ -71,8 +71,9 @@ enum Analytics {
 enum TripOpenSource: String, Sendable {
     /// A card on Schedule; `notification` an alert's tap; `ride` the ride strip; `departure` the countdown strip or the
     /// Live Activity before departure; `link` a `traintimes://trip` link, a widget's train (TT-182). `detection`, the
-    /// background question's notification, went with train detection (TT-243, D120).
-    case schedule, notification, ride, departure, link
+    /// background question's notification, went with train detection (TT-243, D120). `alerts` a card on the Alerts tab
+    /// (TT-253, D129).
+    case schedule, notification, ride, departure, link, alerts
 }
 
 /// How a ride started. Saved with the ride (`SavedRide.startSource`), so `ride_ended` can say it after a relaunch.
@@ -162,6 +163,14 @@ extension AnalyticsEvent {
 
     static func tripOpened(source: TripOpenSource, isToday: Bool) -> Self {
         Self("trip_opened", ["source": .string(source.rawValue), "is_today": .bool(isToday)])
+    }
+
+    /// An Alerts card's "See trains" (TT-253, D129): Schedule opens on the alert's route and its train's day. Whether that
+    /// day is today, whether Schedule's route changed for it and whether the alert is switched on; no station.
+    static func alertShownInSchedule(isToday: Bool, routeChanged: Bool, isOn: Bool) -> Self {
+        Self("alert_shown_in_schedule", [
+            "is_today": .bool(isToday), "route_changed": .bool(routeChanged), "is_on": .bool(isOn)
+        ])
     }
 
     /// An alert saved and kept: turned on or off, its days changed, or a new one.

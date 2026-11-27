@@ -451,23 +451,21 @@ final class RideEngineTests: XCTestCase {
     func testTheWrongTrainCheckSeesEachFixAndHoldsLeftTheLine() async throws {
         let rig = try rig(at: t(11, 20))
         await rig.engine.start(ride)
-        var tapped = 0
-        var holds = true
-        var asked: [RideEndReason] = []
-        rig.engine.fixTap = { _ in tapped += 1 }
+        let record = TapRecord()
+        rig.engine.fixTap = { _ in record.taps += 1 }
         rig.engine.holdsEnding = { reason in
-            asked.append(reason)
-            return holds
+            record.asked.append(reason)
+            return record.holds
         }
         for second in stride(from: 0, through: 240, by: 10) {
             rig.clock.set(t(11, 20).addingTimeInterval(TimeInterval(second)))
             let along = try OnBoardFixtures.along(at: rig.clock.now, plan: rig.plan)
             rig.location.send(try OnBoardFixtures.fix(along: along, plan: rig.plan, north: 2_000))
         }
-        XCTAssertEqual(tapped, 25)
+        XCTAssertEqual(record.taps, 25)
         XCTAssertNotEqual(rig.engine.state?.phase, .ended, "Held while the check warns or follows")
-        XCTAssertEqual(Set(asked), [.leftTheLine])
-        holds = false
+        XCTAssertEqual(Set(record.asked), [.leftTheLine])
+        record.holds = false
         rig.clock.set(t(11, 24, 10))
         let along = try OnBoardFixtures.along(at: rig.clock.now, plan: rig.plan)
         rig.location.send(try OnBoardFixtures.fix(along: along, plan: rig.plan, north: 2_000))

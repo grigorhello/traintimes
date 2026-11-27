@@ -29,7 +29,6 @@ final class WrongTrainRuleTests: XCTestCase {
     func testTheWrongWayFromAnOpenAirStation() throws {
         // An alert on the eastbound T; the phone leaves with the westbound before T comes.
         var rig = try WrongRig(candidates: [World.westbound(after: -300), World.express(after: 900)])
-        let geo = rig
         rig.stops("WEST", ["W1", "W2"])
         let phone = leaving(rig, "WEST", at: -300)
         let result = finding(rig.run(from: -600, to: 0, phone: phone, trains: ["WEST": phone, "T": lateT(rig)]))
@@ -147,7 +146,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testTwoTrainsLeavingTogetherOnTheSameTrackWhileTIsQuiet() throws {
         var rig = try WrongRig(candidates: [World.express(after: -90)])
-        let geo = rig
         rig.stops("EXPRESS", ["E3"])
         let phone = leaving(rig, "EXPRESS", at: -90)
         neverWarns(&rig, from: -400, to: 400, phone: phone, trains: ["EXPRESS": phone])
@@ -156,7 +154,6 @@ final class WrongTrainRuleTests: XCTestCase {
     func testTCancelledOrSkippingTheStopIsQuiet() throws {
         for (cancelled, skipped) in [(true, Set<String>()), (false, ["D"]), (false, ["O"])] {
             var rig = try WrongRig(candidates: [World.westbound(after: -300)])
-            let geo = rig
             rig.stops("WEST", ["W1", "W2"])
             rig.stops("T", ["O", "E1", "D"], cancelled: cancelled, skipped: skipped)
             let phone = leaving(rig, "WEST", at: -300)
@@ -180,7 +177,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testAnEarlierTrainThatAlsoStopsAtTheStop() throws {
         var rig = try WrongRig(candidates: [World.candidate("LOCAL", after: -600, shape: World.east, stops: ["E1", "D", "E3"])])
-        let geo = rig
         rig.stops("LOCAL", ["E1", "D", "E3"])
         let phone = leaving(rig, "LOCAL", at: -600)
         neverWarns(&rig, from: -900, to: -200, phone: phone, trains: ["LOCAL": phone, "T": lateT(rig)])
@@ -199,7 +195,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testTwoCandidatesMatchingWait() throws {
         var rig = try WrongRig(candidates: [World.westbound("WEST", after: -300), World.westbound("WEST2", after: -280)])
-        let geo = rig
         rig.stops("WEST", ["W1", "W2"])
         rig.stops("WEST2", ["W1", "W2"])
         let phone = leaving(rig, "WEST", at: -300)
@@ -209,7 +204,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testNoFreshUpdateForTheTrainNeverWarns() throws {
         var rig = try WrongRig(candidates: [World.westbound(after: -300)])
-        let geo = rig
         rig.stops("WEST", ["W1", "W2"], fresh: false)
         let phone = leaving(rig, "WEST", at: -300)
         neverWarns(&rig, from: -600, to: 0, phone: phone, trains: ["WEST": phone, "T": lateT(rig)])
@@ -218,7 +212,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testUntimedPositionsNeverMatch() throws {
         var rig = try WrongRig(candidates: [World.westbound(after: -300)])
-        let geo = rig
         rig.stops("WEST", ["W1", "W2"])
         let phone = leaving(rig, "WEST", at: -300)
         neverWarns(&rig, from: -600, to: 0, phone: phone, trains: ["WEST": phone, "T": lateT(rig)], timed: false)
@@ -237,7 +230,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testTheTrackProofDoesNotApplyWhereTsTrackStartsAtTheStation() throws {
         var rig = try WrongRig(tie: .rideAtOrigin, shape: World.fromOrigin, candidates: [])
-        let geo = rig
         neverWarns(&rig, from: -300, to: 300, phone: { World.at(-World.moving($0, from: 0)) })
     }
 
@@ -275,7 +267,6 @@ final class WrongTrainRuleTests: XCTestCase {
 
     func testFollowingBeforeTheProofIsComplete() throws {
         var rig = try WrongRig(candidates: [World.westbound(after: -300)])
-        let geo = rig
         rig.stops("WEST", ["W1", "W2"])
         let phone = leaving(rig, "WEST", at: -300)
         var copy = rig

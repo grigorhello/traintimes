@@ -209,12 +209,12 @@ final class AutoRideWatchTests: XCTestCase {
         let check = FakeWrongTrainChecking()
         let rig = try WatchRig(at: -300, wrongTrain: check)
         rig.holder.departureRide = rig.ride
-        var tapped = 0
-        rig.watch.fixTap = { _ in tapped += 1 }
+        let record = TapRecord()
+        rig.watch.fixTap = { _ in record.taps += 1 }
         await rig.arm()
         XCTAssertEqual(check.armed, [rig.ride])
         await rig.play(from: -60, to: -50, phone: { _ in (0, true) })
-        XCTAssertEqual(tapped, 11, "Each fix reaches the check")
+        XCTAssertEqual(record.taps, 11, "Each fix reaches the check")
         check.warned = true
         check.keepsLocation = true
         await rig.play(from: -49, to: -40, phone: { _ in (0, true) })

@@ -320,12 +320,13 @@ extension AnalyticsEvent {
         Self("feedback_sent", ["kind": .string(kind.rawValue), "with_email": .bool(withEmail)])
     }
 
-    /// Schedule's Feedback button started asking (TT-228): `count` is which showing this is, 1 to 5.
-    static func feedbackNudgeShown(count: Int) -> Self {
-        Self("feedback_nudge_shown", ["count": .int(count)])
+    /// Schedule's Feedback button started asking (TT-228, TT-252): `count` is which showing this is on the install;
+    /// `reason` is `open`, `repeat` or `testing`.
+    static func feedbackNudgeShown(count: Int, reason: FeedbackNudgeReason) -> Self {
+        Self("feedback_nudge_shown", ["count": .int(count), "reason": .string(reason.rawValue)])
     }
 
-    /// The feedback sheet opened (TT-228): `after_nudge` within 60 s of the button asking; `nudges_seen` 0 to 5.
+    /// The feedback sheet opened (TT-228): `after_nudge` within 60 s of the button asking; `nudges_seen`, the showings so far.
     static func feedbackOpened(source: FeedbackOpenSource, afterNudge: Bool, nudgesSeen: Int) -> Self {
         Self("feedback_opened", [
             "source": .string(source.rawValue), "after_nudge": .bool(afterNudge), "nudges_seen": .int(nudgesSeen)

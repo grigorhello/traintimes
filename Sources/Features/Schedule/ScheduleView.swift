@@ -50,7 +50,7 @@ struct ScheduleView: View {
     /// its touches.
     @Environment(\.rideOpening) private var rideOpening
     @State private var feedbackOpen = false
-    /// The nudge's 4 s wait is running; only then does a drag bump `nudgeTouches`, which cancels it.
+    /// The nudge's wait is running; only then does a drag bump `nudgeTouches`, which starts it again.
     @State private var nudgeWaiting = false
     @State private var nudgeTouches = 0
     /// When the cascade and the Now pulse started, read only by the views that move (TT-164, D61).
@@ -252,7 +252,7 @@ struct ScheduleView: View {
         )
     }
 
-    // MARK: Feedback nudge (TT-228, D112)
+    // MARK: Feedback nudge (TT-228, D112; TT-252, D128)
 
     /// What the Feedback button's wait needs from Schedule: its trains on screen and nothing over or in front of them.
     private var nudgeStillness: FeedbackNudge.Stillness {
@@ -275,17 +275,14 @@ struct ScheduleView: View {
         )
     }
 
-    /// Waits 4 s on a still Schedule, then the button asks. A change to the stillness cancels the task, and with it this app
-    /// open's one try (`FeedbackNudge.stillnessBegan()`). Nothing plays where Schedule's motion is off (snapshots).
+    /// While Schedule stays still, the button asks when the rule says: 1.5 s after it became still on each app open, then
+    /// every 2 min (TT-252, D128). A change to the stillness, a touch among them, cancels the task and starts the wait
+    /// again. Nothing plays where Schedule's motion is off (snapshots).
     private func waitToAskForFeedback() async {
-        guard showsFeedbackPill, playsMotion, nudgeStillness.isStill, let nudge = feedbackNudge, nudge.stillnessBegan() else {
-            return
-        }
+        guard showsFeedbackPill, playsMotion, nudgeStillness.isStill, let nudge = feedbackNudge else { return }
         nudgeWaiting = true
         defer { nudgeWaiting = false }
-        try? await Task.sleep(for: FeedbackNudge.stillness)
-        guard !Task.isCancelled else { return }
-        nudge.play()
+        await nudge.playWhileStill()
     }
 
     // MARK: Motion (TT-164, D61)
@@ -801,7 +798,7 @@ struct ScheduleView: View {
             if !riderScrolled { riderScrolled = true }
             direction?.touched()
             rideOpening?.touched()
-            // A scroll cancels the Feedback button's wait (TT-228).
+            // A scroll starts the Feedback button's wait again (TT-228).
             if nudgeWaiting { nudgeTouches += 1 }
             // A scroll closes the day panel (TT-191).
             if isPanelOpen { bells?.closePanel() }

@@ -8,11 +8,14 @@ struct FeedbackPill: View {
 
     /// Icon only, so the line's name keeps its room next to the Notice chip.
     var compact = false
-    /// Where it is in asking (TT-228, D112): at rest unless the nudge plays.
-    var pose = FeedbackNudgeMotion.Pose.rest
+    /// Where it is in asking (TT-228, D112; TT-252, D128); nil reads `\.feedbackNudgeFrame`, at rest unless the nudge plays.
+    var pose: FeedbackNudgeMotion.Frame?
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.feedbackNudgeFrame) private var playedFrame
+
+    private var frame: FeedbackNudgeMotion.Frame { pose ?? playedFrame }
 
     var body: some View {
         Button(action: action) {
@@ -24,12 +27,17 @@ struct FeedbackPill: View {
                         .tracking(-0.2)
                 }
             }
-            .foregroundStyle(pose.onAccent ? TTColor.onAccent : TTColor.accent)
-            .padding(.leading, compact ? 0 : 10)
+            .foregroundStyle(frame.ink >= 0.5 ? TTColor.onAccent : TTColor.accent)
+            .padding(.leading, compact ? 0 : 8)
             .padding(.trailing, compact ? 0 : TTSpace.s3)
             .frame(width: compact ? 30 : nil, height: 30)
-            .background(pose.filled ? TTColor.accent : TTColor.accentSoft, in: Capsule())
-            .scaleEffect(grows ? (compact ? FeedbackNudgeMotion.buttonScale : FeedbackNudgeMotion.pillScale) : 1)
+            .background {
+                ZStack {
+                    Capsule().fill(TTColor.accentSoft)
+                    Capsule().fill(TTColor.accent).opacity(frame.fill)
+                }
+            }
+            .scaleEffect(scale)
             .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
@@ -40,101 +48,60 @@ struct FeedbackPill: View {
         .accessibilityIdentifier("schedule.feedback")
     }
 
-    private var grows: Bool { pose.filled && !reduceMotion }
-
-    /// The text bubble, or the question bubble while it asks: the bubble stays and only what is inside it changes (the
-    /// symbols' replace), tilted like a head asking. Reduce Motion cross-fades them, with no tilt or growth.
-    private var glyph: some View {
-        let tilts = pose.tilted && !reduceMotion
-        return Image(systemName: pose.asks ? "questionmark.bubble" : "text.bubble")
-            .font(.system(size: TTSize.iconSM + 1, weight: .semibold))
-            .modifier(BubbleReplace(crossFades: reduceMotion))
-            .rotationEffect(.degrees(tilts ? FeedbackNudgeMotion.tilt : 0))
-            .scaleEffect(tilts ? FeedbackNudgeMotion.glyphScale : 1)
+    /// The bounce; the labelled pill moves less. None with Reduce Motion.
+    private var scale: CGFloat {
+        guard !reduceMotion else { return 1 }
+        return compact ? frame.scale : FeedbackNudgeMotion.pillScale(frame.scale)
     }
-}
 
-/// The symbols' magic replace where iOS has it (the shared bubble stays, the lines become the question mark), else their
-/// replace; a cross-fade with Reduce Motion.
-private struct BubbleReplace: ViewModifier {
-    let crossFades: Bool
-
-    func body(content: Content) -> some View {
-        if crossFades {
-            content.contentTransition(.opacity)
-        } else if #available(iOS 18, *) {
-            content.contentTransition(.symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
-        } else {
-            content.contentTransition(.symbolEffect(.replace.downUp.byLayer))
-        }
+    /// The drawn bubble: the outline stays, the lines give way to the question mark, tilted like a head asking. Reduce
+    /// Motion cross-fades them, with no tilt or growth.
+    private var glyph: some View {
+        FeedbackGlyph(frame: frame, crossFades: reduceMotion)
+            .rotationEffect(.degrees(reduceMotion ? 0 : frame.tilt))
+            .scaleEffect(reduceMotion ? 1 : frame.glyphScale)
     }
 }
 
 /// The pill with the sheet it opens, so Schedule only places it. Icon only while the Notice chip shows, and whenever the
 /// labelled pill would cut the line's name short (Lakeshore West): the name is laid out first (`layoutPriority`). It asks
-/// each time the app's `FeedbackNudge` says so (TT-228, D112).
+/// each time the app's `FeedbackNudge` says so (TT-228, D112; TT-252, D128), played by `KeyframeAnimator` on the render
+/// clock from `FeedbackNudgeMotion.keyframes()`.
 struct ScheduleFeedbackEntry: View {
     var compact = false
     /// The sheet opened or closed, for Schedule, which counts it as something over it (TT-234).
     var onSheet: (Bool) -> Void = { _ in }
     @State private var showsSheet = false
-    @State private var pose = FeedbackNudgeMotion.Pose.rest
-    @State private var playing: Task<Void, Never>?
     @Environment(\.feedbackSender) private var sender
     @Environment(\.feedbackNudge) private var nudge
     @Environment(\.feedbackNudgeFrozen) private var frozen
 
     var body: some View {
-        let shown = frozen ? FeedbackNudgeMotion.Pose.asking : pose
+        // Plain values, so the keyframe closures capture these and not the view (TT-252: the frame reaches the pill through
+        // the environment, `\.feedbackNudgeFrame`).
+        let frozen = self.frozen
         Group {
             if compact {
-                FeedbackPill(compact: true, pose: shown) { open() }
+                FeedbackPill(compact: true) { open() }
             } else {
                 ViewThatFits(in: .horizontal) {
-                    FeedbackPill(pose: shown) { open() }
-                    FeedbackPill(compact: true, pose: shown) { open() }
+                    FeedbackPill { open() }
+                    FeedbackPill(compact: true) { open() }
                 }
             }
         }
-        .sheet(isPresented: $showsSheet) { FeedbackSheet(viewModel: FeedbackViewModel(sender: sender)) }
-        .onChange(of: nudge?.playRequest) { play() }
-        // Back at rest when the sheet closes, even if it was opened mid-play.
-        .onChange(of: showsSheet) { _, shows in
-            onSheet(shows)
-            guard !shows else { return }
-            playing?.cancel()
-            pose = .rest
+        .keyframeAnimator(initialValue: FeedbackNudgeMotion.Frame.rest, trigger: nudge?.playRequest ?? 0) { view, frame in
+            view.environment(\.feedbackNudgeFrame, frozen ? .asking : frame)
+        } keyframes: { _ in
+            FeedbackNudgeMotion.keyframes()
         }
-        .onDisappear { playing?.cancel() }
+        .sheet(isPresented: $showsSheet) { FeedbackSheet(viewModel: FeedbackViewModel(sender: sender)) }
+        .onChange(of: showsSheet) { _, shows in onSheet(shows) }
     }
 
     private func open() {
         nudge?.sheetOpened(from: .schedule)
         showsSheet = true
-    }
-
-    /// The steps of `FeedbackNudgeMotion`, each at its time from the start. No haptic (D95 rule 1).
-    private func play() {
-        playing?.cancel()
-        playing = Task { @MainActor in
-            var elapsed = 0.0
-            for step in FeedbackNudgeMotion.steps {
-                if step.at > elapsed {
-                    try? await Task.sleep(for: .seconds(step.at - elapsed))
-                    elapsed = step.at
-                }
-                guard !Task.isCancelled else { return }
-                var next = pose
-                step.apply(&next)
-                if let animation = step.animation {
-                    withAnimation(animation) { pose = next }
-                } else {
-                    var now = Transaction()
-                    now.disablesAnimations = true
-                    withTransaction(now) { pose = next }
-                }
-            }
-        }
     }
 }
 
@@ -155,8 +122,11 @@ extension EnvironmentValues {
     @Entry var feedbackSender: any FeedbackSending = FeedbackDependencies.sender()
     /// The app's feedback nudge (TT-228), from `RootView`; nil plays nothing.
     @Entry var feedbackNudge: FeedbackNudge? = nil
-    /// Snapshots draw the button as it asks, about 1000 ms in, as the swap is frozen with `\.swapFrozenAt`.
+    /// Snapshots draw the button as it asks, about 1000 ms in (`FeedbackNudgeMotion.Frame.asking`), as the swap is frozen
+    /// with `\.swapFrozenAt`.
     @Entry var feedbackNudgeFrozen = false
+    /// The frame of the play, from `ScheduleFeedbackEntry`'s keyframes to its pills.
+    @Entry var feedbackNudgeFrame = FeedbackNudgeMotion.Frame.rest
     /// A sheet is up over Schedule or another tab is selected (`RootView`), so the Feedback button does not ask.
     @Entry var scheduleCovered = false
 }

@@ -1,21 +1,21 @@
 import XCTest
 @testable import TrainTimes
 
-/// When Schedule's Feedback button asks (TT-228, D112): stillness, one try per app open, once a day, not in the first two
-/// days, stop on open or after 5 showings, the Testing reset, and both events.
+/// When Schedule's Feedback button asks (TT-228, D112, revised by TT-252, D128): stillness, every app open, every 2 min,
+/// never by itself in fixture runs, the Testing switch and launch argument, and both events.
 @MainActor
 final class FeedbackNudgeTests: XCTestCase {
     private var defaults: UserDefaults!
     private var clock: TestClock!
     private var recorder: RecordingAnalytics!
 
-    /// Noon on Thursday, Nov 19, 2026, in Toronto: the install's first day.
-    private let firstDay = Date(timeIntervalSince1970: 1_795_107_600)
+    /// Noon on Thursday, Nov 19, 2026, in Toronto.
+    private let start = Date(timeIntervalSince1970: 1_795_107_600)
 
     override func setUp() async throws {
         try await super.setUp()
         defaults = .ephemeral()
-        clock = TestClock(now: firstDay)
+        clock = TestClock(now: start)
         recorder = RecordingAnalytics.install()
     }
 
@@ -26,10 +26,6 @@ final class FeedbackNudgeTests: XCTestCase {
 
     private func nudge(playsByItself: Bool = true) -> FeedbackNudge {
         FeedbackNudge(defaults: defaults, clock: clock, playsByItself: playsByItself)
-    }
-
-    private func advance(days: Int) {
-        clock.advance(seconds: TimeInterval(days) * 24 * 3600)
     }
 
     // MARK: Stillness
@@ -45,125 +41,125 @@ final class FeedbackNudgeTests: XCTestCase {
             block(&stillness)
             XCTAssertFalse(stillness.isStill)
         }
-        // A touch changes the stillness (so the wait restarts and is cancelled) without making Schedule busy.
+        // A touch changes the stillness (so the wait starts again) without making Schedule busy.
         var touched = FeedbackNudge.Stillness()
         touched.touches += 1
         XCTAssertNotEqual(touched, FeedbackNudge.Stillness())
         XCTAssertTrue(touched.isStill)
     }
 
-    // MARK: When it may play
+    // MARK: When it plays
 
-    func testNotInTheFirstTwoDays() {
+    func testFirstPlayOfAnOpenComesAfterTheStillness() {
         let rule = nudge()
-        XCTAssertFalse(rule.isDue)
-        advance(days: 1)
-        XCTAssertFalse(nudge().isDue)
-        advance(days: 1)
-        XCTAssertTrue(nudge().isDue)
+        XCTAssertEqual(rule.nextPlay(stillSince: start), start.addingTimeInterval(FeedbackNudge.stillness))
+        XCTAssertFalse(rule.isDue(stillSince: start))
+        clock.advance(seconds: FeedbackNudge.stillness)
+        XCTAssertTrue(rule.isDue(stillSince: start))
     }
 
-    func testTheFirstDayCountsByTorontoCalendarDay() {
-        // 11:30 PM on the first day: two calendar days later is only 24.5 hours on.
-        clock.set(firstDay.addingTimeInterval(11.5 * 3600))
-        _ = nudge()
-        clock.advance(seconds: 24.5 * 3600 + 60)
-        XCTAssertTrue(nudge().isDue)
-    }
-
-    func testOneTryPerAppOpen() {
-        _ = nudge()
-        advance(days: 2)
+    func testATouchStartsTheStillnessAgain() {
         let rule = nudge()
-        XCTAssertTrue(rule.stillnessBegan())
-        // The wait was cancelled by a touch: no second try until the next app open.
-        XCTAssertFalse(rule.stillnessBegan())
-        rule.wentToBackground()
-        clock.advance(seconds: 5 * 60)
-        rule.cameToForeground()
-        XCTAssertFalse(rule.stillnessBegan(), "back within 10 min is the same app open")
-        rule.wentToBackground()
-        clock.advance(seconds: 11 * 60)
-        rule.cameToForeground()
-        XCTAssertTrue(rule.stillnessBegan(), "back after more than 10 min is a new app open")
+        clock.advance(seconds: 1)
+        // Schedule was touched 1 s in: the wait counts from then.
+        XCTAssertFalse(rule.isDue(stillSince: clock.now))
+        XCTAssertTrue(rule.isDue(stillSince: start))
     }
 
-    func testOncePerDay() {
-        _ = nudge()
-        advance(days: 2)
-        var rule = nudge()
-        XCTAssertTrue(rule.stillnessBegan())
+    func testRepeatsEveryTwoMinutesFromTheLastPlay() {
+        let rule = nudge()
+        clock.advance(seconds: 2)
         rule.play()
-        XCTAssertEqual(rule.playRequest, 1)
-        clock.advance(seconds: 3600)
-        rule = nudge()
-        XCTAssertFalse(rule.isDue, "it already played today")
-        advance(days: 1)
-        XCTAssertTrue(nudge().isDue)
+        XCTAssertEqual(rule.nextPlay(stillSince: start), clock.now.addingTimeInterval(FeedbackNudge.repeatEvery))
+        clock.advance(seconds: 119)
+        XCTAssertFalse(rule.isDue(stillSince: start))
+        clock.advance(seconds: 1)
+        XCTAssertTrue(rule.isDue(stillSince: start))
+        rule.play()
+        XCTAssertEqual(rule.playRequest, 2)
     }
 
-    func testStopsAfterFiveShowings() {
-        _ = nudge()
-        for _ in 1...FeedbackNudge.maxShowings {
-            advance(days: 2)
-            let rule = nudge()
-            XCTAssertTrue(rule.stillnessBegan())
-            rule.play()
-        }
-        advance(days: 2)
-        XCTAssertFalse(nudge().isDue)
-        XCTAssertEqual(recorder.events.compactMap { $0.properties["count"] }, (1...5).map { .int($0) })
+    func testARepeatStillWaitsForTheStillness() {
+        let rule = nudge()
+        rule.play()
+        clock.advance(seconds: 300)
+        // Schedule just became still again (back from another tab): the stillness first, not at once.
+        let stillSince = clock.now
+        XCTAssertEqual(rule.nextPlay(stillSince: stillSince), stillSince.addingTimeInterval(FeedbackNudge.stillness))
     }
 
-    func testStopsForGoodOnceTheSheetOpens() {
-        _ = nudge()
-        advance(days: 2)
-        nudge().sheetOpened(from: .settings)
-        advance(days: 3)
-        XCTAssertFalse(nudge().isDue)
+    func testEveryReturnFromTheBackgroundIsANewOpen() {
+        let rule = nudge()
+        rule.play()
+        rule.wentToBackground()
+        clock.advance(seconds: 20)
+        rule.cameToForeground()
+        let stillSince = clock.now
+        XCTAssertEqual(rule.nextPlay(stillSince: stillSince), stillSince.addingTimeInterval(FeedbackNudge.stillness))
+        clock.advance(seconds: FeedbackNudge.stillness)
+        rule.play()
+        XCTAssertEqual(recorder.events.compactMap { $0.properties["reason"] }, [.string("open"), .string("open")])
+    }
+
+    func testActiveAgainWithoutTheBackgroundIsTheSameOpen() {
+        let rule = nudge()
+        rule.play()
+        rule.cameToForeground()
+        XCTAssertEqual(rule.nextPlay(stillSince: clock.now), clock.now.addingTimeInterval(FeedbackNudge.repeatEvery))
+    }
+
+    func testKeepsPlayingAfterTheSheetOpens() {
+        let rule = nudge()
+        rule.play()
+        rule.sheetOpened(from: .schedule)
+        clock.advance(seconds: FeedbackNudge.repeatEvery)
+        XCTAssertTrue(rule.isDue(stillSince: start))
     }
 
     func testNeverByItselfInFixtureRuns() {
-        _ = nudge(playsByItself: false)
-        advance(days: 3)
-        XCTAssertFalse(nudge(playsByItself: false).isDue)
+        let rule = nudge(playsByItself: false)
+        XCTAssertNil(rule.nextPlay(stillSince: start))
+        clock.advance(seconds: 600)
+        XCTAssertFalse(rule.isDue(stillSince: start))
     }
 
     // MARK: Testing
 
-    func testPlayOnNextStillClearsTheCountersAndSkipsTheWaits() {
+    func testPlayOnNextStillPlaysOnceWhereItWouldNot() {
         let rule = nudge(playsByItself: false)
-        rule.sheetOpened(from: .schedule)
-        XCTAssertFalse(rule.isDue)
         rule.playOnNextStill()
-        XCTAssertTrue(rule.stillnessBegan())
-        XCTAssertTrue(rule.stillnessBegan(), "forced, a cancelled wait may try again")
+        XCTAssertEqual(rule.nextPlay(stillSince: start), start.addingTimeInterval(FeedbackNudge.stillness))
         rule.play()
         XCTAssertEqual(rule.showings, 1)
-        XCTAssertFalse(rule.isDue, "it plays once per tap")
+        XCTAssertNil(rule.nextPlay(stillSince: clock.now), "it plays once per tap")
     }
 
     func testLaunchArgumentPlaysOncePerRun() {
         defaults.set("now", forKey: FeedbackNudge.launchKey)
         let rule = nudge(playsByItself: false)
-        XCTAssertTrue(rule.stillnessBegan())
+        XCTAssertTrue(rule.isForced)
         rule.play()
-        XCTAssertFalse(rule.isDue)
+        XCTAssertFalse(rule.isForced)
+        XCTAssertNil(rule.nextPlay(stillSince: clock.now))
     }
 
     // MARK: Analytics
 
-    func testShownEventCountsTheShowing() {
-        _ = nudge()
-        advance(days: 2)
+    func testShownEventCountsTheShowingAndSaysWhy() {
         let rule = nudge()
         rule.play()
-        XCTAssertEqual(recorder.events, [AnalyticsEvent("feedback_nudge_shown", ["count": .int(1)])])
+        clock.advance(seconds: FeedbackNudge.repeatEvery)
+        rule.play()
+        rule.playOnNextStill()
+        rule.play()
+        XCTAssertEqual(recorder.events, [
+            AnalyticsEvent("feedback_nudge_shown", ["count": .int(1), "reason": .string("open")]),
+            AnalyticsEvent("feedback_nudge_shown", ["count": .int(2), "reason": .string("repeat")]),
+            AnalyticsEvent("feedback_nudge_shown", ["count": .int(3), "reason": .string("testing")])
+        ])
     }
 
     func testOpenedWithinAMinuteOfTheNudgeIsAfterNudge() {
-        _ = nudge()
-        advance(days: 2)
         let rule = nudge()
         rule.play()
         clock.advance(seconds: 20)
@@ -181,7 +177,6 @@ final class FeedbackNudgeTests: XCTestCase {
             recorder.events.last,
             AnalyticsEvent("feedback_opened", ["source": .string("settings"), "after_nudge": .bool(false), "nudges_seen": .int(0)])
         )
-        rule.playOnNextStill()
         rule.play()
         clock.advance(seconds: 61)
         rule.sheetOpened(from: .schedule)

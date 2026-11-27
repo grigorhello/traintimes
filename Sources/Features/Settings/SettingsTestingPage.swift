@@ -82,8 +82,8 @@ struct SettingsTestingPage: View {
         .padding(.top, TTSpace.s3)
     }
 
-    /// Feedback animation (TT-228, D112): clears the nudge's counters and lets Schedule's Feedback button ask 4 s after the
-    /// next time Schedule is still, without the two-day wait.
+    /// Feedback animation (TT-228, D112; TT-252, D128): Schedule's Feedback button asks 1.5 s after the next time Schedule
+    /// is still, also in builds where it would not play by itself.
     private var feedbackNudgeCard: some View {
         SettingsCard {
             Button {

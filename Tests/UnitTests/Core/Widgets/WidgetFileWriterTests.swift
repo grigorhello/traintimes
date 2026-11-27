@@ -265,6 +265,39 @@ final class WidgetFileWriterTests: XCTestCase {
         )
     }
 
+    /// My trains (TT-257, D131): each switched-on alert's route is in the file whatever route is open, and each saved
+    /// train carries its alert's id, the same on every day of a Repeat alert.
+    @MainActor
+    func testTheFileCarriesEverySwitchedOnAlertsRouteAndItsId() async throws {
+        let rig = rig()
+        let open = Route(from: oakville, to: union, line: line)
+        rig.routeStore.save(open)
+        let away = Route(from: burlington, to: union, line: line)
+        let evening = trip("BU-UN-20261111-1730", day: wed, hour: 17, minute: 30)
+        await rig.rules.save(AlertRule(kind: .repeating, trip: evening, route: away, weekdays: [3, 4]))
+        // A switched-off alert and one whose day has passed bring no route.
+        var paused = AlertRule(kind: .thisTrip, trip: trip("UN-BU-20261112-0700", day: wed.adding(days: 1), hour: 7), route: Route(from: union, to: burlington, line: line))
+        paused.paused = true
+        await rig.rules.save(paused)
+
+        await rig.writer.write()
+        let file = try XCTUnwrap(written)
+        XCTAssertEqual(file.routes.map(\.key), [toUnion, WidgetFile.RouteKey(fromId: "BU", toId: "UN")])
+        let burlingtonUnion = file.routes[1]
+        let saved = burlingtonUnion.outbound.filter(\.isAlerted)
+        XCTAssertEqual(saved.map(\.tripId), ["BU-UN-20261111-1730", "BU-UN-20261112-1730", "BU-UN-20261118-1730", "BU-UN-20261119-1730"])
+        let id = try XCTUnwrap(rig.rules.rules.first { $0.kind == .repeating }?.id)
+        XCTAssertEqual(Set(saved.map(\.alertId)), [id])
+        XCTAssertEqual(burlingtonUnion.line?.id, "LW")
+        // A train with no switched-on alert has no id.
+        XCTAssertTrue(file.routes.flatMap { $0.outbound + $0.inbound }.filter { !$0.isAlerted }.allSatisfy { $0.alertId == nil })
+        // My trains reads it.
+        guard case .myTrains(let mine) = WidgetEntryBuilder.entry(file: file, route: nil, turnsAround: true, mode: .myTrains, at: wed.date(hour: 8, minute: 0)).state else {
+            return XCTFail("Expected My trains")
+        }
+        XCTAssertEqual(mine.saved.map(\.train.key.tripId), ["BU-UN-20261111-1730"])
+    }
+
     /// The widgets reload only when the bytes change: a route, alert or Time format change does, backgrounding with nothing
     /// changed does not.
     @MainActor

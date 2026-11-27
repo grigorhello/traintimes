@@ -188,10 +188,12 @@ final class DirectionStoreTests: XCTestCase {
         XCTAssertEqual(DirectionStore.morningWay(of: turned, at: at(8)), back)
     }
 
-    /// The service day turns at 3 AM: 1 AM is still last evening, 3 AM is the morning.
-    func testTheMorningWayFollowsTheServiceDay() {
+    /// 12 PM on the clock, as the welcome reads it (TT-257, D131): a route chosen at 1 AM, before the service day turns at
+    /// 3 AM, is a morning one, not written reversed.
+    func testTheMorningWayFollowsTheClocksNoon() {
         let there = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
-        XCTAssertEqual(DirectionStore.morningWay(of: route, at: at(1)), there.reversed, "1 AM after the day's noon")
+        XCTAssertEqual(DirectionStore.morningWay(of: route, at: at(0, 30)), there, "12:30 AM is before noon")
+        XCTAssertEqual(DirectionStore.morningWay(of: route, at: at(1)), there, "1 AM is before noon")
         XCTAssertEqual(DirectionStore.morningWay(of: route, at: at(3)), there)
     }
 

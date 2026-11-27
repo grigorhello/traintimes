@@ -11,12 +11,22 @@ final class WidgetContentTests: XCTestCase {
         return train
     }
 
-    private func mediumTrain(_ entry: WidgetEntry, file: StaticString = #filePath, line: UInt = #line) -> DeparturesContent.Train? {
-        guard case .train(let train) = DeparturesContent(entry).body else {
-            XCTFail("Expected a train", file: file, line: line)
+    private func mediumRows(_ entry: WidgetEntry, file: StaticString = #filePath, line: UInt = #line) -> DeparturesContent.Rows? {
+        guard case .rows(let rows) = DeparturesContent(entry).body else {
+            XCTFail("Expected rows", file: file, line: line)
             return nil
         }
-        return train
+        return rows
+    }
+
+    /// The second row's train, or nil under "Next".
+    private func secondRow(_ rows: DeparturesContent.Rows?) -> DeparturesContent.Row? {
+        if case .row(let row)? = rows?.second { row } else { nil }
+    }
+
+    /// The "Next" line's times; nil under a second row.
+    private func nextTimes(_ rows: DeparturesContent.Rows?) -> [String]? {
+        if case .next(let later)? = rows?.second { later.map(\.time) } else { nil }
     }
 
     private func message(_ body: NextTrainContent.Body) -> WidgetMessage? {
@@ -73,7 +83,7 @@ final class WidgetContentTests: XCTestCase {
 
     func testTheLastMinuteReadsNow() {
         XCTAssertEqual(smallTrain(WidgetFixtures.leavingNow)?.isLeavingNow, true)
-        XCTAssertEqual(mediumTrain(WidgetFixtures.leavingNow)?.isLeavingNow, true)
+        XCTAssertEqual(mediumRows(WidgetFixtures.leavingNow)?.first.when, .now)
         // A minute and a second before, it still counts.
         let before = WidgetFixtures.entry(WidgetFixtures.at(8, 4, second: 59), WidgetFixtures.leavingNow.state)
         XCTAssertEqual(smallTrain(before)?.isLeavingNow, false)
@@ -116,64 +126,44 @@ final class WidgetContentTests: XCTestCase {
 
     // MARK: - Departures
 
-    func testDeparturesShowsTheNextTrainAndTheTwoAfterItWithoutAMOrPM() {
-        let train = mediumTrain(WidgetFixtures.nextTrain())
-        XCTAssertEqual(train?.time, "7:58")
-        XCTAssertEqual(train?.arrival, "8:38")
-        XCTAssertEqual(train?.countdown, "11 min")
-        XCTAssertEqual(train?.later.map(\.time), ["8:06", "8:28"])
+    /// A route (TT-257, D131): one row, the next train with its route, minutes and arrival, then "Next" with the trains
+    /// after it that day.
+    func testDeparturesShowsTheNextTrainAndTheTrainsAfterIt() {
+        let rows = mediumRows(WidgetFixtures.nextTrain())
+        XCTAssertEqual(rows?.first.time.full, "7:58 AM")
+        XCTAssertEqual(rows?.first.arrival, "8:38")
+        XCTAssertEqual(rows?.first.when, .countdown("11 min"))
+        XCTAssertEqual(rows?.first.isLead, true)
+        XCTAssertEqual(rows?.first.isSaved, false)
+        XCTAssertEqual([rows?.first.header.from, rows?.first.header.to], ["Oakville", "Union"])
+        XCTAssertEqual(nextTimes(rows), ["8:06", "8:28"])
         let header = DeparturesContent(WidgetFixtures.nextTrain()).header
-        XCTAssertEqual(header?.from, "Oakville")
-        XCTAssertEqual(header?.to, "Union")
-        // Your train, express and the bell are the small widget's: the first to leave stays in front.
-        XCTAssertEqual(mediumTrain(WidgetFixtures.yourTrain)?.time, "7:58")
+        XCTAssertEqual([header?.from, header?.to], ["Oakville", "Union"])
+        // Your train is the small widget's: the first to leave stays in front, and a saved train in "Next" is just a time.
+        XCTAssertEqual(mediumRows(WidgetFixtures.yourTrain)?.first.time.digits, "7:58")
+        // The minutes at any distance on a route, "now" in the last minute.
+        XCTAssertEqual(mediumRows(WidgetFixtures.farTrain())?.first.when, .countdown("1 h 28 min"))
+        XCTAssertEqual(mediumRows(WidgetFixtures.leavingNow)?.first.when, .now)
     }
 
     func testTheNextLineShowsOneTimeOrNone() {
-        XCTAssertEqual(mediumTrain(WidgetFixtures.oneLater)?.later.map(\.time), ["11:47"])
-        XCTAssertEqual(mediumTrain(WidgetFixtures.lastTrain)?.later, [])
-    }
-
-    /// The builder's three run on into the next service day; "Next" never does.
-    func testTheNextLineStopsAtTheDaysLastTrain() {
-        let tomorrow = WidgetFixtures.day.adding(days: 1)
-        let list = WidgetEntry.Trains(
-            header: WidgetFixtures.header(),
-            trains: [WidgetFixtures.train(22, 47), WidgetFixtures.train(23, 47), WidgetFixtures.train(5, 43, on: tomorrow)]
-        )
-        XCTAssertEqual(mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(21, 30), .trains(list)))?.later.map(\.time), ["11:47"])
-        let last = WidgetEntry.Trains(
-            header: WidgetFixtures.header(),
-            trains: [WidgetFixtures.train(23, 47), WidgetFixtures.train(5, 43, on: tomorrow), WidgetFixtures.train(6, 13, on: tomorrow)]
-        )
-        XCTAssertEqual(mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(21, 30), .trains(last)))?.later, [])
-    }
-
-    /// Your train takes the third slot of the three for the small widget; "Next" still lists the plain next two.
-    func testTheNextLineSkipsNoTrainWhenYourTrainIsFurtherOff() {
-        var list = WidgetEntry.Trains(
-            header: WidgetFixtures.header(),
-            trains: [WidgetFixtures.train(8, 0), WidgetFixtures.train(8, 10), WidgetFixtures.train(8, 40, alerted: true)]
-        )
-        list.yourTrain = 2
-        list.earlier = 0
-        list.displaced = WidgetFixtures.train(8, 20)
-        let train = mediumTrain(WidgetFixtures.entry(WidgetFixtures.at(7, 55), .trains(list)))
-        XCTAssertEqual(train?.time, "8:00")
-        XCTAssertEqual(train?.later.map(\.time), ["8:10", "8:20"])
+        XCTAssertEqual(nextTimes(mediumRows(WidgetFixtures.oneLater)), ["11:47"])
+        XCTAssertNil(mediumRows(WidgetFixtures.lastTrain)?.second)
     }
 
     func testDeparturesLinks() {
         let content = DeparturesContent(WidgetFixtures.nextTrain())
-        let train = mediumTrain(WidgetFixtures.nextTrain())
+        let rows = mediumRows(WidgetFixtures.nextTrain())
         XCTAssertEqual(
-            content.link.absoluteString, "traintimes://route?destinationId=UN&originId=OA&source=widget&widget=departures"
+            content.link.absoluteString,
+            "traintimes://route?destinationId=UN&mode=route&originId=OA&source=widget&widget=departures"
         )
         XCTAssertEqual(
-            train?.link.absoluteString,
-            "traintimes://trip?destinationId=UN&originId=OA&serviceDate=20261111&source=widget&tripId=LW-0758&widget=departures"
+            rows?.first.link.absoluteString,
+            "traintimes://trip?destinationId=UN&mode=route&originId=OA&serviceDate=20261111&source=widget&tripId=LW-0758&widget=departures"
         )
-        XCTAssertEqual(train?.later.map(\.link), [
+        guard case .next(let later)? = rows?.second else { return XCTFail("Expected the Next line") }
+        XCTAssertEqual(later.map(\.link), [
             WidgetLink.tagged(WidgetFixtures.train(8, 6).link, from: .departures),
             WidgetLink.tagged(WidgetFixtures.train(8, 28).link, from: .departures),
         ])
@@ -188,7 +178,7 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(pieces(message(small.body)?.detail), [
             WidgetText.Piece(text: "First train ", isStrong: false), WidgetText.Piece(text: "5:43 AM", isStrong: true),
         ])
-        XCTAssertEqual(small.link.absoluteString, "traintimes://route?destinationId=UN&originId=OA&source=widget&widget=next_train")
+        XCTAssertEqual(small.link.absoluteString, "traintimes://route?destinationId=UN&mode=route&originId=OA&source=widget&widget=next_train")
         let medium = DeparturesContent(WidgetFixtures.afterLastTrain)
         XCTAssertEqual(plain(message(medium.body)?.detail), "First train tomorrow 5:43 AM, arrives 6:21 AM")
         XCTAssertEqual(pieces(message(medium.body)?.detail).filter(\.isStrong).map(\.text), ["5:43 AM"])
@@ -227,13 +217,13 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertNil(notLoaded.header)
         XCTAssertEqual(message(notLoaded.body)?.title, "Open Train Times once")
         XCTAssertEqual(message(notLoaded.body)?.detail?.plain, "to load the timetable.")
-        XCTAssertEqual(notLoaded.link.absoluteString, "traintimes://route?source=widget&widget=next_train")
+        XCTAssertEqual(notLoaded.link.absoluteString, "traintimes://route?mode=route&source=widget&widget=next_train")
 
         let noRoute = DeparturesContent(WidgetFixtures.noRoute)
         XCTAssertNil(noRoute.header)
         XCTAssertEqual(message(noRoute.body)?.title, "Choose your route")
         XCTAssertEqual(message(noRoute.body)?.detail?.plain, "in Train Times.")
-        XCTAssertEqual(noRoute.link.absoluteString, "traintimes://route?source=widget&widget=departures")
+        XCTAssertEqual(noRoute.link.absoluteString, "traintimes://route?mode=route&source=widget&widget=departures")
 
         let outOfDate = NextTrainContent(WidgetFixtures.outOfDate)
         XCTAssertEqual(outOfDate.header?.to, "Union")
@@ -272,9 +262,10 @@ final class WidgetContentTests: XCTestCase {
         let header = DeparturesContent(.sample).header
         XCTAssertEqual([header?.from, header?.to], ["Oakville", "Union"])
         XCTAssertEqual(train?.countdown, "11 min")
-        // Each train has its own link: the Next line's times are told apart by it.
-        XCTAssertEqual(mediumTrain(.sample)?.later.count, 2)
-        XCTAssertEqual(Set(mediumTrain(.sample)?.later.map(\.id) ?? []).count, 2)
+        // Departures: the 7:58 in 11 min, then "Next" with the two after it, each with its own link.
+        XCTAssertEqual(mediumRows(.sample)?.first.when, .countdown("11 min"))
+        guard case .next(let later)? = mediumRows(.sample)?.second else { return XCTFail("Expected the Next line") }
+        XCTAssertEqual(Set(later.map(\.id)).count, 2)
     }
 
     // MARK: - Links
@@ -284,8 +275,14 @@ final class WidgetContentTests: XCTestCase {
         let tagged = WidgetLink.tagged(trip, from: .nextTrain)
         XCTAssertEqual(WidgetLink.widget(of: tagged), .nextTrain)
         XCTAssertEqual(WidgetLink.widget(of: WidgetLink.tagged(WidgetLink.route(nil), from: .departures)), .departures)
-        // Tagging twice keeps one of each.
+        // Tagging twice keeps one of each; the Show is A route unless said (TT-257).
         XCTAssertEqual(WidgetLink.tagged(tagged, from: .nextTrain), tagged)
+        XCTAssertEqual(WidgetLink.mode(of: tagged), .route)
+        let mine = WidgetLink.tagged(tagged, from: .nextTrain, mode: .myTrains)
+        XCTAssertEqual(WidgetLink.mode(of: mine), .myTrains)
+        XCTAssertEqual(WidgetLink.widget(of: mine), .nextTrain)
+        XCTAssertEqual(WidgetLink.tagged(mine, from: .nextTrain, mode: .myTrains), mine)
+        XCTAssertNil(WidgetLink.mode(of: trip))
         // The app reads the same trip from it.
         XCTAssertEqual(
             NotificationLink(url: tagged, today: WidgetFixtures.day), NotificationLink(url: trip, today: WidgetFixtures.day)
@@ -327,26 +324,20 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertEqual(StationEntity(stations.stops(for: ["OA"])[0]).id, "OA")
     }
 
-    func testANewWidgetStartsOnTheOpenRouteAndTurnsAroundAt12PM() {
+    /// A route with no From or To follows the open route in its morning way, turned around after 12 PM; Edit widget no
+    /// longer fills From and To in (TT-257, D131: My trains is every new widget's Show).
+    func testARouteWithNoStationsFollowsTheOpenRouteAndTurnsAroundAt12PM() {
         var file = WidgetFixtures.stationsFile
-        let stations = WidgetStations(file: file)
-        XCTAssertEqual(stations.defaultFrom?.id, "OA")
-        XCTAssertEqual(stations.defaultTo?.id, "UN")
-        // The file keeps the open route in its morning way, so the same pair shows To → From after 12 PM.
         file.routes = [
             WidgetFile.Timetable(
                 from: WidgetFile.Stop(id: "OA", name: "Oakville GO"), to: WidgetFile.Stop(id: "UN", name: "Union Station GO"),
                 line: WidgetFixtures.line, outbound: [departure(8, 0), departure(13, 30)], inbound: [departure(9, 0), departure(17, 0)]
             ),
         ]
-        let route = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
-        let morning = WidgetEntryBuilder.entry(file: file, route: route, turnsAround: true, at: WidgetFixtures.at(7, 0))
-        let afternoon = WidgetEntryBuilder.entry(file: file, route: route, turnsAround: true, at: WidgetFixtures.at(12, 30))
+        let morning = WidgetEntryBuilder.entry(file: file, route: nil, turnsAround: true, at: WidgetFixtures.at(7, 0))
+        let afternoon = WidgetEntryBuilder.entry(file: file, route: nil, turnsAround: true, at: WidgetFixtures.at(12, 30))
         XCTAssertEqual(NextTrainContent(morning).header?.to, "Union")
         XCTAssertEqual(NextTrainContent(afternoon).header?.to, "Oakville")
-        // With no open route there is nothing to start on.
-        file.openRoute = nil
-        XCTAssertNil(WidgetStations(file: file).defaultFrom)
     }
 
     private func departure(_ hour: Int, _ minute: Int) -> WidgetFile.Departure {
@@ -397,14 +388,37 @@ final class WidgetContentTests: XCTestCase {
         count.report([])
         XCTAssertEqual(recorder.events, [])
         count.report([small, small, medium])
-        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 2, departures: 1, lock: 0)])
+        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 2, departures: 1, lock: 0, myTrains: 3, route: 0)])
         // The same widgets on the next foreground send nothing.
         count.report([medium, small, small])
         XCTAssertEqual(recorder.events.count, 1)
+        // A widget turned to A route is a change (TT-257).
+        let routeSmall = PlacedWidget(kind: .nextTrain, route: WidgetFile.RouteKey(fromId: "CL", toId: "UN"), mode: .route)
+        count.report([small, routeSmall, medium])
+        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 2, departures: 1, lock: 0, myTrains: 2, route: 1))
         // All removed is a change.
         count.report([])
-        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 0, departures: 0, lock: 0))
-        XCTAssertEqual(recorder.events.last?.properties, ["next_train": .int(0), "departures": .int(0), "lock": .int(0)])
+        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 0, departures: 0, lock: 0, myTrains: 0, route: 0))
+        XCTAssertEqual(recorder.events.last?.properties, [
+            "next_train": .int(0), "departures": .int(0), "lock": .int(0), "my_trains": .int(0), "route": .int(0),
+        ])
+    }
+
+    /// A count stored by an older build (two numbers before TT-184, three before TT-257) reads with zeros for the rest, so
+    /// an install that never placed a widget still sends nothing.
+    @MainActor
+    func testWidgetsPlacedReadsAnOlderBuildsCounts() {
+        let recorder = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
+        let defaults = UserDefaults.ephemeral()
+        defaults.set("0,0", forKey: WidgetsPlacedCount.key)
+        WidgetsPlacedCount(defaults: defaults).report([])
+        defaults.set("0,0,0", forKey: WidgetsPlacedCount.key)
+        WidgetsPlacedCount(defaults: defaults).report([])
+        XCTAssertEqual(recorder.events, [])
+        defaults.set("1,0,0", forKey: WidgetsPlacedCount.key)
+        WidgetsPlacedCount(defaults: defaults).report([PlacedWidget(kind: .nextTrain, route: nil)])
+        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 1, departures: 0, lock: 0, myTrains: 1, route: 0)])
     }
 
     @MainActor
@@ -415,15 +429,26 @@ final class WidgetContentTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: WidgetsPlacedCount.key))
     }
 
-    func testWidgetOpenedNamesTheWidgetAndTheTarget() {
+    func testWidgetOpenedNamesTheWidgetTheTargetAndTheShow() {
         XCTAssertEqual(
-            AnalyticsEvent.widgetOpened(.nextTrain, opensTrip: true).properties, ["widget": .string("next_train"), "target": .string("trip")]
+            AnalyticsEvent.widgetOpened(.nextTrain, target: .trip, mode: .myTrains).properties,
+            ["widget": .string("next_train"), "target": .string("trip"), "mode": .string("my_trains")]
         )
         XCTAssertEqual(
-            AnalyticsEvent.widgetOpened(.departures, opensTrip: false).properties,
-            ["widget": .string("departures"), "target": .string("route")]
+            AnalyticsEvent.widgetOpened(.departures, target: .route, mode: .route).properties,
+            ["widget": .string("departures"), "target": .string("route"), "mode": .string("route")]
         )
-        XCTAssertEqual(AnalyticsEvent.widgetOpened(.departures, opensTrip: false).name, "widget_opened")
+        XCTAssertEqual(AnalyticsEvent.widgetOpened(.departures, target: .alerts, mode: .myTrains).properties["target"], .string("alerts"))
+        XCTAssertEqual(AnalyticsEvent.widgetOpened(.departures, target: .route, mode: .route).name, "widget_opened")
+    }
+
+    /// My trains' Departures opens the Alerts tab outside its trains.
+    func testTheAlertsLinkOpensTheAlertsTab() throws {
+        let link = WidgetLink.tagged(WidgetLink.alerts(), from: .departures, mode: .myTrains)
+        let opened = try XCTUnwrap(NotificationLink(url: link, today: WidgetFixtures.day))
+        XCTAssertEqual(opened, .alerts)
+        XCTAssertEqual(opened.target(today: WidgetFixtures.day), .alerts)
+        XCTAssertFalse(opened.hasStations)
     }
 }
 

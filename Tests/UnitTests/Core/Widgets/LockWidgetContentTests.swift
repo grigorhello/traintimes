@@ -317,7 +317,7 @@ final class LockWidgetContentTests: XCTestCase {
         let link = LockCircularContent(WidgetFixtures.nextTrain()).link
         XCTAssertEqual(WidgetLink.widget(of: link), .lockCircular)
         XCTAssertEqual(NotificationLink(url: link, today: WidgetFixtures.day), .route(originId: "OA", destinationId: "UN"))
-        XCTAssertEqual(link.absoluteString, "traintimes://route?destinationId=UN&originId=OA&source=widget&widget=lock_circular")
+        XCTAssertEqual(link.absoluteString, "traintimes://route?destinationId=UN&mode=route&originId=OA&source=widget&widget=lock_circular")
     }
 
     // MARK: - Analytics
@@ -334,7 +334,8 @@ final class LockWidgetContentTests: XCTestCase {
         XCTAssertEqual(WidgetKind.lockInline.rawValue, "lock_inline")
         XCTAssertEqual(WidgetKind.allCases.filter(\.isOnLockScreen).map(\.kind), ["NextTrain", "NextTrain", "NextTrain"])
         XCTAssertEqual(
-            AnalyticsEvent.widgetOpened(.lockInline, opensTrip: false).properties, ["widget": .string("lock_inline"), "target": .string("route")]
+            AnalyticsEvent.widgetOpened(.lockInline, target: .route, mode: .route).properties,
+            ["widget": .string("lock_inline"), "target": .string("route"), "mode": .string("route")]
         )
     }
 
@@ -343,17 +344,20 @@ final class LockWidgetContentTests: XCTestCase {
         let recorder = RecordingAnalytics.install()
         defer { Analytics.tracker = nil }
         let defaults = UserDefaults.ephemeral()
-        // A build before the Lock Screen sizes stored the Home Screen's two counts: the same widgets send nothing new.
+        // A build before the Lock Screen sizes stored the Home Screen's two counts; the Show counts are new (TT-257), so the
+        // same widgets send once.
         defaults.set("1,0", forKey: WidgetsPlacedCount.key)
         let count = WidgetsPlacedCount(defaults: defaults)
         let small = PlacedWidget(kind: .nextTrain, route: nil)
         count.report([small])
-        XCTAssertEqual(recorder.events, [])
+        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 1, departures: 0, lock: 0, myTrains: 1, route: 0)])
 
         count.report([small, PlacedWidget(kind: .lockCircular, route: nil), PlacedWidget(kind: .lockInline, route: nil)])
-        XCTAssertEqual(recorder.events, [.widgetsPlaced(nextTrain: 1, departures: 0, lock: 2)])
-        XCTAssertEqual(recorder.events.last?.properties, ["next_train": .int(1), "departures": .int(0), "lock": .int(2)])
+        XCTAssertEqual(recorder.events.last, .widgetsPlaced(nextTrain: 1, departures: 0, lock: 2, myTrains: 3, route: 0))
+        XCTAssertEqual(recorder.events.last?.properties, [
+            "next_train": .int(1), "departures": .int(0), "lock": .int(2), "my_trains": .int(3), "route": .int(0),
+        ])
         count.report([small, PlacedWidget(kind: .lockRectangular, route: nil), PlacedWidget(kind: .lockCircular, route: nil)])
-        XCTAssertEqual(recorder.events.count, 1)
+        XCTAssertEqual(recorder.events.count, 2)
     }
 }

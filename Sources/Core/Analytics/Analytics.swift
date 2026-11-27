@@ -328,16 +328,21 @@ extension AnalyticsEvent {
 
     static let directionsOpened = Self("directions_opened")
 
-    /// A tap on a widget opened the app (TT-183; the Lock Screen sizes, TT-184): which widget, and what it opened (`trip`
-    /// Trip details, `route` Schedule).
-    static func widgetOpened(_ widget: WidgetKind, opensTrip: Bool) -> Self {
-        Self("widget_opened", ["widget": .string(widget.rawValue), "target": .string(opensTrip ? "trip" : "route")])
+    /// A tap on a widget opened the app (TT-183; the Lock Screen sizes, TT-184): which widget, what it opened (`trip` Trip
+    /// details, `route` Schedule, `alerts` the Alerts tab) and the widget's Show (`mode`: `my_trains` or `route`, TT-257).
+    static func widgetOpened(_ widget: WidgetKind, target: WidgetOpenTarget, mode: WidgetMode) -> Self {
+        Self("widget_opened", [
+            "widget": .string(widget.rawValue), "target": .string(target.rawValue), "mode": .string(mode.rawValue),
+        ])
     }
 
-    /// The placed widgets, when their counts change (`WidgetsPlacedCount`): the Home Screen's two, and Next train's three
-    /// Lock Screen sizes together as `lock` (TT-184).
-    static func widgetsPlaced(nextTrain: Int, departures: Int, lock: Int) -> Self {
-        Self("widgets_placed", ["next_train": .int(nextTrain), "departures": .int(departures), "lock": .int(lock)])
+    /// The placed widgets, when their counts change (`WidgetsPlacedCount`): the Home Screen's two, Next train's three Lock
+    /// Screen sizes together as `lock` (TT-184), and how many of them all show My trains and A route (TT-257).
+    static func widgetsPlaced(nextTrain: Int, departures: Int, lock: Int, myTrains: Int, route: Int) -> Self {
+        Self("widgets_placed", [
+            "next_train": .int(nextTrain), "departures": .int(departures), "lock": .int(lock), "my_trains": .int(myTrains),
+            "route": .int(route),
+        ])
     }
 
     static func feedbackSent(_ kind: FeedbackKind, withEmail: Bool) -> Self {
@@ -365,4 +370,9 @@ extension AnalyticsEvent {
     static func settingChanged(_ setting: String, value: String) -> Self {
         Self("setting_changed", ["setting": .string(setting), "value": .string(value)])
     }
+}
+
+/// What a widget's tap opened (`widget_opened`, TT-183, TT-257).
+enum WidgetOpenTarget: String, Sendable {
+    case trip, route, alerts
 }

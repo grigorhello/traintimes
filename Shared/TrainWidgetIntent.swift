@@ -1,17 +1,24 @@
 import AppIntents
 import Foundation
 
-/// Edit widget (TT-183, D101; board Widgets-Edit): From, To and "Turn around at 12 PM", one intent for Next train and
-/// Departures. In `Shared/` so the app reads each placed widget's stations from WidgetKit (`SystemPlacedWidgets`).
+/// Edit widget (TT-183, D101; TT-257, D131, board "Commute first" 8): Show, My trains or A route, and for A route From, To
+/// and "Turn around at 12 PM"; one intent for Next train, Departures and the Lock Screen sizes. In `Shared/` so the app
+/// reads each placed widget's choice from WidgetKit (`SystemPlacedWidgets`).
 struct TrainWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "widget.edit.title"
+    static var description: IntentDescription { IntentDescription("widget.edit.description") }
     /// Edit widget only: not an action in Shortcuts or Spotlight.
     static let isDiscoverable = false
 
-    @Parameter(title: "widget.edit.from", query: FromStationQuery())
+    /// My trains for every widget, a placed one never edited included (iOS stores no optional default, D131); A route
+    /// brings back From and To.
+    @Parameter(title: "widget.edit.show", default: .myTrains)
+    var show: WidgetShow
+
+    @Parameter(title: "widget.edit.from")
     var from: StationEntity?
 
-    @Parameter(title: "widget.edit.to", query: ToStationQuery())
+    @Parameter(title: "widget.edit.to")
     var to: StationEntity?
 
     @Parameter(title: "widget.edit.turn_around", description: "widget.edit.turn_around.description", default: true)
@@ -19,10 +26,48 @@ struct TrainWidgetIntent: WidgetConfigurationIntent {
 
     init() {}
 
-    /// The widget's own route; with no From or no To it follows the route open in the app.
+    /// From, To and Turn around only under A route.
+    static var parameterSummary: some ParameterSummary {
+        When(\.$show, .equalTo, .route) {
+            Summary {
+                \.$show
+                \.$from
+                \.$to
+                \.$turnsAround
+            }
+        } otherwise: {
+            Summary {
+                \.$show
+            }
+        }
+    }
+
+    var mode: WidgetMode { show.mode }
+
+    /// A route's own stations; with no From or no To it follows the route open in the app, as My trains does with no saved
+    /// train.
     var route: WidgetFile.RouteKey? {
-        guard let from, let to, from.id != to.id else { return nil }
+        guard show == .route, let from, let to, from.id != to.id else { return nil }
         return WidgetFile.RouteKey(fromId: from.id, toId: to.id)
+    }
+}
+
+/// Edit widget's Show.
+enum WidgetShow: String, AppEnum, CaseIterable {
+    case myTrains = "my_trains"
+    case route
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation { TypeDisplayRepresentation(name: "widget.edit.show") }
+
+    static var caseDisplayRepresentations: [WidgetShow: DisplayRepresentation] {
+        [.myTrains: DisplayRepresentation(title: "widget.edit.my_trains"), .route: DisplayRepresentation(title: "widget.edit.a_route")]
+    }
+
+    var mode: WidgetMode {
+        switch self {
+        case .myTrains: .myTrains
+        case .route: .route
+        }
     }
 }
 
@@ -60,45 +105,6 @@ struct StationQuery: EntityStringQuery {
     }
 }
 
-/// From's stations. A new widget starts on the route open in the app, in its morning way (before 12 PM the route as
-/// shown, after it the reverse), and keeps that pair from then on.
-struct FromStationQuery: EntityStringQuery {
-    func entities(for identifiers: [String]) async throws -> [StationEntity] {
-        WidgetStations.current.stops(for: identifiers).map(StationEntity.init)
-    }
-
-    func entities(matching string: String) async throws -> [StationEntity] {
-        WidgetStations.current.matching(string).map(StationEntity.init)
-    }
-
-    func suggestedEntities() async throws -> [StationEntity] {
-        WidgetStations.current.suggested.map(StationEntity.init)
-    }
-
-    func defaultResult() async -> StationEntity? {
-        WidgetStations.current.defaultFrom.map(StationEntity.init)
-    }
-}
-
-/// To's stations; a new widget's To is the open route's other end.
-struct ToStationQuery: EntityStringQuery {
-    func entities(for identifiers: [String]) async throws -> [StationEntity] {
-        WidgetStations.current.stops(for: identifiers).map(StationEntity.init)
-    }
-
-    func entities(matching string: String) async throws -> [StationEntity] {
-        WidgetStations.current.matching(string).map(StationEntity.init)
-    }
-
-    func suggestedEntities() async throws -> [StationEntity] {
-        WidgetStations.current.suggested.map(StationEntity.init)
-    }
-
-    func defaultResult() async -> StationEntity? {
-        WidgetStations.current.defaultTo.map(StationEntity.init)
-    }
-}
-
 /// The station lists behind Edit widget, from the widget file (TT-182), apart from App Intents so they are unit tested.
 struct WidgetStations: Sendable {
     let file: WidgetFile?
@@ -125,14 +131,5 @@ struct WidgetStations: Sendable {
     func stops(for ids: [String]) -> [WidgetFile.Stop] {
         guard let file else { return [] }
         return ids.compactMap { id in file.stations.first { $0.id == id } }
-    }
-
-    /// A new widget's From and To: the route open in the app, in its morning way.
-    var defaultFrom: WidgetFile.Stop? {
-        file?.openRoute.flatMap { stops(for: [$0.fromId]).first }
-    }
-
-    var defaultTo: WidgetFile.Stop? {
-        file?.openRoute.flatMap { stops(for: [$0.toId]).first }
     }
 }

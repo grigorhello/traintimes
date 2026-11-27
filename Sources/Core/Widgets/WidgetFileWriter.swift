@@ -16,8 +16,9 @@ struct NoWidgetRoutes: WidgetRoutesProviding {
     func routes() async -> [Route] { [] }
 }
 
-/// Writes the widget file into the App Group container (TT-182, D107): the open route and each widget's route both ways for
-/// 14 service days (or to the feed's end), the alerted trains, the Repeat alerts' usual times, the Time format and the
+/// Writes the widget file into the App Group container (TT-182, D107): the open route, each widget's route and each
+/// switched-on alert's route (TT-257, D131) both ways for 14 service days (or to the feed's end), the alerted trains with
+/// their alerts, the Repeat alerts' usual times, the Time format and the
 /// stations. It reads the real schedule and the device clock, never Settings › Testing (Demo trains, Mock time), and fixture
 /// runs make none. The widgets reload only when the bytes change.
 ///
@@ -119,8 +120,10 @@ final class WidgetFileWriter {
         let days = firstDay <= lastDay ? (0...firstDay.days(to: lastDay)).map { firstDay.adding(days: $0) } : []
 
         let placed = try await widgetRoutes.routes()
+        let allStations = try await stations.stations()
+        let saved = await alertRoutes(stations: allStations, today: firstDay)
         var routes: [Route] = []
-        for route in [open].compactMap({ $0 }) + placed where !routes.contains(where: { $0.joinsSameStations(as: route) }) {
+        for route in [open].compactMap({ $0 }) + placed + saved where !routes.contains(where: { $0.joinsSameStations(as: route) }) {
             routes.append(route)
         }
         var timetables: [WidgetFile.Timetable] = []
@@ -146,10 +149,9 @@ final class WidgetFileWriter {
         for id in recents.routes.flatMap({ [$0.from.id, $0.to.id] }) where !yourStationIds.contains(id) {
             yourStationIds.append(id)
         }
-        let allStations = try await stations.stations().map { WidgetFile.Stop($0) }
         return WidgetFile(
             firstDay: firstDay, lastDay: lastDay, openRoute: morning, routes: timetables, usualTimes: usualTimes,
-            timeFormat: settings.timeFormat, stations: allStations, yourStationIds: yourStationIds
+            timeFormat: settings.timeFormat, stations: allStations.map { WidgetFile.Stop($0) }, yourStationIds: yourStationIds
         )
     }
 
@@ -166,16 +168,32 @@ final class WidgetFileWriter {
         return taken
     }
 
+    /// The routes of the switched-on alerts that still apply (TT-257, D131): My trains shows their trains whatever route is
+    /// open, so the file carries their timetables. A station the feed no longer lists leaves its alert out.
+    private func alertRoutes(stations all: [Station], today: ServiceDay) async -> [Route] {
+        var routes: [Route] = []
+        for rule in rules.rules where !rule.paused && rule.isCurrent(on: today) {
+            guard let from = all.first(where: { $0.id == rule.origin.id }), let to = all.first(where: { $0.id == rule.destination.id }),
+                  let route = try? await stations.route(from: from, to: to) else { continue }
+            // The alert covers its trains on its own line (D70), so the route carries it.
+            let line = route.line?.id == rule.line ? route.line : GONetwork.line(rule.line)?.line ?? route.line
+            routes.append(Route(from: route.from, to: route.to, line: line))
+        }
+        return routes
+    }
+
     private func departures(_ route: Route, on days: [ServiceDay]) async throws -> [WidgetFile.Departure] {
         var departures: [WidgetFile.Departure] = []
         for day in days {
             let trips = try await repository.trips(for: route, on: day)
             for trip in trips {
+                // The switched-on alert behind the train (D70's one lookup): one alert is one saved train in My trains.
+                let alertId = rules.alert(for: trip, on: route).flatMap { $0.paused ? nil : $0.id }
                 departures.append(
                     WidgetFile.Departure(
                         tripId: trip.key.tripId, serviceDay: trip.key.serviceDay, departure: trip.scheduledDeparture,
                         arrival: trip.scheduledArrival, isExpress: trip.tags.contains(.express),
-                        isAlerted: rules.isAlerted(trip, on: route)
+                        isAlerted: alertId != nil, alertId: alertId
                     )
                 )
             }

@@ -2,11 +2,12 @@ import AppIntents
 import Foundation
 import WidgetKit
 
-/// One widget on the Home Screen, in StandBy or on the Lock Screen (TT-183, TT-184): which one, and its own route when
-/// Edit widget has a From and a To.
+/// One widget on the Home Screen, in StandBy or on the Lock Screen (TT-183, TT-184): which one, its own route when
+/// Edit widget shows A route with a From and a To, and its Show (TT-257, D131).
 struct PlacedWidget: Equatable, Sendable {
     let kind: WidgetKind
     let route: WidgetFile.RouteKey?
+    var mode: WidgetMode = .myTrains
 }
 
 extension WidgetKind {
@@ -35,7 +36,8 @@ struct SystemPlacedWidgets: PlacedWidgetsProviding {
             WidgetCenter.shared.getCurrentConfigurations { result in
                 let placed = (try? result.get())?.compactMap { info -> PlacedWidget? in
                     guard let kind = WidgetKind(kind: info.kind, family: info.family) else { return nil }
-                    return PlacedWidget(kind: kind, route: info.widgetConfigurationIntent(of: TrainWidgetIntent.self)?.route)
+                    let intent = info.widgetConfigurationIntent(of: TrainWidgetIntent.self)
+                    return PlacedWidget(kind: kind, route: intent?.route, mode: intent?.mode ?? .myTrains)
                 }
                 continuation.resume(returning: placed)
             }

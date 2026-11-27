@@ -15,7 +15,8 @@ struct WidgetFile: Codable, Equatable, Sendable {
     /// reversed after), kept by `DirectionStore` so a turn the app makes by itself leaves it (TT-234, D116); a widget with
     /// no route of its own shows it. Nil before the first route.
     var openRoute: RouteKey?
-    /// The open route and each placed widget's route, both ways, once per pair of stations.
+    /// The open route, each placed widget's route and each switched-on alert's route (TT-257, D131), both ways, once per
+    /// pair of stations.
     var routes: [Timetable]
     /// The usual times of the Repeat alerts that are switched on, for relevance only.
     var usualTimes: [UsualTime]
@@ -64,6 +65,19 @@ struct WidgetFile: Codable, Equatable, Sendable {
     }
 
     struct Departure: Codable, Hashable, Sendable {
+        init(
+            tripId: String, serviceDay: ServiceDay, departure: Date, arrival: Date, isExpress: Bool, isAlerted: Bool,
+            alertId: String? = nil
+        ) {
+            self.tripId = tripId
+            self.serviceDay = serviceDay
+            self.departure = departure
+            self.arrival = arrival
+            self.isExpress = isExpress
+            self.isAlerted = isAlerted
+            self.alertId = alertId
+        }
+
         var tripId: String
         var serviceDay: ServiceDay
         var departure: Date
@@ -71,6 +85,9 @@ struct WidgetFile: Codable, Equatable, Sendable {
         var isExpress: Bool
         /// An alert that is switched on covers the train (D70): the widget's bell, Your train and relevance.
         var isAlerted: Bool
+        /// That alert's id (TT-257, D131): one saved train is one alert, whatever its days, so My trains lists each once.
+        /// Nil when no switched-on alert covers the train, and in a file written before TT-257.
+        var alertId: String?
 
         var key: TripKey { TripKey(serviceDay: serviceDay, tripId: tripId) }
     }
@@ -110,6 +127,14 @@ struct WidgetFile: Codable, Equatable, Sendable {
     static var containerFileURL: URL? {
         AppGroup.containerURL?.appending(path: fileName)
     }
+}
+
+/// What a widget shows (TT-257, D131): Edit widget's Show. My trains, the default, lists the trains whose bell is on, on
+/// any route, and falls back to the route open in the app while there are none; A route shows Edit widget's From and To
+/// (or the open route) as before.
+enum WidgetMode: String, CaseIterable, Sendable {
+    case myTrains = "my_trains"
+    case route
 }
 
 /// The widgets by the names links and analytics use, and each one's WidgetKit kind: the Home Screen's two (TT-183) and
@@ -161,14 +186,30 @@ enum WidgetLink {
         url(host: "route", route.map { ["originId": $0.fromId, "destinationId": $0.toId] } ?? [:])
     }
 
-    /// The link as a widget opens it (TT-183): `source=widget&widget=next_train` beside its own items, so the app counts the
-    /// tap (`widget_opened`). `NotificationLink(url:today:)` ignores both.
-    static func tagged(_ url: URL, from widget: WidgetKind) -> URL {
+    /// The Alerts tab, where the saved trains are (TT-257, D131): a tap on a My trains widget outside its trains.
+    static func alerts() -> URL {
+        url(host: "alerts", [:])
+    }
+
+    /// The link as a widget opens it (TT-183): `source=widget&widget=next_train` beside its own items, and the widget's
+    /// Show (`mode=my_trains`, TT-257), so the app counts the tap (`widget_opened`). `NotificationLink(url:today:)` ignores
+    /// them.
+    static func tagged(_ url: URL, from widget: WidgetKind, mode: WidgetMode = .route) -> URL {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
-        var items = (components.queryItems ?? []).filter { $0.name != "source" && $0.name != "widget" }
-        items += [URLQueryItem(name: "source", value: "widget"), URLQueryItem(name: "widget", value: widget.rawValue)]
+        var items = (components.queryItems ?? []).filter { !["source", "widget", "mode"].contains($0.name) }
+        items += [
+            URLQueryItem(name: "source", value: "widget"), URLQueryItem(name: "widget", value: widget.rawValue),
+            URLQueryItem(name: "mode", value: mode.rawValue),
+        ]
         components.queryItems = items.sorted { $0.name < $1.name }
         return components.url ?? url
+    }
+
+    /// The Show of the widget a link was tapped on; nil for every other link and for a widget's link from before TT-257.
+    static func mode(of url: URL) -> WidgetMode? {
+        guard widget(of: url) != nil else { return nil }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        return items.first { $0.name == "mode" }?.value.flatMap(WidgetMode.init(rawValue:))
     }
 
     /// The widget a link was tapped on; nil for every other link.

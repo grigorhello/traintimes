@@ -26,11 +26,15 @@ final class WidgetExtensionTests: XCTestCase {
         let bundle = try appex
         let expected = [
             "widget.next.name": "Next train",
-            "widget.next.description": "Your next train and how long until it leaves.",
+            "widget.next.description": "Your next saved train and how long until it leaves.",
             "widget.departures.name": "Departures",
-            "widget.departures.description": "Your next trains and when they arrive.",
+            "widget.departures.description": "Your saved trains and when they arrive.",
             "widget.not_loaded.title": "Open Train Times once",
             "widget.not_loaded.body": "to load the timetable.",
+            "widget.edit.title": "My trains",
+            "widget.edit.show": "Show",
+            "widget.edit.my_trains": "My trains",
+            "widget.edit.a_route": "A route",
             "widget.edit.turn_around": "Turn around at 12 PM",
             "widget.edit.turn_around.description": "After 12 PM the widget shows the way back.",
         ]

@@ -38,6 +38,19 @@ struct LockWidgetTrain: Equatable, Sendable {
 }
 
 extension WidgetEntry {
+    /// My trains (TT-257, D131) in the 30 min before its first saved train: that train's Live Activity has it, so the Lock
+    /// Screen sizes show its direction's trains as A route does, the next train first. Nil otherwise.
+    var lockHandover: WidgetEntry? {
+        guard case .myTrains(let mine) = state, let handover = mine.handover else { return nil }
+        return WidgetEntry(date: date, state: .trains(handover), relevance: relevance, timeFormat: timeFormat, mode: mode)
+    }
+
+    /// My trains' first saved train, outside the 30 min before it.
+    var lockSaved: (mine: MyTrains, first: Saved)? {
+        guard lockHandover == nil, case .myTrains(let mine) = state, let first = mine.saved.first else { return nil }
+        return (mine, first)
+    }
+
     /// The Lock Screen's train: Your train until 30 min before it leaves, else the next train; nil with no train to show.
     var lockTrain: LockWidgetTrain? {
         guard case .trains(let trains) = state, let next = trains.trains.first else { return nil }
@@ -96,6 +109,14 @@ struct LockRectangularContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
+        if let handover = entry.lockHandover {
+            self = LockRectangularContent(handover)
+            return
+        }
+        if let (mine, first) = entry.lockSaved {
+            self = LockRectangularContent(mine: mine, first: first, entry: entry, formatter: formatter)
+            return
+        }
         link = entry.routeLink(from: .lockRectangular)
         let names = entry.header.map(WidgetHeaderContent.init)
         if let shown = entry.lockTrain, let names {
@@ -120,9 +141,39 @@ struct LockRectangularContent: Equatable, Sendable {
             body = .noTrains(
                 NoTrains(from: names?.from ?? "", to: names?.to ?? "", when: String(localized: "widget.lock.today"), note: message.detail)
             )
-        case .notLoaded, .noRoute, .outOfDate, .trains:
+        case .notLoaded, .noRoute, .outOfDate, .trains, .myTrains:
             body = .message(message)
         }
+    }
+
+    /// My trains (TT-257, D131): the bell and "Your train · Union" over the next saved train, its minutes from 2 h before
+    /// (else its day: "Today", "Tomorrow", "Mon"), then the saved train after it that day; with one saved train, the train
+    /// after it on its route. A tap opens its Trip details.
+    private init(mine: WidgetEntry.MyTrains, first: WidgetEntry.Saved, entry: WidgetEntry, formatter: TimeFormatter) {
+        link = entry.tagged(first.train.link, from: .lockRectangular)
+        let lead: String = switch WidgetWhen(first.train, at: entry.date, fullWeekday: false) {
+        case .now: String(localized: "widget.now")
+        case .countdown(let minutes): String(format: String(localized: "widget.lock.in"), minutes)
+        case .day(let day): day
+        }
+        var tail: WidgetText?
+        var thenIsAlerted = false
+        if let then = mine.saved.dropFirst().first {
+            if then.train.key.serviceDay == first.train.key.serviceDay {
+                tail = WidgetText(format: String(localized: "widget.lock.then"), strong: formatter.railTime(then.train.departure))
+                thenIsAlerted = true
+            }
+        } else if let next = first.after.first {
+            tail = WidgetText(format: String(localized: "widget.lock.then"), strong: formatter.railTime(next.departure))
+        }
+        let note = tail.map { WidgetText(pieces: [WidgetText.Piece(text: lead + " · ", isStrong: false)] + $0.pieces) } ?? WidgetText(lead)
+        body = .train(
+            Train(
+                header: .yourTrain(to: StationNames.short(first.header.to.name)),
+                time: WidgetClock(first.train.departure, formatter: formatter), isExpress: first.train.isExpress, note: note,
+                lead: WidgetText(lead), thenIsAlerted: thenIsAlerted
+            )
+        )
     }
 
     /// The third row: the countdown ("now" in the last minute, "Last train" before it from 10 PM), then the train after
@@ -176,6 +227,14 @@ struct LockCircularContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
+        if let handover = entry.lockHandover {
+            self = LockCircularContent(handover)
+            return
+        }
+        if let (_, first) = entry.lockSaved {
+            self = LockCircularContent(saved: first.train, entry: entry, formatter: formatter)
+            return
+        }
         link = entry.routeLink(from: .lockCircular)
         guard let shown = entry.lockTrain else {
             glyph = .train
@@ -185,7 +244,7 @@ struct LockCircularContent: Equatable, Sendable {
             switch entry.state {
             case .noMoreTrainsTonight(_, _, let next), .noTrainsToday(_, let next):
                 value = next.map { formatter.railTime($0.departure) }
-            case .notLoaded, .noRoute, .outOfDate, .trains:
+            case .notLoaded, .noRoute, .outOfDate, .trains, .myTrains:
                 value = nil
             }
             return
@@ -208,6 +267,30 @@ struct LockCircularContent: Equatable, Sendable {
             ring = 1
         }
     }
+
+    /// My trains (TT-257, D131): the bell, and the next saved train's minutes from 59 min before or its clock time; the ring
+    /// only on its own service day. A tap opens its Trip details.
+    private init(saved train: WidgetEntry.Train, entry: WidgetEntry, formatter: TimeFormatter) {
+        link = entry.tagged(train.link, from: .lockCircular)
+        glyph = .bell
+        let departure = train.departure
+        let lead = departure.timeIntervalSince(entry.date)
+        let isToday = train.key.serviceDay == ServiceDay(containing: entry.date)
+        ringInterval = isToday ? departure.addingTimeInterval(-LockWidget.ringSpan)...departure : nil
+        if entry.isLeaving(train) {
+            value = String(localized: "widget.now")
+            caption = formatter.railTime(departure)
+            ring = 0
+        } else if lead <= LockWidget.minutesLead {
+            value = String(WidgetCountdown.wholeMinutes(from: entry.date, to: departure))
+            caption = String(localized: "widget.lock.min")
+            ring = min(1, lead / LockWidget.ringSpan)
+        } else {
+            value = formatter.railTime(departure)
+            caption = nil
+            ring = isToday ? 1 : nil
+        }
+    }
 }
 
 // MARK: - Inline
@@ -223,6 +306,21 @@ struct LockInlineContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
+        if let handover = entry.lockHandover {
+            self = LockInlineContent(handover)
+            return
+        }
+        if let (_, first) = entry.lockSaved {
+            // My trains (TT-257, D131): the bell and the next saved train, with its weekday when it is not today.
+            let time = formatter.time(first.train.departure)
+            let day = first.train.key.serviceDay
+            let when = day == ServiceDay(containing: entry.date) ? time : "\(day.weekdayShort) \(time)"
+            glyph = .bell
+            text = String(format: String(localized: "widget.lock.inline"), when, StationNames.short(first.header.to.name))
+            short = when
+            link = entry.tagged(first.train.link, from: .lockInline)
+            return
+        }
         link = entry.routeLink(from: .lockInline)
         if let shown = entry.lockTrain, let header = entry.header {
             let time = formatter.time(shown.train.departure)
@@ -238,7 +336,7 @@ struct LockInlineContent: Equatable, Sendable {
         switch entry.state {
         case .noMoreTrainsTonight, .noTrainsToday:
             text = message?.detail?.plain ?? title
-        case .notLoaded, .noRoute, .outOfDate, .trains:
+        case .notLoaded, .noRoute, .outOfDate, .trains, .myTrains:
             text = title
         }
     }

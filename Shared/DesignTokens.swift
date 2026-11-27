@@ -89,13 +89,12 @@ enum TTFont {
     static let stripMinutes = Font.system(size: 22, weight: .bold)                            // the minutes on Schedule's ride strip (TT-205)
     static let departLine = Font.system(size: 22, weight: .semibold)                          // "5:13 PM departs in" over the minutes (TT-205)
     static let lineCodeTiny = Font.system(size: 9, weight: .bold)                             // the code in the Next train widget's 20 pt tile (TT-183)
-    // The Home Screen widgets (TT-183). Departures uses three sizes only: 44, 28 and 15 pt.
-    static let widgetHero = Font.system(size: 44, weight: .bold)                              // Departures: the countdown
+    // The Home Screen widgets (TT-183; Departures as two rows, TT-257, D131).
     static let widgetTime = Font.system(size: 28, weight: .bold)                              // Departures: the departure time
-    static let widgetArrival = Font.system(size: 28, weight: .medium)                         // Departures: the arrival time
-    static let widgetLabel = Font.system(size: 15, weight: .medium)                           // Departures: "Arrives", "Next", message text
-    static let widgetStrong = Font.system(size: 15, weight: .semibold)                        // Departures: the route, the later times
+    static let widgetLabel = Font.system(size: 15, weight: .medium)                           // Departures: message text
+    static let widgetStrong = Font.system(size: 15, weight: .semibold)                        // Departures: the route, the minutes
     static let widgetTitle = Font.system(size: 28, weight: .semibold)                         // Departures: a message's first line
+    static let widgetRowArrival = Font.system(size: 20, weight: .medium)                      // Departures' rows: the arrival time (TT-257)
     static let widgetPeriod = Font.system(size: 19, weight: .semibold)                        // Next train: "AM" beside the 34 pt time
     static let widgetCountdown = Font.system(size: 16, weight: .semibold)                     // Next train: "in 11 min"
     static let widgetTo = Font.system(size: 14, weight: .regular)                             // Next train: "to"

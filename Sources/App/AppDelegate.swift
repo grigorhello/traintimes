@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             check.follow(engine)
             engine.fixTap = { [weak check] fix in check?.receive(fix) }
             autoRide?.fixTap = { [weak check] fix in check?.receive(fix) }
+            check.locationHeld = { [weak self] in self?.autoRide?.holdsLocation ?? false }
             engine.holdsEnding = { [weak check, weak engine] reason in
                 reason == .leftTheLine && (check?.holdsLeftTheLine(of: engine?.ride) ?? false)
             }

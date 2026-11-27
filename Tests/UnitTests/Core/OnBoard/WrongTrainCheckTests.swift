@@ -198,6 +198,86 @@ final class WrongTrainCheckTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(rig.clock.now, rig.time(WrongTrainCheck.leftAfter))
     }
 
+    func testAnAlertsCheckWithNoFixYetWaitsBeforeItCloses() async {
+        // Opened at L + 5 min with no fix yet: the updates get 2 min to start before "not at O" closes it.
+        let rig = CheckRig(at: 300, candidates: [World.westbound()])
+        await rig.armWatch()
+        await rig.check.look()
+        XCTAssertEqual(rig.check.checked, rig.ride)
+        rig.at(419)
+        await rig.check.look()
+        XCTAssertEqual(rig.check.checked, rig.ride)
+        rig.at(420)
+        await rig.check.look()
+        XCTAssertNil(rig.check.checked)
+        XCTAssertEqual(rig.check.lastCheck?.outcome, .stayed)
+        XCTAssertEqual(rig.check.lastCheck?.why, .limit)
+    }
+
+    func testAYesAfterTheTrainLeftIsNotClosedByTheStationRule() async {
+        // "On board?" answered Yes at L + 10 min on T, 3 km past O: a ride's check is left to its ride.
+        let rig = CheckRig(at: 600, candidates: [World.westbound()])
+        rig.rideRunning = true
+        rig.check.rideUpdated(rig.ride, source: .departure, plan: rig.plan, phase: .riding)
+        await rig.settle()
+        XCTAssertEqual(rig.check.source, .departure)
+        rig.phone(at: rig.point("T", 3_000))
+        await rig.check.look()
+        rig.at(900)
+        rig.phone(at: rig.point("T", 3_000))
+        await rig.check.look()
+        XCTAssertEqual(rig.check.checked, rig.ride)
+    }
+
+    func testATrainRunningIntoTheStationNeverStartsTheMovementLimits() async {
+        // The phone comes into O on a train at 25 m/s before T's time (a rider changing trains): no first moving fix, so
+        // neither the fast feed nor the 3 min limit.
+        let rig = CheckRig(at: -800, candidates: [World.westbound(after: 600)])
+        await rig.armWatch()
+        await rig.play(from: -800, to: -500, phone: { [unowned rig] s in rig.point("T", -25 * max(0, -600 - s)) })
+        XCTAssertEqual(rig.check.checked, rig.ride)
+        let fast = await rig.positions.fastReads
+        XCTAssertEqual(fast, 0)
+    }
+
+    func testATappedRideStopsTheUpdatesTheCheckRanOnTheClosedTier() async {
+        // The watch armed with the app closed (its own reader) and finished at the station: the check ran that reader.
+        let rig = CheckRig(candidates: [World.westbound(after: 600)])
+        let closed = FakeLocation(authorized: true)
+        closed.startUpdates { _ in }
+        rig.check.watchArmed(rig.ride, plan: rig.plan, departure: World.departure, reader: closed)
+        await rig.settle()
+        rig.check.watchEnded(rig.ride, outcome: .notOnBoard)
+        XCTAssertTrue(closed.isUpdating)
+        // A Yes starts the ride on the shared reader: the closed tier's stops.
+        rig.rideRunning = true
+        rig.check.rideUpdated(rig.ride, source: .departure, plan: rig.plan, phase: .riding)
+        XCTAssertFalse(closed.isUpdating)
+        XCTAssertEqual(rig.check.source, .departure)
+    }
+
+    func testItLeavesTheUpdatesRunningWhileTheWatchOwesReports() async {
+        let rig = CheckRig(at: 300, candidates: [World.westbound()])
+        let trip = Trip(
+            key: rig.ride.tripKey, scheduledDeparture: World.departure, scheduledArrival: rig.time(480), platform: .pending,
+            tags: []
+        )
+        let route = Route(from: Station(id: "O", name: "O"), to: Station(id: "D", name: "D"), line: nil)
+        rig.alerted = [AutoRideTrain(
+            candidate: AutoRideWatch.Candidate(route: route, trip: trip, departure: World.departure, arrival: rig.time(480)),
+            plan: rig.plan
+        )]
+        rig.check.locationHeld = { true }
+        await rig.check.consider()
+        await rig.settle()
+        XCTAssertTrue(rig.location.isUpdating)
+        rig.phone(at: rig.point("T", 0))
+        rig.at(310)
+        rig.phone(at: rig.point("T", 0, north: 500))
+        XCTAssertNil(rig.check.checked)
+        XCTAssertTrue(rig.location.isUpdating, "The watch stops them once its reports went")
+    }
+
     // MARK: Closing
 
     func testWithTheTrainClosesItAndWithdrawsAWarningThatWasUp() async throws {
@@ -236,6 +316,18 @@ final class WrongTrainCheckTests: XCTestCase {
         XCTAssertNil(rig.check.checked)
         XCTAssertEqual(rig.check.lastCheck?.outcome, .warned)
         XCTAssertEqual(rig.check.lastCheck?.reason, .wrongWay)
+    }
+
+    func testIAmFineFromTheCardClosesItAsWarned() async {
+        // "I’m fine" on the card stores the answer and ends the warning: the check closes as warned, not on the gate.
+        let rig = CheckRig(candidates: [World.westbound(after: -300), World.express(after: 900)])
+        await rig.armWatch()
+        await wrongWay(rig)
+        WrongTrainStore(defaults: rig.defaults).storeFine(rig.ride)
+        rig.presenter.answer()
+        await rig.check.look()
+        XCTAssertNil(rig.check.checked)
+        XCTAssertEqual(rig.check.lastCheck?.outcome, .warned)
     }
 
     func testCheckedOncePerTrainAndDay() async {

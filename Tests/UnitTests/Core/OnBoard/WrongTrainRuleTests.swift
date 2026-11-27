@@ -265,6 +265,27 @@ final class WrongTrainRuleTests: XCTestCase {
         XCTAssertGreaterThan(World.moving(Double(result?.second ?? 0), from: 0), 800 + 250)
     }
 
+    func testALateTrainLeavingWithTDoesNotProveTMissing() throws {
+        // The express on T's track is timetabled 5 min before T, and T is missing from GO's positions. On time, T's
+        // absence proves the phone is not on it; running late and leaving 90 s before T's time, the two leave together
+        // and it proves nothing, as in `testTwoTrainsLeavingTogetherOnTheSameTrackWhileTIsQuiet`: the candidate is
+        // weighed at its fresh expected departure.
+        func run(late: Bool) throws -> WrongTrainRule.Verdict? {
+            var rig = try WrongRig(candidates: [World.express(after: -300)])
+            if late {
+                rig.rule.setStops(LiveStopsAhead(stops: [
+                    LiveStopsAhead.Stop(id: "O", time: World.departure.addingTimeInterval(-90)),
+                    LiveStopsAhead.Stop(id: "E3", time: World.departure.addingTimeInterval(600)),
+                ], isFresh: true), of: "EXPRESS")
+            }
+            rig.stops("EXPRESS", ["E3"])
+            let phone = leaving(rig, "EXPRESS", at: late ? -90 : -300)
+            return rig.run(from: -600, to: 400, phone: phone, trains: ["EXPRESS": phone])?.verdict
+        }
+        guard case .wrong = try run(late: false) else { return XCTFail("on time, T missing proves it") }
+        XCTAssertNil(try run(late: true))
+    }
+
     func testFollowingBeforeTheProofIsComplete() throws {
         var rig = try WrongRig(candidates: [World.westbound(after: -300)])
         rig.stops("WEST", ["W1", "W2"])

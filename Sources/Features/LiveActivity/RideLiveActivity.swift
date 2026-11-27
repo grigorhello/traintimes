@@ -48,6 +48,10 @@ final class RideLiveActivity: RideActivityFollowing {
     static let silenceLead: TimeInterval = 75
     /// A hand-off waits this long for the server's answer before the card turns into the ride (TT-242, D120).
     nonisolated static let handOffWait: Duration = .seconds(5)
+    /// A wrong train warning's hand-off the server did not take is sent again this often, up to `handOffRetries` times
+    /// (TT-251, D127): with no ride and the app in the background no pass comes to send it.
+    static let handOffRetryGap: Duration = .seconds(15)
+    static let handOffRetries = 40
 
     private let app: RideEngine?
     private var demo: RideEngine?
@@ -88,6 +92,8 @@ final class RideLiveActivity: RideActivityFollowing {
     /// A hand-off the server has not taken yet: sent again on each pass, or the server would end the ride's activity 2 min
     /// after the train left.
     private var pendingHandOff: LiveActivityReport?
+    /// Sends `pendingHandOff` again after a warning's hand-off failed (`retryHandOff()`).
+    private var handOffRetry: Task<Void, Never>?
     private var departureSentAt: Date?
     private var ticker: Task<Void, Never>?
     private var observesTokens = false
@@ -498,6 +504,20 @@ final class RideLiveActivity: RideActivityFollowing {
         if await !report(activity) { pendingHandOff = activity }
     }
 
+    /// A warning's hand-off (TT-251, D127): kept and sent again on its own every `handOffRetryGap`, since the passes that
+    /// send `pendingHandOff` come only with a ride or the app in front.
+    private func retryHandOff() {
+        guard handOffRetry == nil, pendingHandOff != nil else { return }
+        handOffRetry = Task { [weak self] in
+            for _ in 0..<Self.handOffRetries {
+                try? await Task.sleep(for: Self.handOffRetryGap)
+                guard !Task.isCancelled, let self, let pending = self.pendingHandOff else { break }
+                if await self.report(pending), self.pendingHandOff == pending { self.pendingHandOff = nil }
+            }
+            self?.handOffRetry = nil
+        }
+    }
+
     /// The hand-off's order (TT-242, D120): the server hears it first, its answer awaited for at most `wait`, and only then
     /// does the card turn into the ride (`update`). True when the server had it in time; the caller keeps one that did not
     /// come back and sends it again on each pass, as a failed one.
@@ -784,11 +804,16 @@ extension RideLiveActivity: WrongTrainShowing {
             return true
         }
         guard let departure else {
+            // No card: the notification goes at once, the hand-off on its own.
             if wrongHandedOff.insert(ride).inserted {
-                await handOff(LiveActivityReport(
+                let report = LiveActivityReport(
                     tripId: ride.tripId, serviceDate: String(ride.serviceDate), originId: ride.originId,
                     destinationId: ride.destinationId, handedOff: true
-                ))
+                )
+                Task {
+                    await self.handOff(report)
+                    self.retryHandOff()
+                }
             }
             return false
         }
@@ -802,7 +827,10 @@ extension RideLiveActivity: WrongTrainShowing {
         if wrongHandedOff.insert(ride).inserted {
             let report = LiveActivityReport(departure.attributes, handedOff: true)
             let reached = await Self.handOff(report: { await self.report(report) }, wait: Self.handOffWait, then: update)
-            if !reached { pendingHandOff = report }
+            if !reached {
+                pendingHandOff = report
+                retryHandOff()
+            }
         } else {
             await update()
         }

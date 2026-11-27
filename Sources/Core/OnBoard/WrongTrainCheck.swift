@@ -153,6 +153,8 @@ final class WrongTrainCheck: WrongTrainChecking {
         var following: Date?
         var warned: WrongTrainWarning?
         var lastGoodFix: Date?
+        /// The last good fix's distance from O, so the first moving fix is one moving away from O.
+        var lastFromOrigin: Double?
         var lastRestart: Date?
         let openedAt: Date
     }
@@ -169,6 +171,9 @@ final class WrongTrainCheck: WrongTrainChecking {
     @ObservationIgnored private var isLooking = false
     /// Each check gets a number, so a look that outlives its check changes nothing.
     @ObservationIgnored private var generation = 0
+    /// The automatic ride's watch still owes the server a report (D120 keeps location for it): a closing check leaves
+    /// the updates running and the watch stops them once the report went. Set by `AppDelegate`.
+    @ObservationIgnored var locationHeld: (@MainActor () -> Bool)?
 
     private let presenter: any WrongTrainRaising
     private let location: any LocationProviding
@@ -257,6 +262,7 @@ final class WrongTrainCheck: WrongTrainChecking {
     func watchArmed(_ ride: Ride, plan: RidePlan, departure: Date, reader: any LocationProviding) {
         watchIsArmed = true
         if var current = open, current.ride == ride {
+            release(current, for: reader)
             current.reader = reader
             current.ownsUpdates = false
             open = current
@@ -318,11 +324,17 @@ final class WrongTrainCheck: WrongTrainChecking {
     }
 
     private func rideStarted(_ ride: Ride, source: RideStartSource?, plan: RidePlan?) {
-        if var current = open { current.ownsUpdates = false; open = current }
         let tapped: WrongTrainSource? = switch source {
         case .onBoard: .onBoard
         case .departure: .departure
         default: nil
+        }
+        if var current = open {
+            // The ride has the updates now. A tapped ride runs on the shared reader, so one the check ran itself (the
+            // closed tier's) stops; an automatic start may keep the closed tier's, which is left alone.
+            if tapped != nil { release(current, for: location) }
+            current.ownsUpdates = false
+            open = current
         }
         guard let tapped else {
             // A ride that started by itself proved T; any other ride ends a check on another train.
@@ -385,6 +397,12 @@ final class WrongTrainCheck: WrongTrainChecking {
         current.reader.startUpdates { [weak self] fix in self?.receive(fix) }
     }
 
+    /// Updates the check started on another reader than the one taking over stop: nothing else would.
+    private func release(_ current: Open, for reader: any LocationProviding) {
+        guard current.ownsUpdates, (current.reader as AnyObject) !== (reader as AnyObject) else { return }
+        current.reader.stopUpdates()
+    }
+
     private func passesGates(_ ride: Ride, source: WrongTrainSource, reader: any LocationProviding) -> Bool {
         guard reader.isAuthorized, reader.isPrecise, !store.isFine(ride), !isTesting() else { return false }
         if source == .alert, !rideRuns() {
@@ -405,7 +423,10 @@ final class WrongTrainCheck: WrongTrainChecking {
         }
         current.lastGoodFix = last.at
         let leaving = last.fromOrigin >= Self.stationRadius
-        if current.firstMove == nil, leaving, last.onTrack, let speed = last.speed, speed >= AutoRideRule.leaveSpeed {
+        let away = current.lastFromOrigin.map { last.fromOrigin > $0 } ?? false
+        current.lastFromOrigin = last.fromOrigin
+        if current.firstMove == nil, leaving, away, last.onTrack, let speed = last.speed, speed >= AutoRideRule.leaveSpeed,
+           hasLeftOrigin(current, at: last.at) {
             current.firstMove = last.at
         }
         open = current
@@ -414,6 +435,18 @@ final class WrongTrainCheck: WrongTrainChecking {
             let notATrain = !last.onTrack || (last.speed.map { $0 < AutoRideRule.leaveSpeed } ?? false)
             if notATrain { close(.stayed, why: .walkedAway) }
         }
+    }
+
+    /// The first moving fix counts only once the phone has left O by train: from L − 15 min, after it was seen at O
+    /// (as Y1), and at a covered station (where the roof hides the platform) or on a ride started after T left (where
+    /// the tap stands in) by the time alone. A train running into O or a car on the way to it never starts the movement
+    /// limits.
+    private func hasLeftOrigin(_ check: Open, at moment: Date) -> Bool {
+        let from = check.departure.addingTimeInterval(-AutoRideRule.stationLead)
+        guard moment >= from else { return false }
+        if check.rule.tie == .rideAfterLeft || AutoRideRule.coveredStations.contains(check.ride.originId) { return true }
+        guard let seen = check.rule.seenAtStation(now: clock.now) else { return false }
+        return seen >= from
     }
 
     // MARK: Looks
@@ -439,13 +472,13 @@ final class WrongTrainCheck: WrongTrainChecking {
         defer { isLooking = false }
         let generation = generation
         let ride = started.ride
-        guard passesGates(ride, source: started.source, reader: started.reader) else {
-            close(nil)
-            return
-        }
-        // A warning it raised ended (an answer, its expiry): the check is done.
+        // A warning it raised ended (an answer, its expiry): the check is done. Before the gates, since "I’m fine" is one.
         if started.warned != nil, presenter.warning?.ride != ride {
             close(.warned)
+            return
+        }
+        guard passesGates(ride, source: started.source, reader: started.reader) else {
+            close(nil)
             return
         }
         let fast = started.warned == nil && started.firstMove.map {
@@ -511,17 +544,23 @@ final class WrongTrainCheck: WrongTrainChecking {
     }
 
     /// Which limit closes a check that raised nothing, if one has come. T reaching D closes a ride's check (its engine says
-    /// so); an alert's stays at the station up to L + 30 min, as the missed train needs, T's arrival or not.
+    /// so); an alert's stays at the station up to L + 30 min, as the missed train needs, T's arrival or not. Only an alert's
+    /// check closes once T is due to have left and the phone is not at O; a ride's runs from its tap (a Yes after T left
+    /// is one) and ends with its ride or the movement limits. No good fix yet is not "not at O": the updates get
+    /// `leftAfter` from the moment that rule applies, or from the opening, to start.
     private func limit(_ check: Open, now: Date) -> WrongTrainCheckResult.Why? {
         if let firstMove = check.firstMove {
             let span = check.following == nil ? Self.movingSpan : Self.followingSpan
             return now >= firstMove.addingTimeInterval(span) ? .limit : nil
         }
-        if now >= check.departure.addingTimeInterval(Self.stationTail) { return .limit }
-        guard now >= check.departure.addingTimeInterval(Self.leftAfter) else { return nil }
-        // T is due to have left: the check stays only while the phone is still at O.
-        guard let last = check.rule.lastFix(), last.fromOrigin < Self.stationRadius else { return .limit }
-        return nil
+        let isAlert = check.rule.tie == .alert
+        let tailFrom = isAlert ? check.departure : max(check.departure, check.openedAt)
+        if now >= tailFrom.addingTimeInterval(Self.stationTail) { return .limit }
+        let leftAt = check.departure.addingTimeInterval(Self.leftAfter)
+        guard isAlert, now >= leftAt else { return nil }
+        // T is due to have left: an alert's check stays only while the phone is still at O.
+        if let last = check.rule.lastFix() { return last.fromOrigin < Self.stationRadius ? nil : .limit }
+        return now >= max(leftAt, check.openedAt).addingTimeInterval(Self.leftAfter) ? .limit : nil
     }
 
     /// iOS pauses updates for a phone it takes to be at rest, a smooth train among them (TT-220): once T is due to have
@@ -617,6 +656,6 @@ final class WrongTrainCheck: WrongTrainChecking {
         } else {
             closedSilently.insert(closed.ride)
         }
-        if closed.ownsUpdates, !rideRuns(), !watchIsArmed { closed.reader.stopUpdates() }
+        if closed.ownsUpdates, !rideRuns(), !watchIsArmed, !(locationHeld?() ?? false) { closed.reader.stopUpdates() }
     }
 }

@@ -148,6 +148,9 @@ struct WrongTrainRule {
     private var candidates: [WrongTrainCandidate] = []
     private var sightings: [String: [Sighting]] = [:]
     private var stops: [String: LiveStopsAhead] = [:]
+    /// Each candidate's expected departure from O as its fresh TripUpdate last gave it (kept once O drops out of the
+    /// stops ahead): a late train is weighed at its real time, not its scheduled one.
+    private var liveDepartures: [String: Date] = [:]
     /// The nearest station of T's line behind O on T's track, the wrong way by the track's next station.
     let behind: Station?
 
@@ -200,6 +203,14 @@ struct WrongTrainRule {
     /// The live feed's stops ahead for a trip, T's or a candidate's; nil when the feed has none.
     mutating func setStops(_ live: LiveStopsAhead?, of tripId: String) {
         stops[tripId] = live
+        if let live, live.isFresh, let time = live.stops.first(where: { $0.id == ride.originId })?.time {
+            liveDepartures[tripId] = time
+        }
+    }
+
+    /// A candidate's departure from O: the feed's expected time when it gave one, else the timetable's.
+    private func departure(of candidate: WrongTrainCandidate) -> Date {
+        liveDepartures[candidate.trip.tripId] ?? candidate.departure
     }
 
     /// The candidates the check should read the stops ahead of: those with a position near the phone.
@@ -314,7 +325,7 @@ struct WrongTrainRule {
     /// Y1 for O, nil when it does not hold.
     private func leftStation(_ moment: Moment, on fixes: PlacedFixes, candidate: WrongTrainCandidate) -> AtStation? {
         if isCovered {
-            if let first = fixes.coveredStart(after: candidate.departure.addingTimeInterval(-AutoRideRule.coveredLead)) {
+            if let first = fixes.coveredStart(after: departure(of: candidate).addingTimeInterval(-AutoRideRule.coveredLead)) {
                 return .covered(first)
             }
         } else if let seen = own.seenAtStation(now: moment.now),
@@ -387,7 +398,7 @@ struct WrongTrainRule {
         if isFarFromT(from: tp) || standsAtOrigin(from: tp) || hasParted(fixes, from: tp) { return true }
         // T is not in the feed.
         guard let since = match.since, let latest = match.latest, latest.timeIntervalSince(since) >= Self.missingMatch,
-              abs(candidate.departure.timeIntervalSince(moment.departure)) >= Self.missingApart else { return false }
+              abs(departure(of: candidate).timeIntervalSince(moment.departure)) >= Self.missingApart else { return false }
         let recent = (sightings[ride.tripId] ?? []).filter { moment.now.timeIntervalSince($0.readAt) <= Self.missingLook }
         let fallback = raw.last?.point
         return !recent.contains { sighting in
@@ -487,7 +498,7 @@ struct WrongTrainRule {
     private func hasTrain(_ moment: Moment) -> Bool {
         guard let tp = own.tp(), agrees(from: tp) else { return false }
         return candidates.allSatisfy { candidate in
-            guard abs(candidate.departure.timeIntervalSince(moment.departure)) <= Self.twinWindow, runsSameWay(candidate) else {
+            guard abs(departure(of: candidate).timeIntervalSince(moment.departure)) <= Self.twinWindow, runsSameWay(candidate) else {
                 return true
             }
             return isResolved(candidate, from: tp)

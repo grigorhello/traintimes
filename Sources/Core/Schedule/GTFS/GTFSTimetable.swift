@@ -11,6 +11,8 @@ struct GTFSTimetable: Sendable {
     let lastServiceDay: ServiceDay?
     private let tripsByDate: [Int: [Int]]
     private let stopIndex: [String: Int]
+    /// Each trip's index in `feed.trips` by its id (ids are unique, TT-251).
+    private let tripIndex: [String: Int]
 
     init(feed: GTFSFeed) {
         self.feed = feed
@@ -23,6 +25,7 @@ struct GTFSTimetable: Sendable {
         self.tripsByDate = tripsByDate
         lastServiceDay = tripsByDate.keys.max().map(ServiceDay.init(dateKey:))
         stopIndex = Dictionary(feed.stops.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
+        tripIndex = Dictionary(feed.trips.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
         let alongLine = Self.distancesFromUnion(feed)
         stations = feed.stops.enumerated()
             .map { index, stop in
@@ -187,6 +190,54 @@ struct GTFSTimetable: Sendable {
                 )
             }
             .sorted { ($0.departure, $0.trip.tripId) < ($1.departure, $1.trip.tripId) }
+    }
+
+    /// A trip by id on a service day (TT-251, D127): its stops in calling order with their scheduled times, its line, and its
+    /// track over all of its stops with each placed on it, as `ridePlan(for:)` places a ride's. Nil when no trip has the
+    /// id or it does not run that day.
+    func trip(id: String, on day: ServiceDay) -> TimetableTrip? {
+        guard let index = tripIndex[id], tripsByDate[day.dateKey]?.contains(index) == true else { return nil }
+        let trip = feed.trips[index]
+        let stops = trip.stops.indices.map { position in
+            let stop = feed.stops[trip.stops[position]]
+            return TimetableTrip.Stop(
+                station: Station(id: stop.id, name: stop.name, place: stop.place),
+                arrival: day.gtfsTime(trip.arrivals[position]),
+                departure: day.gtfsTime(trip.departures[position])
+            )
+        }
+        var track: RidePlan.Track?
+        let places = stops.compactMap(\.station.place)
+        if let shapeIndex = trip.shape, let shapes = feed.shapes, shapeIndex < shapes.count, places.count == stops.count {
+            let shape = TrackShape(flat: shapes[shapeIndex].points)
+            track = RidePlan.Track(shape: shape, stopDistances: shape.distances(of: places))
+        }
+        return TimetableTrip(key: TripKey(serviceDay: day, tripId: trip.id), lineId: feed.lines[trip.line].id, stops: stops, track: track)
+    }
+
+    /// The trains a rider at `station` may take by mistake (TT-251, D127): every rail trip leaving it that day with a track,
+    /// not ending there, with the station's place on its track (as `departures(from:on:)` places it) and its stops after it.
+    func candidates(leaving station: String, on day: ServiceDay) -> [WrongTrainCandidate] {
+        let place = stopIndex[station].flatMap { feed.stops[$0].place }
+        var tracks: [Int: (shape: TrackShape, along: Double?)] = [:]
+        return leaving(station, on: day).compactMap { match in
+            let trip = feed.trips[match.trip]
+            guard let place, let index = trip.shape, let shapes = feed.shapes, index < shapes.count else { return nil }
+            if tracks[index] == nil {
+                let shape = TrackShape(flat: shapes[index].points)
+                tracks[index] = (shape, shape.distances(of: [place]).first)
+            }
+            guard let track = tracks[index], let along = track.along else { return nil }
+            return WrongTrainCandidate(
+                trip: TripKey(serviceDay: day, tripId: trip.id),
+                lineId: feed.lines[trip.line].id,
+                departure: day.gtfsTime(trip.departures[match.from]),
+                shape: track.shape,
+                originAlong: along,
+                stopsAfter: trip.stops[(match.from + 1)...].map { feed.stops[$0].id }
+            )
+        }
+        .sorted { ($0.departure, $0.trip.tripId) < ($1.departure, $1.trip.tripId) }
     }
 
     /// The same trips as `departures(from:on:)`, each as a call that starts and ends at the station, so

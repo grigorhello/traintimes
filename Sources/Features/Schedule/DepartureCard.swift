@@ -4,7 +4,7 @@ import Foundation
 /// Three fixed rows (D50): time and Express bolt; countdown and platform with the trip length; status and arrival.
 struct DepartureCard: Hashable, Identifiable {
     let id: TripKey
-    /// The next usable train: 34 pt time, solid marker and "in N min".
+    /// The next usable train: 34 pt time, solid marker and "in N min" (once its platform number is posted, TT-248).
     let isNext: Bool
     /// "7:32 AM": the expected departure, else the scheduled one.
     let time: String
@@ -13,8 +13,9 @@ struct DepartureCard: Hashable, Identifiable {
     /// "40 min": arrival minus departure of the two times the card shows.
     let tripLength: String
     let status: TripStatus
-    /// Next train only: "in 11 min", or "Departing" under 1 min and while the train stands at its platform past its time
-    /// (TT-233). The Alerts tab sets it on every card from 60 min before it leaves (TT-253, D129).
+    /// Next train only, and only once its platform number is posted (TT-248, D125; nil beside the dash): "in 11 min", or
+    /// "Departing" under 1 min and while the train stands at its platform past its time (TT-233). The Alerts tab sets it
+    /// on every card from 60 min before it leaves, also only with a posted number (TT-253, D129).
     var relativeTime: String?
     /// The Alerts tab's card (TT-253, D129): when its train runs, in grey where the countdown goes while there is none:
     /// "Today", "Tomorrow", "Monday", "Fri 6". Never on Schedule.
@@ -40,7 +41,7 @@ struct DepartureCard: Hashable, Identifiable {
     /// The card goes flat and grey with "Departed" (a cancelled one keeps "Cancelled") and its rail mark is a small solid dot.
     let isDeparted: Bool
     /// The train stands at the rider's station with its platform posted (TT-233, D114, `BoardingRule`), on Today only: the
-    /// card takes the accent outline and tint, its platform pill is filled and the status row says "Boarding".
+    /// platform pill is filled and the status row says "Boarding" (no outline or tint on the card since TT-248, D125).
     let isBoarding: Bool
 
     /// What the status row says: "Departed" once the train has left, unless it was cancelled; "Boarding" while it stands at
@@ -72,7 +73,6 @@ struct DepartureCard: Hashable, Identifiable {
         // Ring = Scheduled (D50): stale and offline read Scheduled on the card; the status row says Last reported or Offline.
         let resolved = TripStatus(departure.status, formatter: formatter)
         status = resolved.isLive ? resolved : .scheduled
-        relativeTime = isNext ? formatter.relative(until: departure.departureTime, now: now) : nil
         let value: String
         switch departure.trip.platform {
         case .published(let name):
@@ -83,6 +83,7 @@ struct DepartureCard: Hashable, Identifiable {
             hasPlatform = false
         }
         platformValue = value
+        relativeTime = isNext && hasPlatform ? formatter.relative(until: departure.departureTime, now: now) : nil
         isExpress = departure.trip.tags.contains(.express)
         isCancelled = !departure.isUsable
         note = isCancelled && nextUsableBelow ? String(localized: "schedule.next_usable_below") : nil

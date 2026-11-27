@@ -8,7 +8,7 @@ final class DepartureCardTests: XCTestCase {
 
     private func card(
         minutes: Int = 40, platform: Platform = .pending, tags: [TrainTag] = [], status: TrainStatus = .scheduled,
-        isDeparted: Bool = false, isBoarding: Bool = false
+        isDeparted: Bool = false, isBoarding: Bool = false, isNext: Bool = false, minutesBefore: Int = 0
     ) -> DepartureCard {
         let departure = day.date(hour: 7, minute: 58)
         let trip = Trip(
@@ -20,7 +20,8 @@ final class DepartureCardTests: XCTestCase {
         )
         let resolved = Departure(trip: trip, status: status, expectedDeparture: nil, expectedArrival: nil)
         return DepartureCard(
-            resolved, isNext: false, isDeparted: isDeparted, isBoarding: isBoarding, now: departure, formatter: formatter
+            resolved, isNext: isNext, isDeparted: isDeparted, isBoarding: isBoarding,
+            now: departure.addingTimeInterval(TimeInterval(-minutesBefore * 60)), formatter: formatter
         )
     }
 
@@ -45,6 +46,13 @@ final class DepartureCardTests: XCTestCase {
         let pending = card(platform: .pending)
         XCTAssertEqual(pending.platformValue, "—")
         XCTAssertFalse(pending.hasPlatform)
+    }
+
+    /// TT-248 (D125): the next train's countdown shows only beside a posted platform number, never beside the dash.
+    func testCountdownWaitsForThePlatformNumber() {
+        XCTAssertEqual(card(platform: .published("7"), isNext: true, minutesBefore: 11).relativeTime, "in 11 min")
+        XCTAssertNil(card(platform: .pending, isNext: true, minutesBefore: 11).relativeTime)
+        XCTAssertNil(card(platform: .published("7"), minutesBefore: 11).relativeTime, "Only the next train counts down")
     }
 
     /// TT-233 (D114): "Boarding" while the train stands at its platform, a late train too; "Departed" once it has left; a

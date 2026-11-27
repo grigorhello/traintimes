@@ -8,9 +8,9 @@ final class AlertsViewModelTests: XCTestCase {
     private let formatter = TimeFormatter(format: .twelveHour)
     private let thursday = ServiceDay(year: 2026, month: 11, day: 5)
 
-    override func tearDown() {
+    override func tearDown() async throws {
         Analytics.tracker = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     // MARK: Cards

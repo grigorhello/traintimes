@@ -65,6 +65,7 @@ final class AlertsSnapshotTests: XCTestCase {
     }
 
     /// 5:10 PM · Union to Oakville, Mon to Thu, switched on.
+    @MainActor
     private var eveningOn: AlertRule {
         var rule = AlertsFixtures.evening
         rule.paused = false

@@ -11,8 +11,6 @@ struct Card<Content: View>: View {
     /// A departed timeline card (TT-203, D86), 0 to 1: the surface turns to the canvas colour and the shadow to a 1 pt
     /// hairline outline.
     var flatness: CGFloat = 0
-    /// A Boarding timeline card (TT-233, D114), 0 to 1: the accent outline and tint (`BoardingHighlight`).
-    var highlight: CGFloat = 0
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -26,9 +24,6 @@ struct Card<Content: View>: View {
                         .overlay(shape.strokeBorder(TTColor.hairline, lineWidth: 1).opacity(flatness))
                 }
             }
-            .background {
-                if highlight > 0 { BoardingHighlight(cornerRadius: TTRadius.lg, amount: highlight) }
-            }
             .background(TTColor.surface, in: shape)
             // A strip behind the content (not over it, which clipped the route pin) squares off the rounded bottom corners.
             .background(alignment: .bottom) {
@@ -38,13 +33,11 @@ struct Card<Content: View>: View {
     }
 }
 
-/// The Boarding look of a card (TT-233, D114, Card states boards 1 to 5): the accent as a tint over the card's surface,
-/// 7 % in light and 11 % in dark, inside a 2 pt accent outline. Drawn between a card's content and its surface: `Card`
-/// draws it for `highlight`, Trip details' hero puts it in a `background` before `ttSheetCard()`.
+/// The Boarding look of Trip details' hero (TT-233, D114, Card states boards 1 to 5): the accent as a tint over the card's
+/// surface, 7 % in light and 11 % in dark, inside a 2 pt accent outline, in a `background` before `ttSheetCard()`.
+/// Schedule's timeline card no longer draws it: its status row and filled pill say Boarding (TT-248, D125).
 struct BoardingHighlight: View {
     var cornerRadius: CGFloat = TTRadius.lg
-    /// 0 to 1, so the card can fade into Boarding.
-    var amount: CGFloat = 1
     @Environment(\.colorScheme) private var colorScheme
 
     static let outline: CGFloat = 2
@@ -55,7 +48,6 @@ struct BoardingHighlight: View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)
         shape.fill(TTColor.accent.opacity(colorScheme == .dark ? Self.darkTint : Self.lightTint))
             .overlay(shape.strokeBorder(TTColor.accent, lineWidth: Self.outline))
-            .opacity(amount)
             .allowsHitTesting(false)
     }
 }

@@ -30,7 +30,8 @@ final class TimelineCardsTests: XCTestCase {
         let model = try await ScheduleViewModel.loadedFixture(minutesLater: 12) // 7:33 AM
         let cards = model.cards(formatter)
         XCTAssertEqual(model.nextDepartureId?.tripId, "LW-0758-20261105")
-        XCTAssertEqual(cards[1].relativeTime, "in 25 min")
+        XCTAssertTrue(cards[1].isNext)
+        XCTAssertNil(cards[1].relativeTime, "No countdown beside the dash (TT-248, D125)")
         XCTAssertFalse(cards[0].isNext, "7:32 AM has left")
     }
 

@@ -358,8 +358,8 @@ struct ScheduleTimeline: View {
 /// One departure (TT-113, TT-157): three fixed rows, 118 pt in every state, so nothing moves between states (D50).
 /// Row 1: departure time, the Express bolt, the bell. Row 2: countdown and platform, trip length. Row 3: status line,
 /// "Arrival" and the arrival time. Delayed: amber times. Cancelled or stop skipped: struck grey times, no bolt, no bell.
-/// Boarding (TT-233, D114): the accent outline and tint, the platform pill filled and "Boarding" with its pinging dot;
-/// those three cross-fade in and out, and nothing else on the card animates with them.
+/// Boarding (TT-233, D114): the platform pill filled and "Boarding" with its pinging dot, on the ordinary card (no outline
+/// or tint since TT-248, D125); those two cross-fade in and out, and nothing else on the card animates with them.
 /// Reports its measured height and anchor so the layout can centre its time line on the marker and keep cards apart.
 struct DepartureCardView: View {
     let card: DepartureCard
@@ -431,7 +431,9 @@ struct DepartureCardView: View {
     }
 
     private var cardFace: some View {
-        Card(padding: 0, flatness: look.look, highlight: card.isBoarding ? 1 : 0) {
+        // A Boarding card keeps the ordinary surface and border; the status row and the filled pill say Boarding
+        // (TT-248, D125).
+        Card(padding: 0, flatness: look.look) {
             VStack(alignment: .leading, spacing: Self.rowGap) {
                 timeRow
                     .departedLook(look.look)
@@ -459,12 +461,7 @@ struct DepartureCardView: View {
             }
             .padding(Self.padding)
             .frame(height: TimelineCardSize.standard.height, alignment: .top)
-            // The outline's cross-fade stops here: of the content only the status and the platform pill take it up again,
-            // so a time or a countdown that changes in the same update still changes at once.
-            .animation(nil, value: card.isBoarding)
         }
-        // Into and out of Boarding (TT-233, D114): the accent outline and tint cross-fade.
-        .animation(boardingFade, value: card.isBoarding)
         .coordinateSpace(.named(cardSpace))
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
             height = $0
@@ -555,9 +552,9 @@ struct DepartureCardView: View {
         }
     }
 
-    /// "in 11 min · Platform [2]" on the next train, "Platform [2]" (or the dash pill, pulsing within 15 min of leaving when
-    /// the feed posts platforms, TT-162) on the others, "Next usable below" when cancelled. `showsLabel` false leaves out
-    /// the word "Platform" (TT-245, D122).
+    /// "Platform [2] · in 11 min" on the next train once its number is posted; beside the dash pill (pulsing within 15 min
+    /// of leaving when the feed posts platforms, TT-162) no countdown (TT-248, D125). "Platform [2]" or the dash on the
+    /// others, "Next usable below" when cancelled. `showsLabel` false leaves out the word "Platform" (TT-245, D122).
     @ViewBuilder private func detail(showsLabel: Bool) -> some View {
         if card.isCancelled {
             if let note = card.note {
@@ -570,7 +567,8 @@ struct DepartureCardView: View {
             HStack(spacing: TTSpace.s1 + 2) {
                 // "Platform" and the pill first (TT-199, Grigor: "Platform 2 · in 11 min"): the number, or the dash, which
                 // pulses within 15 min of leaving when the feed posts platforms (TT-162). The 22 pt pill overhangs the
-                // 20 pt row into the gaps. Filled while the train is Boarding (TT-233, D114).
+                // 20 pt row into the gaps. Filled while the train is Boarding (TT-233, D114). The countdown follows only
+                // a posted number, never the dash (TT-248, D125).
                 PlatformTag(
                     number: card.hasPlatform ? card.platformValue : nil, size: 15, pillSize: 14, pulses: card.awaitsPlatform,
                     showsLabel: showsLabel, isFilled: card.isBoarding
@@ -578,8 +576,9 @@ struct DepartureCardView: View {
                 .animation(.easeInOut(duration: 0.2), value: card.platformValue)
                 .animation(boardingFade, value: card.isBoarding)
                 .cardInterest("schedule.card.platform") { interestFrames[$0] = $1 }
-                // A departing lead keeps its "Departing" until the play fades it (D86).
-                if let relative = card.relativeTime ?? (look.leadOut > 0 ? String(localized: "schedule.departing") : nil) {
+                // A departing lead keeps its "Departing" until the play fades it (D86), if it showed one.
+                if let relative = card.relativeTime
+                    ?? (look.leadOut > 0 && card.hasPlatform ? String(localized: "schedule.departing") : nil) {
                     let opacity = card.relativeTime == nil ? look.leadOut : look.countdown
                     // A separator glyph, not copy.
                     Text(verbatim: "·")

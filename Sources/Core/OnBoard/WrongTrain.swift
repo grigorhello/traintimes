@@ -298,7 +298,10 @@ final class WrongTrain {
             guard !Task.isCancelled else { return }
             self?.expire(id)
         }
-        let task = Task { [weak self] in await self?.present(warning, id: id) }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.present(warning, id: id)
+        }
         presenting = task
         return task
     }

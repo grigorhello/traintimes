@@ -204,6 +204,11 @@ final class AutoRideWatch {
     /// A ride runs (the demo's, through `OnBoard`); nil reads the engine.
     private let rideRuns: (@MainActor () -> Bool)?
     private let reportsStationary: Bool
+    /// The wrong train check (TT-251, D127): told when a watch arms and ends, asked before "On board?". Nil in tests that do
+    /// not need it and for the demo.
+    private let wrongTrain: (any WrongTrainChecking)?
+    /// Each fix as it comes, before the watch reads it (TT-251, D127): the wrong train check's. Set by `AppDelegate`.
+    @ObservationIgnored var fixTap: (@MainActor (LocationFix) -> Void)?
 
     @ObservationIgnored private var rule: AutoRideRule?
     /// The location the current (or last) watch reads: `location`, or `closedLocation` for one armed with the app closed.
@@ -238,7 +243,8 @@ final class AutoRideWatch {
         isTesting: @escaping @MainActor () -> Bool = { false },
         isActive: @escaping @MainActor () -> Bool = { true },
         rideRuns: (@MainActor () -> Bool)? = nil,
-        reportsStationary: Bool? = nil
+        reportsStationary: Bool? = nil,
+        wrongTrain: (any WrongTrainChecking)? = nil
     ) {
         self.ride = ride
         self.location = location
@@ -257,6 +263,7 @@ final class AutoRideWatch {
         self.isTesting = isTesting
         self.isActive = isActive
         self.rideRuns = rideRuns
+        self.wrongTrain = wrongTrain
         if let reportsStationary {
             self.reportsStationary = reportsStationary
         } else if #available(iOS 18, *) {
@@ -377,6 +384,9 @@ final class AutoRideWatch {
         let reader = reader(for: saved)
         watchLocation = reader
         reader.startUpdates { [weak self] fix in self?.receive(fix) }
+        if !isDemo {
+            wrongTrain?.watchArmed(saved.ride, plan: plan, departure: saved.departure, reader: reader)
+        }
         startLoop()
         Task { await self.look() }
     }
@@ -448,6 +458,7 @@ final class AutoRideWatch {
     // MARK: Fixes and looks
 
     private func receive(_ fix: LocationFix) {
+        fixTap?(fix)
         guard watched != nil, rule != nil else { return }
         rule?.observe(fix, at: clock.now)
         decide()
@@ -527,6 +538,12 @@ final class AutoRideWatch {
 
     private func decide() {
         guard let saved = watched, let rule, !isStarting else { return }
+        // The wrong train check warned about this train (TT-251): no "On board?" and no hold's release; the warning's
+        // hand-off ends the server's part.
+        if wrongTrain?.hasWarned(saved.ride) == true {
+            finish(.wrongTrain, report: false)
+            return
+        }
         let now = clock.now
         let moment = AutoRideRule.Moment(
             now: now, departure: saved.departure, leftAt: saved.leftAt, arrival: saved.arrival,
@@ -536,11 +553,12 @@ final class AutoRideWatch {
         case .starts:
             Task { await self.start() }
         case .notOnBoard:
+            guard !waitsForWrongTrain(saved.ride, now: now) else { return }
             // The silent question until it ends.
             queueOutcome(saved.report(asked: true))
             finish(.notOnBoard)
         case .unsure(let reason):
-            guard saved.unsure == nil else { return }
+            guard saved.unsure == nil, !waitsForWrongTrain(saved.ride, now: now) else { return }
             var changed = saved
             changed.unsure = reason
             changed.unsureAt = now
@@ -558,6 +576,13 @@ final class AutoRideWatch {
         case .waiting:
             break
         }
+    }
+
+    /// Both lead to "On board?": while the wrong train check follows another train with the phone (TT-251, D127), the watch
+    /// waits, at most 3 min from that train's first moving fix, then goes on as before.
+    private func waitsForWrongTrain(_ ride: Ride, now: Date) -> Bool {
+        guard !isDemo, let since = wrongTrain?.followingSince(ride) else { return false }
+        return now < since.addingTimeInterval(WrongTrainCheck.watchWaits)
     }
 
     private func start() async {
@@ -688,8 +713,15 @@ final class AutoRideWatch {
     /// With no train watched and nothing left to tell the server, the location stops: after a start the ride has the
     /// updates (the shared provider, or the watch's `BackgroundFixes` it took over), while the demo's phone is the watch's
     /// own.
+    /// Reports an ended watch still owes the server keep location going (D120): the wrong train check leaves `reader`
+    /// running when it closes meanwhile, if it is the one `stopUpdatesIfIdle()` stops once the reports went.
+    func holdsLocation(_ reader: any LocationProviding) -> Bool {
+        !pending.isEmpty && ((watchLocation ?? location) as AnyObject) === (reader as AnyObject)
+    }
+
     private func stopUpdatesIfIdle() {
-        guard watched == nil, pending.isEmpty else { return }
+        // The wrong train check keeps them while it is open (TT-251, D127), as a ride does after a start.
+        guard watched == nil, pending.isEmpty, !(wrongTrain?.keepsLocation ?? false) else { return }
         if isDemo || !isRiding { (watchLocation ?? location).stopUpdates() }
     }
 
@@ -724,6 +756,13 @@ final class AutoRideWatch {
         watched = nil
         store.saved = nil
         if !isDemo, holding?.heldRide == saved.ride { holding?.heldRide = nil }
+        // The wrong train check takes the location over while it stays open with no ride (TT-251, D127).
+        if !isDemo { wrongTrain?.watchEnded(saved.ride, outcome: outcome) }
+        // A ride started elsewhere (a tap, the card's Yes) runs on the shared reader: the closed tier's would otherwise run
+        // on, since `stopUpdatesIfIdle()` leaves the updates to a running ride.
+        if outcome == .answered, isRiding, !isDemo, let reader = watchLocation, (reader as AnyObject) !== (location as AnyObject) {
+            reader.stopUpdates()
+        }
         // The location keeps going while a report still waits for the server, so the app is not suspended before it goes.
         stopUpdatesIfIdle()
     }

@@ -244,6 +244,13 @@ final class BackgroundFixes: NSObject, LocationProviding, CLLocationManagerDeleg
         manager.startUpdatingLocation()
     }
 
+    /// Stop, then start with the same callback (TT-251, D127): the wrong train check's try at waking paused updates.
+    func restartUpdates() {
+        guard let onFix else { return }
+        stopUpdates()
+        startUpdates(onFix)
+    }
+
     func stopUpdates() {
         onFix = nil
         guard let manager else { return }

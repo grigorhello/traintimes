@@ -122,12 +122,12 @@ app.build_configurations.each do |config|
     'INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents' => 'YES',
     'INFOPLIST_KEY_UISupportedInterfaceOrientations' => 'UIInterfaceOrientationPortrait',
     # TT-171, TT-234, TT-243: asked when a ride starts (On board), or when the rider turns on Automatic direction,
-    # Automatic ride or When the app is closed in Settings, never at launch (D60 rule 4 as revised by D116 and D120; the
-    # words are TT-243's). A ride's background session also needs UIBackgroundModes location.
+    # Automatic ride or When the app is closed in Settings, never at launch (D60 rule 4 as revised by D116, D120 and D127;
+    # the words are TT-243's, with TT-251's wrong train). A ride's background session also needs UIBackgroundModes location.
     'INFOPLIST_KEY_NSLocationWhenInUseUsageDescription' =>
       'Your location shows trains from the station you’re closer to when you open the app, starts the ride when a ' \
-      'train you set an alert on leaves with you, shows which station is next while you ride, and tells you before ' \
-      'your stop. It stays on the phone.',
+      'train you set an alert on leaves with you, warns you if you board the wrong train, shows which station is next ' \
+      'while you ride, and tells you before your stop. It stays on the phone.',
     # TT-243 (D120): asked only from Settings › When the app is closed.
     'INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription' =>
       'Train Times starts the ride when your alerted train leaves with you, even when the app is closed. Your ' \

@@ -54,12 +54,25 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
         self.onFix = onFix
         guard updates == nil else { return }
         session = CLBackgroundActivitySession()
+        spawnUpdates()
+    }
+
+    /// A new `liveUpdates` task under a new generation, with the same session and callback (TT-251, D127): the wrong train
+    /// check's try at waking updates iOS paused for a phone it took to be at rest. Nothing while no updates run.
+    func restartUpdates() {
+        guard let running = updates else { return }
+        running.cancel()
+        spawnUpdates()
+    }
+
+    private func spawnUpdates() {
         generation += 1
         let generation = generation
         // Read off the main actor; each fix is copied into a `LocationFix` before it goes back to the ride.
         updates = Task.detached { [weak self] in
             do {
                 for try await update in CLLocationUpdate.liveUpdates(.otherNavigation) {
+                    guard !Task.isCancelled else { break }
                     guard let location = update.location else { continue }
                     // `isStationary` (iOS 17) is deprecated in the SDK and warnings are errors, so iOS 17 reports no
                     // stationary fixes: a phone at rest there falls back to the timetable after 60 s.
@@ -71,7 +84,7 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
                         isStationary: isStationary,
                         age: max(0, Date().timeIntervalSince(location.timestamp))
                     )
-                    await self?.deliver(fix)
+                    await self?.deliver(fix, generation: generation)
                 }
             } catch {
                 // The updates stopped (the ride ended or location was turned off): the ride falls back to the timetable.
@@ -88,7 +101,9 @@ final class SystemLocationProvider: NSObject, LocationProviding, CLLocationManag
         onFix = nil
     }
 
-    private func deliver(_ fix: LocationFix) {
+    /// Only the current task's fixes: one that was restarted may still hand over a fix it had read.
+    private func deliver(_ fix: LocationFix, generation: Int) {
+        guard generation == self.generation else { return }
         onFix?(fix)
     }
 

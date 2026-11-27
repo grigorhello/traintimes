@@ -279,6 +279,19 @@ extension AnalyticsEvent {
         return Self("wrong_train_answered", properties)
     }
 
+    /// A wrong train check closed (TT-251, D127), once per train and day: what it found (`warned`, `with_train`, `no_match`,
+    /// `stayed`), how the rider was tied to the train (`alert`, `on_board`, `departure`) and, on `warned` and `with_train`,
+    /// the whole seconds from the first moving fix to the verdict. No station, line, trip or place.
+    static func wrongTrainChecked(_ result: WrongTrainCheckResult) -> Self {
+        var properties: [String: AnalyticsValue] = [
+            "outcome": .string(result.outcome.rawValue), "source": .string(result.source.rawValue),
+        ]
+        if result.outcome == .warned || result.outcome == .withTrain, let seconds = result.seconds {
+            properties["seconds"] = .int(seconds)
+        }
+        return Self("wrong_train_checked", properties)
+    }
+
     /// The automatic ride's watch on an alerted train finished (TT-242, D120), once per train and day: how (`outcome`), why
     /// it could not tell (`reason`, on `unsure` only), the whole seconds after the train left (when it had left) and
     /// whether it was the Testing demo; how it was armed (`armed`, TT-243: `open`, `wake` or `card`). No station, line,

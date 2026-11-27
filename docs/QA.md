@@ -275,3 +275,15 @@ Only Settings › Testing raises the warning in this part; real trains get it wi
 - [ ] 4. The island: expanded, compact, and the tap opening the warning.
 - [ ] 5. "Trains from Oakville": the ride ends and Schedule shows Oakville → Clarkson (late in the evening, Oakville → Union).
 - [ ] 6. iOS Settings › Train Times › Live Activities off, then step 1 again: the notification comes once, with its two actions under press and hold.
+
+## TT-251 · Wrong train warning, part 2 (D127)
+
+Real trains get the warning: an alerted train in its window (with the app opened in the 30 min before it leaves, or "When the app is closed" on) and every ride started by "I’m on board" or Yes, never a ride that started by itself. Simulator and CI: `WrongTrainRuleTests` (warns and never warns, `withTrain`, `following`), `WrongTrainCheckTests` (how it opens, its gates, the fixes from the watch and the engine, the tail at the station up to L + 30, walking away, the limits, `withdraw()`, the restart on paused fixes, `lastCheck`, `wrong_train_checked` once a day), `AutoRideWatchTests` (`wrongTrain`, the wait up to 3 min), `RideEngineTests` (left the line held), `WrongTrainTests` (the train declined after an answer with no ride), the timetable and feed tests (`GTFSWrongTrainTests`, `RelayTrainPositionsTests`, `LiveStopsAheadTests`), `DepartureActivityTests` (the warned card stays and asks nothing silently), `SettingsViewModelTests` and `SettingsSnapshotTests.testTestingWrongTrainCheck…` (Last check and Last wrong train check), and the relay's `fresh=15` in `server/test/relay.test.ts`. GO's positions against a moving phone have never been measured, so the rides below decide whether the numbers hold. Each needs a TestFlight build, Precise Location on, and Settings › Testing's **Last wrong train check** read after the ride (Demo place's card, under Last look).
+
+- [ ] 1. Five ordinary rides on your own train, alert on: no warning. Last wrong train check reads "With your train after … s".
+- [ ] 2. An alert on a train, then board another from the same station that does not go to your stop (one stop the other way is enough): the warning within about 3 min of leaving, five buzzes on the locked phone. Note the seconds from Last wrong train check.
+- [ ] 3. "I’m on board" on a train, then ride another: the same on the ride's card.
+- [ ] 4. Let your train leave, stay on the platform, board the next one the other way: the notification (the card has usually ended by then).
+- [ ] 5. From Union, under the roof: no warning on your own train, and the warning on another that does not stop at yours.
+- [ ] 6. A parallel departure from Union (two trains within a minute): no warning until the tracks part.
+- Note on any ride whether the blue location mark stayed on while the phone rested on a smooth stretch (iOS pausing updates; the check restarts them, and nobody knows yet whether that wakes them).

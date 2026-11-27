@@ -224,6 +224,18 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertFalse(RideLiveActivity.tellsSilently(ride, held: ride, live: live, now: now), "This train is held")
     }
 
+    // MARK: The wrong train warning (TT-251, D127)
+
+    /// A departure card with the wrong train warning on it tells the server nothing silently: the warning's hand-off ended
+    /// the server's part, and nothing asks "On board?" about that train.
+    func testNoSilentAskForAWarnedTrain() throws {
+        let now = DepartureRig.time(17, 13, 30)
+        let live = try XCTUnwrap(LiveDeparture(train(), now: now))
+        let ride = Ride(trip: live.departure.trip.key, from: "UN", to: "CL")
+        XCTAssertTrue(RideLiveActivity.tellsSilently(ride, held: nil, live: live, now: now, warned: false))
+        XCTAssertFalse(RideLiveActivity.tellsSilently(ride, held: nil, live: live, now: now, warned: true), "Handed off for a warning")
+    }
+
     @MainActor
     private final class Steps {
         var items: [String] = []
@@ -405,6 +417,17 @@ final class DepartureActivityTests: XCTestCase {
         XCTAssertFalse(RideLiveActivity.keepsDeparture(card, source: other, hasAlert: false), "No card stays beside the source's")
         XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: card, hasAlert: false), "The demo departure has no alert")
         XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: nil), "Before the rules are connected nothing ends")
+    }
+
+    /// TT-251, D127: a card with the wrong train warning on it stays until the warning leaves, whatever its alert and the
+    /// source say; another card's warning keeps nothing.
+    func testACardStaysWhileTheWrongTrainWarningIsOnIt() {
+        let card = cardRide()
+        let other = cardRide(AlertFixtures.trip("LW-0802-20261105", departure: "13:02"))
+        XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: false, warned: card), "The warning is on it")
+        XCTAssertTrue(RideLiveActivity.keepsDeparture(card, source: other, hasAlert: false, warned: card))
+        XCTAssertFalse(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: false, warned: other), "Another card's warning")
+        XCTAssertFalse(RideLiveActivity.keepsDeparture(card, source: nil, hasAlert: false, warned: nil))
     }
 
     func testAnAlertStandsBehindACardWhileItIsSwitchedOnForThatTrain() async {

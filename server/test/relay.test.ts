@@ -71,6 +71,63 @@ test('GET /v1/trains returns the trains of a line, and a second request within 3
   assert.deepEqual(calls, ['VehiclePosition', 'VehiclePosition']);
 });
 
+test('GET /v1/trains?fresh=15 is served from a copy at most 15 s old; any other value, and none, 30 s (TT-251)', async () => {
+  const { relay, calls, advance } = rig({ VehiclePosition: sample });
+  await get(relay, '/v1/trains');
+  advance(14);
+  const fast = (await get(relay, '/v1/trains?fresh=15'))!;
+  assert.equal(fast.status, 200);
+  assert.equal(fast.headers.get('cache-control'), 'max-age=7');
+  assert.deepEqual(calls, ['VehiclePosition'], 'a copy 14 s old serves the fast form');
+
+  advance(1);
+  await get(relay, '/v1/trains?fresh=15&line=LW');
+  assert.deepEqual(calls, ['VehiclePosition', 'VehiclePosition'], '15 s old is too old for it');
+
+  advance(20);
+  await get(relay, '/v1/trains?fresh=5');
+  await get(relay, '/v1/trains?fresh=abc');
+  const plain = (await get(relay, '/v1/trains'))!;
+  assert.equal(plain.headers.get('cache-control'), 'max-age=15');
+  assert.equal(calls.length, 2, 'only 15 is honoured: a copy 20 s old serves the rest');
+  advance(10);
+  await get(relay, '/v1/trains?fresh=5');
+  assert.equal(calls.length, 3, '30 s as before');
+});
+
+test('the fast form takes no older copy from the data centre, and leaves the other feeds and failures at 30 s', async () => {
+  const { relay, make, calls, advance } = rig({ VehiclePosition: sample, TripUpdates: new Uint8Array([1]) });
+  await relay.get('VehiclePosition');
+  await relay.get('TripUpdates');
+  advance(20);
+  await get(make(), '/v1/trains');
+  assert.deepEqual(calls, ['VehiclePosition', 'TripUpdates'], 'another isolate takes the 20 s copy at 30 s');
+  await get(make(), '/v1/trains?fresh=15');
+  assert.deepEqual(calls, ['VehiclePosition', 'TripUpdates', 'VehiclePosition'], 'but not for the fast form');
+  await get(relay, '/v1/live/trip-updates?fresh=15');
+  assert.equal(calls.length, 3, 'the parameter is the train feed\'s only');
+
+  const failing = rig({});
+  assert.equal((await get(failing.relay, '/v1/trains?fresh=15'))!.status, 503);
+  failing.advance(20);
+  assert.equal((await get(failing.relay, '/v1/trains?fresh=15'))!.status, 503);
+  assert.deepEqual(failing.calls, ['VehiclePosition'], 'a failure is kept 30 s for the fast form too');
+  failing.advance(10);
+  await get(failing.relay, '/v1/trains?fresh=15');
+  assert.equal(failing.calls.length, 2);
+});
+
+test('a fast request that meets a slower load in flight gets a copy young enough', async () => {
+  const { relay, make, calls, advance } = rig({ VehiclePosition: sample });
+  await relay.get('VehiclePosition');
+  advance(20);
+  const other = make();
+  const [slow, fast] = await Promise.all([other.get('VehiclePosition'), other.get('VehiclePosition', 15_000)]);
+  assert.equal(slow?.fetchedAt, at('7:00'), 'the 30 s request took the cached copy');
+  assert.equal(fast?.fetchedAt, at('7:00') + 20_000, 'the fast one loaded its own');
+  assert.equal(calls.length, 2);
+});
+
 test('a snapshot is decoded once for GET /v1/trains and the minute cycle (TT-233)', async () => {
   const { relay, advance } = rig({ VehiclePosition: sample });
   const snapshot = (await relay.get('VehiclePosition'))!;

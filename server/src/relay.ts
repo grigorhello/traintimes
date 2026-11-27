@@ -2,6 +2,8 @@
 // the app. Each feed is fetched from GO at most once per 30 s for everyone, whatever the number of phones: a copy in
 // this isolate's memory, then in the data centre's cache (Cache API), then GO. A failed fetch is remembered for 30 s
 // too, so a GO outage costs one call per 30 s (Metrolinx may suspend a key for many failed calls or 429s).
+// `GET /v1/trains?fresh=15` (TT-251, D127) is the one exception: the app's wrong train check asks for a copy of the
+// train feed at most 15 s old while the phone moves, so that feed is fetched at most 4 times a minute instead of 2.
 
 import { decodeVehicles, type TrainPosition } from './realtime.ts';
 
@@ -10,6 +12,9 @@ export type FeedName = 'TripUpdates' | 'Alerts' | 'VehiclePosition';
 /** A copy younger than this is served without asking GO. */
 export const RELAY_SECONDS = 30;
 const FRESH_MS = RELAY_SECONDS * 1000;
+/** The fast form's age limit (`/v1/trains?fresh=15`); no other value is honoured. */
+export const FAST_SECONDS = 15;
+const FAST_MS = FAST_SECONDS * 1000;
 
 export interface Snapshot {
   bytes: Uint8Array;
@@ -70,31 +75,40 @@ export class FeedRelay {
     this.deps = deps;
   }
 
-  /** The feed, from GO only when no copy or failure is under 30 s old; null while GO is failing. */
-  async get(feed: FeedName): Promise<Snapshot | null> {
+  /**
+   * The feed, from GO only when no copy is under `freshMs` old (30 s unless the fast form asks for 15) and no failure
+   * under 30 s old; null while GO is failing.
+   */
+  async get(feed: FeedName, freshMs: number = FRESH_MS): Promise<Snapshot | null> {
     const now = this.deps.now();
     const held = this.memory.get(feed);
-    if (held && now - held.fetchedAt < FRESH_MS) return held;
+    if (held && now - held.fetchedAt < freshMs) return held;
     const failed = this.failedAt.get(feed);
     if (failed !== undefined && now - failed < FRESH_MS) return null;
-    let pending = this.loading.get(feed);
-    if (!pending) {
-      pending = this.load(feed, now).finally(() => this.loading.delete(feed));
-      this.loading.set(feed, pending);
+    const shared = this.loading.get(feed);
+    if (shared) {
+      // A load another request started may bring a copy older than this request takes (the fast form after a 30 s load
+      // found one in the cache): then one load of its own.
+      const snapshot = await shared;
+      if (!snapshot || now - snapshot.fetchedAt < freshMs) return snapshot;
+      return this.get(feed, freshMs);
     }
+    const pending = this.load(feed, now, freshMs).finally(() => this.loading.delete(feed));
+    this.loading.set(feed, pending);
     return pending;
   }
 
-  private async load(feed: FeedName, now: number): Promise<Snapshot | null> {
+  private async load(feed: FeedName, now: number, freshMs: number): Promise<Snapshot | null> {
     const key = CACHE_ORIGIN + feed;
     const cached = await this.deps.cache?.match(key).catch(() => undefined);
     if (cached) {
       const at = Number(cached.headers.get('x-fetched-at'));
-      if (now - at < FRESH_MS) {
-        if (cached.headers.get('x-failed')) {
-          this.failedAt.set(feed, at);
-          return null;
-        }
+      const failed = Boolean(cached.headers.get('x-failed'));
+      if (failed && now - at < FRESH_MS) {
+        this.failedAt.set(feed, at);
+        return null;
+      }
+      if (!failed && now - at < freshMs) {
         const snapshot = { bytes: new Uint8Array(await cached.arrayBuffer()), fetchedAt: at };
         this.memory.set(feed, snapshot);
         return snapshot;
@@ -156,7 +170,8 @@ const seconds = (ms: number | undefined) => (ms === undefined ? undefined : Math
 
 /**
  * `GET /v1/live/trip-updates` and `GET /v1/live/alerts`: GO's GTFS-realtime protobuf as GO sent it.
- * `GET /v1/trains[?line=LW]`: the trains of the VehiclePosition feed as JSON.
+ * `GET /v1/trains[?line=LW][&fresh=15]`: the trains of the VehiclePosition feed as JSON; `fresh=15` serves a copy at most
+ * 15 s old (TT-251, D127), any other value or none 30 s.
  * Null when the path is not one of these.
  */
 export async function handleLive(request: Request, relay: FeedRelay): Promise<Response | null> {
@@ -166,11 +181,12 @@ export async function handleLive(request: Request, relay: FeedRelay): Promise<Re
   )[url.pathname as '/v1/trains'];
   if (!feed) return null;
   if (request.method !== 'GET') return new Response(null, { status: 405, headers: { allow: 'GET' } });
-  const snapshot = await relay.get(feed);
+  const fast = feed === 'VehiclePosition' && url.searchParams.get('fresh') === String(FAST_SECONDS);
+  const snapshot = await relay.get(feed, fast ? FAST_MS : FRESH_MS);
   if (!snapshot) {
     return new Response(JSON.stringify({ error: 'unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } });
   }
-  const cacheControl = `max-age=${RELAY_SECONDS / 2}`;
+  const cacheControl = `max-age=${Math.floor((fast ? FAST_SECONDS : RELAY_SECONDS) / 2)}`;
   if (feed !== 'VehiclePosition') {
     return new Response(snapshot.bytes, { headers: { 'content-type': 'application/x-protobuf', 'cache-control': cacheControl } });
   }

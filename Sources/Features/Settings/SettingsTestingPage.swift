@@ -297,6 +297,7 @@ struct SettingsTestingPage: View {
             header("settings.demo_place")
             demoPlaceCard
             lastLook
+            lastWrong
         }
     }
 
@@ -344,6 +345,20 @@ struct SettingsTestingPage: View {
         .padding(.top, TTSpace.s1)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("settings.lastLook")
+    }
+
+    /// The last wrong train check (TT-251, D127): what it decided, the seconds from the first moving fix, why, and how the
+    /// rider was tied to the train, kept for the run only. Information, as Last look; never a place.
+    private var lastWrong: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("settings.last_wrong").font(TTFont.footnote).foregroundStyle(TTColor.inkSecondary)
+            Text(verbatim: viewModel.lastWrongText).monospacedDigit().font(TTFont.subhead).foregroundStyle(TTColor.ink)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TTSpace.s4)
+        .padding(.top, TTSpace.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("settings.lastWrong")
     }
 
     // MARK: Demo weather

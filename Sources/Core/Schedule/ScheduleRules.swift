@@ -100,9 +100,10 @@ extension Departure {
     static let platformWaitMinutes = 1...15
 
     /// The card shows the pulsing placeholder in place of the dash only while the platform is worth waiting for: the next
-    /// usable train, its "in N min" countdown within 15 min, its platform still pending, fresh live data and a station
-    /// whose feed publishes platforms. Later trains, "Departing", another day, stale or offline data, no platform source
-    /// and cancelled trains keep the dash, so at most one thing moves on screen (TT-162, D55).
+    /// usable train within 15 min of leaving (the card shows no countdown beside the dash since TT-248, D125), its
+    /// platform still pending, fresh live data and a station whose feed publishes platforms. Later trains, "Departing",
+    /// another day, stale or offline data, no platform source and cancelled trains keep the dash, so at most one thing
+    /// moves on screen (TT-162, D55).
     func awaitsPlatform(isNext: Bool, now: Date, freshness: Freshness, hasPlatformSource: Bool) -> Bool {
         guard isNext, isUsable, hasPlatformSource, freshness.isLive, trip.platform == .pending else { return false }
         // The same whole minutes the card's countdown shows (`TimeFormatting.relative`).

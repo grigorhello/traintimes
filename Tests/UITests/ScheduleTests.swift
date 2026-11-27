@@ -33,7 +33,8 @@ final class ScheduleTests: XCTestCase {
     }
 
     /// TT-162: Demo trains › Platform has the next train leave in 8 min with no platform posted. Its card shows the pill,
-    /// which the card's one accessibility element reads as "Platform pending"; the later cards keep the dash.
+    /// which the card's one accessibility element reads as "Platform pending", with no countdown until the number is posted
+    /// (TT-248); the later cards keep the dash.
     @MainActor
     func testAwaitingPlatformShowsThePillOnTheNextCardOnly() {
         let app = XCUIApplication.onFixtures()
@@ -45,7 +46,7 @@ final class ScheduleTests: XCTestCase {
         }
         let next = card("LW-0732-20261105")
         XCTAssertTrue(next.waitForExistence(timeout: 10))
-        XCTAssertTrue(next.label.contains("in 8 min"), next.label)
+        XCTAssertFalse(next.label.contains("in 8 min"), "No countdown beside the dash (TT-248): \(next.label)")
         XCTAssertTrue(next.label.contains("Platform pending"), next.label)
         XCTAssertFalse(next.label.contains("Platform —"), next.label)
 

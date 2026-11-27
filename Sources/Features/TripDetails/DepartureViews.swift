@@ -52,7 +52,8 @@ struct DepartureHeroCard: View {
         .padding(.vertical, TTSpace.s4)
         .padding(.horizontal, TTSpace.s5)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Boarding: the accent outline and tint between the content and the card's surface, as on the timeline card.
+        // Boarding: the accent outline and tint between the content and the card's surface (the timeline card has neither
+        // since TT-248, D125).
         .background {
             if hero.isBoarding { BoardingHighlight(cornerRadius: TTRadius.xl) }
         }

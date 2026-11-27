@@ -87,7 +87,8 @@ final class ScheduleTests: XCTestCase {
     @MainActor
     func testTapCardOpensTripDetails() {
         let app = XCUIApplication.onFixtures()
-        app.launchArguments += LaunchArguments.fixtureRoute
+        // No alert left on the 7:32 AM train: with one, the sheet opens alert-first with no bar (TT-254).
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
         app.launch()
 
         // 15 s waits: a slow runner can take several seconds to show what a Mac shows at once (CLAUDE.md).

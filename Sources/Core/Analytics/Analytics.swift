@@ -95,6 +95,8 @@ enum RideStartSource: String, Codable, Sendable {
 enum AlertRemoveSource: String, Sendable {
     case bell
     case alertsTab = "alerts_tab"
+    /// Remove alert in Trip details opened from anywhere but the Alerts tab (TT-254).
+    case tripDetails = "trip_details"
 }
 
 extension AnalyticsEvent {

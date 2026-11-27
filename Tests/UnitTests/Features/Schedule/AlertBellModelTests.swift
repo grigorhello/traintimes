@@ -413,6 +413,33 @@ final class AlertBellModelTests: XCTestCase {
         XCTAssertEqual(bells.bell(for: trip, on: route), .on)
     }
 
+    /// Trip details' Remove alert opened from Schedule (TT-254): the alert goes at once with Drop and `alert_removed`
+    /// `trip_details`, Schedule says "Alert removed · Undo", and Undo (Tap) puts it back with its id, days and switch.
+    func testRemoveFromTripDetailsShowsAlertRemovedAndUndoPutsItBack() async throws {
+        let analytics = RecordingAnalytics.install()
+        defer { Analytics.tracker = nil }
+        let server = FakeAlertServer()
+        let rules = AlertFixtures.rules(server)
+        let haptics = FakeHaptics()
+        let bells = AlertBellModel(rules: rules, haptics: haptics)
+        var rule = AlertRule(kind: .repeating, trip: trip, route: route, weekdays: [1, 3, 5], paused: true)
+        await rules.save(rule)
+        rule = try XCTUnwrap(rules.rules.first)
+
+        bells.remove(rule, trip: trip, route: route)
+        XCTAssertTrue(rules.rules.isEmpty)
+        XCTAssertEqual(bells.capsule?.kind, .removed)
+        XCTAssertEqual(bells.capsule?.words(TimeFormatter(format: .twelveHour), today: trip.key.serviceDay), "Alert removed")
+        XCTAssertEqual(bells.capsule?.actionKey, "button.undo")
+        XCTAssertEqual(haptics.played.last, .drop)
+        XCTAssertEqual(analytics.events.last, AnalyticsEvent.alertRemoved(source: .tripDetails))
+
+        await bells.undo()
+        XCTAssertEqual(haptics.played.last, .tap)
+        XCTAssertEqual(rules.rules, [rule], "the same id, days and switch")
+        XCTAssertNil(bells.capsule)
+    }
+
     /// A repeating alert the server cannot switch off stays on, and Try again switches it off.
     func testAFailedTurnOffKeepsTheAlertOnAndTryAgainTurnsItOff() async {
         let server = FakeAlertServer()

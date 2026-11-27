@@ -158,6 +158,8 @@ struct AlertsView: View {
                     bell: asks ? item.bell.map { _ in BellFace.asking } : item.bell,
                     shakes: trip.flatMap { bells?.shakes(for: $0) } ?? 0,
                     onBell: { viewModel.tapBell(item.id) },
+                    // A Time changed card opens Trip details on the alert alone (TT-254); the others have nothing to open.
+                    onOpen: { if let jump = viewModel.trip(item.id) { onOpenTrip(jump) } },
                     accessory: item.bell == nil ? AnyView(pickNewTrain(item)) : AnyView(seeTrains(item))
                 )
             }
@@ -275,7 +277,8 @@ struct AlertsView: View {
         guard let bell = bells?.capsule, !bell.isPanelOpen else { return nil }
         switch bell.kind {
         case .on, .failed, .notificationsOff, .notificationsOn: return .bell(bell)
-        case .off, .newTrain: return nil
+        // Trip details' Remove alert from the tab shows the tab's own "Alert removed" (TT-254).
+        case .off, .newTrain, .removed: return nil
         }
     }
 
@@ -461,6 +464,7 @@ private struct AlertPlainCard: View {
     let bell: BellFace?
     let shakes: Int
     let onBell: () -> Void
+    let onOpen: () -> Void
     let accessory: AnyView
 
     private var changed: Bool {
@@ -501,6 +505,8 @@ private struct AlertPlainCard: View {
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 10, trailing: 10))
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpen)
         .overlay(alignment: .topTrailing) {
             if let bell {
                 AlertBellButton(

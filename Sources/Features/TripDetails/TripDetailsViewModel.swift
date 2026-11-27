@@ -59,6 +59,40 @@ struct TripDetails: Hashable {
     let showsDirections: Bool
 }
 
+/// Trip details' alert card (TT-254, D129; the Alerts canvas's boards 45 to 50): "Alert" and its switch, the seven day
+/// marks and Remove alert, or for an alert whose usual train left the timetable "Time changed", its sentence and Pick a new
+/// train. Every word already formatted.
+struct TripAlertCard: Hashable {
+    /// A day mark: lit (the alert repeats that day), the ring (a one-day alert's own day) or off.
+    enum Mark: Hashable {
+        case lit
+        case ring
+        case off
+    }
+
+    struct Day: Hashable, Identifiable {
+        /// The ISO weekday, 1 is Monday.
+        let id: Int
+        /// "M".
+        let letter: String
+        /// "Monday".
+        let name: String
+        let mark: Mark
+    }
+
+    let ruleID: AlertRule.ID
+    /// The switch: the value on its way to the server, else the saved one. Off greys the marks, which then take no tap.
+    let isOn: Bool
+    /// "Once, today", "Once, tomorrow" or "Once, Fri 6" under "Alert": a one-day alert only (the marks say the rest).
+    let words: String?
+    /// Monday first.
+    let days: [Day]
+    /// "7:32 AM is no longer in the timetable.": the usual train changed (`reviewNeeded`), so the card is all the sheet shows.
+    let changedLine: String?
+
+    var isChanged: Bool { changedLine != nil }
+}
+
 /// The Trip details sheet for one trip and service date (TT-118). It loads the trip, its live status and its stops from
 /// the repository, resolves the status with the timeline's rules (D12, D13) and never fills a missing value with a guess.
 @Observable @MainActor
@@ -84,6 +118,14 @@ final class TripDetailsViewModel {
     /// on and off through it, and its capsule (a refusal, a failed save, the day panel) shows inside the sheet. Nil keeps the
     /// bar at `hasAlert` and its taps do nothing (previews, most tests).
     let bells: AlertBellModel?
+    /// Remove alert (TT-254, D129): RootView removes it where the sheet was opened (the Alerts tab, or Schedule with
+    /// "Alert removed · Undo") and closes the sheet. Nil in previews and most tests.
+    @ObservationIgnored var onRemoveAlert: (@MainActor (AlertRule) -> Void)?
+    /// Pick a new train on a Time changed card: RootView closes the sheet and starts Schedule's pick (TT-193).
+    @ObservationIgnored var onPickNewTrain: (@MainActor (AlertRule) -> Void)?
+    /// The alert the card shows, held once found (or passed by the Alerts tab, whose changed card has no train to look
+    /// up): a day cleared that leaves this train's weekday out keeps the card in its place.
+    private var heldAlertID: AlertRule.ID?
 
     /// Nil until loaded, or when the trip is not on the route that day.
     private(set) var departure: Departure?
@@ -120,7 +162,7 @@ final class TripDetailsViewModel {
         onBoard: OnBoard? = nil, alerts: (any WatchedTripsProviding)? = nil, bells: AlertBellModel? = nil,
         boardingShown: BoardingShown = BoardingShown(defaults: nil),
         maps: any MapsOpening = SystemMapsOpener(), haptics: any HapticPlaying = TTHaptics.shared,
-        ridesInPlace: Bool = false
+        ridesInPlace: Bool = false, alertID: AlertRule.ID? = nil
     ) {
         self.haptics = haptics
         self.route = route
@@ -135,6 +177,7 @@ final class TripDetailsViewModel {
         followsRide = onBoard?.isRunning(key) ?? false
         self.ridesInPlace = ridesInPlace
         self.maps = maps
+        heldAlertID = alertID
         now = clock.now
     }
 
@@ -261,34 +304,121 @@ final class TripDetailsViewModel {
     func tapAlert() async {
         guard demoDeparture == nil, let bells, let trip = departure?.trip else { return }
         await bells.tap(trip, on: route)
+        if heldAlertID == nil { heldAlertID = bells.rules.alert(for: trip, on: route)?.id }
     }
 
-    /// Repeat beside "Alert on": the day panel above the bar, or closed again (D71's panel).
-    func tapRepeat() {
-        guard demoDeparture == nil, let bells, let trip = departure?.trip else { return }
-        bells.togglePanel(for: trip, on: route)
+    /// The bar shows "Alert me" (TT-192) only while the train has no alert, and stays through the hold and the wait of the
+    /// tap that turns one on; then the alert card takes over and the bar goes (TT-254, D129). Not once the train has left
+    /// or when it is cancelled (`showsAlertButton`).
+    var showsAlertBar: Bool {
+        guard showsAlertButton else { return false }
+        if bells != nil, alertRule != nil, !savesFirstAlert { return false }
+        return true
     }
 
-    /// The days the alert repeats on: the open panel's, else the saved alert's; empty for a one-day alert.
-    var repeatDays: [Int] {
-        if let days = bells?.capsule?.panelDays { return days }
-        guard let bells, let trip = departure?.trip, let rule = bells.rules.alert(for: trip, on: route),
-              rule.kind == .repeating, !rule.paused else { return [] }
-        return rule.weekdays
+    /// The first save of an alert from "Alert me" is on its way (iOS asking, or the bell waiting): the bar holds, and the
+    /// card comes once the alert is on, so a save the server cannot take never shows a card that goes again.
+    private var savesFirstAlert: Bool {
+        guard heldAlertID == nil, let bells, let trip = departure?.trip else { return false }
+        let face = bells.bell(for: trip, on: route)
+        return face == .waiting || face == .asking
     }
 
-    /// Repeat's words: "Repeat", or the days once it repeats ("Mon to Fri"), "N days" when they do not fit.
-    var repeatTitle: String {
-        guard let summary = AlertDays.summary(of: repeatDays) else { return String(localized: "alert.repeat") }
-        return summary.count > Self.repeatTitleLimit
-            ? String(format: String(localized: "trip.repeat_days"), Set(repeatDays).count)
-            : summary
+    // MARK: Alert card (TT-254, D129)
+
+    /// The alert the card shows: the one held, else the alert that covers this train on its day (D70), switched on or off.
+    /// Nil without the alert rules (previews, most tests) and for the demo departure's made-up train.
+    var alertRule: AlertRule? {
+        guard demoDeparture == nil, let rules = bells?.rules else { return nil }
+        if let heldAlertID, let held = rules.rules.first(where: { $0.id == heldAlertID }) { return held }
+        guard let trip = departure?.trip else { return nil }
+        return rules.alert(for: trip, on: route)
     }
 
-    /// Longer days than "Mon, Wed, Fri" read as a count (the canvas's 13 characters).
-    private static let repeatTitleLimit = 13
+    /// The usual train of the alert changed (the server's Time changed): the card alone, with Pick a new train.
+    var alertChanged: Bool {
+        guard let rule = alertRule, let rules = bells?.rules else { return false }
+        return rules.state(of: rule) == .reviewNeeded
+    }
 
-    /// The capsule the sheet shows: a refusal, a failed save or the day panel. "Alert on" and "Alert off" are the bar's.
+    /// The card on top of the sheet, from every door: switched on or off, one day (its own weekday a ring) or repeating,
+    /// or Time changed. Nil with no alert on the train.
+    func alertCard(_ formatter: some TimeFormatting) -> TripAlertCard? {
+        guard let rule = alertRule, let bells, !savesFirstAlert else { return nil }
+        if alertChanged {
+            return TripAlertCard(
+                ruleID: rule.id, isOn: !rule.paused, words: nil, days: [],
+                changedLine: String(format: String(localized: "trip.alert.changed"), formatter.time(rule.scheduledDeparture))
+            )
+        }
+        let isOn = bells.isSwitchedOn(rule)
+        let pending = bells.pendingDays(for: rule.id)
+        let lit = pending ?? (rule.kind == .repeating ? rule.weekdays : [])
+        let ownDay = (rule.trip ?? key).serviceDay
+        let isOneDay = lit.isEmpty
+        return TripAlertCard(
+            ruleID: rule.id,
+            isOn: isOn,
+            words: isOneDay ? Self.onceWords(ownDay, today: ServiceDay(containing: now)) : nil,
+            days: AlertDays.week.map { day in
+                let mark: TripAlertCard.Mark = lit.contains(day) ? .lit : (isOneDay && day == ownDay.isoWeekday ? .ring : .off)
+                return TripAlertCard.Day(id: day, letter: AlertDays.letter(day), name: AlertDays.fullName(day), mark: mark)
+            },
+            changedLine: nil
+        )
+    }
+
+    /// "Once, today", "Once, tomorrow", else the date: "Once, Fri 6".
+    static func onceWords(_ day: ServiceDay, today: ServiceDay) -> String {
+        if day == today { return String(localized: "trip.alert.once_today") }
+        if day == today.adding(days: 1) { return String(localized: "trip.alert.once_tomorrow") }
+        return String(format: String(localized: "trip.alert.once_date"), day.weekdayShort, day.day)
+    }
+
+    /// The card's switch (Click, `alert_saved`): the same alert switched on or off, a one-day one too. With notifications
+    /// off it nudges instead, as the crossed bell does (D72).
+    func setAlertOn(_ isOn: Bool) async {
+        guard let bells, let rule = alertRule, let trip = alertTrip else { return }
+        heldAlertID = rule.id
+        await bells.setSwitch(isOn, for: rule.id, trip: trip, route: route)
+    }
+
+    /// A day mark (Tick, `alert_saved`): lit or cleared at once and saved, the last lit day staying lit; on a one-day alert
+    /// any day makes it repeat and keeps its own day (`AlertDays.toggled`). The marks take no tap while switched off.
+    func tapAlertDay(_ day: Int) {
+        guard let bells, let rule = alertRule, !alertChanged, bells.isSwitchedOn(rule), let trip = alertTrip else { return }
+        heldAlertID = rule.id
+        bells.tapDay(day, for: rule.id, trip: trip, route: route)
+    }
+
+    /// Remove alert: the sheet closes and the alert goes where it was opened from, with Undo there (`onRemoveAlert`).
+    func removeAlert() {
+        guard let rule = alertRule else { return }
+        onRemoveAlert?(rule)
+    }
+
+    /// Pick a new train on a Time changed card: the sheet closes and Schedule asks for the new train's bell (TT-193).
+    func pickNewTrain() {
+        guard let rule = alertRule, alertChanged else { return }
+        onPickNewTrain?(rule)
+    }
+
+    /// The train the card's changes are saved for: the sheet's train, else (no train in the timetable that day) the
+    /// alert's own as it was saved.
+    private var alertTrip: Trip? {
+        if let trip = departure?.trip { return trip }
+        guard let rule = alertRule, rule.trip != nil else { return nil }
+        return AlertsViewModel.departure(of: rule).trip
+    }
+
+    /// The hero counts the minutes whenever the train's Alerts card does (TT-254): an alert on it and 60 min or less to go
+    /// today (`AlertsViewModel.countdownLead`).
+    private var alertCounts: Bool {
+        guard isToday, alertRule != nil, !alertChanged, let departure else { return false }
+        return departure.departureTime.timeIntervalSince(now) <= AlertsViewModel.countdownLead
+    }
+
+    /// The capsule the sheet shows: a refusal or a failed save (TT-254: the alert card says the rest).
     var capsule: AlertBellModel.Capsule? {
         guard let capsule = bells?.capsule, capsule.showsInTripDetails else { return nil }
         return capsule
@@ -434,20 +564,32 @@ final class TripDetailsViewModel {
         guard !isRiding, let departure else { return nil }
         return DepartureHero(
             departure, now: now, showsCountdown: showsCountdown,
-            pillPulses: hasPlatformSource && (freshness?.isLive ?? false), formatter: formatter
+            pillPulses: hasPlatformSource && (freshness?.isLive ?? false),
+            atLine: Self.atLine(key.serviceDay, today: ServiceDay(containing: now)), formatter: formatter
         )
+    }
+
+    /// The hero's line over a clock time on another day (TT-254): "Departs tomorrow at", "Departs Monday at", or beyond a
+    /// week "Departs Fri 13 at"; nil today ("Departs at").
+    static func atLine(_ day: ServiceDay, today: ServiceDay) -> String? {
+        guard day > today else { return nil }
+        if day == today.adding(days: 1) { return String(localized: "depart.atLine.tomorrow") }
+        let name = today.days(to: day) > AlertsViewModel.weekdayReach
+            ? String(format: String(localized: "alerts.when.date"), day.weekdayShort, day.day)
+            : day.weekdayName
+        return String(format: String(localized: "depart.atLine.day"), name)
     }
 
     /// The hero counts down: the next usable train today, the alerted train in its window, or "I’m on board" shows.
     var showsCountdown: Bool {
-        departure?.id == nextDepartureId || liveDeparture != nil || showsOnBoardButton
+        departure?.id == nextDepartureId || liveDeparture != nil || showsOnBoardButton || alertCounts
     }
 
     /// The sheet follows the clock each second: riding, or before departure (the hero's countdown, also while the next
     /// train stands at its platform past its time, TT-233).
     var followsClock: Bool {
         isRiding || liveDeparture != nil || demoDeparture != nil || showsOnBoardButton
-            || (departure.map { $0.id == nextDepartureId && !$0.hasLeft(at: now) } ?? false)
+            || (departure.map { ($0.id == nextDepartureId || alertCounts) && !$0.hasLeft(at: now) } ?? false)
     }
 
     /// Each second while `followsClock`: the countdown, Boarding now and Departed follow the clock between loads (a
@@ -537,8 +679,17 @@ final class TripDetailsViewModel {
         self.freshness = freshness
         self.departures = departures
         hasPlatformSource = isToday && live.hasPlatformSource
+        holdAlert()
         playWatchedFeels()
         countBoardingShown()
+    }
+
+    /// Holds the alert the card shows once the trip is in, so editing its days never takes the card away. Not during the
+    /// first save from "Alert me" (`tapAlert()` holds it once that lands).
+    private func holdAlert() {
+        guard heldAlertID == nil, !savesFirstAlert, let bells, let trip = departure?.trip,
+              let rule = bells.rules.alert(for: trip, on: route) else { return }
+        heldAlertID = rule.id
     }
 
     /// This train turning late or cancelled plays Warning, reaching Boarding now Rail joint, once each, not while riding.

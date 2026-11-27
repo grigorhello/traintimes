@@ -8,7 +8,7 @@ import Foundation
 /// still there, the number gives way to "Departing". "Platform" and the pill at the right, the Express bolt beside the
 /// label, "3 min late" under the number only when late. Every time is already formatted by the one formatter (D17).
 struct DepartureHero: Equatable {
-    /// "5:13 PM departs in", "5:16 PM boarding now", or "Departs at".
+    /// "5:13 PM departs in", "5:16 PM boarding now", or "Departs at" ("Departs tomorrow at" on another day, TT-254).
     let line: String
     /// "5:13 PM": the expected departure, in ink, or delay-ink while late (in `line`, or as `number`).
     let time: String
@@ -39,8 +39,12 @@ struct DepartureHero: Equatable {
     }
 
     /// Any train that has not left (TT-207): nil once it has (`BoardingRule`: it moved off, the feed dropped the station, or
-    /// its time came with no position to go by), or when it does not run (cancelled, stop skipped).
-    init?(_ departure: Departure, now: Date, showsCountdown: Bool, pillPulses: Bool, formatter: some TimeFormatting) {
+    /// its time came with no position to go by), or when it does not run (cancelled, stop skipped). `atLine` names another
+    /// day over a clock time ("Departs tomorrow at", TT-254); nil says "Departs at".
+    init?(
+        _ departure: Departure, now: Date, showsCountdown: Bool, pillPulses: Bool, atLine: String? = nil,
+        formatter: some TimeFormatting
+    ) {
         let phase = BoardingRule.phase(of: departure, now: now)
         guard departure.isUsable, !phase.isDeparted else { return nil }
         let untilDeparture = departure.departureTime.timeIntervalSince(now)
@@ -58,7 +62,7 @@ struct DepartureHero: Equatable {
         } else if counts {
             line = String(format: String(localized: "depart.line"), time)
         } else {
-            line = String(localized: "depart.atLine")
+            line = atLine ?? String(localized: "depart.atLine")
         }
         if isDeparting {
             number = String(localized: "schedule.departing")

@@ -146,8 +146,9 @@ extension TripDetailsViewModel {
     /// The 7:32 AM fixture train at 7:21 AM, 11 min before it leaves, with On board (TT-172): an app engine that can start a
     /// ride on the sample Union to Clarkson plan (any trip gets it) and asks for location through `location`.
     @MainActor
+    /// `alerts`: the alert rules, with the sheet's own bell model on them, for the alert card (TT-254).
     static func onBoardFixture(
-        minutesLater: Int = 0, hasAlert: Bool = false, location: FakeLocation? = nil
+        minutesLater: Int = 0, hasAlert: Bool = false, location: FakeLocation? = nil, alerts: AlertRules? = nil
     ) async throws -> TripDetailsViewModel {
         let repository = try FixtureScheduleRepository(bundle: Bundle(for: BundleToken.self))
         let clock = FixedClock(now: repository.now.addingTimeInterval(TimeInterval(minutesLater * 60)))
@@ -161,7 +162,9 @@ extension TripDetailsViewModel {
             repository: repository,
             clock: clock,
             hasAlert: hasAlert,
-            onBoard: OnBoard(app: engine)
+            onBoard: OnBoard(app: engine),
+            alerts: alerts,
+            bells: alerts.map { AlertBellModel(rules: $0, refusalDelay: .zero, afterPrompt: {}) }
         )
         await model.load()
         return model

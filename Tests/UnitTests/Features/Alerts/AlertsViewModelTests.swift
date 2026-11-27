@@ -56,7 +56,7 @@ final class AlertsViewModelTests: XCTestCase {
         let at750 = AlertsFixtures.now.addingTimeInterval(29 * 60)
 
         XCTAssertNil(AlertsViewModel.countdown(departure, hasPlatform: true, now: AlertsFixtures.now, formatter: formatter), "89 min out")
-        XCTAssertEqual(AlertsViewModel.countdown(departure, hasPlatform: true, now: at750, formatter: formatter), "in 60 min")
+        XCTAssertEqual(AlertsViewModel.countdown(departure, hasPlatform: true, now: at750, formatter: formatter), "in 1 h", "an hour out reads in hours (D123)")
         XCTAssertNil(AlertsViewModel.countdown(departure, hasPlatform: false, now: at750, formatter: formatter))
     }
 

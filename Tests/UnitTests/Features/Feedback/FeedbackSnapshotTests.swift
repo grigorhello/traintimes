@@ -18,15 +18,27 @@ final class FeedbackSnapshotTests: XCTestCase {
     /// With the Notice chip, the pill is icon only.
     @MainActor func testSchedulePillWithNoticeDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark) }
 
-    /// The button as it asks (TT-228, D112), frozen about 1000 ms in: solid fill, the question bubble, tilted and grown.
+    /// The button as it asks (TT-228, D112; drawn since TT-252, D128), frozen about 1000 ms in: solid fill, the drawn
+    /// question mark in the bubble, tilted and grown.
     @MainActor func testPillAsksLight() async throws { try await snapSchedule(.loadedFixture(), .light, asks: true) }
     @MainActor func testPillAsksDark() async throws { try await snapSchedule(.loadedFixture(), .dark, asks: true) }
     @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }
     @MainActor func testRoundButtonAsksDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark, asks: true) }
 
-    /// The labelled pill, which a short line name leaves room for, at rest and as it asks (grown to 1.06, label on accent).
+    /// The Feedback button at the end of the Alerts and Settings titles (TT-252, D128), at rest.
+    @MainActor func testAlertsTabButtonLight() async throws { try await snapSchedule(.loadedFixture(), .light, tab: .alerts) }
+    @MainActor func testAlertsTabButtonDark() async throws { try await snapSchedule(.loadedFixture(), .dark, tab: .alerts) }
+    @MainActor func testSettingsTabButtonLight() async throws { try await snapSchedule(.loadedFixture(), .light, tab: .settings) }
+    @MainActor func testSettingsTabButtonDark() async throws { try await snapSchedule(.loadedFixture(), .dark, tab: .settings) }
+
+    /// The labelled pill, which a short line name leaves room for, at rest and as it asks (label on accent).
     @MainActor func testLabelledPillAsksLight() { snapPill(.light) }
     @MainActor func testLabelledPillAsksDark() { snapPill(.dark) }
+
+    /// The play frame by frame (TT-252, D128), from the keyframes themselves: the lines pull back, the hook is drawn, the
+    /// dot pops, the bounce, the mark erased and the lines written again, back at rest.
+    @MainActor func testMotionFramesLight() { snapFrames(.light) }
+    @MainActor func testMotionFramesDark() { snapFrames(.dark) }
 
     // MARK: Helpers
 
@@ -41,6 +53,39 @@ final class FeedbackSnapshotTests: XCTestCase {
         assertSnapshot(
             of: view,
             as: .image(perceptualPrecision: 0.98, layout: .fixed(width: 330, height: 80), traits: UITraitCollection(userInterfaceStyle: style)),
+            testName: testName,
+            line: line
+        )
+    }
+
+    /// Times in the play, in seconds, for `snapFrames`.
+    static let frameTimes: [Double] = [0, 0.1, 0.2, 0.3, 0.4, 0.55, 0.75, 1.0, 1.12, 1.4, 1.9, 2.0, 2.1, 2.25, 2.4, 2.6]
+
+    @MainActor
+    private func snapFrames(_ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        let rows = stride(from: 0, to: Self.frameTimes.count, by: 4).map { Array(Self.frameTimes[$0..<min($0 + 4, Self.frameTimes.count)]) }
+        let view = VStack(spacing: 10) {
+            ForEach(rows, id: \.self) { row in
+                HStack(spacing: 8) {
+                    ForEach(row, id: \.self) { time in
+                        VStack(spacing: 6) {
+                            FeedbackPill(compact: true, pose: FeedbackNudgeMotion.frame(at: time)) {}
+                                .frame(height: 44)
+                            Text(String(format: "%.2f s", time))
+                                .font(TTFont.footnote)
+                                .foregroundStyle(TTColor.inkSecondary)
+                        }
+                        .frame(width: 70)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TTColor.canvas)
+        assertSnapshot(
+            of: view,
+            as: .image(perceptualPrecision: 0.98, layout: .fixed(width: 330, height: 330), traits: UITraitCollection(userInterfaceStyle: style)),
             testName: testName,
             line: line
         )
@@ -91,10 +136,15 @@ final class FeedbackSnapshotTests: XCTestCase {
 
     @MainActor
     private func snapSchedule(
-        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, testName: String = #function, line: UInt = #line
+        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, tab: AppTab = .schedule,
+        testName: String = #function, line: UInt = #line
     ) {
-        let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
+        let router = AppRouter()
+        router.selectedTab = tab
+        let view = RootView(router: router, schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
             .environment(\.showsFeedbackPill, true)
+            .environment(\.rendersGlass, false)
+            .environment(\.playsSettingsMotion, false)
             .environment(\.feedbackNudgeFrozen, asks)
         layOutOnce(view)
         assertSnapshot(

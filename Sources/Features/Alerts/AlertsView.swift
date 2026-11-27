@@ -30,11 +30,16 @@ struct AlertsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("tab.alerts")
-                        .font(TTFont.largeTitle)
-                        .foregroundStyle(TTColor.ink)
-                        .accessibilityAddTraits(.isHeader)
-                        .frame(height: 48, alignment: .bottomLeading)
+                    HStack(alignment: .center, spacing: TTSpace.s2) {
+                        Text("tab.alerts")
+                            .font(TTFont.largeTitle)
+                            .foregroundStyle(TTColor.ink)
+                            .accessibilityAddTraits(.isHeader)
+                        Spacer(minLength: 0)
+                        // The Feedback button on every tab (TT-252, D128).
+                        TabFeedbackEntry(tab: .alerts, source: .alertsTab, isBusy: viewModel.capsule != nil)
+                    }
+                    .frame(height: 48, alignment: .bottom)
                     if let offline = viewModel.offlineLine(formatter) {
                         Text(verbatim: offline)
                             .font(TTFont.footnote)

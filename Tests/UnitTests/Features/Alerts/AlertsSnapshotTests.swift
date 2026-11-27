@@ -5,8 +5,8 @@ import XCTest
 
 /// The Alerts tab as cards (TT-253, D129) against the Alerts canvas's round 2 boards, light and dark: the cards under their
 /// routes with the days row and See trains, the states (late, Time changed, switched off, no train on its days),
-/// notifications off with crossed bells, offline, and the empty tab with the next trains. Drawn in the host app's key
-/// window, in the tab view, as on the simulator; the bell does not shake.
+/// notifications off with crossed bells, offline, no timetable yet, and the empty tab with the next trains. Drawn in the
+/// host app's key window, in the tab view, as on the simulator; the bell does not shake.
 final class AlertsSnapshotTests: XCTestCase {
     @MainActor func testCardsLight() async throws { snap(try await cards(), .light) }
     @MainActor func testCardsDark() async throws { snap(try await cards(), .dark) }
@@ -18,6 +18,8 @@ final class AlertsSnapshotTests: XCTestCase {
     @MainActor func testOfflineDark() async throws { snap(try await offline(), .dark) }
     @MainActor func testEmptyLight() async throws { snap(try await empty(), .light) }
     @MainActor func testEmptyDark() async throws { snap(try await empty(), .dark) }
+    @MainActor func testPendingLight() async throws { snap(try await pending(), .light) }
+    @MainActor func testPendingDark() async throws { snap(try await pending(), .dark) }
 
     /// 7:32 AM Mon to Fri, in 11 min at Platform 2; 8:21 AM once, today; 5:10 PM Mon to Thu from Union.
     @MainActor
@@ -55,6 +57,13 @@ final class AlertsSnapshotTests: XCTestCase {
         let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.today])
         let live = AlertsFixtures.live(offline: true)
         return try await root(await AlertsFixtures.model(rules, repository: AlertsFixtures.trains(live: ["OA>UN": live])))
+    }
+
+    /// No timetable yet (the trains could not be read): the time and bell from the alert, rows 2 and 3 as skeleton bars.
+    @MainActor
+    private func pending() async throws -> some View {
+        let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.today])
+        return try await root(await AlertsFixtures.model(rules, repository: AlertsFixtures.trains(failing: true)))
     }
 
     /// The lead, the route, then the next three trains of the fixture route as plain cards with their bells.

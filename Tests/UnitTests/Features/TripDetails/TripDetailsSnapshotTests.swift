@@ -65,7 +65,8 @@ final class TripDetailsSnapshotTests: XCTestCase {
         let today = repository.serviceDay
         let route = repository.route
         func train(_ id: String, on day: ServiceDay) async throws -> Trip {
-            try XCTUnwrap(try await repository.trips(for: route, on: day).first { $0.key.tripId == id })
+            let trips = try await repository.trips(for: route, on: day)
+            return try XCTUnwrap(trips.first { $0.key.tripId == id })
         }
         let weekdays = [1, 2, 3, 4, 5]
         switch scene {

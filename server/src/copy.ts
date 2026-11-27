@@ -22,6 +22,8 @@ export const strings = {
   // The departure question (TT-231, D110).
   'depart.ask.line': '%@ departed',
   'depart.ask.notif': 'On the %@ train?',
+  // Time to board, three buzzes (TT-247, D124).
+  'depart.board.notif': 'Time to board the %@ train',
   'depart.line': '%@ departs in',
   'depart.boardingLine': '%@ boarding now',
   'depart.departed': 'Departed %@',

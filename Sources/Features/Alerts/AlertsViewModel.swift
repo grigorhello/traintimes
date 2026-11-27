@@ -92,11 +92,13 @@ final class AlertsViewModel {
         var id: TripKey { trip.key }
     }
 
-    /// What "See trains" or a tap on a card opens: the train's key (its day) between the alert's stations.
+    /// What "See trains" or a tap on a card opens: the train's key (its day) between the alert's stations, and the alert,
+    /// which Trip details shows on top (TT-254).
     struct Jump: Equatable {
         let key: TripKey
         let originId: String
         let destinationId: String
+        var alertID: AlertRule.ID?
     }
 
     /// The tab's glass capsule: "Alert removed · Undo", "Couldn't … · Try again" or "Notifications are on".
@@ -390,13 +392,18 @@ final class AlertsViewModel {
         let routeChanged = shown.map { $0.from.id != rule.origin.id || $0.to.id != rule.destination.id } ?? true
         haptics.play(.tab)
         Analytics.track(.alertShownInSchedule(isToday: key.serviceDay == today, routeChanged: routeChanged, isOn: !rule.paused))
-        return Jump(key: key, originId: rule.origin.id, destinationId: rule.destination.id)
+        return Jump(key: key, originId: rule.origin.id, destinationId: rule.destination.id, alertID: id)
     }
 
-    /// A tap on a card: its train's Trip details; none while the card is drawn from the alert alone.
+    /// A tap on a card: its train's Trip details, alert first (TT-254); a Time changed card opens the alert alone (its own
+    /// train as it was saved); none while the card waits for the timetable.
     func trip(_ id: AlertRule.ID) -> Jump? {
-        guard let rule = rule(id), case .train(let run)? = runs[id] else { return nil }
-        return Jump(key: run.departure.trip.key, originId: rule.origin.id, destinationId: rule.destination.id)
+        guard let rule = rule(id) else { return nil }
+        if case .train(let run)? = runs[id] {
+            return Jump(key: run.departure.trip.key, originId: rule.origin.id, destinationId: rule.destination.id, alertID: id)
+        }
+        guard rules.state(of: rule) == .reviewNeeded, let key = rule.trip else { return nil }
+        return Jump(key: key, originId: rule.origin.id, destinationId: rule.destination.id, alertID: id)
     }
 
     // MARK: Remove and Undo (Trip details' Remove alert, TT-254)

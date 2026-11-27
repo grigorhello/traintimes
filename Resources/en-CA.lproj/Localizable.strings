@@ -74,7 +74,6 @@
 "trip.departed" = "Departed";
 "trip.stops_count" = "%d stops";
 "trip.stops_one" = "1 stop";
-"trip.repeat_days" = "%d days";
 "trip.stops_expected" = "Expected";
 "trip.stops_scheduled" = "Scheduled";
 "trip.footnote_live" = "Arrival times are estimates from the live feed. Scheduled arrival %@.";
@@ -100,6 +99,8 @@
 "depart.line" = "%@ departs in";
 "depart.boardingLine" = "%@ boarding now";
 "depart.atLine" = "Departs at";
+"depart.atLine.tomorrow" = "Departs tomorrow at";
+"depart.atLine.day" = "Departs %@ at";
 "depart.arrivesLabel" = "Arrives";
 "depart.departed" = "Departed %@";
 "depart.live.title" = "%1$@ departs in %2$d min";
@@ -252,6 +253,11 @@
 "alerts.days.count" = "%d days";
 "alerts.pick_new_train" = "Pick a new train";
 "alerts.remove" = "Remove alert";
+"trip.alert.title" = "Alert";
+"trip.alert.once_today" = "Once, today";
+"trip.alert.once_tomorrow" = "Once, tomorrow";
+"trip.alert.once_date" = "Once, %1$@ %2$d";
+"trip.alert.changed" = "%@ is no longer in the timetable.";
 "alerts.off.line" = "1 alert can’t reach you.";
 "alerts.off.line_plural" = "%d alerts can’t reach you.";
 

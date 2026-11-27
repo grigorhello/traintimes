@@ -921,7 +921,7 @@ struct ScheduleView: View {
         switch capsule.kind {
         case .on:
             bells.repeatTapped()
-        case .off:
+        case .off, .removed:
             Task { await bells.undo() }
         case .failed:
             Task { await bells.tryAgain() }

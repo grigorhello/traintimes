@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Trip details sheet (TT-118, redesigned in TT-163 after design/frames/trip-details*.png): on the canvas ground, a pinned
 /// header (line tile, line name, glass close button), the journey card, the stop list on one rail, and the alert bar
-/// floating over the content (TT-192: "Alert me" turns the alert on in place, the sheet stays). Everything scrolls; the
+/// floating over the content (TT-192: "Alert me" turns the alert on in place, the sheet stays). A train with an alert opens
+/// alert-first (TT-254, D129): the alert card on top, then the hero and the folded trip, and no bar. Everything scrolls; the
 /// content ends above the bar.
 struct TripDetailsView: View {
     let viewModel: TripDetailsViewModel
@@ -16,6 +17,7 @@ struct TripDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The permission sheet before the first ride's iOS prompt (TT-172).
     @State private var showsIntro = false
     @State private var tick = 0
@@ -27,6 +29,9 @@ struct TripDetailsView: View {
     @State private var entranceSettled = false
     /// The folded row before departure is open: the stops between the two stations show (TT-205).
     @State private var showsStopsBetween = false
+    /// The alert card as Remove alert or Pick a new train left it: it stays while the sheet closes, so "Alert me" does not
+    /// show through for the length of the dismissal (TT-254).
+    @State private var closingAlert: TripAlertCard?
 
     // Canvas geometry (TT-163). Rows: station 56, meta 28, status 44, stop 44.
     /// 15 pt under the 15 pt the grabber takes from the sheet's top edge.
@@ -54,8 +59,11 @@ struct TripDetailsView: View {
     private static let bottomInsetWithButton: CGFloat = 92
     private static let bottomInset: CGFloat = 40
     private static let buttonBottom: CGFloat = 24
-    /// The capsule and the day panel sit 10 pt above the bar (TT-192).
+    /// The capsule sits 10 pt above the bar (TT-192).
     private static let capsuleGap: CGFloat = 10
+    /// A Time changed alert's sheet: the header and its card alone (the canvas's short sheet, 348 pt, TT-254).
+    private static let changedDetents: Set<PresentationDetent> = [.height(348)]
+    private static let fullDetents: Set<PresentationDetent> = [.large]
     private static let topFade: CGFloat = 16
     private static let bottomFade: CGFloat = 112
     private static let bottomFadeOpacity = 0.72
@@ -67,8 +75,11 @@ struct TripDetailsView: View {
         let ride = closingRide ?? viewModel.rideDetails(formatter)
         let details = viewModel.details(formatter)
         let hero = ride == nil ? viewModel.departureHero(formatter) : nil
+        let card = ride == nil ? closingAlert ?? viewModel.alertCard(formatter) : nil
         let showsOnBoard = ride == nil && viewModel.showsOnBoardButton
-        let hasButton = ride != nil || showsOnBoard || details?.alertButton != nil
+        // "Alert me" only for a train with no alert (TT-254): the alert card has the rest.
+        let showsAlertBar = ride == nil && card == nil && viewModel.showsAlertBar
+        let hasButton = ride != nil || showsOnBoard || showsAlertBar
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Above the scroll view, so the close button's glass shadow is not cut off by the top fade (a hard edge in light).
@@ -83,14 +94,13 @@ struct TripDetailsView: View {
                                 onWrongTrains: { viewModel.wrongTrainTrains() },
                                 onWrongFine: { viewModel.wrongTrainFine() }
                             )
-                        } else if let hero, let details {
-                            departureContent(hero, details: details)
-                        } else if let details {
-                            content(details)
+                        } else {
+                            alertFirst(card: card, hero: hero, details: details)
                         }
                     }
                     .environment(\.stagedEntranceSettled, entranceSettled)
                     .animation(TTMotion.fade, value: hero == nil)
+                    .animation(reduceMotion ? TTMotion.fade : TTMotion.card, value: card == nil)
                     .padding(.horizontal, TTSpace.s5)
                     .padding(.top, TTSpace.s4)
                     .padding(.bottom, hasButton ? Self.bottomInsetWithButton : Self.bottomInset)
@@ -107,14 +117,20 @@ struct TripDetailsView: View {
                 rideButton(ride)
             } else if showsOnBoard {
                 bottomFade
-                capsuleLayer
-                onBoardButtons(alert: details?.alertButton)
-            } else if details?.alertButton != nil {
+                capsuleLayer(aboveButton: true)
+                onBoardButtons(alert: card == nil ? details?.alertButton : nil)
+            } else if showsAlertBar {
                 bottomFade
-                capsuleLayer
+                capsuleLayer(aboveButton: true)
                 alertBar
+                    .transition(.opacity)
+            } else if card != nil {
+                // The card's refusals and failed saves, with no button under them.
+                capsuleLayer(aboveButton: false)
             }
         }
+        // "Alert me" leaves as the alert card arrives (TT-254).
+        .animation(TTMotion.fade, value: showsAlertBar)
         // The sheet's bottom edge is the screen's: the button sits 24 pt above it, over the home indicator's area.
         .ignoresSafeArea(.container, edges: .bottom)
         .background(TTColor.canvas)
@@ -128,8 +144,6 @@ struct TripDetailsView: View {
             try? await Task.sleep(for: .seconds(1))
             entranceSettled = true
         }
-        // The selection tick when a day lights, as on Schedule (TT-191). The bell's own feels play from its model (TT-214).
-        .sensoryFeedback(.selection, trigger: viewModel.bells?.dayOnCount ?? 0)
         // Back from the capsule's Turn on with notifications on, the alert turns on (D72).
         .task(id: scenePhase) {
             guard scenePhase == .active, let bells = viewModel.bells else { return }
@@ -155,6 +169,8 @@ struct TripDetailsView: View {
         .accessibilityLabel(ride?.title ?? details?.title ?? "")
         .accessibilityIdentifier("sheet.tripDetails")
         .presentationDragIndicator(.visible)
+        // A Time changed alert has no train to show: the short sheet (TT-254).
+        .presentationDetents(card?.isChanged == true ? Self.changedDetents : Self.fullDetents)
         .presentationCornerRadius(TTRadius.sheet)
         .presentationBackground(TTColor.canvas)
     }
@@ -200,17 +216,58 @@ struct TripDetailsView: View {
         .animation(TTMotion.fade, value: details)
     }
 
+    // MARK: Alert first (TT-254, D129)
+
+    /// The alert card on top for a train with an alert, then the train as before: the hero and the folded trip, or the
+    /// journey card and the stops. A Time changed alert shows its card alone. Staged: the card, then the hero, then the trip.
+    @ViewBuilder
+    private func alertFirst(card: TripAlertCard?, hero: DepartureHero?, details: TripDetails?) -> some View {
+        VStack(alignment: .leading, spacing: TTSpace.s3) {
+            if let card {
+                alertCard(card)
+                    .stagedEntrance(rise: 12, on: TTMotion.card)
+                    // Added by "Alert me" once the sheet has settled: it comes down into its place over the hero.
+                    .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.opacity.combined(with: .offset(y: -12)))
+            }
+            if card?.isChanged != true {
+                if let hero, let details {
+                    departureContent(hero, details: details, beat: card == nil ? 0 : 1)
+                } else if let details {
+                    content(details)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func alertCard(_ card: TripAlertCard) -> some View {
+        TripAlertCardView(
+            card: card,
+            onSwitch: { isOn in Task { await viewModel.setAlertOn(isOn) } },
+            onDay: { viewModel.tapAlertDay($0) },
+            onRemove: {
+                closingAlert = card
+                viewModel.removeAlert()
+            },
+            onPickNewTrain: {
+                closingAlert = card
+                viewModel.pickNewTrain()
+            }
+        )
+    }
+
     // MARK: Before departure (TT-205, D93)
 
     /// Boards 2 and 4: the hero card, then the trip folded to its two stations with the stops between in one row; nothing
     /// under it. One look for every train that has not left (TT-207, D96: the Trip details canvas's Delay-A boards).
-    private func departureContent(_ hero: DepartureHero, details: TripDetails) -> some View {
+    /// `beat` is where the hero falls in the staged entrance: 1 under the alert card (TT-254).
+    private func departureContent(_ hero: DepartureHero, details: TripDetails, beat: Int = 0) -> some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
             DepartureHeroCard(hero: hero)
                 // The card arrives first, as the journey card does (TT-167, D65).
-                .stagedEntrance(rise: 12, on: TTMotion.card)
+                .stagedEntrance(rise: 12, on: TTMotion.card, delay: TTMotion.stopDelay(beat))
             foldedTrip(details)
-                .stagedEntrance(rise: 12, on: TTMotion.card, delay: TTMotion.stopDelay(1))
+                .stagedEntrance(rise: 12, on: TTMotion.card, delay: TTMotion.stopDelay(beat + 1))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -631,16 +688,12 @@ struct TripDetailsView: View {
         .allowsHitTesting(false)
     }
 
-    /// "Alert me", or "Alert on" with Repeat beside it (TT-192, D77): the sheet never closes.
+    /// "Alert me" (TT-192, D77): the sheet never closes, and the alert card takes over once the alert is on (TT-254).
     private var alertBar: some View {
         TripAlertBar(
             face: viewModel.bell,
             shakes: viewModel.bellShakes,
-            repeatTitle: viewModel.repeatTitle,
-            repeats: !viewModel.repeatDays.isEmpty,
-            isPanelOpen: viewModel.capsule?.isPanelOpen ?? false,
-            onAlert: { Task { await viewModel.tapAlert() } },
-            onRepeat: { viewModel.tapRepeat() }
+            onAlert: { Task { await viewModel.tapAlert() } }
         )
         // Last, from 120 ms: it grows from 0.9 as it fades in (TT-167).
         .stagedEntrance(scale: 0.9, on: TTMotion.grow, delay: TTMotion.buttonDelay)
@@ -650,10 +703,10 @@ struct TripDetailsView: View {
 
     // MARK: Capsule (TT-192)
 
-    /// What the bar cannot say, in D71's glass capsule 10 pt above it: "Notifications are off · Turn on", "Couldn't …
-    /// · Try again", and the day panel Repeat opens, the bar's width. The content fades under it; a tap or a drag outside
-    /// the panel closes it.
-    @ViewBuilder private var capsuleLayer: some View {
+    /// What the bar and the alert card cannot say, in D71's glass capsule 10 pt above the button, or 24 pt above the
+    /// sheet's edge with no button (`aboveButton` false): "Notifications are off · Turn on" and "Couldn't … · Try again".
+    /// The content fades under it.
+    @ViewBuilder private func capsuleLayer(aboveButton: Bool) -> some View {
         if let bells = viewModel.bells {
             let capsule = viewModel.capsule
             let isPanelOpen = capsule?.isPanelOpen ?? false
@@ -671,7 +724,7 @@ struct TripDetailsView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
-                .padding(.bottom, Self.buttonBottom + Self.alertHeight + Self.capsuleGap)
+                .padding(.bottom, aboveButton ? Self.buttonBottom + Self.alertHeight + Self.capsuleGap : Self.buttonBottom)
             }
         }
     }
@@ -689,7 +742,7 @@ struct TripDetailsView: View {
                     case .notificationsOff:
                         bells.turnOnInSettings()
                         openURL(AlertBellModel.notificationSettingsURL)
-                    case .on, .off, .notificationsOn, .newTrain:
+                    case .on, .off, .notificationsOn, .newTrain, .removed:
                         break
                     }
                 }

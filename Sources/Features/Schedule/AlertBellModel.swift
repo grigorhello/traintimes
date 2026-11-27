@@ -43,6 +43,8 @@ final class AlertBellModel {
             /// "Tap the bell of your new train" with Cancel, after a Time changed row's "Pick a new train" (TT-193): the
             /// bell tapped next takes over the old alert's days and the old alert goes. It stays until then.
             case newTrain
+            /// "Alert removed" with Undo, on Schedule after Trip details' Remove alert (TT-254); the Alerts tab has its own.
+            case removed
         }
 
         enum Failure: Equatable {
@@ -68,7 +70,7 @@ final class AlertBellModel {
         var hasAction: Bool {
             switch kind {
             case .on: repeats.isEmpty
-            case .off, .failed, .notificationsOff, .newTrain: true
+            case .off, .failed, .notificationsOff, .newTrain, .removed: true
             case .notificationsOn: false
             }
         }
@@ -113,8 +115,11 @@ final class AlertBellModel {
     @ObservationIgnored private var retry: Retry?
     /// The alert the open day panel changes.
     @ObservationIgnored private var panelRuleID: AlertRule.ID?
-    /// The latest days asked for in the panel, saved one change at a time by `daySaving`.
-    @ObservationIgnored private var wanted: WantedDays?
+    /// The latest days asked for in the panel or on Trip details' alert card, saved one change at a time by `daySaving`.
+    /// Observed: the card's marks show them at once (TT-254).
+    private var wanted: WantedDays?
+    /// Trip details' alert switch while its save is on its way: the switch shows the new value at once (TT-254).
+    private var switching: (ruleID: AlertRule.ID, isOn: Bool)?
     @ObservationIgnored private var daySaving: Task<Void, Never>?
     /// A one-day alert's delete on its way to the server: Undo waits for it, so its save lands after it.
     @ObservationIgnored private var offTask: Task<Void, Never>?
@@ -125,6 +130,10 @@ final class AlertBellModel {
         case turnOn(Trip, Route)
         case changeDays([Int], ruleID: AlertRule.ID, Trip, Route)
         case turnOff(Trip, Route)
+        /// Trip details' alert switch (TT-254).
+        case setSwitch(Bool, ruleID: AlertRule.ID, Trip, Route)
+        /// Undo on "Alert removed" (TT-254).
+        case restore(AlertRule)
     }
 
     private struct WantedDays: Equatable {
@@ -317,8 +326,10 @@ final class AlertBellModel {
         dismissCapsule()
     }
 
-    /// Undo on "Alert off": the alert back as it was, with the same id and days (TT-191).
+    /// Undo on "Alert off": the alert back as it was, with the same id and days (TT-191). Undo on "Alert removed": the
+    /// alert back as it was, switched on or off, with Tap (TT-254).
     func undo() async {
+        if capsule?.kind == .removed { return await undoRemove() }
         guard let capsule, capsule.kind == .off, let rule = undoRule, let trip = capsule.trip, let route = capsule.route,
               !busy.contains(trip.key) else { return }
         undoRule = nil
@@ -341,6 +352,12 @@ final class AlertBellModel {
         case let .turnOff(trip, route):
             guard isWorking(trip, on: route) else { return dismissCapsule() }
             await tap(trip, on: route)
+        case let .setSwitch(isOn, ruleID, trip, route):
+            dismissCapsule()
+            await setSwitch(isOn, for: ruleID, trip: trip, route: route)
+        case let .restore(rule):
+            dismissCapsule()
+            await restore(rule)
         case let .changeDays(days, ruleID, trip, route):
             hideTask?.cancel()
             let shown = capsule?.id
@@ -386,6 +403,98 @@ final class AlertBellModel {
         retry = nil
         panelRuleID = nil
         replacing = nil
+    }
+
+    // MARK: Trip details' alert card (TT-254, D129)
+
+    /// What the card's switch shows: the value on its way to the server, else the saved one.
+    func isSwitchedOn(_ rule: AlertRule) -> Bool {
+        if let switching, switching.ruleID == rule.id { return switching.isOn }
+        return !rule.paused
+    }
+
+    /// The days the card's marks show while a change saves; nil once the alert has them.
+    func pendingDays(for ruleID: AlertRule.ID) -> [Int]? {
+        guard let wanted, wanted.ruleID == ruleID else { return nil }
+        return wanted.days
+    }
+
+    /// The card's switch: the alert switched on or off with the same id and days (a one-day alert too: switched off, it
+    /// stays, grey), Click as the thumb lands. Turning on asks for permission first (`mayAlert`). With notifications off
+    /// the tap only nudges, as the crossed bell does: the switch keeps its place, Warning, "Notifications are off · Turn
+    /// on". A save that fails goes back, with Fail and "Couldn't … · Try again".
+    func setSwitch(_ isOn: Bool, for ruleID: AlertRule.ID, trip: Trip, route: Route) async {
+        guard let rule = rules.rules.first(where: { $0.id == ruleID }), isSwitchedOn(rule) != isOn,
+              !busy.contains(trip.key) else { return }
+        if rules.permission == .off {
+            await refuse(.notificationsOff, trip: trip, route: route)
+            return
+        }
+        busy.insert(trip.key)
+        defer { busy.remove(trip.key) }
+        switching = (ruleID, isOn)
+        SwitchClick.tapped(from: !isOn, to: isOn, haptics: haptics)
+        if isOn, !(await mayAlert(trip, on: route)) {
+            switching = nil
+            return
+        }
+        guard var current = rules.rules.first(where: { $0.id == ruleID }) else {
+            switching = nil
+            return
+        }
+        current.paused = !isOn
+        let saved = await rules.commit(current)
+        switching = nil
+        guard saved else {
+            haptics.play(.fail)
+            show(
+                .failed(isOn ? .turnOn : .turnOff), trip: trip, route: route,
+                retry: .setSwitch(isOn, ruleID: ruleID, trip, route)
+            )
+            return
+        }
+        // Notifications turned off in iOS Settings while it saved.
+        if isOn, rules.state(of: current) == .notificationsOff { await refuse(.notificationsOff, trip: trip, route: route) }
+    }
+
+    /// A day mark: the alert's days with that day lit or cleared (`AlertDays.toggled`, the last lit day stays lit; a one-day
+    /// alert starts repeating and keeps its own day), shown at once with Tick and saved by itself, the same id
+    /// (`want`), keeping the switch. Works while notifications are off; Trip details takes no tap on the marks while the
+    /// alert is switched off.
+    func tapDay(_ day: Int, for ruleID: AlertRule.ID, trip: Trip, route: Route) {
+        guard let rule = rules.rules.first(where: { $0.id == ruleID }) else { return }
+        let shown = pendingDays(for: ruleID) ?? (rule.kind == .repeating ? rule.weekdays : [])
+        let ownDay = (rule.trip ?? trip.key).serviceDay.isoWeekday
+        let days = AlertDays.toggled(day, in: shown, ownDay: ownDay)
+        guard days != shown.sorted() else { return }
+        haptics.play(.day)
+        want(days, ruleID: ruleID, trip: trip, route: route)
+    }
+
+    /// Remove alert in Trip details opened from Schedule (or a notification, a widget, the Live Activity): the alert is
+    /// deleted on device at once and on the server in the background, Drop, and Schedule says "Alert removed · Undo".
+    func remove(_ rule: AlertRule, trip: Trip?, route: Route?) {
+        hideTask?.cancel()
+        if wanted?.ruleID == rule.id { wanted = nil }
+        offTask = rules.deleteInBackground(rule.id)
+        haptics.play(.remove)
+        Analytics.track(.alertRemoved(source: .tripDetails))
+        show(.removed, trip: trip, route: route, undo: rule)
+    }
+
+    /// Undo on "Alert removed": Tap, then the alert back as it was, once its delete is done.
+    private func undoRemove() async {
+        guard let rule = undoRule else { return }
+        haptics.play(.undo)
+        dismissCapsule()
+        if let offTask { await offTask.value }
+        await restore(rule)
+    }
+
+    private func restore(_ rule: AlertRule) async {
+        guard !(await rules.commit(rule)) else { return }
+        haptics.play(.fail)
+        show(.failed(.turnOn), trip: nil, route: nil, retry: .restore(rule))
     }
 
     // MARK: Turning on and off
@@ -573,7 +682,7 @@ extension AlertBellModel.Capsule.Kind {
     var glyph: CapsuleGlyph {
         switch self {
         case .on: .bellOn
-        case .off, .newTrain: .bellOff
+        case .off, .newTrain, .removed: .bellOff
         case .failed: .failed
         case .notificationsOff: .notificationsOff
         case .notificationsOn: .confirmed
@@ -609,6 +718,8 @@ extension AlertBellModel.Capsule {
             return String(localized: "alerts.notifications_on")
         case .newTrain:
             return String(localized: "capsule.new_train")
+        case .removed:
+            return String(localized: "capsule.removed")
         }
     }
 
@@ -630,7 +741,7 @@ extension AlertBellModel.Capsule {
         switch kind {
         case .failed, .notificationsOff: true
         case .on: isPanelOpen
-        case .off, .notificationsOn, .newTrain: false
+        case .off, .notificationsOn, .newTrain, .removed: false
         }
     }
 
@@ -639,7 +750,7 @@ extension AlertBellModel.Capsule {
         guard hasAction else { return nil }
         return switch kind {
         case .on: "alert.repeat"
-        case .off: "button.undo"
+        case .off, .removed: "button.undo"
         case .failed: "button.try_again"
         case .notificationsOff: "capsule.turn_on"
         case .newTrain: "button.cancel"

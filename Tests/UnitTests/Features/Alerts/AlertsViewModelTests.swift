@@ -198,6 +198,9 @@ final class AlertsViewModelTests: XCTestCase {
         XCTAssertEqual(changed?.greysDays, true)
         XCTAssertEqual(changed?.time, "8:05 AM")
         XCTAssertNil(model.tapBell("burlington"))
+        // A tap opens Trip details on the alert alone (TT-254): its own train as saved, with the alert's id.
+        XCTAssertEqual(model.trip("burlington")?.alertID, "burlington")
+        XCTAssertEqual(model.trip("burlington")?.key, AlertsFixtures.burlington.trip)
     }
 
     func testOfflineCardsReadScheduledWithALineUnderTheTitle() async {
@@ -308,7 +311,9 @@ final class AlertsViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             model.seeTrains("morning"),
-            AlertsViewModel.Jump(key: TripKey(serviceDay: thursday, tripId: "LW-0732-20261105"), originId: "OA", destinationId: "UN")
+            AlertsViewModel.Jump(
+                key: TripKey(serviceDay: thursday, tripId: "LW-0732-20261105"), originId: "OA", destinationId: "UN", alertID: "morning"
+            )
         )
         XCTAssertEqual(haptics.played, [.tick])
         XCTAssertEqual(analytics.events.last, AnalyticsEvent.alertShownInSchedule(isToday: true, routeChanged: false, isOn: true))

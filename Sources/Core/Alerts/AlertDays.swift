@@ -39,6 +39,20 @@ enum AlertDays {
         return summary(of: sorted)
     }
 
+    /// A day mark tapped on Trip details' alert card (TT-254, D129): the days the alert repeats on after the tap. A
+    /// repeating alert's day lights or clears, but its last lit day stays lit (the same days come back). A one-day alert
+    /// (`days` empty) starts repeating on the tapped day and keeps its own day (`ownDay`, the ring), so tapping the ring
+    /// makes it repeat on that day alone.
+    static func toggled(_ day: Int, in days: [Int], ownDay: Int) -> [Int] {
+        let lit = Set(days)
+        guard !lit.isEmpty else { return Array(Set([ownDay, day])).sorted() }
+        guard lit.contains(day) else { return lit.union([day]).sorted() }
+        return lit.count == 1 ? lit.sorted() : lit.subtracting([day]).sorted()
+    }
+
+    /// The first letter of a day mark: "M", "T", "W", "T", "F", "S", "S".
+    static func letter(_ isoWeekday: Int) -> String { symbols.veryShortWeekdaySymbols[isoWeekday % 7] }
+
     /// "Mon".
     static func shortName(_ isoWeekday: Int) -> String { symbols.shortWeekdaySymbols[isoWeekday % 7] }
 

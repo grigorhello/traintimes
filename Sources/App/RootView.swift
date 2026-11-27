@@ -574,10 +574,12 @@ struct RootView: View {
         guard let route = await onBoard.rideRoute(stations: stations), onBoard.activeRide == ride,
               router.presentedSheet == nil else { return }
         onBoard.screen.opensByItself(onBoard.engine)
-        tripDetails = TripDetailsViewModel(
+        let details = TripDetailsViewModel(
             route: route, key: ride.tripKey, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
             bells: bells.sibling(), boardingShown: BoardingShown(), ridesInPlace: !risesIn
         )
+        followAlertCard(of: details)
+        tripDetails = details
         router.present(.tripDetails)
     }
 
@@ -674,7 +676,7 @@ struct RootView: View {
         Task {
             let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
-            openTrip(jump.key, on: route, source: .alerts)
+            openTrip(jump.key, on: route, source: .alerts, alertID: jump.alertID)
         }
     }
 
@@ -692,16 +694,38 @@ struct RootView: View {
         }
     }
 
-    private func openTrip(_ key: TripKey, on route: Route? = nil, source: TripOpenSource = .schedule) {
+    /// `alertID`: the Alerts card's alert, whose Time changed card has no train to look it up by (TT-254).
+    private func openTrip(
+        _ key: TripKey, on route: Route? = nil, source: TripOpenSource = .schedule, alertID: AlertRule.ID? = nil
+    ) {
         guard let route = route ?? schedule.route else { return }
         Analytics.track(.tripOpened(source: source, isToday: key.serviceDay == ServiceDay(containing: clock.now)))
         // The sheet's own bell model on the same alert rules (TT-192): "Alert me" turns the alert on in place, and its
         // capsule shows in the sheet, never on Schedule under it.
-        tripDetails = TripDetailsViewModel(
+        let details = TripDetailsViewModel(
             route: route, key: key, repository: repository, clock: clock, onBoard: onBoard, alerts: alerts,
-            bells: bells.sibling(), boardingShown: BoardingShown()
+            bells: bells.sibling(), boardingShown: BoardingShown(), alertID: alertID
         )
+        followAlertCard(of: details)
+        tripDetails = details
         router.present(.tripDetails)
+    }
+
+    /// The alert card's Remove alert and Pick a new train close the sheet (TT-254, D129). Removed from the Alerts tab, the
+    /// tab says "Alert removed · Undo" (`alerts_tab`); from anywhere else Schedule does (`trip_details`).
+    private func followAlertCard(of details: TripDetailsViewModel) {
+        details.onRemoveAlert = { [weak details] rule in
+            router.dismissSheet()
+            if router.selectedTab == .alerts {
+                alertsModel.remove(rule.id)
+            } else {
+                bells.remove(rule, trip: details?.departure?.trip, route: details?.route)
+            }
+        }
+        details.onPickNewTrain = { rule in
+            router.dismissSheet()
+            pickNewTrain(replacing: rule)
+        }
     }
 
     /// The ride Trip details follows ended on its own at your stop (2 min after it, D103), also while the app was away: the

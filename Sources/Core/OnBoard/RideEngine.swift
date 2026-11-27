@@ -371,7 +371,7 @@ final class RideEngine: DirectionRideSource {
         }
         Analytics.track(.rideEnded(
             reason, source: startSource, atStop: atStop, watchedSeconds: watch.seconds(at: Date()), opens: watch.opens,
-            surface: surface
+            autoOpens: watch.autoOpens, surface: surface
         ))
         SavedRide.clear(from: defaults, key: Self.storageKey)
         saved = nil

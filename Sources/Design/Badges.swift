@@ -127,6 +127,28 @@ struct StatusLine: View {
     }
 }
 
+/// The status row of the train you ride on Schedule (TT-256, D130, Card states board 9, option A): the train glyph and
+/// "You’re on board" in the accent, in the status line's font, where the dot and status were. About 134 pt, inside the
+/// 137 pt the row leaves beside "Arrival 12:58 PM"; it shrinks a little rather than truncate.
+struct OnBoardMark: View {
+    private static let glyph: CGFloat = 16
+    private static let minimumScale: CGFloat = 0.85
+
+    var body: some View {
+        HStack(spacing: TTSpace.s1 + 2) {
+            TrainGlyph()
+                .fill(TTColor.accent, style: FillStyle(eoFill: true))
+                .frame(width: Self.glyph, height: Self.glyph)
+                .accessibilityHidden(true)
+            Text("onboard.youreOnBoard")
+                .lineLimit(1)
+                .minimumScaleFactor(Self.minimumScale)
+        }
+        .font(TTFont.badgeLarge)
+        .foregroundStyle(TTColor.accent)
+    }
+}
+
 /// The Boarding dot's ping (TT-233, D114): a halo that grows from the dot to 7 pt out while it fades, every 1.6 s, drawn
 /// from the clock so every Boarding dot on screen pings together and a redraw never restarts it. No halo with Reduce
 /// Motion, or when Schedule's motion is off (`\.playsScheduleMotion`, the unit test host), so snapshots are still.

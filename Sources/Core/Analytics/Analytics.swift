@@ -223,7 +223,7 @@ extension AnalyticsEvent {
     /// only; `auto_undone` has none, since what undid it would say where the rider is.
     static func rideEnded(
         _ reason: RideEndReason, source: RideStartSource? = nil, atStop: Bool = false, watchedSeconds: Int = 0, opens: Int = 0,
-        surface: RideEndSurface? = nil
+        autoOpens: Int = 0, surface: RideEndSurface? = nil
     ) -> Self {
         let name = switch reason {
         case .byRider: "by_rider"
@@ -236,6 +236,7 @@ extension AnalyticsEvent {
         }
         var properties: [String: AnalyticsValue] = [
             "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
+            "auto_opens": .int(autoOpens),
         ]
         if let source { properties["source"] = .string(source.rawValue) }
         if reason == .notOnIt, let surface { properties["surface"] = .string(surface.rawValue) }

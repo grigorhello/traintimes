@@ -263,7 +263,9 @@ describe('the minute cycle', () => {
 
   test('boarding from the train’s position 15 min before, with its platform', async () => {
     await started();
-    const [update] = await cycle('6:58:10', { trains: [vehicle(150, '6:57:50')], platform: '3' });
+    const sent = await cycle('6:58:10', { trains: [vehicle(150, '6:57:50')], platform: '3' });
+    assert.equal(sent.length, 3, 'Time to board, three buzzes (TT-247)');
+    const [update] = sent;
     assert.equal(update.event, 'update');
     assert.deepEqual(update['content-state'], {
       phase: 'boarding',
@@ -278,13 +280,43 @@ describe('the minute cycle', () => {
       isClose: true,
       updated: 'Updated 6:58 AM',
     });
-    assert.equal(update.alert, undefined);
+    assert.deepEqual(update.alert, { title: 'Time to board the 7:13 AM train', body: '', sound: 'default' });
     assert.equal(update['stale-date'], at('7:23') / 1000, 'The window ends as before');
     assert.deepEqual(reads.boards, ['OA', 'OA'], 'Its station’s board, from the window’s start (TT-245) and while it stands there');
     assert.deepEqual(await cycle('6:58:40', { trains: [vehicle(150, '6:58:20')], platform: '3' }), [], 'The same look sends nothing');
     const [next] = await cycle('6:59:10', { trains: [vehicle(160, '6:58:50')], platform: '3' });
     assert.equal(next['content-state'].phase, 'boarding');
     assert.equal(next['content-state'].minutes, '13 min');
+  });
+
+  test('time to board buzzes once (TT-247): a position lost for a cycle and back, or the 5 min mark later, sends no alert', async () => {
+    await started();
+    assert.equal((await cycle('6:58:10', { trains: [vehicle(150, '6:57:50')], platform: '3' })).length, 3);
+    const lost = await cycle('6:59:10', { platform: '3' });
+    assert.equal(lost.length, 1);
+    assert.equal(lost[0]['content-state'].phase, 'countingDown', 'No position: the clock');
+    assert.equal(lost[0].alert, undefined);
+    const back = await cycle('7:00:10', { trains: [vehicle(150, '6:59:50')], platform: '3' });
+    assert.equal(back.length, 1);
+    assert.equal(back[0]['content-state'].phase, 'boarding');
+    assert.equal(back[0].alert, undefined);
+    const five = await cycle('7:07:10', { trains: [vehicle(150, '7:06:50')], platform: '3' });
+    assert.equal(five.length, 1);
+    assert.equal(five[0].alert, undefined);
+  });
+
+  test('a card the server starts on a train already boarding gets its three buzzes the next cycle (TT-247)', async () => {
+    await arm();
+    const [start] = await cycle('6:43:00', { trains: [vehicle(150, '6:42:50')], platform: '3' });
+    assert.equal(start.event, 'start');
+    assert.equal(start['content-state'].phase, 'boarding', 'A train laid over at its first station');
+    assert.equal((await report({ token: ACTIVITY_TOKEN })).status, 204);
+    const next = await cycle('6:44:00', { trains: [vehicle(150, '6:43:50')], platform: '3' });
+    assert.equal(next.length, 3);
+    assert.deepEqual(next[0].alert, { title: 'Time to board the 7:13 AM train', body: '', sound: 'default' });
+    const five = await cycle('7:07:30', { trains: [vehicle(150, '7:07:20')], platform: '3' });
+    assert.equal(five.length, 1);
+    assert.equal(five[0].alert, undefined, 'Once');
   });
 
   test('past its time and still there: boarding now over "Departing"; the question when it moves off, once, as TT-231 built it', async () => {

@@ -57,13 +57,18 @@ struct SettingsMainPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TTSpace.s3) {
-                Text("nav.settings")
-                    .font(TTFont.largeTitle)
-                    .foregroundStyle(TTColor.ink)
-                    .padding(.bottom, TTSpace.s1)
-                    .frame(height: 52, alignment: .bottomLeading)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("settings.title")
+                HStack(alignment: .center, spacing: TTSpace.s2) {
+                    Text("nav.settings")
+                        .font(TTFont.largeTitle)
+                        .foregroundStyle(TTColor.ink)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("settings.title")
+                    Spacer(minLength: 0)
+                    // The Feedback button on every tab (TT-252, D128).
+                    TabFeedbackEntry(tab: .settings, source: .settingsTab, isBusy: showsFeedback)
+                }
+                .padding(.bottom, TTSpace.s1)
+                .frame(height: 52, alignment: .bottom)
 
                 SettingsCard {
                     timeFormatRow

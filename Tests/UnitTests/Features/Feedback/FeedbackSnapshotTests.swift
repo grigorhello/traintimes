@@ -25,6 +25,12 @@ final class FeedbackSnapshotTests: XCTestCase {
     @MainActor func testRoundButtonAsksLight() async throws { try await snapSchedule(.loadedFixture(.delayed), .light, asks: true) }
     @MainActor func testRoundButtonAsksDark() async throws { try await snapSchedule(.loadedFixture(.delayed), .dark, asks: true) }
 
+    /// The Feedback button at the end of the Alerts and Settings titles (TT-252, D128), at rest.
+    @MainActor func testAlertsTabButtonLight() async throws { try await snapSchedule(.loadedFixture(), .light, tab: .alerts) }
+    @MainActor func testAlertsTabButtonDark() async throws { try await snapSchedule(.loadedFixture(), .dark, tab: .alerts) }
+    @MainActor func testSettingsTabButtonLight() async throws { try await snapSchedule(.loadedFixture(), .light, tab: .settings) }
+    @MainActor func testSettingsTabButtonDark() async throws { try await snapSchedule(.loadedFixture(), .dark, tab: .settings) }
+
     /// The labelled pill, which a short line name leaves room for, at rest and as it asks (label on accent).
     @MainActor func testLabelledPillAsksLight() { snapPill(.light) }
     @MainActor func testLabelledPillAsksDark() { snapPill(.dark) }
@@ -130,10 +136,15 @@ final class FeedbackSnapshotTests: XCTestCase {
 
     @MainActor
     private func snapSchedule(
-        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, testName: String = #function, line: UInt = #line
+        _ schedule: ScheduleViewModel, _ style: UIUserInterfaceStyle, asks: Bool = false, tab: AppTab = .schedule,
+        testName: String = #function, line: UInt = #line
     ) {
-        let view = RootView(schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
+        let router = AppRouter()
+        router.selectedTab = tab
+        let view = RootView(router: router, schedule: schedule, settings: AppSettings(defaults: .ephemeral()))
             .environment(\.showsFeedbackPill, true)
+            .environment(\.rendersGlass, false)
+            .environment(\.playsSettingsMotion, false)
             .environment(\.feedbackNudgeFrozen, asks)
         layOutOnce(view)
         assertSnapshot(

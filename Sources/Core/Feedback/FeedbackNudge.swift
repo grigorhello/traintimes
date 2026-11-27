@@ -6,6 +6,10 @@ enum FeedbackOpenSource: String, Sendable {
     case schedule
     /// Settings › Send feedback.
     case settings
+    /// The Feedback button on the Alerts tab (TT-252).
+    case alertsTab = "alerts_tab"
+    /// The Feedback button on the Settings tab (TT-252).
+    case settingsTab = "settings_tab"
 }
 
 /// Why the button played, for `feedback_nudge_shown` (TT-252).
@@ -58,9 +62,6 @@ final class FeedbackNudge {
         self.playsByItself = playsByItself
     }
 
-    /// The rule's clock, for Schedule's wait.
-    var now: Date { clock.now }
-
     /// Times it has played on this install.
     var showings: Int { defaults.integer(forKey: Key.count) }
 
@@ -84,6 +85,18 @@ final class FeedbackNudge {
     func isDue(stillSince: Date) -> Bool {
         guard let at = nextPlay(stillSince: stillSince) else { return false }
         return at <= clock.now
+    }
+
+    /// Plays whenever due for as long as the caller's task lives, from now as the moment the screen became still: Schedule,
+    /// or the Alerts or Settings tab with nothing over it (TT-252). Cancel the task when the screen stops being still.
+    func playWhileStill() async {
+        let stillSince = clock.now
+        while !Task.isCancelled, let at = nextPlay(stillSince: stillSince) {
+            let wait = at.timeIntervalSince(clock.now)
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            if isDue(stillSince: stillSince) { play() }
+        }
     }
 
     /// The wait ran out on a still Schedule: the button plays.

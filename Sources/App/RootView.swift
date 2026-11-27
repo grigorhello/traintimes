@@ -212,6 +212,7 @@ struct RootView: View {
                     .environment(\.directionLook, direction)
                     .environment(\.autoRideStrip, autoRideStrip)
                     .environment(\.scheduleCovered, router.presentedSheet != nil || router.selectedTab != .schedule)
+                    .environment(\.visibleTab, router.presentedSheet == nil ? router.selectedTab : nil)
                     .transition(.opacity.animation(.easeInOut(duration: 0.3)))
             }
         }

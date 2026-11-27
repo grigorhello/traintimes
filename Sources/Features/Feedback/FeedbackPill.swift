@@ -8,14 +8,15 @@ struct FeedbackPill: View {
 
     /// Icon only, so the line's name keeps its room next to the Notice chip.
     var compact = false
-    /// Where it is in asking (TT-228, D112; TT-252, D128); nil reads `\.feedbackNudgeFrame`, at rest unless the nudge plays.
-    var pose: FeedbackNudgeMotion.Frame?
+    /// Where it is in asking (TT-228, D112; TT-252, D128): at rest unless the nudge plays.
+    var pose = FeedbackNudgeMotion.Frame.rest
+    /// `schedule.feedback` on Schedule; the tabs' own ids elsewhere (TT-252).
+    var identifier = "schedule.feedback"
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.feedbackNudgeFrame) private var playedFrame
 
-    private var frame: FeedbackNudgeMotion.Frame { pose ?? playedFrame }
+    private var frame: FeedbackNudgeMotion.Frame { pose }
 
     var body: some View {
         Button(action: action) {
@@ -45,7 +46,7 @@ struct FeedbackPill: View {
         .padding(.vertical, -7)
         .fixedSize()
         .accessibilityLabel(Text("schedule.feedback"))
-        .accessibilityIdentifier("schedule.feedback")
+        .accessibilityIdentifier(identifier)
     }
 
     /// The bounce; the labelled pill moves less. None with Reduce Motion.
@@ -69,7 +70,10 @@ struct FeedbackPill: View {
 /// clock from `FeedbackNudgeMotion.keyframes()`.
 struct ScheduleFeedbackEntry: View {
     var compact = false
-    /// The sheet opened or closed, for Schedule, which counts it as something over it (TT-234).
+    /// Where the sheet was opened from, for `feedback_opened` (TT-252: the button is on every tab).
+    var source = FeedbackOpenSource.schedule
+    var identifier = "schedule.feedback"
+    /// The sheet opened or closed, for the screen, which counts it as something over it (TT-234).
     var onSheet: (Bool) -> Void = { _ in }
     @State private var showsSheet = false
     @Environment(\.feedbackSender) private var sender
@@ -77,21 +81,10 @@ struct ScheduleFeedbackEntry: View {
     @Environment(\.feedbackNudgeFrozen) private var frozen
 
     var body: some View {
-        // Plain values, so the keyframe closures capture these and not the view (TT-252: the frame reaches the pill through
-        // the environment, `\.feedbackNudgeFrame`).
-        let frozen = self.frozen
-        Group {
-            if compact {
-                FeedbackPill(compact: true) { open() }
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    FeedbackPill { open() }
-                    FeedbackPill(compact: true) { open() }
-                }
-            }
-        }
-        .keyframeAnimator(initialValue: FeedbackNudgeMotion.Frame.rest, trigger: nudge?.playRequest ?? 0) { view, frame in
-            view.environment(\.feedbackNudgeFrame, frozen ? .asking : frame)
+        // The frame goes to the pills as a value. Passed through the environment from `.keyframeAnimator`, it never reached
+        // the round button beside the Notice chip (the TT-252 simulator check), so the button stood still there.
+        KeyframeAnimator(initialValue: FeedbackNudgeMotion.Frame.rest, trigger: nudge?.playRequest ?? 0) { frame in
+            pill(frozen ? .asking : frame)
         } keyframes: { _ in
             FeedbackNudgeMotion.keyframes()
         }
@@ -99,9 +92,52 @@ struct ScheduleFeedbackEntry: View {
         .onChange(of: showsSheet) { _, shows in onSheet(shows) }
     }
 
+    @ViewBuilder
+    private func pill(_ pose: FeedbackNudgeMotion.Frame) -> some View {
+        if compact {
+            FeedbackPill(compact: true, pose: pose, identifier: identifier) { open() }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                FeedbackPill(pose: pose, identifier: identifier) { open() }
+                FeedbackPill(compact: true, pose: pose, identifier: identifier) { open() }
+            }
+        }
+    }
+
     private func open() {
-        nudge?.sheetOpened(from: .schedule)
+        nudge?.sheetOpened(from: source)
         showsSheet = true
+    }
+}
+
+/// The Feedback button at the end of a tab's large title (Alerts, Settings; TT-252, D128), with the nudge's wait: while the
+/// tab shows with nothing over it, the button asks when `FeedbackNudge` says, as on Schedule.
+struct TabFeedbackEntry: View {
+    let tab: AppTab
+    let source: FeedbackOpenSource
+    /// Something of the tab's own is over it or in front of it (a capsule, a sheet).
+    var isBusy = false
+    @State private var sheetOpen = false
+    @State private var onScreen = false
+    @Environment(\.showsFeedbackPill) private var showsFeedbackPill
+    @Environment(\.feedbackNudge) private var nudge
+    @Environment(\.visibleTab) private var visibleTab
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        if showsFeedbackPill {
+            ScheduleFeedbackEntry(source: source, identifier: "\(tab == .alerts ? "alerts" : "settings").feedbackButton", onSheet: { sheetOpen = $0 })
+                .onAppear { onScreen = true }
+                .onDisappear { onScreen = false }
+                .task(id: isStill) {
+                    guard isStill, let nudge else { return }
+                    await nudge.playWhileStill()
+                }
+        }
+    }
+
+    private var isStill: Bool {
+        onScreen && visibleTab == tab && scenePhase == .active && !isBusy && !sheetOpen
     }
 }
 
@@ -125,8 +161,9 @@ extension EnvironmentValues {
     /// Snapshots draw the button as it asks, about 1000 ms in (`FeedbackNudgeMotion.Frame.asking`), as the swap is frozen
     /// with `\.swapFrozenAt`.
     @Entry var feedbackNudgeFrozen = false
-    /// The frame of the play, from `ScheduleFeedbackEntry`'s keyframes to its pills.
-    @Entry var feedbackNudgeFrame = FeedbackNudgeMotion.Frame.rest
+    /// The tab on screen with no sheet over it (`RootView`), nil while a sheet is up: the Feedback button on Alerts and
+    /// Settings asks only there (TT-252).
+    @Entry var visibleTab: AppTab? = nil
     /// A sheet is up over Schedule or another tab is selected (`RootView`), so the Feedback button does not ask.
     @Entry var scheduleCovered = false
 }

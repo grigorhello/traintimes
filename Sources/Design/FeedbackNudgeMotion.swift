@@ -160,7 +160,10 @@ struct FeedbackGlyph: View {
                 line(.upperLine, frame.upper, style)
                 line(.lowerLine, frame.lower, style)
                 if frame.hookTo - frame.hookFrom > 0.005 {
+                    // A short piece of the hook is only its round cap, which reads as the dot: it fades in and out over the
+                    // first and last tenth (the simulator check saw a lone dot as the erase ended).
                     FeedbackGlyphShape.hook.trim(from: frame.hookFrom, to: frame.hookTo).stroke(style: style)
+                        .opacity(Double(min(1, (frame.hookTo - frame.hookFrom) / 0.12)))
                 }
                 if frame.dot > 0.01 {
                     FeedbackGlyphShape.dot.scale(frame.dot, anchor: FeedbackGlyphShape.dotCentre)

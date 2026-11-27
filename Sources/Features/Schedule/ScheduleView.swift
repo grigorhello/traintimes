@@ -260,13 +260,7 @@ struct ScheduleView: View {
         guard showsFeedbackPill, playsMotion, nudgeStillness.isStill, let nudge = feedbackNudge else { return }
         nudgeWaiting = true
         defer { nudgeWaiting = false }
-        let stillSince = nudge.now
-        while !Task.isCancelled, let at = nudge.nextPlay(stillSince: stillSince) {
-            let wait = at.timeIntervalSince(nudge.now)
-            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            guard !Task.isCancelled else { return }
-            if nudge.isDue(stillSince: stillSince) { nudge.play() }
-        }
+        await nudge.playWhileStill()
     }
 
     // MARK: Motion (TT-164, D61)

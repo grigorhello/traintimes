@@ -73,4 +73,27 @@ final class FeedbackTests: XCTestCase {
         app.buttons["feedback.done"].tap()
         XCTAssertTrue(app.buttons["settings.feedback"].waitForExistence(timeout: 15))
     }
+
+    /// The Feedback button sits on the Alerts and Settings tabs too (TT-252, D128) and opens the same sheet.
+    @MainActor
+    func testFeedbackButtonOnTheOtherTabs() {
+        let app = XCUIApplication.onFixtures()
+        app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["Alerts"].waitForExistence(timeout: 20))
+        app.tabBars.buttons["Alerts"].tap()
+        let alertsButton = app.buttons["alerts.feedbackButton"]
+        XCTAssertTrue(alertsButton.waitForExistence(timeout: 15))
+        alertsButton.tap()
+        let close = app.buttons["feedback.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        close.tap()
+
+        app.tabBars.buttons["Settings"].tap()
+        let settingsButton = app.buttons["settings.feedbackButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 15))
+        settingsButton.tap()
+        XCTAssertTrue(app.buttons["feedback.send"].waitForExistence(timeout: 15))
+    }
 }

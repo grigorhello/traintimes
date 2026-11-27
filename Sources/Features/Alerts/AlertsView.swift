@@ -1,86 +1,86 @@
 import SwiftUI
 
-/// The Alerts tab as one list (TT-193, D78; frames *Alerts-Tab*, *-Open*, *-States*, *-Muted*, *-Empty* on the canvas): the
-/// title and one card of rows, each the time, one line and a switch, in time order, with "Alerts start 1 hour before each
-/// train leaves." under it. A tap opens a row in place to its day tiles and "Remove alert" (one row at a time); a Time
-/// changed row offers "Pick a new train". Recent lists up to three notifications. With no alert, "Next trains" offers the
-/// route's next three trains with their real bells. With notifications off the D58 card tops the list, the switches are
-/// disabled (a tap nudges the card's button) and the line under the list is hidden. "Alert removed · Undo", "Couldn't … ·
-/// Try again" and "Notifications are on" show as the glass capsule above the tab bar (D71).
+/// The Alerts tab as cards (TT-253, D129; Alerts canvas boards 35 to 44): the title, then each alert as Schedule's train
+/// card for its next train, under its route said once as Schedule's marks, with a fourth row: the days it rings and "See
+/// trains". The bell switches the alert off and on in place. A Time changed card offers "Pick a new train". With no alert,
+/// the next three trains of Schedule's route as plain cards with their real bells. With notifications off the D58 card tops
+/// the tab and every bell is crossed (a tap nudges the card's button). "Couldn't … · Try again", "Alert removed · Undo"
+/// and "Notifications are on" show as the glass capsule above the tab bar (D71).
 struct AlertsView: View {
     let viewModel: AlertsViewModel
-    /// The bells of the empty tab's next trains and their capsule (TT-191); nil shows none.
+    /// The empty tab's bells and their capsule, and the permission ask's face (TT-191); nil shows none.
     var bells: AlertBellModel?
-    /// "See trains", with no route or no more trains today: the Schedule tab.
+    /// "See trains" on the empty tab with no route or no more trains today: the Schedule tab.
     var onSeeTrains: () -> Void = {}
-    /// "Pick a new train" on a Time changed row: Schedule on that route, with "Tap the bell of your new train".
+    /// A card's "See trains": Schedule on the alert's route and its train's day.
+    var onShowInSchedule: (AlertsViewModel.Jump) -> Void = { _ in }
+    /// A tap on a card: its train's Trip details.
+    var onOpenTrip: (AlertsViewModel.Jump) -> Void = { _ in }
+    /// "Pick a new train" on a Time changed card: Schedule on that route, with "Tap the bell of your new train".
     var onPickNewTrain: (AlertRule) -> Void = { _ in }
-    /// A recent notification: Trip details for that trip and service date.
-    var onOpenUpdate: (NotificationLink) -> Void = { _ in }
 
     @Environment(\.timeFormatter) private var formatter
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Counts the times the card's bell should shake: once as the card appears.
+    /// Counts the times the notifications-off card's bell should shake: once as the card appears.
     @State private var shakes = 0
 
-    /// The Motion board's Alerts row opens: spring(0.42, 1.0) open, spring(0.28, 1.0) close; a row removed shuts on the
-    /// close spring.
-    private static let open = Animation.spring(response: 0.42, dampingFraction: 1)
-    private static let shut = Animation.spring(response: 0.28, dampingFraction: 1)
-
     var body: some View {
-        let rows = viewModel.rows(formatter)
-        let recent = viewModel.recentRows(formatter)
         let muted = viewModel.warnsNotificationsOff
         ScrollView {
-            VStack(alignment: .leading, spacing: TTSpace.s2) {
-                Text("tab.alerts")
-                    .font(TTFont.largeTitle)
-                    .foregroundStyle(TTColor.ink)
-                    .accessibilityAddTraits(.isHeader)
-                    .frame(height: 48, alignment: .bottomLeading)
-                    .padding(.bottom, TTSpace.s2)
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("tab.alerts")
+                        .font(TTFont.largeTitle)
+                        .foregroundStyle(TTColor.ink)
+                        .accessibilityAddTraits(.isHeader)
+                        .frame(height: 48, alignment: .bottomLeading)
+                    if let offline = viewModel.offlineLine(formatter) {
+                        Text(verbatim: offline)
+                            .font(TTFont.footnote)
+                            .monospacedDigit()
+                            .foregroundStyle(TTColor.inkSecondary)
+                            .accessibilityIdentifier("alerts.offline")
+                    }
+                }
+                .padding(.bottom, TTSpace.s1)
                 if muted {
                     notificationsOffCard
                 }
-                if rows.isEmpty {
+                if viewModel.showsSuggestions {
                     emptyState
                         .transition(.opacity)
                 } else {
-                    list(rows, muted: muted)
-                        .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.scale(scale: 0.96).combined(with: .opacity))
-                    if !muted {
-                        note("alerts.start_note")
+                    ForEach(viewModel.sections(formatter)) { section in
+                        AlertRouteLabel(from: section.from, to: section.to, line: section.line)
+                        ForEach(section.cards) { item in
+                            alertCard(item)
+                                .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.scale(scale: 0.96).combined(with: .opacity))
+                        }
                     }
-                }
-                if !recent.isEmpty {
-                    label("alerts.recent")
-                    recentCard(recent)
                 }
             }
             .padding(.horizontal, TTSpace.s5)
             .padding(.bottom, 120)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // A tap outside a row closes the open one.
-            .contentShape(Rectangle())
-            .onTapGesture { withAnimation(Self.shut) { viewModel.closeRow() } }
         }
         .background(TTColor.canvas)
         .overlay(alignment: .bottom) { capsuleLayer }
-        // The first alert set from the empty tab: its bell pops, and 300 ms later the list takes the suggestions' place.
-        .animation(reduceMotion ? TTMotion.fade : TTMotion.cascade.delay(0.3), value: rows.isEmpty)
+        // While the tab shows: its own load and live poll.
+        .task { await viewModel.run() }
+        // A bell here or on Schedule, a new alert: the cards read their trains again (the trips are kept for the day).
+        .onChange(of: viewModel.rules.rules) { Task { await viewModel.load() } }
+        .animation(reduceMotion ? TTMotion.fade : TTMotion.cascade, value: viewModel.showsSuggestions)
         // The card folds away on a spring when notifications are allowed again.
         .animation(.spring(response: 0.46, dampingFraction: 0.82), value: muted)
-        .sensoryFeedback(.selection, trigger: viewModel.dayOnCount)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("alerts.root")
     }
 
     // MARK: Notifications off (TT-169, D58)
 
-    /// The Notifications page's off card, saying it once: "3 alerts can’t reach you." Its button nudges when a disabled
-    /// switch is tapped.
+    /// The Notifications page's off card, saying it once: "3 alerts can’t reach you." Its button nudges when a bell is
+    /// tapped.
     private var notificationsOffCard: some View {
         SettingsCard {
             HStack(spacing: 14) {
@@ -121,78 +121,87 @@ struct AlertsView: View {
         .padding(.bottom, TTSpace.s1)
     }
 
-    // MARK: The list
+    // MARK: Cards
 
-    private func list(_ rows: [AlertsViewModel.Row], muted: Bool) -> some View {
-        SettingsCard {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                AlertRowView(
-                    row: row,
-                    isOpen: viewModel.openID == row.id,
-                    muted: muted,
-                    lastDayTaps: viewModel.lastDayTaps[row.id] ?? 0,
-                    onOpen: {
-                        let opening = viewModel.openID != row.id
-                        withAnimation(opening ? Self.open : Self.shut) { viewModel.toggleOpen(row.id) }
-                    },
-                    onSwitch: { _ = viewModel.setOn($0, for: row.id) },
-                    onNudge: { viewModel.nudge() },
-                    onDay: { _ = viewModel.toggleDay($0, for: row.id) },
-                    onRemove: { withAnimation(Self.shut) { _ = viewModel.remove(row.id) } },
-                    onPickNewTrain: {
-                        guard let rule = viewModel.rule(row.id) else { return }
-                        withAnimation(Self.shut) { viewModel.closeRow() }
-                        onPickNewTrain(rule)
-                    }
+    /// One alert: Schedule's card with the days row, or, with no train to show, the card from the alert alone.
+    @ViewBuilder private func alertCard(_ item: AlertsViewModel.Item) -> some View {
+        Group {
+            switch item.body {
+            case let .train(card, trip, route):
+                DepartureCardView(
+                    card: card,
+                    bell: face(item, trip: trip, route: route),
+                    shakes: bells?.shakes(for: trip) ?? 0,
+                    onOpen: { if let jump = viewModel.trip(item.id) { onOpenTrip(jump) } },
+                    onBell: { viewModel.tapBell(item.id) },
+                    onSize: { _ in },
+                    footer: AnyView(AlertDaysRow(dots: item.dots, words: item.words, greys: item.greysDays)),
+                    footerAccessory: AnyView(seeTrains(item)),
+                    cardID: "alerts.card.\(trip.key.tripId)",
+                    bellID: "alerts.bell.\(trip.key.tripId)",
+                    tracksInterest: false
                 )
-                .overlay(alignment: .top) {
-                    if index > 0 { hairline }
-                }
-                .transition(.opacity)
+                // The card moving on to its next train: rows 1 to 3 cross-fade; the days row stays as it is.
+                .animation(reduceMotion ? TTMotion.fade : TTMotion.cross, value: card.id)
+            case .pending, .noTrain, .changed:
+                AlertPlainCard(
+                    item: item,
+                    bell: item.bell,
+                    shakes: 0,
+                    onBell: { viewModel.tapBell(item.id) },
+                    accessory: item.bell == nil ? AnyView(pickNewTrain(item)) : AnyView(seeTrains(item))
+                )
             }
         }
-        .animation(Self.shut, value: rows.map(\.id))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(item.testID)
     }
 
-    /// The line under the list and the lead of the empty tab, in footnote.
-    private func note(_ key: LocalizedStringKey) -> some View {
-        Text(key)
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .padding(.horizontal, TTSpace.s4)
-            .padding(.top, 2)
+    /// The card's bell: the model's face, or the permission ask's while iOS asks.
+    private func face(_ item: AlertsViewModel.Item, trip: Trip, route: Route) -> BellFace {
+        if bells?.bell(for: trip, on: route) == .asking { return .asking }
+        return item.bell ?? .off
     }
 
-    private func label(_ key: LocalizedStringKey) -> some View {
-        Text(key)
-            .font(TTFont.footnote)
-            .foregroundStyle(TTColor.inkSecondary)
-            .accessibilityAddTraits(.isHeader)
-            .padding(.leading, TTSpace.s4)
-            .padding(.top, TTSpace.s2 + 2)
+    /// The 32 pt pill: the Schedule tab's glyph and "See trains", accent on the neutral fill; a 44 pt target.
+    private func seeTrains(_ item: AlertsViewModel.Item) -> some View {
+        AlertCardPill(title: "alerts.see_trains", systemImage: "tram.fill", isFilled: false) {
+            if let jump = viewModel.seeTrains(item.id) { onShowInSchedule(jump) }
+        }
+        .accessibilityIdentifier("alerts.seeTrains")
     }
 
-    private var hairline: some View {
-        Rectangle().fill(TTColor.hairline).frame(height: 1).padding(.horizontal, TTSpace.s4)
+    /// A Time changed card's filled "Pick a new train".
+    private func pickNewTrain(_ item: AlertsViewModel.Item) -> some View {
+        AlertCardPill(title: "alerts.pick_new_train", systemImage: nil, isFilled: true) {
+            if let rule = viewModel.rule(item.id) { onPickNewTrain(rule) }
+        }
+        .accessibilityIdentifier("alerts.pickNewTrain")
     }
 
     // MARK: Empty
 
-    /// "Tap a bell to hear if a train is delayed or cancelled.", then the route's next three trains, each with its bell;
-    /// with no route or no more trains today, one row "See trains".
+    /// "Tap a bell to hear if a train is delayed or cancelled.", then Schedule's route and its next three trains as plain
+    /// cards with their bells; a bell tapped grows that card's days row. With no route or no more trains today, one row
+    /// "See trains".
     private var emptyState: some View {
-        let trains = viewModel.nextTrainRows(formatter)
-        return VStack(alignment: .leading, spacing: TTSpace.s2) {
+        let suggestions = viewModel.suggestions(formatter)
+        return VStack(alignment: .leading, spacing: 10) {
             Text("alerts.empty.lead")
                 .font(TTFont.subhead)
                 .foregroundStyle(TTColor.inkSecondary)
                 .frame(maxWidth: 300, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, TTSpace.s4)
-                .padding(.top, TTSpace.s1)
-            label("alerts.next_trains")
-            SettingsCard {
-                if trains.isEmpty {
+            if let suggestions {
+                AlertRouteLabel(
+                    from: suggestions.route.from.name, to: suggestions.route.to.name, line: suggestions.route.line
+                )
+                ForEach(suggestions.trains) { train in
+                    suggestionCard(train)
+                }
+            } else {
+                SettingsCard {
                     Button(action: onSeeTrains) {
                         HStack {
                             Text("alerts.see_trains").font(TTFont.subhead.weight(.semibold)).foregroundStyle(TTColor.ink)
@@ -207,13 +216,6 @@ struct AlertsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("alerts.seeTrains")
-                } else {
-                    ForEach(Array(trains.enumerated()), id: \.element.id) { index, train in
-                        nextTrainRow(train)
-                            .overlay(alignment: .top) {
-                                if index > 0 { hairline }
-                            }
-                    }
                 }
             }
         }
@@ -221,81 +223,44 @@ struct AlertsView: View {
         .accessibilityIdentifier("alerts.empty")
     }
 
-    /// The canvas's `.arow.sug`: a size smaller than an alert, with the card's real bell.
-    private func nextTrainRow(_ train: AlertsViewModel.NextTrain) -> some View {
-        let face = bells?.bell(for: train.trip, on: train.route) ?? .off
-        let label = face == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label")
-        return HStack(spacing: TTSpace.s3) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: train.time)
-                    .font(TTFont.headline)
-                    .tracking(-0.4)
-                    .monospacedDigit()
-                    .foregroundStyle(TTColor.ink)
-                Text(verbatim: train.line)
-                    .font(TTFont.footnote)
-                    .monospacedDigit()
-                    .foregroundStyle(TTColor.inkSecondary)
-                    .lineLimit(1)
-            }
-            .accessibilityElement(children: .combine)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            AlertBellButton(
-                face: face,
-                shakes: bells?.shakes(for: train.trip) ?? 0,
-                label: Text(verbatim: String(format: label, train.time)),
-                glyph: 26,
-                target: 48
-            ) {
+    /// A next train as Schedule's card with its real bell (Schedule's bell model: on, off, refusals and its capsule); once
+    /// it has an alert, the alert's days row grows under it.
+    private func suggestionCard(_ train: AlertsViewModel.Suggestion) -> some View {
+        let footer: AnyView? = train.alert.map { alert in
+            AnyView(AlertDaysRow(dots: train.dots, words: train.words, greys: alert.paused))
+        }
+        let accessory: AnyView? = train.alert.map { alert in
+            AnyView(
+                AlertCardPill(title: "alerts.see_trains", systemImage: "tram.fill", isFilled: false) {
+                    if let jump = viewModel.seeTrains(alert.id) { onShowInSchedule(jump) }
+                }
+                .accessibilityIdentifier("alerts.seeTrains")
+            )
+        }
+        return DepartureCardView(
+            card: train.card,
+            bell: bells?.bell(for: train.trip, on: train.route) ?? .off,
+            shakes: bells?.shakes(for: train.trip) ?? 0,
+            onOpen: {
+                onOpenTrip(AlertsViewModel.Jump(key: train.trip.key, originId: train.route.from.id, destinationId: train.route.to.id))
+            },
+            onBell: {
                 guard let bells else { return }
                 Task { await bells.tap(train.trip, on: train.route) }
-            }
-            .padding(.trailing, -10)
-            .accessibilityIdentifier("alerts.next.bell.\(train.trip.key.tripId)")
-        }
-        .padding(.horizontal, TTSpace.s4)
-        .padding(.vertical, 11)
-        .frame(minHeight: 64)
-    }
-
-    // MARK: Recent
-
-    /// Up to three one-line rows: a dot, "7:32 AM train delayed 9 min", when it came; a tap opens Trip details.
-    private func recentCard(_ rows: [AlertsViewModel.RecentRow]) -> some View {
-        SettingsCard {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                Button { if let link = row.link { onOpenUpdate(link) } } label: {
-                    HStack(spacing: 10) {
-                        Circle().fill(row.kind.dot).frame(width: 8, height: 8)
-                        Text(verbatim: row.title)
-                            .font(TTFont.subhead.weight(.semibold))
-                            .tracking(-0.2)
-                            .monospacedDigit()
-                            .foregroundStyle(TTColor.ink)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(verbatim: row.when)
-                            .font(TTFont.footnote)
-                            .monospacedDigit()
-                            .foregroundStyle(TTColor.inkSecondary)
-                    }
-                    .padding(.horizontal, TTSpace.s4)
-                    .frame(height: TTSize.targetMin)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(row.link == nil)
-                .accessibilityIdentifier("alerts.update.\(row.id)")
-                .overlay(alignment: .top) {
-                    if index > 0 { hairline }
-                }
-            }
-        }
+            },
+            onSize: { _ in },
+            footer: footer,
+            footerAccessory: accessory,
+            cardID: "alerts.card.\(train.trip.key.tripId)",
+            bellID: "alerts.next.bell.\(train.trip.key.tripId)",
+            tracksInterest: false
+        )
+        .animation(reduceMotion ? TTMotion.fade : TTMotion.cascade, value: train.alert == nil)
     }
 
     // MARK: Capsule (D71)
 
-    /// The tab's own capsule, or the one a next train's bell raised.
+    /// The tab's own capsule, or the one a bell raised (the empty tab's, or a refusal's from a card's bell).
     private var shownCapsule: TabCapsule? {
         if let own = viewModel.capsule { return .own(own) }
         guard let bell = bells?.capsule, !bell.isPanelOpen else { return nil }
@@ -331,7 +296,7 @@ struct AlertsView: View {
             return AlertCapsuleView(glyph: own.glyph, words: own.words, action: action)
         case .bell(let bell):
             let today = viewModel.today
-            // On the Alerts tab the new alert is already a row to open: no Repeat.
+            // On the Alerts tab the new alert already has its card: no Repeat.
             let action: AlertCapsuleView.Action? = switch bell.kind {
             case .failed:
                 AlertCapsuleView.Action(title: "button.try_again") { Task { await bells?.tryAgain() } }
@@ -347,165 +312,229 @@ struct AlertsView: View {
     }
 }
 
-/// One alert row (the canvas's `.arow`): the time in 22 pt, one line and the switch; open, the day tiles and "Remove
-/// alert", or for a Time changed row "Pick a new train" and "Remove alert".
-private struct AlertRowView: View {
-    let row: AlertsViewModel.Row
-    let isOpen: Bool
-    let muted: Bool
-    let lastDayTaps: Int
-    let onOpen: () -> Void
-    let onSwitch: (Bool) -> Void
-    let onNudge: () -> Void
-    let onDay: (Int) -> Void
-    let onRemove: () -> Void
-    let onPickNewTrain: () -> Void
+/// The route said once above its cards (board 53's option A): Schedule's marks on one line, the origin ring, its name,
+/// three dots, the accent pin, the destination, and the 20 pt line tile at the right. Too long, the origin shortens; the
+/// destination never does. No tap.
+struct AlertRouteLabel: View {
+    let from: String
+    let to: String
+    let line: Line?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: TTSpace.s3) {
-                Button(action: onOpen) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: row.time)
-                            .font(TTFont.route)
-                            .tracking(-0.3)
-                            .monospacedDigit()
-                            .foregroundStyle(row.isOn || row.note == .timeChanged ? TTColor.ink : TTColor.inkTertiary)
-                        line
+        HStack(spacing: TTSpace.s3) {
+            HStack(spacing: 0) {
+                Circle()
+                    .strokeBorder(TTColor.inkSecondary, lineWidth: 2.5)
+                    .frame(width: 12, height: 12)
+                    .padding(.trailing, 6)
+                Text(verbatim: from)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                HStack(spacing: 4) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Circle().fill(TTColor.inkTertiary).frame(width: 3, height: 3)
                     }
-                    .padding(.top, 13)
-                    .padding(.bottom, 11)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .animation(TTMotion.fade, value: row.isOn)
                 }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("alerts.rule.open")
-                toggle
+                .padding(.leading, TTSpace.s2)
+                .padding(.trailing, 6)
+                RoutePin()
+                    .fill(TTColor.accent, style: FillStyle(eoFill: true))
+                    .frame(width: 18, height: 18)
+                    .padding(.trailing, 3)
+                Text(verbatim: to)
+                    .lineLimit(1)
+                    .fixedSize()
             }
-            .padding(.horizontal, TTSpace.s4)
-            .frame(minHeight: 72)
-            if isOpen {
-                OpenRowParts(row: row, lastDayTaps: lastDayTaps, onDay: onDay, onRemove: onRemove, onPickNewTrain: onPickNewTrain)
-                    .transition(.opacity)
-            }
-        }
-        .clipped()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(row.testID)
-    }
-
-    /// "Oakville to Union · Mon to Fri"; a Time changed row's words after the route in amber with a dot.
-    @ViewBuilder private var line: some View {
-        let ink = row.isOn ? TTColor.inkSecondary : TTColor.inkTertiary
-        Group {
-            if row.note == .timeChanged, let split = row.line.range(of: " · ", options: .backwards) {
-                HStack(spacing: 6) {
-                    Text(verbatim: String(row.line[..<split.lowerBound]) + " ·").foregroundStyle(TTColor.inkSecondary)
-                    Circle().fill(TTColor.delayInk).frame(width: 8, height: 8)
-                    Text(verbatim: String(row.line[split.upperBound...]))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(TTColor.delayInk)
-                }
-            } else {
-                Text(verbatim: row.line).foregroundStyle(ink)
+            Spacer(minLength: 0)
+            if let line {
+                LineTile(line: line, kind: .widgetSmall)
             }
         }
-        .font(TTFont.footnote)
-        .tracking(-0.1)
-        .lineLimit(1)
-    }
-
-    /// The system switch. A Time changed row's stays off and takes no tap; while notifications are off it is disabled at
-    /// 40 % and a tap nudges the card's button.
-    private var toggle: some View {
-        Toggle(isOn: Binding(get: { row.isOn }, set: { onSwitch($0) })) {
-            Text(verbatim: row.time)
-        }
-        .labelsHidden()
-        .tint(muted ? TTColor.inkSecondary : TTColor.accent)
-        .disabled(muted)
-        .opacity(muted ? 0.4 : 1)
-        .allowsHitTesting(!muted && !row.isSaving && row.note != .timeChanged)
-        .overlay {
-            if muted {
-                Color.clear.contentShape(Rectangle()).onTapGesture(perform: onNudge)
-            }
-        }
-        .accessibilityIdentifier("alerts.rule.switch")
+        .font(TTFont.subhead.weight(.semibold))
+        .tracking(-0.2)
+        .foregroundStyle(TTColor.ink)
+        .frame(height: 20)
+        .padding(.leading, TTSpace.s4)
+        .padding(.trailing, 10)
+        .padding(.top, 6)
+        .padding(.bottom, -2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: String(format: String(localized: "schedule.route_title"), from, to)))
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// What an opened row shows: "Repeat on" (a one-day alert), the seven day tiles and "Remove alert"; for a Time changed row,
-/// "Pick a new train" and "Remove alert". The tiles arrive as in the day panel and Remove alert rises 8 pt 140 ms later.
-private struct OpenRowParts: View {
-    let row: AlertsViewModel.Row
-    let lastDayTaps: Int
-    let onDay: (Int) -> Void
-    let onRemove: () -> Void
-    let onPickNewTrain: () -> Void
+/// The days row (board 53, option A): seven 8 pt dots, Monday first, 4 pt apart and 8 pt before Saturday, lit in the
+/// accent (a one-day alert's own day a ring), then the words in 15 pt. Grey when the alert is off or its train changed.
+struct AlertDaysRow: View {
+    let dots: [AlertsViewModel.Dot]
+    let words: String?
+    let greys: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// At rest in the unit test host, so snapshots draw the tiles settled.
-    @State private var arrived = UnitTestHost.isRunning
+    /// Room kept free at the right for the pill over it.
+    private static let pillRoom: CGFloat = 132
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if row.note == .timeChanged {
-                action("alerts.pick_new_train", ink: TTColor.ink, chevron: true, action: onPickNewTrain)
-                    .accessibilityIdentifier("alerts.pickNewTrain")
-            } else {
-                if row.isOneDay {
-                    Text("alert.repeat_on")
-                        .font(TTFont.footnote)
-                        .tracking(-0.1)
-                        .foregroundStyle(TTColor.inkSecondary)
-                        .padding(.horizontal, TTSpace.s4)
-                        .padding(.bottom, TTSpace.s2)
+        HStack(spacing: TTSpace.s2) {
+            HStack(spacing: 4) {
+                ForEach(Array(dots.enumerated()), id: \.offset) { index, dot in
+                    dotView(dot)
+                        .padding(.leading, index == 5 ? 4 : 0)
                 }
-                HStack(spacing: TTSpace.s1) {
-                    ForEach(Array(AlertDays.week.enumerated()), id: \.element) { index, day in
-                        DayTile(day: day, isOn: row.days.contains(day), action: { onDay(day) }, offFill: TTColor.surfaceRaised)
-                            .keyframeAnimator(initialValue: 1.0, trigger: row.days == [day] ? lastDayTaps : 0) { content, scale in
-                                content.scaleEffect(scale)
-                            } keyframes: { _ in
-                                MoveKeyframe(0.92)
-                                SpringKeyframe(1.0, duration: 0.35, spring: TTMotion.tilePressCurve.spring)
-                            }
-                            .modifier(TileArrival(isOpen: arrived, order: index, reduceMotion: reduceMotion))
-                    }
-                }
-                .padding(.horizontal, TTSpace.s4)
             }
-            action("alerts.remove", ink: TTColor.cancelInk, chevron: false, action: onRemove)
-                .padding(.bottom, TTSpace.s1)
-                .accessibilityIdentifier("alerts.remove")
-                .animation(reduceMotion ? TTMotion.fade : TTMotion.settleCurve.animation.delay(0.14)) {
-                    $0.offset(y: arrived || reduceMotion ? 0 : 8).opacity(arrived ? 1 : 0)
-                }
+            if let words {
+                Text(verbatim: words)
+                    .font(TTFont.subhead)
+                    .tracking(-0.2)
+                    .foregroundStyle(greys ? TTColor.inkSecondary : TTColor.ink)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
-        .onAppear { arrived = true }
+        .padding(.trailing, Self.pillRoom)
+        .animation(TTMotion.fade, value: greys)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: words ?? ""))
     }
 
-    /// The canvas's `.act`: 44 pt, 15 pt semibold, the words leading.
-    private func action(_ key: LocalizedStringKey, ink: Color, chevron: Bool, action: @escaping () -> Void) -> some View {
+    @ViewBuilder private func dotView(_ dot: AlertsViewModel.Dot) -> some View {
+        let lit = greys ? TTColor.inkTertiary : TTColor.accent
+        switch dot {
+        case .off: Circle().fill(TTColor.inkTertiary.opacity(0.3)).frame(width: 8, height: 8)
+        case .on: Circle().fill(lit).frame(width: 8, height: 8)
+        case .ring: Circle().strokeBorder(lit, lineWidth: 1.5).frame(width: 8, height: 8)
+        }
+    }
+}
+
+/// The fourth row's 32 pt pill (44 pt target): "See trains" with the Schedule tab's glyph, accent on the neutral fill; or
+/// filled, "Pick a new train".
+struct AlertCardPill: View {
+    let title: LocalizedStringKey
+    let systemImage: String?
+    let isFilled: Bool
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
-            HStack {
-                Text(key).font(TTFont.subhead.weight(.semibold)).tracking(-0.2).foregroundStyle(ink)
-                Spacer(minLength: TTSpace.s3)
-                if chevron {
-                    Image(systemName: "chevron.right")
-                        .font(TTFont.footnote.weight(.semibold))
-                        .foregroundStyle(TTColor.inkTertiary)
+            HStack(spacing: 6) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 16, height: 16)
+                        .accessibilityHidden(true)
                 }
+                Text(title)
+                    .font(TTFont.subhead.weight(.semibold))
+                    .tracking(-0.2)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, TTSpace.s4)
-            .frame(height: TTSize.targetMin)
+            .foregroundStyle(isFilled ? TTColor.onAccent : TTColor.accent)
+            .padding(.leading, isFilled ? 14 : 10)
+            .padding(.trailing, isFilled ? 14 : 12)
+            .frame(height: 32)
+            .background(isFilled ? TTColor.accent : TTColor.surfaceRaised, in: Capsule())
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.top, TTSpace.s1)
+        .fixedSize()
+        // The 44 pt target overhangs the 32 pt row by 6 pt each way.
+        .padding(.vertical, -6)
+    }
+}
+
+/// A card from the alert alone, Schedule's paddings and rows: the alert's time and bell, then rows 2 and 3 as skeleton
+/// bars while there is no timetable, "No train today" with no train on its days this week, or, for a usual train that
+/// changed, the time struck in grey, no bell and amber "Time changed" in row 2; then the days row.
+private struct AlertPlainCard: View {
+    let item: AlertsViewModel.Item
+    let bell: BellFace?
+    let shakes: Int
+    let onBell: () -> Void
+    let accessory: AnyView
+
+    private var changed: Bool {
+        if case .changed = item.body { true } else { false }
+    }
+
+    var body: some View {
+        Card(padding: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 0) {
+                    Text(verbatim: item.time)
+                        .font(TTFont.timeRow)
+                        .monospacedDigit()
+                        .strikethrough(changed)
+                        .foregroundStyle(changed || !item.isOn ? TTColor.inkTertiary : TTColor.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: 46)
+                }
+                .frame(height: 38)
+                switch item.body {
+                case .changed:
+                    status(dot: TTColor.delayInk, ring: false, words: "alerts.time_changed", ink: TTColor.delayInk)
+                        .frame(height: 24)
+                case .noTrain:
+                    status(dot: TTColor.inkSecondary, ring: true, words: "alerts.no_train", ink: TTColor.inkSecondary)
+                        .frame(height: 20)
+                    Color.clear.frame(height: 24)
+                default:
+                    bar(width: 150).frame(height: 20, alignment: .leading)
+                    bar(width: 110).frame(height: 24, alignment: .leading)
+                }
+                VStack(alignment: .leading, spacing: TTSpace.s2) {
+                    Rectangle().fill(TTColor.hairline).frame(height: 1)
+                    AlertDaysRow(dots: item.dots, words: item.words, greys: item.greysDays)
+                        .frame(height: 32)
+                }
+                .padding(.top, 6)
+            }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 10, trailing: 10))
+        }
+        .overlay(alignment: .topTrailing) {
+            if let bell {
+                AlertBellButton(
+                    face: bell,
+                    shakes: shakes,
+                    label: Text(verbatim: String(
+                        format: bell == .on ? String(localized: "alert.bell.label_on") : String(localized: "alert.bell.label"),
+                        item.time
+                    )),
+                    glyph: 26,
+                    target: 48,
+                    action: onBell
+                )
+                .padding(.top, 14 + 19 - 24)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            accessory
+                .padding(.trailing, 10)
+                .padding(.bottom, 10)
+        }
+    }
+
+    private func status(dot: Color, ring: Bool, words: LocalizedStringKey, ink: Color) -> some View {
+        HStack(spacing: TTSpace.s2) {
+            Group {
+                if ring {
+                    Circle().strokeBorder(dot, lineWidth: 2)
+                } else {
+                    Circle().fill(dot)
+                }
+            }
+            .frame(width: 10, height: 10)
+            .accessibilityHidden(true)
+            Text(words)
+                .lineLimit(1)
+        }
+        .font(TTFont.badgeLarge)
+        .foregroundStyle(ink)
+    }
+
+    private func bar(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: TTRadius.sm).fill(TTColor.surfaceRaised).frame(width: width, height: 12)
     }
 }
 
@@ -539,17 +568,6 @@ private extension AlertsViewModel.Capsule {
         case .failed(.changeDays): String(localized: "capsule.failed_days")
         case .failed(.turnOff): String(localized: "capsule.failed_off")
         case .notificationsOn: String(localized: "alerts.notifications_on")
-        }
-    }
-}
-
-private extension AlertUpdate.Kind {
-    /// Recent's dot: amber for a delay, red for a cancellation or skipped stop, green back on time.
-    var dot: Color {
-        switch self {
-        case .delay: TTColor.delayInk
-        case .recovery: TTColor.ontimeInk
-        case .cancelled, .skipped: TTColor.cancelInk
         }
     }
 }

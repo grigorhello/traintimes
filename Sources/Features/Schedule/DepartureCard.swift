@@ -14,8 +14,13 @@ struct DepartureCard: Hashable, Identifiable {
     let tripLength: String
     let status: TripStatus
     /// Next train only: "in 11 min", or "Departing" under 1 min and while the train stands at its platform past its time
-    /// (TT-233).
-    let relativeTime: String?
+    /// (TT-233). The Alerts tab sets it on every card from 60 min before it leaves (TT-253, D129).
+    var relativeTime: String?
+    /// The Alerts tab's card (TT-253, D129): when its train runs, in grey where the countdown goes while there is none:
+    /// "Today", "Tomorrow", "Monday", "Fri 6". Never on Schedule.
+    var dayWord: String?
+    /// The Alerts tab's card of an alert switched off (TT-253, D129): the time in grey; the other rows stay as they are.
+    var isQuiet = false
     /// The platform's pill (TT-199): "2", or the "—" placeholder until GO publishes it (the pill then shows a dash).
     let platformValue: String
     let hasPlatform: Bool

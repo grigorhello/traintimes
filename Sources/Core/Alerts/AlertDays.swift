@@ -25,6 +25,20 @@ enum AlertDays {
         return sorted.map(shortName).joined(separator: ", ")
     }
 
+    /// The Alerts card's days row words (TT-253, D129): "Every day", "Mon to Fri", "Sat and Sun", "Mon, Wed, Fri" as
+    /// `summary(of:)` says them, but "Every Fri" for one day and "4 days" for four days or more not in a row; nil with no
+    /// day. A one-day alert ("Once") and a switched-off one ("Off") are the card's own words.
+    static func cardWords(of days: [Int]) -> String? {
+        let sorted = Array(Set(days)).sorted()
+        guard let first = sorted.first, let last = sorted.last else { return nil }
+        if sorted.count == 1 { return String(format: String(localized: "alerts.days.every"), shortName(first)) }
+        let inARow = last - first == sorted.count - 1
+        if sorted.count >= 4, sorted.count < 7, !inARow {
+            return String(format: String(localized: "alerts.days.count"), sorted.count)
+        }
+        return summary(of: sorted)
+    }
+
     /// "Mon".
     static func shortName(_ isoWeekday: Int) -> String { symbols.shortWeekdaySymbols[isoWeekday % 7] }
 

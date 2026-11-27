@@ -438,18 +438,19 @@ struct RootView: View {
                 }
             }
             .task(id: demoAutoRide) { onBoard.setDemoAutoRide(demoAutoRide) }
-            // Decided once in front: at once if Schedule is at rest, else the ride strip waits on Schedule. A start in the
-            // background opens at the next arrival, as any running ride does (TT-256, D130, revising D120's next foreground
-            // only). Never later, so no sheet pops up mid-ride.
+            // Decided once in front: at once if Schedule is at rest, else the ride strip waits on Schedule; a start while the
+            // app is inactive (Notification Centre or Control Centre over it), as it becomes active again. A start in the
+            // background opens at the next arrival, as any running ride does (TT-256, D130, revising D120's next
+            // foreground). Never later, so no sheet pops up mid-ride.
             .onChange(of: onBoard.autoRideStarted) { _, started in
                 guard let started else { return }
                 if router.presentedSheet == .tripDetails, let details = tripDetails, details.key == started.ride.tripKey {
                     details.adoptRide()
                     return
                 }
-                guard scenePhase == .active else { return }
+                guard scenePhase != .background else { return }
                 opensAutoRide = started
-                openAutoRideIfAtRest()
+                if scenePhase == .active { openAutoRideIfAtRest() }
             }
     }
 
@@ -459,7 +460,13 @@ struct RootView: View {
     private func opensRideByItself(_ content: some View) -> some View {
         content
             .onChange(of: scenePhase) { _, phase in
-                if phase == .background { arrives = true }
+                if phase == .background {
+                    // The arrival opens a ride that started by itself while the app was away.
+                    arrives = true
+                    opensAutoRide = nil
+                } else if phase == .active {
+                    openAutoRideIfAtRest()
+                }
             }
             .task(id: scenePhase) {
                 guard scenePhase == .active, arrives else { return }

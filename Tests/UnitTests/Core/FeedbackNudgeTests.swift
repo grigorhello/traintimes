@@ -61,8 +61,10 @@ final class FeedbackNudgeTests: XCTestCase {
     func testATouchStartsTheStillnessAgain() {
         let rule = nudge()
         clock.advance(seconds: 1)
-        // Schedule was touched 1 s in: the wait counts from then.
-        XCTAssertFalse(rule.isDue(stillSince: clock.now))
+        // Schedule was touched 1 s in: the wait counts from then, so 2 s in it is still not due.
+        let touchedAt = clock.now
+        clock.advance(seconds: 1)
+        XCTAssertFalse(rule.isDue(stillSince: touchedAt))
         XCTAssertTrue(rule.isDue(stillSince: start))
     }
 

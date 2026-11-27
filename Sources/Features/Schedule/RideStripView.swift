@@ -71,18 +71,24 @@ struct RideStripView: View {
     }
 }
 
-/// What the strip under the day strip shows (TT-205, D93): the ride strip, the departure question (TT-231), the automatic
-/// ride's one-time strip (TT-243, D120), Automatic direction's one-time strip (TT-236), or the watched-trip strip, in that
-/// order: one at a time, so a later one waits for those before it. No countdown before departure: the train's own card says
-/// it.
+/// What the strip under the day strip shows (TT-205, D93): the wrong train warning (TT-250, D127), the ride strip, the
+/// departure question (TT-231), the automatic ride's one-time strip (TT-243, D120), Automatic direction's one-time strip
+/// (TT-236), or the watched-trip strip, in that order: one at a time, so a later one waits for those before it. No
+/// countdown before departure: the train's own card says it.
 enum RideStripContent: Equatable {
-    case riding, asking, autoRide, direction, otherwise
+    case wrongTrain, riding, asking, autoRide, direction, otherwise
 
-    /// `asksDeparture`: the alerted train has left and Schedule asks "On board?" about it (TT-231). `showsAutoRideStrip`:
-    /// the automatic ride's one-time strip is due (`AutoRideStrip.isShown`). `showsDirectionStrip`: Automatic direction's
-    /// one-time strip is unanswered (`DirectionLook.showsStrip`).
-    init(isRiding: Bool, asksDeparture: Bool = false, showsAutoRideStrip: Bool = false, showsDirectionStrip: Bool = false) {
-        if isRiding {
+    /// `warnsWrongTrain`: a wrong train warning shows (`WrongTrain.warning`). `asksDeparture`: the alerted train has left and
+    /// Schedule asks "On board?" about it (TT-231). `showsAutoRideStrip`: the automatic ride's one-time strip is due
+    /// (`AutoRideStrip.isShown`). `showsDirectionStrip`: Automatic direction's one-time strip is unanswered
+    /// (`DirectionLook.showsStrip`).
+    init(
+        warnsWrongTrain: Bool = false, isRiding: Bool, asksDeparture: Bool = false, showsAutoRideStrip: Bool = false,
+        showsDirectionStrip: Bool = false
+    ) {
+        if warnsWrongTrain {
+            self = .wrongTrain
+        } else if isRiding {
             self = .riding
         } else if asksDeparture {
             self = .asking
@@ -98,6 +104,7 @@ enum RideStripContent: Equatable {
     /// From On board alone when `autoRide` and `direction` are nil: what Automatic direction's look counts as over Schedule.
     @MainActor init(_ onBoard: OnBoard?, autoRide: AutoRideStrip? = nil, direction: DirectionLook? = nil) {
         self.init(
+            warnsWrongTrain: onBoard?.wrongTrainWarning != nil,
             isRiding: onBoard?.activeRide != nil, asksDeparture: onBoard?.asksDeparture ?? false,
             showsAutoRideStrip: autoRide?.isShown ?? false, showsDirectionStrip: direction?.showsStrip ?? false
         )
@@ -150,6 +157,18 @@ struct RideStripSlot<Otherwise: View>: View {
     @ViewBuilder
     private func strip(_ content: RideStripContent) -> some View {
         switch content {
+        case .wrongTrain:
+            if let warning = onBoard?.wrongTrainWarning {
+                // A tap on the card itself opens the ride's sheet while a ride runs; its buttons answer.
+                WrongTrainCard(
+                    display: WrongTrainDisplay(warning, formatter: formatter), size: .strip, id: "schedule.wrongTrain",
+                    onTrains: { onBoard?.wrongTrainTrains() },
+                    onFine: { onBoard?.wrongTrainFine() }
+                )
+                .contentShape(RoundedRectangle(cornerRadius: TTRadius.question))
+                .onTapGesture { if onBoard?.activeRide != nil { onOpen() } }
+                .transition(drop(by: -10))
+            }
         case .riding:
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 if let strip = onBoard?.strip(formatter: formatter) {
@@ -185,7 +204,7 @@ struct RideStripSlot<Otherwise: View>: View {
         if reduceMotion { return TTMotion.fade }
         switch content {
         case .riding: return wasAsking ? RideMotion.fold : RideMotion.rise
-        case .asking, .autoRide, .direction: return RideMotion.press
+        case .wrongTrain, .asking, .autoRide, .direction: return RideMotion.press
         case .otherwise: return RideMotion.rise
         }
     }

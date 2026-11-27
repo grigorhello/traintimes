@@ -232,6 +232,7 @@ extension AnalyticsEvent {
         case .cancelled: "cancelled"
         case .notOnIt: "not_on_it"
         case .autoUndone: "auto_undone"
+        case .wrongTrain: "wrong_train"
         }
         var properties: [String: AnalyticsValue] = [
             "reason": .string(name), "at_stop": .bool(atStop), "watched_seconds": .int(watchedSeconds), "opens": .int(opens),
@@ -240,6 +241,30 @@ extension AnalyticsEvent {
         if let source { properties["source"] = .string(source.rawValue) }
         if reason == .notOnIt, let surface { properties["surface"] = .string(surface.rawValue) }
         return Self("ride_ended", properties)
+    }
+
+    /// A wrong train warning showed (TT-250, D127), once per warning: why, what told, how the ride started (`alert`: no ride
+    /// yet), how it reached the rider (`app` in front, `card` with five buzzes, `notification`), the whole seconds from the
+    /// first moving fix and whether it was the Testing demo. No station, line, trip or place: it says the rider just left
+    /// their station in another train.
+    static func wrongTrainWarned(_ warning: WrongTrainWarning, shown: WrongTrainShown) -> Self {
+        Self("wrong_train_warned", [
+            "reason": .string(warning.reason.rawValue), "evidence": .string(warning.evidence.rawValue),
+            "source": .string(warning.source.rawValue), "shown": .string(shown.rawValue),
+            "seconds_after": .int(warning.secondsAfter), "demo": .bool(warning.isDemo),
+        ])
+    }
+
+    /// The first way a wrong train warning ended (TT-250, D127), once per warning; `surface` on `fine` and `trains` only;
+    /// `seconds`: how long it was up, in whole seconds. No station, line, trip or place.
+    static func wrongTrainAnswered(
+        _ answer: WrongTrainAnswer, surface: WrongTrainSurface? = nil, seconds: Int, demo: Bool
+    ) -> Self {
+        var properties: [String: AnalyticsValue] = [
+            "answer": .string(answer.rawValue), "seconds": .int(seconds), "demo": .bool(demo),
+        ]
+        if answer == .fine || answer == .trains, let surface { properties["surface"] = .string(surface.rawValue) }
+        return Self("wrong_train_answered", properties)
     }
 
     /// The automatic ride's watch on an alerted train finished (TT-242, D120), once per train and day: how (`outcome`), why

@@ -13,6 +13,9 @@ struct RideContent: View {
     /// The ride screen's Tick and Tap and its watch time (TT-224), for `engine`'s ride; nil in previews and snapshots.
     var screen: RideScreen?
     var engine: RideEngine?
+    /// The wrong train warning's "Trains from …" and "I’m fine" (TT-250, D127).
+    var onWrongTrains: () -> Void = {}
+    var onWrongFine: () -> Void = {}
 
     @Environment(\.playsRideMotion) private var playsMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -27,13 +30,33 @@ struct RideContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TTSpace.s3) {
-            RideTrainLine(text: ride.onTrain)
-                .modifier(RideRise(order: 0, hasRisen: settled))
-            RideHero(ride: ride, wishes: wishes)
-                .modifier(RideRise(order: 0, hasRisen: settled))
+            // The line naming your train (TT-256, D130) gives way while the wrong train warning stands (TT-250, D127):
+            // the warning asks whether this is your train at all.
+            if ride.wrongTrain == nil {
+                RideTrainLine(text: ride.onTrain)
+                    .transition(.opacity)
+                    .modifier(RideRise(order: 0, hasRisen: settled))
+            }
+            // The wrong train warning stands in the hero's place (TT-250, D127), on the card spring; the rail dims under it.
+            ZStack {
+                if let wrong = ride.wrongTrain {
+                    WrongTrainCard(display: wrong, onTrains: onWrongTrains, onFine: onWrongFine)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)).combined(with: .offset(y: -8)))
+                } else {
+                    RideHero(ride: ride, wishes: wishes)
+                        .transition(.opacity)
+                }
+            }
+            .animation(playsMotion ? TTMotion.card : nil, value: ride.wrongTrain != nil)
+            .modifier(RideRise(order: 0, hasRisen: settled))
             RideStopList(ride: ride)
+                .opacity(ride.wrongTrain == nil ? 1 : 0.4)
+                .allowsHitTesting(ride.wrongTrain == nil)
+                .animation(playsMotion ? .easeOut(duration: 0.25) : nil, value: ride.wrongTrain != nil)
                 .modifier(RideRise(order: 1, hasRisen: settled))
         }
+        // The train line leaving or coming back moves the warning and the rail on the same spring.
+        .animation(playsMotion ? TTMotion.card : nil, value: ride.wrongTrain != nil)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             hasRisen = true

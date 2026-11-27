@@ -59,6 +59,13 @@ final class OnBoard {
     private let makeAutoRideDemo: @MainActor (DemoDeparture.Session, DemoAutoRide, OnBoard) -> AutoRideWatch
     /// Arms the demo watch on each play of the demo before its train leaves.
     @ObservationIgnored private var autoRideDemoLoop: Task<Void, Never>?
+    /// The wrong train warning's presenter (TT-250, D127, `AppDelegate.wrongTrain`); nil in previews and tests that need none.
+    let wrongTrain: WrongTrain?
+    /// Settings › Testing › Demo trains › Ride › Wrong train: the demo ride plays the warning.
+    private(set) var playsWrongTrainDemo = false
+    /// How long into the demo ride the warning comes (real time).
+    private let wrongTrainDelay: Duration
+    @ObservationIgnored private var wrongTrainRaise: Task<Void, Never>?
 
     init(
         app: RideEngine?,
@@ -79,8 +86,12 @@ final class OnBoard {
         autoRideStore: AutoRideStore? = nil,
         makeAutoRideDemo: @escaping @MainActor (DemoDeparture.Session, DemoAutoRide, OnBoard) -> AutoRideWatch = {
             OnBoard.demoWatch(session: $0, mode: $1, onBoard: $2)
-        }
+        },
+        wrongTrain: WrongTrain? = nil,
+        wrongTrainDelay: Duration = DemoRide.wrongTrainDelay
     ) {
+        self.wrongTrain = wrongTrain
+        self.wrongTrainDelay = wrongTrainDelay
         self.autoRide = autoRide
         self.autoRideStore = autoRideStore
         self.makeAutoRideDemo = makeAutoRideDemo
@@ -128,10 +139,11 @@ final class OnBoard {
         return state.phase == .ended && state.endReason == .arrived
     }
 
-    /// This trip's ride ended by Not on it or by itself, in its first 10 min after it started by itself (TT-243, D120).
+    /// This trip's ride ended by Not on it or by itself, in its first 10 min after it started by itself (TT-243, D120), or
+    /// by the wrong train warning (TT-250, D127): the sheet closes.
     func endedUndone(_ key: TripKey) -> Bool {
         guard let engine, engine.ride?.tripKey == key, let state = engine.state, state.phase == .ended else { return false }
-        return state.endReason == .notOnIt || state.endReason == .autoUndone
+        return state.endReason == .notOnIt || state.endReason == .autoUndone || state.endReason == .wrongTrain
     }
 
     /// The arrival wish (TT-223, D103) in "Now"'s place: 5 s after the train reached your stop (5 s on the real clock, so
@@ -167,7 +179,9 @@ final class OnBoard {
     }
 
     /// End ride, or Done at your stop. A demo ride the demo departure started stops with it, so the departure shows again.
+    /// A wrong train warning on the ride ends with it, as `end_ride` (TT-250).
     func end() {
+        wrongTrain?.endedByRider(activeRide)
         engine?.end()
         if demoIsHandOff {
             dropDemoNudge()
@@ -177,28 +191,83 @@ final class OnBoard {
     }
 
     /// Demo trains › Ride turned on or off: the demo ride starts at once from 5:32 PM (TT-243: the question before it went
-    /// with train detection); off, it stops and leaves the app's engine as it was.
-    func setDemo(_ isOn: Bool) async {
+    /// with train detection); off, it stops and leaves the app's engine as it was. `wrongTrain` (Settings › Testing › Wrong
+    /// train, TT-250): the ride starts from Union at 5:13 PM and about 10 s later raises the wrong train warning; turning it
+    /// on or off while the demo ride plays starts the ride again, its warning ending with the old one.
+    func setDemo(_ isOn: Bool, wrongTrain plays: Bool = false) async {
         playsDemo = isOn
         if isOn {
+            if demo != nil, !demoIsHandOff, plays != playsWrongTrainDemo { stopDemo() }
             guard demo == nil else { return }
-            let session = makeDemo(nil)
+            playsWrongTrainDemo = plays
+            let session = makeDemo(plays ? DemoRide.wrongTrainStart() : nil)
             demo = session.engine
             followDemo(session.engine)
+            if plays { wrongTrain?.keepAwake() }
             await session.engine.start(session.ride)
+            if plays { raiseDemoWrongTrain(on: session.engine, ride: session.ride) }
         } else {
-            dropDemoNudge()
-            demo?.end()
-            demo = nil
-            demoIsHandOff = false
+            stopDemo()
         }
     }
 
-    /// The demo ride's own nudge (TT-173), on its 6x clock, replacing an earlier demo ride's.
+    /// The demo ride stops: its raise, its warning and its nudge with it.
+    private func stopDemo() {
+        wrongTrainRaise?.cancel()
+        wrongTrainRaise = nil
+        wrongTrain?.demoEnded()
+        dropDemoNudge()
+        demo?.end()
+        demo = nil
+        demoIsHandOff = false
+    }
+
+    /// The demo ride's own nudge (TT-173), on its 6x clock, replacing an earlier demo ride's; the wrong train warning
+    /// follows it too (TT-250).
     private func followDemo(_ engine: RideEngine) {
         demoNudge?.stop()
         demoNudge = makeDemoNudge()
         demoNudge?.follow(engine)
+        wrongTrain?.followDemo(engine)
+    }
+
+    // MARK: Wrong train (TT-250, D127)
+
+    /// The warning every screen shows: Schedule's strip and the ride screen (`details(for:formatter:)`).
+    var wrongTrainWarning: WrongTrainWarning? { wrongTrain?.warning }
+
+    /// "I’m fine" on Schedule's strip: Tap, the warning goes and the ride carries on.
+    func wrongTrainFine() {
+        guard wrongTrainWarning != nil else { return }
+        haptics.play(.undo)
+        wrongTrain?.fine(surface: .schedule)
+    }
+
+    /// "Trains from …" on Schedule's strip: Tap, the ride ends and Schedule turns to the way back.
+    func wrongTrainTrains() {
+        guard wrongTrainWarning != nil else { return }
+        haptics.play(.undo)
+        wrongTrain?.trains(surface: .schedule)
+    }
+
+    /// The demo's warning, `wrongTrainDelay` into its ride, while that ride still plays.
+    private func raiseDemoWrongTrain(on engine: RideEngine, ride: Ride) {
+        wrongTrainRaise?.cancel()
+        let delay = wrongTrainDelay
+        wrongTrainRaise = Task { [weak self, weak engine] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self, let engine, self.demo === engine, self.activeRide == ride else { return }
+            self.wrongTrain?.raise(DemoRide.wrongTrainWarning(for: ride), now: engine.now, rate: DemoRide.speed)
+        }
+    }
+
+    /// "Trains from …" and the warning's expiry: T's ride ends as `wrong_train` (the sheet closes, `endedUndone`). The
+    /// demo's ends on the demo engine, which keeps nothing on device, so nothing is declined; the app's train is declined
+    /// for today. True when a ride ended.
+    @discardableResult
+    func endWrongTrain(_ ride: Ride) -> Bool {
+        guard let engine, activeRide == ride else { return false }
+        return engine.end(.wrongTrain) != nil
     }
 
     /// The demo ride is dropped: its nudge stops and removes what it scheduled.

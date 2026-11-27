@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     lazy var autoRide = AutoRideWatch.app(ride: ride, location: location, liveActivity: liveActivity, nudge: nudge)
     /// "When the app is closed" (TT-243, D120): the watch armed from a wake-up or the card's arrival; nil in fixture runs.
     lazy var autoRideWake = AutoRideWake.app(watch: autoRide, ride: ride)
+    /// The wrong train warning's presenter (TT-250, D127), made in every run: fixture runs have no card and no notification,
+    /// so the warning shows in the app only.
+    lazy var wrongTrain = WrongTrain.app(card: liveActivity)
 
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -35,12 +38,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // A route saved before this install sent analytics counts once, so the install shows as activated (TT-217).
         RouteCount().launched(with: UserDefaultsRouteStore().route)
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().setNotificationCategories([DepartureNotice.notificationCategory])
+        NotificationCategories.register()
         // No on the departure question's card (TT-231, D110): iOS runs the intent here, which ended the card.
         DeclineDepartureIntent.declined = { [weak self] train in self?.declined(train, surface: .card) }
         // Not on it on the ride's card (TT-243, D120): the same, before or after the launch's restore.
         NotOnTrainIntent.notOnIt = { [weak self] train in self?.notOnIt(train) }
+        // "I’m fine" on the wrong train warning's card (TT-250, D127): the intent took the warning off the card.
+        WrongTrainFineIntent.fine = { [weak self] train in self?.wrongTrain.fine(for: Ride(train), surface: .card) }
         nudge.follow(ride)
+        wrongTrain.follow(ride)
         autoRide?.follow(ride)
         // The server's card for an alerted train arriving with the app in the background arms the watch (TT-243).
         liveActivity?.departureArrived = { [weak self] ride in
@@ -78,6 +84,29 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let link = NotificationLink(userInfo: response.notification.request.content.userInfo)
+        // The wrong train warning (TT-250, D127): a tap opens the app on the warning, "Trains from …" ends the ride and
+        // turns Schedule to the way back, "I’m fine" takes the warning away in the background. Never T's Trip details.
+        if response.notification.request.content.categoryIdentifier == WrongTrainNotice.category,
+           let wrong = WrongTrainNotice.train(from: response.notification.request.content.userInfo) {
+            let action = response.actionIdentifier
+            completionHandler()
+            Task { @MainActor in
+                switch action {
+                case WrongTrainNotice.trainsAction:
+                    Analytics.track(.notificationOpened(kind: WrongTrainNotice.analyticsKind, action: "trains"))
+                    self.wrongTrain.trains(
+                        for: wrong.ride, nextStopId: wrong.nextStopId, originId: wrong.originId, surface: .notification
+                    )
+                case WrongTrainNotice.fineAction:
+                    Analytics.track(.notificationOpened(kind: WrongTrainNotice.analyticsKind, action: "fine"))
+                    self.wrongTrain.fine(for: wrong.ride, surface: .notification)
+                default:
+                    Analytics.track(.notificationOpened(kind: WrongTrainNotice.analyticsKind, action: "open"))
+                    self.wrongTrain.openWarning()
+                }
+            }
+            return
+        }
         // The departure question (TT-231): Yes opens the app and starts the ride, No declines the train in the background,
         // a tap opens its Trip details.
         if response.notification.request.content.categoryIdentifier == DepartureNotice.category,
@@ -148,5 +177,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Task { @MainActor in
             AlertUpdates.record(update, in: .standard)
         }
+    }
+}
+
+extension WrongTrain {
+    /// The app's presenter: the ride's card, the notification (none in fixture runs), "I’m fine" kept on device, the Time
+    /// format the rider chose, and background time for the demo.
+    static func app(
+        card: (any WrongTrainShowing)?, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> WrongTrain {
+        WrongTrain(
+            card: card,
+            notifier: ScheduleDependencies.isFixtureRun(environment) ? nil : SystemWrongTrainNotifier(),
+            store: WrongTrainStore(defaults: .standard),
+            haptics: TTHaptics.shared,
+            isActive: { UIApplication.shared.applicationState == .active },
+            formatter: {
+                let stored = UserDefaults.standard.string(forKey: AppSettings.timeFormatKey).flatMap(TimeFormat.init(rawValue:))
+                return TimeFormatter(format: stored ?? .device)
+            },
+            background: SystemBackgroundTime()
+        )
     }
 }

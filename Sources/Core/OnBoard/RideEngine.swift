@@ -38,6 +38,8 @@ enum RideEndReason: String, Sendable {
     /// The ride that started by itself undid itself: the phone clearly did not go with the train (TT-243, D120,
     /// `AutoRideRule.undoVerdict`).
     case autoUndone
+    /// The wrong train warning (TT-250, D127): "Trains from …", or the warning ran out with no answer.
+    case wrongTrain
 }
 
 /// Where "Not on it" was tapped (TT-243, D120): the Live Activity card or expanded island (`NotOnTrainIntent`), or the ride
@@ -212,6 +214,12 @@ final class RideEngine: DirectionRideSource {
         return SavedRide.read(from: defaults, key: Self.storageKey) != nil
     }
 
+    /// The ride, or before a launch's restore the one saved on device: the wrong train notification's "Trains from …"
+    /// ends only that train's ride on a cold launch (TT-250, D127).
+    var rideOrSaved: Ride? {
+        ride ?? SavedRide.read(from: defaults, key: Self.storageKey)?.ride
+    }
+
     // MARK: Start, restore, end
 
     /// Starts a ride. One the rider asked for (`asks`) asks for When In Use location here, the engine's only ask (the
@@ -367,10 +375,10 @@ final class RideEngine: DirectionRideSource {
         return ride
     }
 
-    /// Not on it and the undo by itself: the train is declined for today, straight in the store (never
-    /// `DepartureQuestion.decline`, which would count a question answer that never came).
+    /// Not on it, the undo by itself and the wrong train's ending (TT-250, D127): the train is declined for today, straight
+    /// in the store (never `DepartureQuestion.decline`, which would count a question answer that never came).
     private func declineIfUndone(_ ride: Ride, reason: RideEndReason) {
-        guard reason == .notOnIt || reason == .autoUndone, let defaults else { return }
+        guard reason == .notOnIt || reason == .autoUndone || reason == .wrongTrain, let defaults else { return }
         DetectionStore.silence([ride.tripKey], in: defaults)
     }
 

@@ -39,8 +39,7 @@ final class WidgetSnapshotTests: XCTestCase {
     }
 
     /// The widest lines: an express at 11:47 PM that is the last train, 2 h 30 min away ("Last train · 2 h 30 min"); the
-    /// 24-hour clock; and Departures' widest row, a wait in hours ("in 2 h 43 min", TT-246, D123) beside the route, over
-    /// two 24-hour times in "Next" (TT-257, D131).
+    /// 24-hour clock; and Departures' widest row, a wait in hours ("2 h 43 min", TT-246, D123) beside two 24-hour times.
     @MainActor func testLongLines() {
         var late = WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(23, 47, express: true)])
         late.lastTrain = 0
@@ -50,11 +49,10 @@ final class WidgetSnapshotTests: XCTestCase {
             snap(widget, lateEntry, "late-express", .light)
             snap(widget, WidgetFixtures.nextTrain(format: .twentyFourHour), "24-hour", .light)
         }
-        var early = WidgetEntry.Trains(
+        let early = WidgetEntry.Trains(
             header: WidgetFixtures.header(),
             trains: [WidgetFixtures.train(12, 43), WidgetFixtures.train(13, 13), WidgetFixtures.train(13, 43)]
         )
-        early.later = Array(early.trains.dropFirst())
         snap(.departures, WidgetFixtures.entry(WidgetFixtures.at(10, 0), .trains(early), format: .twentyFourHour), "long-wait", .light)
     }
 

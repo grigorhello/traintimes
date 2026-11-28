@@ -42,10 +42,69 @@ else:
     udid = subprocess.check_output(["xcrun", "simctl", "create", preferred, kind, runtime["identifier"]], text=True).strip()
     print("Created", preferred, "on iOS", runtime["version"], file=sys.stderr)
 print("Simulator:", preferred, "iOS", runtime["version"], file=sys.stderr)
-print(udid, runtime["version"])
+print(udid, runtime["version"], runtime.get("buildversion") or "-", runtime["identifier"])
 PY
-read -r UDID IOS_VERSION < build/simulator.txt
+read -r UDID IOS_VERSION IOS_BUILD RUNTIME_ID < build/simulator.txt
 [[ -n "${GITHUB_ENV:-}" ]] && echo "SIMULATOR_RUNTIME=iOS $IOS_VERSION" >> "$GITHUB_ENV"
+
+# The runtime's image kind and mount path as `simctl runtime list -v` shows them ("kind|mount", empty if not listed).
+runtime_mount() {
+  xcrun simctl runtime list -v 2>/dev/null | awk -v build="($IOS_BUILD)" '
+    /^[^ \t]/ { here = index($0, build) > 0; next }
+    here && /Image Kind:/ { sub(/^[ \t]*Image Kind:[ \t]*/, ""); kind = $0 }
+    here && /Mount Path:/ { sub(/^[ \t]*Mount Path:[ \t]*/, ""); print kind "|" $0; exit }' || true
+}
+
+# TT-260: the iOS 26.5 runtime CI downloads is a "Patchable Cryptex Disk Image". It is first mounted under
+# /Library/Developer/CoreSimulator/Volumes; some minutes after the first boot the host builds its dyld shared cache and
+# remounts it as a cryptex, and whatever runs on it dies: "Invalid device state" (Mach error -308) at the test host's
+# launch, then "Unable to boot device because we cannot determine the runtime bundle" with the device's runtime nil.
+# Every run of Nov 27-28 lost the simulator so on its first attempt; the retry passed only where the remount was over.
+runtime_pending() {
+  local state
+  state=$(runtime_mount)
+  [[ "$state" == *Patchable*"|/Library/Developer/CoreSimulator/Volumes/"* ]]
+}
+
+# Boots the simulator and waits until it is ready, first-boot data migration included, for 10 min at most.
+boot_simulator() {
+  perl -e 'alarm shift; exec @ARGV' 600 xcrun simctl bootstatus "$UDID" -b > build/bootstatus.log 2>&1 && return 0
+  tail -n 5 build/bootstatus.log
+  return 1
+}
+
+# Before each test attempt: have the runtime remounted with no device on it, then boot the simulator and wait for it,
+# so xcodebuild neither boots it during the build nor launches the test host on a device that is still migrating.
+settle_simulator() {
+  echo "::group::Settle the simulator"
+  echo "iOS $IOS_VERSION ($IOS_BUILD): $(runtime_mount)"
+  if runtime_pending; then
+    # Build the dyld shared cache now, 15 min at most. Which identifier simctl takes is not documented, so each is tried.
+    xcrun simctl help runtime 2>&1 | grep -i -A3 dyld || true
+    for id in "$RUNTIME_ID" "$IOS_BUILD"; do
+      if time perl -e 'alarm shift; exec @ARGV' 900 xcrun simctl runtime dyld_shared_cache update "$id"; then break; fi
+    done
+    echo "After the dyld shared cache: $(runtime_mount)"
+  fi
+  if runtime_pending; then
+    # Still not remounted: boot once so the host starts on the cache, shut down, and wait for the remount, 8 min at most.
+    boot_simulator || true
+    xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+    for _ in $(seq 1 32); do
+      runtime_pending || break
+      sleep 15
+    done
+    echo "After waiting: $(runtime_mount)"
+    runtime_pending && echo "::warning::iOS $IOS_VERSION is still mounted under /Library/Developer/CoreSimulator/Volumes; the tests may lose the simulator."
+  fi
+  if ! boot_simulator; then
+    xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+    boot_simulator || echo "::warning::The simulator did not finish booting."
+  fi
+  tail -n 2 build/bootstatus.log
+  echo "Booted on: $(runtime_mount)"
+  echo "::endgroup::"
+}
 
 xcodebuild -version
 RESULT=build/TestResults.xcresult
@@ -73,18 +132,20 @@ run_tests() {
 
 # A test that hangs fails after 10 min (xcodebuild's default allowance once timeouts are on) instead of running the job
 # into its 90 min limit, which cancels the step before anything below can say which test it was.
+settle_simulator
 run_tests
 
 # On the Xcode 27 image the simulator itself sometimes fails under the tests: its service dies while the test runner is
 # installed ("Invalid device state", Mach error -308), or the test host is killed mid-run and the iOS runtime then reads as
 # "(null)" ("cannot determine the runtime bundle"). Seen on most TT-243 runs and on main after TT-241 and TT-242, with no
-# test at fault. Then restart the simulator service, boot the simulator again and run the tests once more; the build is
-# done, so the second run costs the tests only. A real test failure fails the second run too.
+# test at fault. Then restart the simulator service, settle the simulator again (above) and run the tests once more; the
+# build is done, so the second run costs the tests only. A real test failure fails the second run too.
 SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device'
 if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
   echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
-  # The disk and the runtime's state before and after the restart, so a run that loses the simulator shows why: on PR #266
-  # the runtime was listed after the restart twice in a row, and xcodebuild still read it as "(null)".
+  # The disk and the runtime's state before the restart (settle_simulator logs its mount after), so a run that loses the
+  # simulator shows why: on PR #266 the runtime was listed after the restart twice in a row, and xcodebuild still read it
+  # as "(null)"; on PR #271 it was still mounted under /Library/Developer/CoreSimulator/Volumes (TT-260).
   echo "::group::Simulator state before the restart"
   grep -nE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 5 | cut -c1-400 || true
   df -h / /System/Volumes/Data 2>/dev/null || true
@@ -93,10 +154,7 @@ if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; the
   xcrun simctl shutdown all >/dev/null 2>&1 || true
   killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
   xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the restart."
-  echo "::group::Simulator state after the restart"
-  xcrun simctl bootstatus "$UDID" -b 2>&1 | tail -n 20 || true
-  xcrun simctl runtime list -v 2>&1 | head -n 80 || true
-  echo "::endgroup::"
+  settle_simulator
   cp build/xcodebuild.log build/xcodebuild-first.log
   run_tests
 fi

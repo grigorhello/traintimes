@@ -189,10 +189,45 @@ build_tests() {
     2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
 }
 
+# xcodebuild's timeouts stop a test that hangs, not a test run that goes silent around it: on PR #271 (run 688) and on
+# PR #275 (run 691, 48 min, the simulator settled and 1,537 unit tests passed) the log went quiet after "Test Suite
+# 'WeatherRulesTests' started" until the job's limit cancelled it. That line is only where xcodebuild's buffered output
+# stopped, so NSUnbufferedIO makes it write each line at once (the log shows where a run stands, and the last lines
+# printed on a failure show where it stopped). The tests count as stuck after 12 min with nothing new in the log or the
+# result bundle (the first test took 7.5 min to start after the boot on run 691; a hung test fails at 10). Then the
+# stacks of the test host and the UI test runner are printed and xcodebuild is stopped, which counts as a lost
+# simulator below.
+export NSUnbufferedIO=YES
+watch_for_silence() {
+  local pid
+  while sleep 60; do
+    [[ -z "$(find build/xcodebuild.log "$RESULT" -mmin -12 -print -quit 2>/dev/null)" ]] || continue
+    echo "::warning::No test output for 12 min; stopping xcodebuild."
+    touch build/tests-went-silent
+    for pid in $(pgrep -f 'TrainTimes.app/TrainTimes|TrainTimesUITests-Runner' || true); do
+      echo "::group::Where $(ps -o comm= -p "$pid" 2>/dev/null) ($pid) is stuck"
+      sample "$pid" 2 2>&1 | head -n 200 || true
+      echo "::endgroup::"
+    done
+    pkill -INT -f 'xcodebuild test-without-building' || true
+    sleep 60
+    pkill -KILL -f 'xcodebuild test-without-building' || true
+    # Should a child of xcodebuild still hold the pipe, tee would wait for it.
+    sleep 30
+    pkill -f 'tee build/xcodebuild.log' || true
+    return 0
+  done
+}
+
 # A test that hangs fails after 10 min (xcodebuild's default allowance once timeouts are on) instead of running the job
-# into its 90 min limit, which cancels the step before anything below can say which test it was.
+# into its limit, which cancels the step before anything below can say which test it was. Arguments go to
+# xcodebuild (the retry's -skip-testing).
 run_tests() {
-  rm -rf "$RESULT"
+  local watcher
+  rm -rf "$RESULT" build/tests-went-silent
+  : > build/xcodebuild.log
+  watch_for_silence &
+  watcher=$!
   status=0
   xcodebuild test-without-building \
     -project TrainTimes.xcodeproj \
@@ -201,7 +236,10 @@ run_tests() {
     -destination "id=$UDID" \
     -resultBundlePath "$RESULT" \
     -test-timeouts-enabled YES \
+    "$@" \
     2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+  kill "$watcher" 2>/dev/null || true
+  wait "$watcher" 2>/dev/null || true
 }
 
 start_cache_build
@@ -218,8 +256,20 @@ fi
 # test at fault. Then restart the simulator service, settle the simulator again (above) and run the tests once more; the
 # build is done, so the second run costs the tests only. A real test failure fails the second run too.
 SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device|Unable to find a device matching|crashed with signal term while preparing to run tests'
-if [[ "$built" -eq 0 && "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
-  echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
+# No retry once the tests recorded reference snapshots: it would pass against them and leave them uncommitted, while a
+# failure here has the workflow commit them and run the tests again itself (with this retry).
+recorded=$(git status --porcelain --untracked-files=all -- Tests 2>/dev/null | grep '__Snapshots__' || true)
+if [[ "$built" -eq 0 && "$status" -ne 0 && -z "$recorded" ]] && { [[ -e build/tests-went-silent ]] || grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; }; then
+  lost=$(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1 || true)
+  echo "::warning::The simulator failed under the tests (${lost:-no output for 12 min}); restarting it and running the tests again."
+  # The second run leaves out a bundle the first one passed: on PR #271 (run 688) the UI bundle passed in 32 min before
+  # the unit bundle lost the simulator, and running both again could not fit in the job's 90 min.
+  skip=()
+  for bundle in TrainTimesUITests TrainTimesTests; do
+    if grep -q "Test Suite '$bundle.xctest' passed" build/xcodebuild.log; then skip+=("-skip-testing:$bundle"); fi
+  done
+  [[ "${#skip[@]}" -lt 2 ]] || skip=()
+  [[ "${#skip[@]}" -eq 0 ]] || echo "Leaving out what passed: ${skip[*]}"
   # The disk and the runtime's state before the restart (settle_simulator logs its mount after), so a run that loses the
   # simulator shows why: on PR #266 the runtime was listed after the restart twice in a row, and xcodebuild still read it
   # as "(null)"; on PR #271 it was still mounted under /Library/Developer/CoreSimulator/Volumes (TT-260).
@@ -233,7 +283,7 @@ if [[ "$built" -eq 0 && "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/x
   xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the restart."
   settle_simulator
   cp build/xcodebuild.log build/xcodebuild-first.log
-  run_tests
+  run_tests ${skip[@]+"${skip[@]}"}
 fi
 
 # The formatter shows test results only, so a run that ends without them (the test app crashed or never started) left

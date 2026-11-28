@@ -140,7 +140,7 @@ struct RootView: View {
         _schedule = State(initialValue: schedule)
         _settings = State(initialValue: settings)
         // The alert rules' permission source, so a fixture run's `TT_NOTIFICATIONS` shows in Settings too (TT-142).
-        // Its alert rules give the Notifications page the "My alerts" count and the permission prompt (TT-168).
+        // Its alert rules give the Notifications page the "My trains" count and the permission prompt (TT-168).
         _settingsModel = State(
             initialValue: SettingsViewModel(
                 settings: settings, permissions: alertDependencies.permissions, clock: dependencies.clock, alerts: bells.rules,

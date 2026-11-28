@@ -365,7 +365,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(model.lastCheckText(formatter: formatter), "Not on board after 62 s")
     }
 
-    /// TT-168: "My alerts · N" counts every saved rule; none without alert rules.
+    /// TT-168: "My trains · N" counts every saved rule; none without alert rules.
     func testAlertCountIsTheNumberOfSavedRules() async {
         XCTAssertEqual(makeModel().alertCount, 0)
         let rules = await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.evening])

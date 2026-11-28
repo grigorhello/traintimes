@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// The Notifications page (TT-168, D57): a status card with the one action that fits the permission, the five things the app
-/// notifies about as plain ticked text (information, so not in a card), the "My alerts" card and a footnote. The permission
+/// notifies about as plain ticked text (information, so not in a card), the "My trains" card and a footnote. The permission
 /// is read when the page opens and each time the app returns to the foreground, so coming back from the iOS Settings app
 /// updates the page and the main row.
 struct SettingsNotificationsPage: View {
     let viewModel: SettingsViewModel
-    /// "My alerts": switches to the Alerts tab.
+    /// "My trains": switches to the My trains (Alerts) tab.
     let onShowAlerts: () -> Void
     @Environment(\.openURL) private var openURL
     /// Counts the times the bell should swing: on arriving with notifications on, and when they have just been allowed.

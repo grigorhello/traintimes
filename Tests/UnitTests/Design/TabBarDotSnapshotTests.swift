@@ -28,7 +28,7 @@ private struct BellDots: View {
     var body: some View {
         HStack(spacing: 36) {
             ForEach(dots, id: \.self) { dot in
-                TabBarStyle.icon("bell.fill", label: "Alerts", isSelected: false, dot: dot, colorScheme: colorScheme)
+                TabBarStyle.icon("bell.fill", label: "My trains", isSelected: false, dot: dot, colorScheme: colorScheme)
                     .scaleEffect(3)
                     .frame(width: 80, height: 80)
             }

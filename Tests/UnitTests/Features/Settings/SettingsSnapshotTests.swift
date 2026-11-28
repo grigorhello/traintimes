@@ -174,7 +174,7 @@ final class SettingsSnapshotTests: XCTestCase {
         return model
     }
 
-    /// The Alerts tab's two rules, so the page says "My alerts 2" as the frames do.
+    /// The Alerts tab's two rules, so the page says "My trains 2" as the frames do.
     @MainActor
     private func twoAlerts() async -> AlertRules {
         await AlertsFixtures.rules(FakeAlertServer(), on: [AlertsFixtures.morning, AlertsFixtures.evening])

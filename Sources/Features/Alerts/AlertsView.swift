@@ -192,7 +192,7 @@ struct AlertsView: View {
 
     // MARK: Empty
 
-    /// "Tap a bell to hear if a train is delayed or cancelled.", then Schedule's route and its next three trains as plain
+    /// "Tap the bell on a train you take. It stays here and on your widgets, and we tell you if it is late or cancelled.", then Schedule's route and its next three trains as plain
     /// cards with their bells; a bell tapped grows that card's days row. With no route or no more trains today, one row
     /// "See trains".
     private var emptyState: some View {

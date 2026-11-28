@@ -93,8 +93,8 @@ final class AlertBellTests: XCTestCase {
         XCTAssertEqual(turnOn.label, "Turn on")
         XCTAssertEqual(bell.label, "Alert for 7:32 AM train")
 
-        app.tabBars.buttons["Alerts"].tap()
-        XCTAssertTrue(app.staticTexts["Tap a bell to hear if a train is delayed or cancelled."].waitForExistence(timeout: 15))
+        app.tabBars.buttons[MyTrainsCopy.tab].tap()
+        XCTAssertTrue(app.staticTexts[MyTrainsCopy.emptyLead].waitForExistence(timeout: 15))
     }
 
     private func wait(for element: XCUIElement, label: String) -> Bool {

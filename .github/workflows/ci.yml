@@ -52,6 +52,8 @@ jobs:
               [ "$attempt" = 3 ] && exit 1
               sleep 30
             done
+            # A downloaded runtime moves about 8 to 22 min later; ci-test.sh waits for that before it boots (TT-260).
+            echo "SIMULATOR_RUNTIME_INSTALLED_AT=$(date +%s)" >> "$GITHUB_ENV"
           fi
           xcrun simctl list runtimes available
 

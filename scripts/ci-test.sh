@@ -58,17 +58,20 @@ runtime_mount() {
 }
 
 # TT-260: the iOS 26.5 runtime CI downloads is a "Patchable Cryptex Disk Image" that comes without its dyld shared
-# cache. The first boot builds it (9.5 min on run 686), and meanwhile the runtime moves between its cryptex mount
-# (/private/var/run/com.apple.security.cryptexd/mnt) and /Library/Developer/CoreSimulator/Volumes, killing whatever runs
-# on it: "Invalid device state" (Mach error -308) at the test host's launch, "Unable to boot device because we cannot
-# determine the runtime bundle", or the UI test runner's SIGTERM "while preparing to run tests". Every run of Nov 27-28
-# lost the simulator so; the retry passed only where the runtime was back on its cryptex mount for good. So the script
-# builds the cache first (`simctl runtime dyld_shared_cache update`, which returns once it is built), in the background
-# while the app builds, then waits for the runtime to stay on its cryptex mount, then boots the simulator.
+# cache, and it does not stay where it is first mounted. On every run of Nov 27-28 it moved about 8 to 10 min after the
+# download, from its cryptex mount (/private/var/run/com.apple.security.cryptexd/mnt) to
+# /Library/Developer/CoreSimulator/Volumes, and later (up to 22 min after the download) back to a cryptex mount, where it
+# then stayed. Each move kills or hides the device: "Invalid device state" (Mach error -308) at the test host's launch,
+# "Unable to boot device because we cannot determine the runtime bundle", the UI test runner's SIGTERM "while preparing
+# to run tests", or "Unable to find a device matching the provided destination specifier" (run 689). Retries passed only
+# where the runtime was back on its cryptex mount for good. So the script builds the cache first, in the background
+# while the app builds (`simctl runtime dyld_shared_cache update`, which returns once it is built: 140 s on run 689,
+# after which the first boot took 2 min instead of 9.5), then waits for the moves to be over before it boots.
 start_cache_build() {
   [[ -e build/runtime-settled ]] && return 0
   touch build/runtime-settled
-  echo "iOS $IOS_VERSION ($IOS_BUILD) before the dyld shared cache: $(note_mount)"
+  runtime_place > build/runtime-place.txt
+  echo "iOS $IOS_VERSION ($IOS_BUILD) before the dyld shared cache: $(runtime_mount); mounted as $(cat build/runtime-place.txt)"
   (
     started=$(date +%s)
     rc=0
@@ -78,42 +81,58 @@ start_cache_build() {
   CACHE_PID=$!
 }
 
-# Prints the runtime's mount and keeps it in build/runtime-mount.txt; a mount unlike the last one seen is noted as a move
-# in build/runtime-moved.txt.
-note_mount() {
-  local now last
-  now=$(runtime_mount)
-  last=$(cat build/runtime-mount.txt 2>/dev/null || true)
-  if [[ "$now" != "$last" ]]; then
-    [[ -e build/runtime-mount.txt ]] && echo "$now" >> build/runtime-moved.txt
-    echo "$now" > build/runtime-mount.txt
-  fi
-  echo "$now"
+# Where the runtime is mounted, from mount(8) (the disk too, so a remount at the same path counts as a move); simctl's
+# mount path when mount(8) does not show it.
+runtime_place() {
+  local place
+  place=$(mount | awk -v name="/iOS_$IOS_BUILD" 'substr($3, length($3) - length(name) + 1) == name { printf "%s %s; ", $1, $3 }')
+  [[ -n "$place" ]] && echo "$place" || echo "simctl: $(runtime_mount)"
 }
 
-# Waits, 10 min at most, until the runtime has been on its cryptex mount for 30 s. When it moved since it was last seen
-# (before the cache build, or at the last settle), restarts the simulator service so it reads the runtime from there.
-wait_for_mount() {
-  local now last steady=0
-  last=$(cat build/runtime-mount.txt 2>/dev/null || true)
-  for _ in $(seq 1 60); do
-    now=$(note_mount)
-    [[ "$now" != "$last" ]] && echo "Runtime moved: $now"
-    last=$now
-    if [[ "$now" == *"|/private/var/run/com.apple.security.cryptexd/"* ]]; then
-      steady=$((steady + 1))
-      [[ "$steady" -ge 3 ]] && break
-    else
-      steady=0
-    fi
-    sleep 10
-  done
-  [[ "$steady" -ge 3 ]] || echo "::warning::iOS $IOS_VERSION did not settle on its cryptex mount ($last); the tests may lose the simulator."
-  if [[ -s build/runtime-moved.txt ]]; then
-    : > build/runtime-moved.txt
+# Waits until the runtime has stayed on its cryptex mount for 60 s after its move (and 10 min after the download at the
+# least, since the first move came 8 to 10 min after it), or, with no move by 15 min after the download, after that;
+# never later than 32 min after the download. SIMULATOR_RUNTIME_INSTALLED_AT is set by the
+# workflow when it downloaded the runtime; without it (a runtime that came with the image, or a Mac) nothing moves and
+# nothing is awaited. Restarts the simulator service after a move, so that it reads the runtime from where it is now.
+wait_for_runtime() {
+  local installed=${SIMULATOR_RUNTIME_INSTALLED_AT:-} last now age steady=0 moved=false
+  last=$(cat build/runtime-place.txt 2>/dev/null || true)
+  now=$(runtime_place)
+  if [[ -n "$last" && "$now" != "$last" ]]; then
+    moved=true
+    echo "Runtime moved since it was last seen: $now"
+  fi
+  last=$now
+  if [[ -n "$installed" ]]; then
+    while true; do
+      age=$(( $(date +%s) - installed ))
+      if [[ "$now" == *"/private/var/run/com.apple.security.cryptexd/"* && "$now" != *"/CoreSimulator/Volumes/"* ]]; then
+        steady=$((steady + 1))
+      else
+        steady=0
+      fi
+      if [[ "$steady" -ge 6 ]] && { [[ "$moved" == true && "$age" -ge 600 ]] || [[ "$age" -ge 900 ]]; }; then
+        break
+      fi
+      if [[ "$age" -ge 1920 ]]; then
+        echo "::warning::iOS $IOS_VERSION has not settled 32 min after its download ($now); the tests may lose the simulator."
+        break
+      fi
+      sleep 10
+      now=$(runtime_place)
+      if [[ "$now" != "$last" ]]; then
+        moved=true
+        echo "Runtime moved $(( $(date +%s) - installed )) s after its download: $now ($(runtime_mount))"
+        last=$now
+      fi
+    done
+    echo "Waited until $(( $(date +%s) - installed )) s after the download."
+  fi
+  echo "$last" > build/runtime-place.txt
+  if [[ "$moved" == true ]]; then
     xcrun simctl shutdown all >/dev/null 2>&1 || true
     killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-    xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the move."
+    xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after its move."
   fi
 }
 
@@ -128,18 +147,17 @@ boot_simulator() {
   return 1
 }
 
-# Before each test attempt: let the cache build finish, wait for the runtime to settle, then boot the simulator and wait
-# for it, so the tests never start on a device the runtime's move can kill.
+# Before each test attempt: let the cache build finish, wait for the runtime's moves to be over, then boot the simulator
+# and wait for it, so the tests never start on a device a move can kill.
 settle_simulator() {
   echo "::group::Settle the simulator"
-  echo "iOS $IOS_VERSION ($IOS_BUILD): $(note_mount)"
+  echo "iOS $IOS_VERSION ($IOS_BUILD): $(runtime_mount)"
   if [[ -n "${CACHE_PID:-}" ]]; then
     wait "$CACHE_PID" || true
     CACHE_PID=
     cat build/dyld-cache.log
-    echo "After the dyld shared cache: $(note_mount)"
   fi
-  wait_for_mount
+  wait_for_runtime
   if ! boot_simulator; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
     boot_simulator || echo "::warning::The simulator did not finish booting."
@@ -198,7 +216,7 @@ fi
 # "(null)" ("cannot determine the runtime bundle"). Seen on most TT-243 runs and on main after TT-241 and TT-242, with no
 # test at fault. Then restart the simulator service, settle the simulator again (above) and run the tests once more; the
 # build is done, so the second run costs the tests only. A real test failure fails the second run too.
-SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device'
+SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device|Unable to find a device matching'
 if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
   echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
   # The disk and the runtime's state before the restart (settle_simulator logs its mount after), so a run that loses the

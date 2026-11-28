@@ -186,6 +186,61 @@ final class TimelineLayoutTests: XCTestCase {
         XCTAssertFalse(result.cards.contains { $0.isSteppedUp }, "Another day has no Now line to clear (D86)")
     }
 
+    // MARK: Landing (TT-255, D129)
+
+    /// See trains on another day: the card with the train before it above, that train's top 16 pt under the top edge
+    /// (board 52); the first card from the top of the timeline.
+    func testLandingShowsTheCardWithTheTrainBeforeItAbove() throws {
+        let result = layout([train("a", 16, 40), train("b", 17, 10), train("c", 17, 40), train("d", 18, 10)])
+        let cards = result.cards
+        let offset = try XCTUnwrap(result.scrollOffset(showing: cards[1].id))
+        XCTAssertEqual(offset, cards[0].top - TTTimeline.minCardGap, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(result.scrollOffset(showing: cards[2].id)), cards[1].top - TTTimeline.minCardGap, accuracy: 0.001)
+        XCTAssertEqual(result.scrollOffset(showing: cards[0].id), 0, "The first train shows from the top")
+        XCTAssertNil(result.scrollOffset(showing: TripKey(serviceDay: day, tripId: "x")), "No such card")
+    }
+
+    /// On Today, the next train's card: Now stays near the top, as the Schedule tab puts it, and the train before it, which
+    /// has left, stays out of the way (board 51).
+    func testLandingOnTheNextTrainKeepsNowAtTheTop() throws {
+        let result = layout([train("a", 7, 5), train("b", 7, 32), train("c", 7, 58)], now: at(7, 21))
+        XCTAssertTrue(result.cards[0].isSteppedUp)
+        let offset = try XCTUnwrap(result.scrollOffset(showing: result.cards[1].id))
+        XCTAssertEqual(offset, result.initialScrollOffset, accuracy: 0.001)
+        XCTAssertGreaterThan(result.cards[1].top, offset, "The card's top shows")
+    }
+
+    /// On Today, a later train's card: the train before it above, wherever Now is.
+    func testLandingOnALaterTrainTodayShowsTheTrainBeforeIt() throws {
+        let result = layout([train("a", 7, 32), train("b", 7, 58), train("c", 17, 10), train("d", 17, 40)], now: at(7, 21))
+        let offset = try XCTUnwrap(result.scrollOffset(showing: result.cards[3].id))
+        XCTAssertEqual(offset, result.cards[2].top - TTTimeline.minCardGap, accuracy: 0.001)
+        XCTAssertGreaterThan(offset, result.initialScrollOffset)
+    }
+
+    /// A train leaving within the minute: its own top still shows, though Now would sit lower.
+    func testLandingNeverHidesTheCardsTop() throws {
+        let result = layout([train("a", 7, 5), train("b", 7, 21)], now: at(7, 20))
+        let card = result.cards[1]
+        XCTAssertEqual(try XCTUnwrap(result.scrollOffset(showing: card.id)), card.top - TTTimeline.minCardGap, accuracy: 0.001)
+    }
+
+    /// A train 50 min late behind an hourly one: its delay bar, never folded, would leave the card under the tab bar, so the
+    /// timeline goes on until the whole card shows, its top still in view.
+    func testLandingBehindALongDelayStillShowsTheWholeCard() throws {
+        let late = train("b", 22, 0, status: .delayed(minutes: 50, reportedAt: at(20, 45)), expected: at(22, 50))
+        let result = layout([train("a", 21, 0), late, train("c", 23, 0)], now: at(20, 50))
+        let cards = result.cards
+        let card = try XCTUnwrap(cards.first { $0.id == late.id })
+        let gap = TTTimeline.minCardGap
+        let before = max(cards[0].top - gap, result.initialScrollOffset)
+        XCTAssertGreaterThan(card.bottom - before, TimelineLayout.landingWindow, "The train before it alone would push it out of view")
+
+        let offset = try XCTUnwrap(result.scrollOffset(showing: card.id))
+        XCTAssertLessThanOrEqual(card.bottom - offset, TimelineLayout.landingWindow - gap + 0.001, "The whole card shows")
+        XCTAssertGreaterThanOrEqual(card.top - offset, gap - 0.001, "Its top too")
+    }
+
     // MARK: Departed (TT-203, D86)
 
     /// Trains that have left sit 88 pt above their place, the last one just above the Now line at its minute, tied to the

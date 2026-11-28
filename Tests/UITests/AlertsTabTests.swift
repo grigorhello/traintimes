@@ -1,16 +1,17 @@
 import XCTest
 
-/// The Alerts tab as cards (TT-253, D129): the bell switches an alert off in place and on again, See trains opens Schedule
-/// on the alert's route; the empty tab's next trains set the first alert with their bells and the card grows its days row;
+/// The Alerts tab as cards (TT-253, D129): the bell switches an alert off in place and on again, See trains lands on the
+/// alert's own card in Schedule, its route and day (TT-255); the empty tab's next trains set the first alert with their bells and the card grows its days row;
 /// with notifications off the card tops the tab. The app runs on the fixture schedule and alert server.
 final class AlertsTabTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// The 7:32 AM train's bell on Schedule, then on Alerts: its card, the bell off and on in place, See trains.
+    /// The 7:32 AM train's bell on Schedule, then on Alerts: its card, the bell off and on in place, then See trains with
+    /// Schedule left on Saturday lands on Today's 7:32 AM card.
     @MainActor
-    func testTheBellSwitchesOffInPlaceAndSeeTrainsOpensSchedule() {
+    func testTheBellSwitchesOffInPlaceAndSeeTrainsLandsOnTheCard() {
         let app = XCUIApplication.onFixtures()
         app.launchEnvironment["TT_NOTIFICATIONS"] = "allowed"
         app.launchArguments += LaunchArguments.fixtureRoute + LaunchArguments.noAlerts
@@ -20,6 +21,9 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(scheduleBell.waitForExistence(timeout: 20))
         scheduleBell.tap()
         XCTAssertTrue(wait(for: scheduleBell, label: "Alert on for 7:32 AM train"))
+        let today = app.buttons["schedule.day.0"]
+        app.buttons["schedule.day.2"].tap()
+        XCTAssertTrue(wait(for: today, selected: false))
 
         app.tabBars.buttons[MyTrainsCopy.tab].tap()
         // Schedule stays in the tab view with its own card and bell, so look inside the Alerts tab only.
@@ -42,6 +46,11 @@ final class AlertsTabTests: XCTestCase {
         XCTAssertTrue(wait(for: app.tabBars.buttons["Schedule"], selected: true))
         XCTAssertEqual(app.buttons["schedule.from"].value as? String, "Oakville")
         XCTAssertEqual(app.buttons["schedule.to"].value as? String, "Union")
+        XCTAssertTrue(wait(for: today, selected: true), "the alert's day")
+        let landed = app.descendants(matching: .any).matching(identifier: "schedule.card.LW-0732-20261105").firstMatch
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: landed)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 15), .completed, "the card in view")
+        XCTAssertGreaterThan(landed.frame.minY, today.frame.maxY, "below the day strip, not under the header")
     }
 
     /// With no alert, the next trains stand in; a bell there sets the first alert and its card grows the days row and See

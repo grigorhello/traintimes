@@ -47,6 +47,50 @@ enum OutgoingFade {
     }
 }
 
+/// See trains on an Alerts card landing on that train's card in Schedule (TT-255, D129; the Alerts canvas's boards 51 and
+/// 52): once the scroll or the cascade has brought it in, the card swells to 1.035 over 0.16 s, ease-out, under a raised
+/// shadow, and settles back on `TTMotion.landBackCurve`; its bell plays the pop it plays when an alert turns on (TT-166:
+/// to 1.3 over 0.1 s, back on `TTMotion.popCurve`), starting as the card nears the top. No outline and no tint, which mean
+/// Boarding. Under Reduce Motion nothing plays: the card is in view and its filled bell is the mark.
+enum LandingSwell {
+    struct Pose: Equatable {
+        var scale: CGFloat = 1
+        /// The raised shadow's strength, 0 at rest, 1 at the top of the swell.
+        var lift: CGFloat = 0
+        var bellScale: CGFloat = 1
+    }
+
+    static let rest = Pose()
+    static let peak: CGFloat = 1.035
+    static let riseDuration = 0.16
+    static let bellDelay = 0.08
+    static let bellPeak: CGFloat = 1.3
+    static let bellSwell = 0.1
+    /// Past this the card and the bell are at rest.
+    static let duration = 1.1
+    /// From the landing to the swell: the scroll's glide (about 0.3 s), or the cascade bringing the card in (it is the
+    /// second card in view, `TTMotion.cascadeDelay(1)` plus most of its spring).
+    static let wait = 0.45
+    /// Where snapshots freeze it: the top of the swell.
+    static let peakTime = riseDuration
+
+    /// The card and its bell `elapsed` seconds into the swell.
+    static func pose(at elapsed: Double) -> Pose {
+        guard elapsed > 0, elapsed < duration else { return rest }
+        let up = elapsed < riseDuration
+            ? UnitCurve.easeOut.value(at: elapsed / riseDuration)
+            : 1 - TTMotion.landBackCurve.progress(at: elapsed - riseDuration)
+        var pose = Pose(scale: 1 + (peak - 1) * CGFloat(up), lift: CGFloat(min(1, max(0, up))))
+        let bell = elapsed - bellDelay
+        if bell > 0 {
+            pose.bellScale = bell < bellSwell
+                ? 1 + (bellPeak - 1) * CGFloat(UnitCurve.easeOut.value(at: bell / bellSwell))
+                : bellPeak - (bellPeak - 1) * CGFloat(TTMotion.popCurve.progress(at: bell - bellSwell))
+        }
+        return pose
+    }
+}
+
 /// The Now line playing once when the timeline shows: after the launch's scroll settles, on the Schedule tab or the Today
 /// tile, and on coming back to the tab or the app (TT-164, D61; TT-197, D80). The rule draws across from the rail on
 /// `TTMotion.drawInCurve`, the dot swells to 1.7 and back over 0.6 s while a 2 pt accent ring spreads from it to 3.4 times
@@ -316,6 +360,8 @@ enum DayPressMotion {
     /// The last `ScheduleViewModel.departureRequest` whose play has been started, and when it started (TT-203).
     var departureSeen: Int
     var departureStart: Date?
+    /// When the landed card's swell started (TT-255).
+    var landingStart: Date?
 
     init(cascadeSeen: Int = 0, departureSeen: Int = 0) {
         self.cascadeSeen = cascadeSeen
@@ -341,6 +387,26 @@ struct CascadeCue: Sendable {
     }
 }
 
+/// What the card See trains landed on needs for its swell (TT-255): the clock, whether Schedule plays motion (not under
+/// Reduce Motion), and in snapshots the moment it is frozen at. Every other card gets `rest`.
+struct LandingCue: Sendable {
+    var clock: ScheduleMotionClock?
+    var plays = false
+    var frozenAt: Double?
+
+    static let rest = LandingCue()
+
+    @MainActor var run: MotionRun {
+        guard plays, let clock else { return .rest }
+        return MotionRun(start: clock.landingStart)
+    }
+
+    /// Seconds into the swell at `date`; nil at rest.
+    @MainActor func elapsed(at date: Date) -> Double? {
+        frozenAt ?? run.elapsed(at: date)
+    }
+}
+
 /// One play of a clock-drawn motion: when it started (nil at rest). `pending` covers the one frame between the new cards
 /// being on screen and the view taking the start time (`onChange` runs after that frame), drawn as the motion's first frame
 /// so the cards never flash at rest before they cascade.
@@ -363,6 +429,8 @@ extension EnvironmentValues {
     /// False in the unit test host, so snapshots draw Schedule at rest whenever they render it: no cascade, no pulse, no glide
     /// and no press (TT-164).
     @Entry var playsScheduleMotion: Bool = !UnitTestHost.isRunning
+    /// Snapshots draw the card See trains landed on this many seconds into its swell (TT-255); nil draws it at rest.
+    @Entry var landingSwellFrozenAt: Double?
 }
 
 /// The unit test bundle is loaded into this run of the app (UI tests run the app on its own and still play the motion).
@@ -375,6 +443,11 @@ extension View {
     /// places after the first card in view. At rest it is drawn as it is.
     func cascadeEntrance(_ cue: CascadeCue, order: Int, moves: Bool = true) -> some View {
         modifier(CascadeEntrance(cue: cue, order: order, moves: moves))
+    }
+
+    /// The landed card's swell (`LandingSwell`): the raised shadow behind it and its scale. Nothing at rest.
+    func landingLift(_ pose: LandingSwell.Pose) -> some View {
+        modifier(LandingLift(pose: pose))
     }
 
     /// The trains a turn replaced, fading out as the new ones' cascade (`cue`) plays (`OutgoingFade`); nothing at rest.
@@ -411,6 +484,26 @@ private struct CascadeEntrance: ViewModifier {
                 .scaleEffect(pose.scale)
                 .offset(y: pose.offsetY)
         }
+    }
+}
+
+private struct LandingLift: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    let pose: LandingSwell.Pose
+
+    func body(content: Content) -> some View {
+        content
+            // A shape of its own behind the card, so the card itself draws exactly as at rest.
+            .background {
+                if pose.lift > 0 {
+                    let dark = colorScheme == .dark
+                    RoundedRectangle(cornerRadius: TTRadius.lg)
+                        .fill(TTColor.surface)
+                        .shadow(color: .black.opacity((dark ? 0.5 : 0.16) * pose.lift), radius: 17, x: 0, y: 14 * pose.lift)
+                        .shadow(color: .black.opacity((dark ? 0 : 0.08) * pose.lift), radius: 3, x: 0, y: 2 * pose.lift)
+                }
+            }
+            .scaleEffect(pose.scale)
     }
 }
 

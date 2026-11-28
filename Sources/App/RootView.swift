@@ -656,18 +656,17 @@ struct RootView: View {
         await alertsModel.refresh()
     }
 
-    /// An Alerts card's "See trains" (TT-253, D129): Schedule on the alert's route and its train's day, nothing over it, the
-    /// way a notification's train link opens them, and the route stays until swapped. Landing on the card itself is TT-255.
+    /// An Alerts card's "See trains" (TT-253, D129): Schedule on the alert's route and its train's day, nothing over it, as
+    /// one train's link (the route stays until swapped), landing on the card itself with the train before it above, and the
+    /// card swells once with its bell's pop (TT-255).
     private func showInSchedule(_ jump: AlertsViewModel.Jump) {
         router.dismissSheet()
+        schedule.expectLanding()
         router.showSchedule()
         Task {
             let link = NotificationLink.trip(jump.key, originId: jump.originId, destinationId: jump.destinationId)
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
-            await showTrainRoute(route)
-            let day = jump.key.serviceDay
-            // Today goes back to Now; another day opens at its first train (a past service day keeps what shows).
-            if day >= schedule.today { await schedule.select(day) }
+            await schedule.land(.card(jump.key), on: route, day: jump.key.serviceDay)
         }
     }
 
@@ -680,17 +679,18 @@ struct RootView: View {
         }
     }
 
-    /// "Pick a new train" on a Time changed row (TT-193): Schedule on that alert's route, with "Tap the bell of your new
-    /// train · Cancel"; the bell tapped next takes over its days.
+    /// "Pick a new train" on a Time changed card (TT-193): Schedule on that alert's route and the next day it rings, at the
+    /// old time's place (TT-255), with "Tap the bell of your new train · Cancel"; the bell tapped next takes over its days.
     private func pickNewTrain(replacing rule: AlertRule) {
+        if rule.trip != nil { schedule.expectLanding() }
         router.showSchedule()
         bells.pickNewTrain(replacing: rule)
         guard let key = rule.trip else { return }
         Task {
             let link = NotificationLink.trip(key, originId: rule.origin.id, destinationId: rule.destination.id)
             guard let route = await link.route(stations: stations, saved: schedule.route) else { return }
-            await showTrainRoute(route)
-            if schedule.selectedDay != schedule.today { await schedule.select(schedule.today) }
+            let day = rule.nextRingDay(today: schedule.today, now: clock.now)
+            await schedule.land(.time(rule.scheduledDeparture), on: route, day: day)
         }
     }
 

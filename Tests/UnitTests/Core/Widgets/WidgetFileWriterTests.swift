@@ -275,10 +275,13 @@ final class WidgetFileWriterTests: XCTestCase {
         let away = Route(from: burlington, to: union, line: line)
         let evening = trip("BU-UN-20261111-1730", day: wed, hour: 17, minute: 30)
         await rig.rules.save(AlertRule(kind: .repeating, trip: evening, route: away, weekdays: [3, 4]))
-        // A switched-off alert and one whose day has passed bring no route.
-        var paused = AlertRule(kind: .thisTrip, trip: trip("UN-BU-20261112-0700", day: wed.adding(days: 1), hour: 7), route: Route(from: union, to: burlington, line: line))
+        // A switched-off alert and one whose day has passed bring no route: Oakville and Burlington are in the file by
+        // neither.
+        var paused = AlertRule(kind: .thisTrip, trip: trip("OA-BU-20261112-0700", day: wed.adding(days: 1), hour: 7), route: Route(from: oakville, to: burlington, line: line))
         paused.paused = true
         await rig.rules.save(paused)
+        let past = AlertRule(kind: .thisTrip, trip: trip("BU-OA-20261110-0700", day: wed.adding(days: -1), hour: 7), route: Route(from: burlington, to: oakville, line: line))
+        await rig.rules.save(past)
 
         await rig.writer.write()
         let file = try XCTUnwrap(written)

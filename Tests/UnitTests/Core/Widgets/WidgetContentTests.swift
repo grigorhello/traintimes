@@ -144,6 +144,9 @@ final class WidgetContentTests: XCTestCase {
         // The minutes at any distance on a route, "now" in the last minute.
         XCTAssertEqual(mediumRows(WidgetFixtures.farTrain())?.first.when, .countdown("1 h 28 min"))
         XCTAssertEqual(mediumRows(WidgetFixtures.leavingNow)?.first.when, .now)
+        // A route's rows carry no bell, a train with an alert included: the bell is My trains' (board "Commute first" 6).
+        let alerted = WidgetEntry.Trains(header: WidgetFixtures.header(), trains: [WidgetFixtures.train(7, 58, alerted: true)])
+        XCTAssertEqual(mediumRows(WidgetFixtures.entry(WidgetFixtures.at(7, 47), .trains(alerted)))?.first.isSaved, false)
     }
 
     func testTheNextLineShowsOneTimeOrNone() {

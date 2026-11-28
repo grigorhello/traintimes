@@ -281,6 +281,14 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertTrue(later(from: "15:00", file: usual).contains(at(wed, "17:10")))
     }
 
+    /// "Next" lists the trains after the first one on its own service day only (TT-257): 00:40 is still Wednesday's,
+    /// Thursday's 6:00 is not.
+    func testTheNextTrainsStayOnTheFirstTrainsServiceDay() {
+        let late = trains(entry(wed, "23:00", turnsAround: false))
+        XCTAssertEqual(times(late.map { WidgetEntry.Trains(header: $0.header, trains: $0.later) }), ["00:40"])
+        XCTAssertEqual(trains(entry(wed, "00:10", turnsAround: false))?.later, [])
+    }
+
     /// The countdown is text in each entry (TT-183, D113): an entry each minute for 2 h, and iOS is asked again in 1 h.
     func testACountdownGetsAnEntryEachMinuteAndAnHourlyReload() {
         let now = at(wed, "09:00")

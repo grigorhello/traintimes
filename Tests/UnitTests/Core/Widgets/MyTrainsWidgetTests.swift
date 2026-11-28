@@ -230,6 +230,10 @@ final class MyTrainsWidgetTests: XCTestCase {
         XCTAssertEqual(friday?.note.plain, "Mon · then 5:13")
         let evening = rectangular(WidgetFixtures.mine(at(19, 0)))
         XCTAssertEqual(evening?.note.plain, "Tomorrow · then 5:13")
+        // The afternoon: the way home, and no "then" from the next morning.
+        let afternoon = rectangular(WidgetFixtures.mine(at(16, 40)))
+        XCTAssertEqual(afternoon?.header, .yourTrain(to: "Oakville"))
+        XCTAssertEqual(afternoon?.note.plain, "in 33 min")
         // One saved train: the train after it on its route.
         let one = rectangular(WidgetFixtures.mine(at(6, 30), file: WidgetFixtures.commuteFile(saved: ["07:58"])))
         XCTAssertEqual(one?.note.plain, "in 1 h 28 min · then 8:06")
@@ -290,10 +294,33 @@ final class MyTrainsWidgetTests: XCTestCase {
     /// trains.
     func testTheTimelineCountsFrom2HoursBeforeTheSavedTrain() {
         let timeline = WidgetEntryBuilder.timeline(file: WidgetFixtures.commuteFile(), route: nil, turnsAround: true, mode: .myTrains, now: at(4, 0))
-        // Now, then the countdown's start and the minutes of the next 2 h after it; WidgetKit is asked again then.
+        // Now, then the countdown's start and the minutes of the next 2 h after it; WidgetKit is asked again an hour on.
         XCTAssertEqual(timeline.entries.map(\.date), [at(4, 0), at(5, 58), at(5, 59), at(6, 0)])
-        XCTAssertEqual(timeline.reloadAt, at(5, 58))
+        XCTAssertEqual(timeline.reloadAt, at(5, 0))
         XCTAssertTrue(timeline.entries.allSatisfy { $0.mode == .myTrains })
+    }
+
+    /// A saved train late in the day: the trains after it stop at its service day's last train.
+    func testTheTrainsAfterASavedTrainStopAtItsDaysLast() {
+        guard case .myTrains(let mine) = WidgetFixtures.mine(at(17, 0), file: WidgetFixtures.commuteFile(saved: ["17:43"])).state else {
+            return XCTFail("Expected My trains")
+        }
+        XCTAssertEqual(mine.saved.map(\.train.departure), [at(17, 43)])
+        XCTAssertEqual(mine.saved.first?.after.map(\.departure), [at(18, 13)])
+    }
+
+    /// A countdown that starts late in the timeline is asked for an hour before it starts, so the next timeline has an hour
+    /// of minutes in hand when iOS asks late; that one is asked again an hour on.
+    func testACountdownStartingLaterIsAskedForAnHourBefore() {
+        let night = WidgetEntryBuilder.timeline(file: WidgetFixtures.commuteFile(), route: nil, turnsAround: true, mode: .myTrains, now: at(3, 0))
+        XCTAssertEqual(night.entries.map(\.date), [at(3, 0), at(5, 58)])
+        XCTAssertEqual(night.reloadAt, at(4, 58))
+        // Built then, it writes the minutes from the countdown's start to an hour past its own reload.
+        let next = WidgetEntryBuilder.timeline(file: WidgetFixtures.commuteFile(), route: nil, turnsAround: true, mode: .myTrains, now: at(4, 58))
+        XCTAssertEqual(next.reloadAt, at(5, 58))
+        let dates = Set(next.entries.map(\.date))
+        XCTAssertTrue((0...60).allSatisfy { dates.contains(at(5, 58).addingTimeInterval(TimeInterval($0 * 60))) })
+        XCTAssertLessThan(next.entries.count, 150)
     }
 
     /// Once the saved train has left and the next is hours away, no more minutes.

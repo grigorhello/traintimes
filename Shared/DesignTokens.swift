@@ -97,6 +97,7 @@ enum TTFont {
     static let widgetRowArrival = Font.system(size: 20, weight: .medium)                      // Departures' rows: the arrival time (TT-257)
     static let widgetPeriod = Font.system(size: 19, weight: .semibold)                        // Next train: "AM" beside the 34 pt time
     static let widgetCountdown = Font.system(size: 16, weight: .semibold)                     // Next train: "in 11 min"
+    static let widgetDay = Font.system(size: 16, weight: .regular)                            // Next train: "Monday" in the countdown's place (TT-257)
     static let widgetTo = Font.system(size: 14, weight: .regular)                             // Next train: "to"
     static let widgetStation = Font.system(size: 14, weight: .semibold)                       // Next train: "Union"
     static let widgetFooterTime = Font.system(size: 13, weight: .semibold)                    // Next train: the footer's and a message's time

@@ -372,9 +372,10 @@ struct DeparturesContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
-        func row(_ header: WidgetEntry.Header, _ train: WidgetEntry.Train, when: WidgetWhen, isLead: Bool) -> Row {
+        // The bell marks a saved train in My trains only; A route's rows have none, as on the board (D131).
+        func row(_ header: WidgetEntry.Header, _ train: WidgetEntry.Train, when: WidgetWhen, isLead: Bool, isSaved: Bool = false) -> Row {
             Row(
-                header: WidgetHeaderContent(header), isSaved: train.isAlerted, time: WidgetClock(train.departure, formatter: formatter),
+                header: WidgetHeaderContent(header), isSaved: isSaved, time: WidgetClock(train.departure, formatter: formatter),
                 isExpress: train.isExpress, arrival: formatter.railTime(train.arrival), when: when, isLead: isLead,
                 link: entry.tagged(train.link, from: .departures)
             )
@@ -389,13 +390,19 @@ struct DeparturesContent: Equatable, Sendable {
             let second: Second?
             // The soonest saved train of another route, else the next one on the same route, else the trains after it.
             if let other = others.first(where: { $0.route != first.route }) ?? others.first {
-                second = .row(row(other.header, other.train, when: WidgetWhen(other.train, at: entry.date, fullWeekday: false), isLead: false))
+                second = .row(row(
+                    other.header, other.train, when: WidgetWhen(other.train, at: entry.date, fullWeekday: false), isLead: false,
+                    isSaved: other.train.isAlerted
+                ))
             } else {
                 second = next(first.after)
             }
             header = nil
             link = entry.tagged(WidgetLink.alerts(), from: .departures)
-            let lead = row(first.header, first.train, when: WidgetWhen(first.train, at: entry.date, fullWeekday: false), isLead: true)
+            let lead = row(
+                first.header, first.train, when: WidgetWhen(first.train, at: entry.date, fullWeekday: false), isLead: true,
+                isSaved: first.train.isAlerted
+            )
             body = .rows(Rows(first: lead, second: second))
         case .trains(let trains) where !trains.trains.isEmpty:
             let train = trains.trains[0]

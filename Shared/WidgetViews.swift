@@ -137,6 +137,7 @@ struct NextTrainWidgetView: View {
             if let day = train.day {
                 // My trains (TT-257, D131): "Monday" in the countdown's place while the saved train is more than 2 h away.
                 Text(verbatim: day)
+                    .font(TTFont.widgetDay)
                     .foregroundStyle(TTColor.inkSecondary)
             } else {
                 countdown(train)

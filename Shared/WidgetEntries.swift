@@ -146,10 +146,13 @@ enum WidgetEntryBuilder {
             .map { Date(timeIntervalSince1970: $0) }
             .filter { $0 < end && !known.contains($0) }
         let entries = (moments.map(make) + minutes.map(make).filter(\.showsCountdown)).sorted { $0.date < $1.date }
-        // Asked again an hour on while a countdown shows (or when the first one starts, if later), else when the entries
-        // end: 3 h on, or at 3 AM.
+        // Asked again an hour on while a countdown shows, else when the entries end: 3 h on, or at 3 AM. A countdown that
+        // starts later (My trains counts from 2 h before a saved train, TT-257) is asked for an hour before it starts, so the
+        // next timeline writes its minutes with an hour of them in hand, as D113's hour wants.
         let firstCountdown = entries.first(where: \.showsCountdown)?.date
-        let reloadAt = firstCountdown.map { min(end, max($0, now.addingTimeInterval(countdownReload))) } ?? end
+        let reloadAt = firstCountdown.map {
+            min(end, max(now.addingTimeInterval(countdownReload), $0.addingTimeInterval(-countdownReload)))
+        } ?? end
         return WidgetTimeline(entries: entries, reloadAt: reloadAt)
     }
 

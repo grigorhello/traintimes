@@ -206,7 +206,8 @@ run_tests() {
 
 start_cache_build
 build_tests
-if [[ "$status" -eq 0 ]]; then
+built=$status
+if [[ "$built" -eq 0 ]]; then
   settle_simulator
   run_tests
 fi
@@ -216,8 +217,8 @@ fi
 # "(null)" ("cannot determine the runtime bundle"). Seen on most TT-243 runs and on main after TT-241 and TT-242, with no
 # test at fault. Then restart the simulator service, settle the simulator again (above) and run the tests once more; the
 # build is done, so the second run costs the tests only. A real test failure fails the second run too.
-SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device|Unable to find a device matching'
-if [[ "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
+SIMULATOR_LOST='Failed to install or launch the test runner|Invalid device state|cannot determine the runtime bundle|Unable to boot device|Unable to find a device matching|crashed with signal term while preparing to run tests'
+if [[ "$built" -eq 0 && "$status" -ne 0 ]] && grep -qE "$SIMULATOR_LOST" build/xcodebuild.log; then
   echo "::warning::The simulator failed under the tests ($(grep -oE "$SIMULATOR_LOST" build/xcodebuild.log | head -n 1)); restarting it and running the tests again."
   # The disk and the runtime's state before the restart (settle_simulator logs its mount after), so a run that loses the
   # simulator shows why: on PR #266 the runtime was listed after the restart twice in a row, and xcodebuild still read it

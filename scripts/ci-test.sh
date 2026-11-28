@@ -47,74 +47,99 @@ PY
 read -r UDID IOS_VERSION IOS_BUILD RUNTIME_ID < build/simulator.txt
 [[ -n "${GITHUB_ENV:-}" ]] && echo "SIMULATOR_RUNTIME=iOS $IOS_VERSION" >> "$GITHUB_ENV"
 
-# The runtime's image kind and mount path as `simctl runtime list -v` shows them ("kind|mount", empty if not listed).
+# The runtime's image kind and mount path as `simctl runtime list -v` shows them ("kind|mount"; "kind|" when it is listed
+# with no mount path, empty when it is not listed or simctl does not answer within 2 min).
 runtime_mount() {
-  xcrun simctl runtime list -v 2>/dev/null | awk -v build="($IOS_BUILD)" '
+  perl -e 'alarm shift; exec @ARGV' 120 xcrun simctl runtime list -v 2>/dev/null | awk -v build="($IOS_BUILD)" '
     /^[^ \t]/ { here = index($0, build) > 0; next }
     here && /Image Kind:/ { sub(/^[ \t]*Image Kind:[ \t]*/, ""); kind = $0 }
     here && /Mount Path:/ { sub(/^[ \t]*Mount Path:[ \t]*/, ""); print kind "|" $0; done = 1; exit }
     END { if (kind != "" && !done) print kind "|" }' || true
 }
 
-# TT-260: the iOS 26.5 runtime CI downloads is a "Patchable Cryptex Disk Image". It is first mounted under
-# /Library/Developer/CoreSimulator/Volumes; some minutes after the first boot the host builds its dyld shared cache and
-# remounts it as a cryptex, and whatever runs on it dies: "Invalid device state" (Mach error -308) at the test host's
-# launch, then "Unable to boot device because we cannot determine the runtime bundle" with the device's runtime nil.
-# Every run of Nov 27-28 lost the simulator so on its first attempt; the retry passed only where the remount was over.
-runtime_pending() {
-  local state
-  state=$(runtime_mount)
-  [[ "$state" == *Patchable*"|" || "$state" == *Patchable*"|/Library/Developer/CoreSimulator/Volumes/"* ]]
+# TT-260: the iOS 26.5 runtime CI downloads is a "Patchable Cryptex Disk Image" that comes without its dyld shared
+# cache. The first boot builds it (9.5 min on run 686), and meanwhile the runtime moves between its cryptex mount
+# (/private/var/run/com.apple.security.cryptexd/mnt) and /Library/Developer/CoreSimulator/Volumes, killing whatever runs
+# on it: "Invalid device state" (Mach error -308) at the test host's launch, "Unable to boot device because we cannot
+# determine the runtime bundle", or the UI test runner's SIGTERM "while preparing to run tests". Every run of Nov 27-28
+# lost the simulator so; the retry passed only where the runtime was back on its cryptex mount for good. So the script
+# builds the cache first (`simctl runtime dyld_shared_cache update`, which returns once it is built), in the background
+# while the app builds, then waits for the runtime to stay on its cryptex mount, then boots the simulator.
+start_cache_build() {
+  [[ -e build/runtime-settled ]] && return 0
+  touch build/runtime-settled
+  echo "iOS $IOS_VERSION ($IOS_BUILD) before the dyld shared cache: $(note_mount)"
+  (
+    started=$(date +%s)
+    rc=0
+    perl -e 'alarm shift; exec @ARGV' 1500 xcrun simctl runtime dyld_shared_cache update "$RUNTIME_ID" || rc=$?
+    echo "dyld_shared_cache update $RUNTIME_ID: exit $rc after $(( $(date +%s) - started )) s"
+  ) > build/dyld-cache.log 2>&1 &
+  CACHE_PID=$!
 }
 
-# Boots the simulator and waits until it is ready, first-boot data migration included, for 10 min at most.
+# Prints the runtime's mount and keeps it in build/runtime-mount.txt; a mount unlike the last one seen is noted as a move
+# in build/runtime-moved.txt.
+note_mount() {
+  local now last
+  now=$(runtime_mount)
+  last=$(cat build/runtime-mount.txt 2>/dev/null || true)
+  if [[ "$now" != "$last" ]]; then
+    [[ -e build/runtime-mount.txt ]] && echo "$now" >> build/runtime-moved.txt
+    echo "$now" > build/runtime-mount.txt
+  fi
+  echo "$now"
+}
+
+# Waits, 10 min at most, until the runtime has been on its cryptex mount for 30 s. When it moved since it was last seen
+# (before the cache build, or at the last settle), restarts the simulator service so it reads the runtime from there.
+wait_for_mount() {
+  local now last steady=0
+  last=$(cat build/runtime-mount.txt 2>/dev/null || true)
+  for _ in $(seq 1 60); do
+    now=$(note_mount)
+    [[ "$now" != "$last" ]] && echo "Runtime moved: $now"
+    last=$now
+    if [[ "$now" == *"|/private/var/run/com.apple.security.cryptexd/"* ]]; then
+      steady=$((steady + 1))
+      [[ "$steady" -ge 3 ]] && break
+    else
+      steady=0
+    fi
+    sleep 10
+  done
+  [[ "$steady" -ge 3 ]] || echo "::warning::iOS $IOS_VERSION did not settle on its cryptex mount ($last); the tests may lose the simulator."
+  if [[ -s build/runtime-moved.txt ]]; then
+    : > build/runtime-moved.txt
+    xcrun simctl shutdown all >/dev/null 2>&1 || true
+    killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+    xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the move."
+  fi
+}
+
+# Boots the simulator and waits until it is ready, data migration included, 15 min at most. bootstatus exits 0 even
+# when the boot ends in "Data Migration Failed", so the log must say it finished (or that the device was up already).
 boot_simulator() {
-  perl -e 'alarm shift; exec @ARGV' 600 xcrun simctl bootstatus "$UDID" -b > build/bootstatus.log 2>&1 && return 0
+  local rc=0
+  perl -e 'alarm shift; exec @ARGV' 900 xcrun simctl bootstatus "$UDID" -b > build/bootstatus.log 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] && grep -qiE 'Finished|already booted' build/bootstatus.log && ! grep -qi 'Migration Failed' build/bootstatus.log && return 0
+  echo "bootstatus exit $rc:"
   tail -n 5 build/bootstatus.log
   return 1
 }
 
-# Before each test attempt: have the runtime remounted with no device on it, then boot the simulator and wait for it,
-# so xcodebuild neither boots it during the build nor launches the test host on a device that is still migrating.
-# The cache build and the wait for the remount run once per job (build/ is kept between the workflow's two test steps),
-# so a runtime that never remounts costs 33 min at most, not that on every attempt.
+# Before each test attempt: let the cache build finish, wait for the runtime to settle, then boot the simulator and wait
+# for it, so the tests never start on a device the runtime's move can kill.
 settle_simulator() {
   echo "::group::Settle the simulator"
-  echo "iOS $IOS_VERSION ($IOS_BUILD): $(runtime_mount)"
-  local waited=build/runtime-settled was_pending=false rc
-  if runtime_pending && [[ ! -e "$waited" ]]; then
-    was_pending=true
-    touch "$waited"
-    xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
-    # Build the dyld shared cache now, 15 min at most. Which identifier simctl takes is not documented, so the next one
-    # is tried only when the first was refused, not when it timed out.
-    xcrun simctl help runtime 2>&1 | grep -i -A3 dyld || true
-    for id in "$RUNTIME_ID" "$IOS_BUILD"; do
-      rc=0
-      time perl -e 'alarm shift; exec @ARGV' 900 xcrun simctl runtime dyld_shared_cache update "$id" || rc=$?
-      echo "dyld_shared_cache update $id: exit $rc"
-      if [[ "$rc" -eq 0 || "$rc" -eq 142 ]]; then break; fi
-    done
-    echo "After the dyld shared cache: $(runtime_mount)"
-    if runtime_pending; then
-      # Still not remounted: boot once so the host starts on the cache, shut down, and wait for the remount, 8 min at most.
-      boot_simulator || true
-      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
-      for _ in $(seq 1 32); do
-        runtime_pending || break
-        sleep 15
-      done
-      echo "After waiting: $(runtime_mount)"
-    fi
+  echo "iOS $IOS_VERSION ($IOS_BUILD): $(note_mount)"
+  if [[ -n "${CACHE_PID:-}" ]]; then
+    wait "$CACHE_PID" || true
+    CACHE_PID=
+    cat build/dyld-cache.log
+    echo "After the dyld shared cache: $(note_mount)"
   fi
-  if runtime_pending; then
-    echo "::warning::iOS $IOS_VERSION is not remounted as a cryptex yet ($(runtime_mount)); the tests may lose the simulator."
-  elif [[ "$was_pending" == true ]]; then
-    # The runtime moved under the simulator service: restart it, so it reads the runtime from its new place.
-    xcrun simctl shutdown all >/dev/null 2>&1 || true
-    killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-    xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the remount."
-  fi
+  wait_for_mount
   if ! boot_simulator; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
     boot_simulator || echo "::warning::The simulator did not finish booting."
@@ -133,25 +158,40 @@ if command -v xcbeautify >/dev/null 2>&1; then
   [[ -n "${GITHUB_ACTIONS:-}" ]] && FORMATTER+=(--renderer github-actions)
 fi
 
-run_tests() {
-  rm -rf "$RESULT"
+# The build and the tests are two xcodebuild runs, so the simulator is settled between them while nothing runs on it.
+build_tests() {
   status=0
-  xcodebuild test \
+  xcodebuild build-for-testing \
     -project TrainTimes.xcodeproj \
     -scheme TrainTimes \
     -configuration Debug \
     -destination "id=$UDID" \
-    -resultBundlePath "$RESULT" \
     -skipMacroValidation \
     -skipPackagePluginValidation \
-    -test-timeouts-enabled YES \
     2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
 }
 
 # A test that hangs fails after 10 min (xcodebuild's default allowance once timeouts are on) instead of running the job
 # into its 90 min limit, which cancels the step before anything below can say which test it was.
-settle_simulator
-run_tests
+run_tests() {
+  rm -rf "$RESULT"
+  status=0
+  xcodebuild test-without-building \
+    -project TrainTimes.xcodeproj \
+    -scheme TrainTimes \
+    -configuration Debug \
+    -destination "id=$UDID" \
+    -resultBundlePath "$RESULT" \
+    -test-timeouts-enabled YES \
+    2>&1 | tee build/xcodebuild.log | "${FORMATTER[@]}" || status=$?
+}
+
+start_cache_build
+build_tests
+if [[ "$status" -eq 0 ]]; then
+  settle_simulator
+  run_tests
+fi
 
 # On the Xcode 27 image the simulator itself sometimes fails under the tests: its service dies while the test runner is
 # installed ("Invalid device state", Mach error -308), or the test host is killed mid-run and the iOS runtime then reads as

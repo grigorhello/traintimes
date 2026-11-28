@@ -50,6 +50,12 @@ struct ServiceDay: Hashable, Comparable, Sendable, Codable, CustomStringConverti
         (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
     }
 
+    /// Before 12 PM on Toronto's clock, not the service day's (TT-257, D131): the one before-noon rule for a route chosen
+    /// by hand, so a route picked between 12 AM and 3 AM counts as a morning one in the welcome and the widgets' morning way.
+    static func isBeforeNoon(_ date: Date) -> Bool {
+        calendar.component(.hour, from: date) < 12
+    }
+
     private static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = goTimeZone

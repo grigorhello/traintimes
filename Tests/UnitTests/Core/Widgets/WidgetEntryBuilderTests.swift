@@ -186,9 +186,10 @@ final class WidgetEntryBuilderTests: XCTestCase {
         XCTAssertEqual(times(kept), ["08:00", "08:10", "08:40"])
         XCTAssertEqual(kept?.yourTrain, 2)
         XCTAssertEqual(kept?.earlier, 0)
-        // The train it took the place of, for Departures' plain "Next" line (TT-183).
-        XCTAssertEqual(times(kept.map { WidgetEntry.Trains(header: $0.header, trains: [$0.displaced].compactMap { $0 }) }), ["08:20"])
-        XCTAssertNil(trains(entry(wed, "08:25", file: busy))?.displaced)
+        // Departures' "Next" line lists the plain three after the first, whatever has an alert (TT-257, D131).
+        XCTAssertEqual(times(kept.map { WidgetEntry.Trains(header: $0.header, trains: $0.later) }), ["08:10", "08:20", "08:30"])
+        let later = trains(entry(wed, "08:25", file: busy))
+        XCTAssertEqual(times(later.map { WidgetEntry.Trains(header: $0.header, trains: $0.later) }), ["08:40", "08:50"])
     }
 
     func testArrivesFirst() {
@@ -278,6 +279,14 @@ final class WidgetEntryBuilderTests: XCTestCase {
         // A usual time adds the moment 30 min before it.
         let usual = file(usual: [WidgetFile.UsualTime(route: oakvilleToUnion.reversed, minutesIntoDay: 17 * 60 + 40, weekdays: [3])])
         XCTAssertTrue(later(from: "15:00", file: usual).contains(at(wed, "17:10")))
+    }
+
+    /// "Next" lists the trains after the first one on its own service day only (TT-257): 00:40 is still Wednesday's,
+    /// Thursday's 6:00 is not.
+    func testTheNextTrainsStayOnTheFirstTrainsServiceDay() {
+        let late = trains(entry(wed, "23:00", turnsAround: false))
+        XCTAssertEqual(times(late.map { WidgetEntry.Trains(header: $0.header, trains: $0.later) }), ["00:40"])
+        XCTAssertEqual(trains(entry(wed, "00:10", turnsAround: false))?.later, [])
     }
 
     /// The countdown is text in each entry (TT-183, D113): an entry each minute for 2 h, and iOS is asked again in 1 h.

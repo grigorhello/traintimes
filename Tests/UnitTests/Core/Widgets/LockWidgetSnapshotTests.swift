@@ -17,6 +17,8 @@ final class LockWidgetSnapshotTests: XCTestCase {
     @MainActor func testCircularDimmed() { circular(.dark, isDimmed: true) }
     @MainActor func testInlineDark() { inline(.dark) }
     @MainActor func testInlineLight() { inline(.light) }
+    @MainActor func testMyTrainsDark() { myTrains(.dark) }
+    @MainActor func testMyTrainsLight() { myTrains(.light) }
 
     // MARK: - States
 
@@ -137,6 +139,34 @@ final class LockWidgetSnapshotTests: XCTestCase {
             }
         )
         sheet("lock-inline", cells, CGSize(width: 280, height: 24), columns: 1, style, testName: testName, line: line)
+    }
+
+    /// My trains (TT-257, D131; board "Commute first"): the saved 7:58 from 6:30 AM, 40 min before it, handed over in its
+    /// last 30 min, the 5:13 PM home in the afternoon, and tomorrow's and Monday's; each size on its own sheet.
+    @MainActor
+    private func myTrains(_ style: UIUserInterfaceStyle, testName: String = #function, line: UInt = #line) {
+        let day = WidgetFixtures.day
+        let entries = [
+            ("mine-early", WidgetFixtures.mine(WidgetFixtures.at(6, 30))),
+            ("mine-40-min", WidgetFixtures.mine(WidgetFixtures.at(7, 18))),
+            ("mine-hand-over", WidgetFixtures.mine(WidgetFixtures.at(7, 47))),
+            ("mine-afternoon", WidgetFixtures.mine(WidgetFixtures.at(16, 40))),
+            ("mine-tomorrow", WidgetFixtures.mine(WidgetFixtures.at(19, 0))),
+            ("mine-monday", WidgetFixtures.mine(WidgetFixtures.at(19, 0, on: day.adding(days: 2)))),
+            ("mine-one-saved", WidgetFixtures.mine(WidgetFixtures.at(6, 30), file: WidgetFixtures.commuteFile(saved: ["07:58"]))),
+        ]
+        let rectangles = entries.map { name, entry in
+            Cell(id: name) { LockRectangularView(content: LockRectangularContent(entry), isDimmed: false) { Color.primary.opacity(0.1) } }
+        }
+        sheet("my-trains-rectangular", rectangles, WidgetFixtures.lockRectangular, columns: 2, style, testName: testName, line: line)
+        let circles = entries.map { name, entry in
+            Cell(id: name) { LockCircularView(content: LockCircularContent(entry), isDimmed: false) { Color.primary.opacity(0.1) } }
+        }
+        sheet("my-trains-circular", circles, WidgetFixtures.lockCircular, columns: 4, style, cellWidth: 96, testName: testName, line: line)
+        let lines = entries.map { name, entry in
+            Cell(id: name) { LockInlineView(content: LockInlineContent(entry)).frame(width: 280, alignment: .leading) }
+        }
+        sheet("my-trains-inline", lines, CGSize(width: 280, height: 24), columns: 1, style, testName: testName, line: line)
     }
 
     // MARK: - Drawing

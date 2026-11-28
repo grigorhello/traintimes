@@ -4,7 +4,7 @@ import XCTest
 @testable import TrainTimes
 
 /// The Home Screen widgets (TT-183) against the Widgets canvas: every state of Next train (board Widgets-States) and
-/// Departures (Widgets-Home-Lean and -Dark), light and dark, each at its size on the iPhone 17 Pro (`WidgetFixtures.small`
+/// Departures (two rows since TT-257, D131, board "Commute first" 6; Widgets-Home-Lean and -Dark before), light and dark, each at its size on the iPhone 17 Pro (`WidgetFixtures.small`
 /// and `.medium`, measured by TT-185; the boards drew 158 pt and 338 × 158 pt), with the countdown stopped at the entry's
 /// moment. The surface colour stands for the background iOS gives the widget. Also where iOS takes the colours away (the
 /// outline tile) and StandBy (no background, on black). One reference per state, named after it.
@@ -19,6 +19,12 @@ final class WidgetSnapshotTests: XCTestCase {
     @MainActor func testDeparturesMessagesLight() { snap(.departures, messages, .light) }
     @MainActor func testDeparturesMessagesDark() { snap(.departures, messages, .dark) }
 
+    // My trains (TT-257, D131; board "Commute first" 6): the saved trains on both routes.
+    @MainActor func testMyTrainsNextTrainLight() { snap(.nextTrain, mine, .light) }
+    @MainActor func testMyTrainsNextTrainDark() { snap(.nextTrain, mine, .dark) }
+    @MainActor func testMyTrainsDeparturesLight() { snap(.departures, mine, .light) }
+    @MainActor func testMyTrainsDeparturesDark() { snap(.departures, mine, .dark) }
+
     /// A tinted Home Screen draws the widget in one colour, so the tile is an outline; StandBy removes the background.
     @MainActor func testWithoutColourAndWithoutBackground() {
         let outline = WidgetLook(isFullColor: false, showsBackground: false)
@@ -26,6 +32,10 @@ final class WidgetSnapshotTests: XCTestCase {
         snap(.nextTrain, WidgetFixtures.nextTrain(), "outline", .dark, look: outline)
         snap(.departures, WidgetFixtures.nextTrain(), "outline", .dark, look: outline)
         snap(.nextTrain, WidgetFixtures.nextTrain(), "stand-by", .dark, look: standBy)
+        // My trains, and "now" (drawn twice in one colour, TT-239).
+        snap(.departures, WidgetFixtures.mine(WidgetFixtures.at(7, 47)), "mine-outline", .dark, look: outline)
+        snap(.departures, WidgetFixtures.leavingNow, "now-outline", .dark, look: outline)
+        snap(.nextTrain, WidgetFixtures.leavingNow, "now-outline", .dark, look: outline)
     }
 
     /// The widest lines: an express at 11:47 PM that is the last train, 2 h 30 min away ("Last train · 2 h 30 min"); the
@@ -53,6 +63,21 @@ final class WidgetSnapshotTests: XCTestCase {
             ("next-train", WidgetFixtures.nextTrain()), ("your-train", WidgetFixtures.yourTrain),
             ("express-next", WidgetFixtures.expressNext), ("leaving-now", WidgetFixtures.leavingNow),
             ("one-later", WidgetFixtures.oneLater), ("last-train", WidgetFixtures.lastTrain), ("evening", WidgetFixtures.evening),
+        ]
+    }
+
+    /// My trains from `WidgetFixtures.commuteFile()`: the morning, the afternoon turned home, nothing more today (tomorrow,
+    /// and Friday evening's Monday), one saved train, two on one route, and none (the open route).
+    private var mine: [(String, WidgetEntry)] {
+        let friday = WidgetFixtures.day.adding(days: 2)
+        return [
+            ("mine-morning", WidgetFixtures.mine(WidgetFixtures.at(7, 47))),
+            ("mine-afternoon", WidgetFixtures.mine(WidgetFixtures.at(16, 40))),
+            ("mine-tomorrow", WidgetFixtures.mine(WidgetFixtures.at(19, 0))),
+            ("mine-monday", WidgetFixtures.mine(WidgetFixtures.at(19, 0, on: friday))),
+            ("mine-one-saved", WidgetFixtures.mine(WidgetFixtures.at(7, 47), file: WidgetFixtures.commuteFile(saved: ["07:58"]))),
+            ("mine-one-route", WidgetFixtures.mine(WidgetFixtures.at(7, 47), file: WidgetFixtures.commuteFile(saved: ["07:58", "08:28"]))),
+            ("mine-none", WidgetFixtures.mine(WidgetFixtures.at(7, 47), file: WidgetFixtures.commuteFile(saved: []))),
         ]
     }
 

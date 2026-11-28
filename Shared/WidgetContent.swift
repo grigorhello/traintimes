@@ -74,7 +74,7 @@ struct WidgetMessage: Equatable, Sendable {
     /// The message for an entry with no trains; nil while it has some. Departures adds when the first train arrives.
     init?(_ entry: WidgetEntry, formatter: any TimeFormatting, addsArrival: Bool) {
         switch entry.state {
-        case .trains:
+        case .trains, .myTrains:
             return nil
         case .notLoaded:
             title = String(localized: "widget.not_loaded.title")
@@ -122,18 +122,24 @@ struct WidgetMessage: Equatable, Sendable {
 }
 
 extension WidgetEntry {
-    /// The header, in the states that know the route.
+    /// The header, in the states that know the route; in My trains, the first saved train's route.
     var header: Header? {
         switch state {
         case .notLoaded, .noRoute: nil
         case .outOfDate(let header), .noMoreTrainsTonight(let header, _, _), .noTrainsToday(let header, _): header
         case .trains(let trains): trains.header
+        case .myTrains(let mine): mine.saved.first?.header
         }
     }
 
     /// Schedule on the widget's route at Now; with no route, the Schedule tab.
     func routeLink(from widget: WidgetKind) -> URL {
-        WidgetLink.tagged(header?.link ?? WidgetLink.route(nil), from: widget)
+        tagged(header?.link ?? WidgetLink.route(nil), from: widget)
+    }
+
+    /// A link as this widget opens it, with its name and Show (`widget_opened`).
+    func tagged(_ url: URL, from widget: WidgetKind) -> URL {
+        WidgetLink.tagged(url, from: widget, mode: mode)
     }
 
     /// The departure is a minute away or less: the countdown reads "now".
@@ -168,6 +174,9 @@ struct NextTrainContent: Equatable, Sendable {
         /// The day's last train from 10 PM: "Last train · " before the countdown.
         let isLastTrain: Bool
         let footer: Footer?
+        /// My trains (TT-257, D131): "Today", "Tomorrow" or "Monday" in the countdown's place while the saved train is more
+        /// than 2 h away.
+        var day: String? = nil
     }
 
     struct Footer: Equatable, Sendable {
@@ -189,6 +198,10 @@ struct NextTrainContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
+        if case .myTrains(let mine) = entry.state, let first = mine.saved.first {
+            self = NextTrainContent(mine: mine, first: first, entry: entry, formatter: formatter)
+            return
+        }
         header = entry.header.map(WidgetHeaderContent.init)
         guard case .trains(let trains) = entry.state, !trains.trains.isEmpty else {
             let message = WidgetMessage(entry, formatter: formatter, addsArrival: false)
@@ -227,7 +240,74 @@ struct NextTrainContent: Equatable, Sendable {
                 isLastTrain: isLast, footer: footer
             )
         )
-        link = WidgetLink.tagged(train.link, from: .nextTrain)
+        link = entry.tagged(train.link, from: .nextTrain)
+    }
+
+    /// My trains (TT-257, D131): the next saved train, always "Your train", and "Then" naming the saved train after it (with
+    /// its weekday when it runs on another day); with one saved train, the train after it on its route that day.
+    private init(mine: WidgetEntry.MyTrains, first: WidgetEntry.Saved, entry: WidgetEntry, formatter: TimeFormatter) {
+        header = WidgetHeaderContent(first.header)
+        let when = WidgetWhen(first.train, at: entry.date, fullWeekday: true)
+        let footer: Footer?
+        if let then = mine.saved.dropFirst().first {
+            let time = formatter.time(then.train.departure)
+            let day = then.train.key.serviceDay
+            footer = Footer(label: .then, time: day == first.train.key.serviceDay ? time : "\(day.weekdayShort) \(time)", mark: nil)
+        } else if let next = first.after.first {
+            footer = Footer(label: .then, time: formatter.time(next.departure), mark: next.isExpress ? .express : nil)
+        } else {
+            footer = nil
+        }
+        body = .train(
+            Train(
+                isYourTrain: true, time: WidgetClock(first.train.departure, formatter: formatter), isExpress: first.train.isExpress,
+                departure: first.train.departure, countdown: when.countdown ?? "", isLeavingNow: when == .now, isLastTrain: false,
+                footer: footer, day: when.day
+            )
+        )
+        link = entry.tagged(first.train.link, from: .nextTrain)
+    }
+}
+
+/// When a saved train leaves, as My trains writes it (TT-257, D131): its countdown from 2 h before (the minutes the widgets
+/// count each minute, `WidgetEntryBuilder.countdownSpan`), "now" in the last minute, else its day: "Today", "Tomorrow", the
+/// weekday ("Monday" on the small widget, "Mon" where the room is less), or more than six days on "Fri 6", as the Alerts
+/// tab's cards say it.
+enum WidgetWhen: Equatable, Sendable {
+    case now
+    /// "11 min", "1 h 20 min".
+    case countdown(String)
+    case day(String)
+
+    init(_ train: WidgetEntry.Train, at date: Date, fullWeekday: Bool) {
+        let lead = train.departure.timeIntervalSince(date)
+        if lead <= WidgetEntryBuilder.leavingLead {
+            self = .now
+            return
+        }
+        if lead <= WidgetEntryBuilder.countdownSpan {
+            self = .countdown(WidgetCountdown.minutes(from: date, to: train.departure))
+            return
+        }
+        let today = ServiceDay(containing: date)
+        let day = train.key.serviceDay
+        if day <= today {
+            self = .day(String(localized: "widget.when.today"))
+        } else if day == today.adding(days: 1) {
+            self = .day(String(localized: "widget.when.tomorrow"))
+        } else if today.days(to: day) <= 6 {
+            self = .day(fullWeekday ? day.weekdayName : day.weekdayShort)
+        } else {
+            self = .day(String(format: String(localized: "widget.when.date"), day.weekdayShort, day.day))
+        }
+    }
+
+    var countdown: String? {
+        if case .countdown(let minutes) = self { minutes } else { nil }
+    }
+
+    var day: String? {
+        if case .day(let day) = self { day } else { nil }
     }
 }
 
@@ -238,34 +318,49 @@ extension WidgetMessage {
     }
 }
 
-/// Departures, medium (revised Nov 13): the next train's departure, countdown and arrival, and the two after it on one
-/// line. No AM or PM anywhere, and nothing about express, alerts or the last train: the small widget and the app say those.
+/// Departures, medium (TT-257, D131; board "Commute first" 6): two train rows, each the route with its line and the bell of
+/// a saved train, the minutes or the day, and the time with its arrival. My trains: the next saved train of each of two
+/// routes; with saved trains on one route only, its next two; with one saved train, it and a "Next" line of the trains
+/// after it. A route (and My trains with no saved train): the next train and "Next" with the three after it that day.
 struct DeparturesContent: Equatable, Sendable {
+    /// The route over a message; the rows carry their own.
     let header: WidgetHeaderContent?
     let body: Body
-    /// A tap outside the trains: Schedule on the widget's route at Now.
+    /// A tap outside the trains: Schedule on the widget's route at Now; in My trains, the Alerts tab.
     let link: URL
 
     enum Body: Equatable, Sendable {
-        case train(Train)
+        case rows(Rows)
         case message(WidgetMessage)
     }
 
-    struct Train: Equatable, Sendable {
-        /// The countdown's end.
-        let departure: Date
-        /// "11 min", at the entry's moment.
-        let countdown: String
-        /// "7:58".
-        let time: String
-        /// "8:38".
+    struct Rows: Equatable, Sendable {
+        let first: Row
+        let second: Second?
+    }
+
+    enum Second: Equatable, Sendable {
+        /// Another train's row.
+        case row(Row)
+        /// "Next 8:06 8:28 8:58": the trains after the first row's on its service day, three at most.
+        case next([Later])
+    }
+
+    struct Row: Equatable, Sendable {
+        let header: WidgetHeaderContent
+        /// The bell beside the route: a saved train.
+        let isSaved: Bool
+        /// "7:58" and "AM".
+        let time: WidgetClock
+        let isExpress: Bool
+        /// "8:38", no AM or PM.
         let arrival: String
-        let isLeavingNow: Bool
+        /// The minutes ("in 11 min"), "now", or the day.
+        let when: WidgetWhen
+        /// The first row: its minutes in the accent. Every other word at the right is ink secondary.
+        let isLead: Bool
         /// Trip details for the train.
         let link: URL
-        /// The "Next" line: the two trains that leave after it on its service day, in time order whatever has an alert
-        /// (one, or none after the day's last train; another day's trains are never "Next").
-        let later: [Later]
     }
 
     struct Later: Equatable, Sendable, Identifiable {
@@ -277,27 +372,50 @@ struct DeparturesContent: Equatable, Sendable {
 
     init(_ entry: WidgetEntry) {
         let formatter = TimeFormatter(format: entry.timeFormat)
-        header = entry.header.map(WidgetHeaderContent.init)
-        link = entry.routeLink(from: .departures)
-        guard case .trains(let trains) = entry.state, let train = trains.trains.first else {
+        // The bell marks a saved train in My trains only; A route's rows have none, as on the board (D131).
+        func row(_ header: WidgetEntry.Header, _ train: WidgetEntry.Train, when: WidgetWhen, isLead: Bool, isSaved: Bool = false) -> Row {
+            Row(
+                header: WidgetHeaderContent(header), isSaved: isSaved, time: WidgetClock(train.departure, formatter: formatter),
+                isExpress: train.isExpress, arrival: formatter.railTime(train.arrival), when: when, isLead: isLead,
+                link: entry.tagged(train.link, from: .departures)
+            )
+        }
+        func next(_ trains: [WidgetEntry.Train]) -> Second? {
+            trains.isEmpty ? nil : .next(trains.map { Later(time: formatter.railTime($0.departure), link: entry.tagged($0.link, from: .departures)) })
+        }
+        switch entry.state {
+        case .myTrains(let mine) where !mine.saved.isEmpty:
+            let first = mine.saved[0]
+            let others = mine.saved.dropFirst()
+            let second: Second?
+            // The soonest saved train of another route, else the next one on the same route, else the trains after it.
+            if let other = others.first(where: { $0.route != first.route }) ?? others.first {
+                second = .row(row(
+                    other.header, other.train, when: WidgetWhen(other.train, at: entry.date, fullWeekday: false), isLead: false,
+                    isSaved: other.train.isAlerted
+                ))
+            } else {
+                second = next(first.after)
+            }
+            header = nil
+            link = entry.tagged(WidgetLink.alerts(), from: .departures)
+            let lead = row(
+                first.header, first.train, when: WidgetWhen(first.train, at: entry.date, fullWeekday: false), isLead: true,
+                isSaved: first.train.isAlerted
+            )
+            body = .rows(Rows(first: lead, second: second))
+        case .trains(let trains) where !trains.trains.isEmpty:
+            let train = trains.trains[0]
+            let when: WidgetWhen = entry.isLeaving(train) ? .now : .countdown(WidgetCountdown.minutes(from: entry.date, to: train.departure))
+            header = WidgetHeaderContent(trains.header)
+            link = entry.routeLink(from: .departures)
+            body = .rows(Rows(first: row(trains.header, train, when: when, isLead: true), second: next(trains.later)))
+        default:
+            header = entry.header.map(WidgetHeaderContent.init)
+            link = entry.routeLink(from: .departures)
             let message = WidgetMessage(entry, formatter: formatter, addsArrival: true)
             body = .message(message ?? WidgetMessage(title: String(localized: "widget.not_loaded.title"), detail: nil))
-            return
         }
-        // The second train, then the third to leave: the one Your train displaced, else the third of the three.
-        let following = [trains.trains.dropFirst().first, trains.displaced ?? trains.trains.dropFirst(2).first]
-            .compactMap { $0 }
-            .filter { $0.key.serviceDay == train.key.serviceDay }
-        body = .train(
-            Train(
-                departure: train.departure, countdown: WidgetCountdown.minutes(from: entry.date, to: train.departure),
-                time: formatter.railTime(train.departure), arrival: formatter.railTime(train.arrival),
-                isLeavingNow: entry.isLeaving(train), link: WidgetLink.tagged(train.link, from: .departures),
-                later: following.map {
-                    Later(time: formatter.railTime($0.departure), link: WidgetLink.tagged($0.link, from: .departures))
-                }
-            )
-        )
     }
 }
 
@@ -319,7 +437,7 @@ enum WidgetCountdown {
 
 extension WidgetEntry {
     /// The gallery's sample (TT-183), fixed in code: Wed Nov 11, 2026 at 7:47 AM, Oakville to Union on Lakeshore West, the
-    /// 7:58 in 11 min, then the 8:06 express and the 8:28.
+    /// 7:58 in 11 min, then the 8:06 express and the 8:28 (Departures' "Next").
     static let sample: WidgetEntry = {
         let day = ServiceDay(year: 2026, month: 11, day: 11)
         let route = WidgetFile.RouteKey(fromId: "OA", toId: "UN")
@@ -334,10 +452,11 @@ extension WidgetEntry {
             from: WidgetFile.Stop(id: "OA", name: "Oakville GO"), to: WidgetFile.Stop(id: "UN", name: "Union Station GO"),
             line: WidgetFile.TrainLine(id: "LW", name: "Lakeshore West", colorHex: nil), link: WidgetLink.route(route)
         )
-        let trains = Trains(
+        var trains = Trains(
             header: header,
             trains: [train(7, 58, arrives: (8, 38)), train(8, 6, arrives: (8, 36), express: true), train(8, 28, arrives: (9, 8))]
         )
+        trains.later = Array(trains.trains.dropFirst())
         return WidgetEntry(date: day.date(hour: 7, minute: 47), state: .trains(trains), relevance: 0, timeFormat: .device)
     }()
 }

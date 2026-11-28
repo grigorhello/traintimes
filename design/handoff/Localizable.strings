@@ -533,9 +533,9 @@
 
 /* Home Screen widgets (TT-181; TT-183 draws them) */
 "widget.next.name" = "Next train";
-"widget.next.description" = "Your next train and how long until it leaves.";
+"widget.next.description" = "Your next saved train and how long until it leaves.";
 "widget.departures.name" = "Departures";
-"widget.departures.description" = "Your next trains and when they arrive.";
+"widget.departures.description" = "Your saved trains and when they arrive.";
 "widget.not_loaded.title" = "Open Train Times once";
 "widget.not_loaded.body" = "to load the timetable.";
 "widget.no_route.title" = "Choose your route";
@@ -557,8 +557,10 @@
 "widget.then" = "Then";
 "widget.earlier" = "Earlier";
 "widget.first" = "First";
-"widget.arrives" = "Arrives";
 "widget.next" = "Next";
+"widget.when.today" = "Today";
+"widget.when.tomorrow" = "Tomorrow";
+"widget.when.date" = "%1$@ %2$d";
 
 /* Next train on the Lock Screen (TT-184) */
 "widget.lock.in" = "in %@";
@@ -570,8 +572,12 @@
 "widget.lock.today" = "today";
 "widget.lock.inline" = "%1$@ to %2$@";
 
-/* Edit widget (TT-183) */
-"widget.edit.title" = "Route";
+/* Edit widget (TT-183; Show, TT-257) */
+"widget.edit.title" = "My trains";
+"widget.edit.description" = "The trains you saved with the bell.";
+"widget.edit.show" = "Show";
+"widget.edit.my_trains" = "My trains";
+"widget.edit.a_route" = "A route";
 "widget.edit.from" = "From";
 "widget.edit.to" = "To";
 "widget.edit.turn_around" = "Turn around at 12 PM";

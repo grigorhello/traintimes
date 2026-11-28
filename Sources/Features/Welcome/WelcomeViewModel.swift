@@ -62,9 +62,7 @@ final class WelcomeViewModel {
 
     /// Before noon in Toronto the route runs from your station to Union, from noon on from Union to your station.
     var unionIsFirst: Bool {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = goTimeZone
-        return calendar.component(.hour, from: clock.now) >= 12
+        !ServiceDay.isBeforeNoon(clock.now)
     }
 
     /// The timetable's download gets a head start while the rider reads the welcome (the feed store downloads on first use).

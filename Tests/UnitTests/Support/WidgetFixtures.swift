@@ -46,8 +46,13 @@ enum WidgetFixtures {
         WidgetEntry(date: date, state: state, relevance: 0, timeFormat: format)
     }
 
+    /// The builder's three, with "Next" as it makes it: the trains after the first on its service day.
     private static func trains(_ list: [WidgetEntry.Train], home: Bool = false) -> WidgetEntry.Trains {
-        WidgetEntry.Trains(header: header(home: home), trains: list)
+        var trains = WidgetEntry.Trains(header: header(home: home), trains: list)
+        if let first = list.first {
+            trains.later = Array(list.dropFirst().prefix { $0.key.serviceDay == first.key.serviceDay })
+        }
+        return trains
     }
 
     /// 7:47 AM: the 7:58 in 11 min, then the 8:06 express and the 8:28.
@@ -142,5 +147,48 @@ enum WidgetFixtures {
             ],
             yourStationIds: ["UN", "OA"]
         )
+    }
+
+    // MARK: - My trains (TT-257, D131; board "Commute first")
+
+    /// Oakville ⇄ Union for a week from Wed Nov 11 (to Mon Nov 16): to Union 6:58, 7:28, 7:58, the 8:06 express, 8:28 and
+    /// 8:58; home 4:43, 5:13, 5:43 and 6:13 PM. Each time in `saved` ("07:58" to Union, "17:13" home) has a Repeat alert on
+    /// weekdays, one id for all its days. `ids` false writes no alert ids, as a file from before TT-257.
+    static func commuteFile(
+        saved: Set<String> = ["07:58", "17:13"], ids: Bool = true, openRoute: WidgetFile.RouteKey? = route
+    ) -> WidgetFile {
+        let days = 6
+        func departures(_ list: [(Int, Int, Int, Bool)]) -> [WidgetFile.Departure] {
+            (0..<days).flatMap { offset -> [WidgetFile.Departure] in
+                let serviceDay = day.adding(days: offset)
+                return list.map { hour, minute, length, express in
+                    let time = String(format: "%02d:%02d", hour, minute)
+                    let start = at(hour, minute, on: serviceDay)
+                    let isSaved = (1...5).contains(serviceDay.isoWeekday) && saved.contains(time)
+                    return WidgetFile.Departure(
+                        tripId: "LW-\(String(format: "%02d%02d", hour, minute))", serviceDay: serviceDay, departure: start,
+                        arrival: start.addingTimeInterval(TimeInterval(length * 60)), isExpress: express, isAlerted: isSaved,
+                        alertId: isSaved && ids ? "alert-\(time)" : nil
+                    )
+                }
+            }
+        }
+        let outbound = departures([(6, 58, 40, false), (7, 28, 40, false), (7, 58, 40, false), (8, 6, 30, true), (8, 28, 40, false), (8, 58, 40, false)])
+        let inbound = departures([(16, 43, 39, false), (17, 13, 39, false), (17, 43, 39, false), (18, 13, 39, false)])
+        return WidgetFile(
+            firstDay: day, lastDay: day.adding(days: days - 1), openRoute: openRoute,
+            routes: [
+                WidgetFile.Timetable(
+                    from: WidgetFile.Stop(id: "OA", name: "Oakville GO"), to: WidgetFile.Stop(id: "UN", name: "Union Station GO"),
+                    line: line, outbound: outbound, inbound: inbound
+                ),
+            ],
+            usualTimes: [], timeFormat: .twelveHour, stations: [], yourStationIds: []
+        )
+    }
+
+    /// A My trains widget's entry at `date`.
+    static func mine(_ date: Date, file: WidgetFile = commuteFile()) -> WidgetEntry {
+        WidgetEntryBuilder.entry(file: file, route: nil, turnsAround: true, mode: .myTrains, at: date)
     }
 }

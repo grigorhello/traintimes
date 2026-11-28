@@ -97,11 +97,11 @@ final class DirectionStore {
         return WidgetFile.RouteKey(fromId: ids[0], toId: ids[1])
     }
 
-    /// The morning way of a route as it stands at `now`, by D107's rule: the route itself before 12 PM, its reverse after.
+    /// The morning way of a route as it stands at `now`, by D107's rule: the route itself before 12 PM, its reverse after;
+    /// 12 PM on the clock, so a route chosen between 12 AM and 3 AM is a morning one (TT-257, D131).
     static func morningWay(of route: Route, at now: Date) -> WidgetFile.RouteKey {
         let key = WidgetFile.RouteKey(fromId: route.from.id, toId: route.to.id)
-        let noon = ServiceDay(containing: now).date(hour: WidgetEntryBuilder.turnAroundHour, minute: 0)
-        return now < noon ? key : key.reversed
+        return ServiceDay.isBeforeNoon(now) ? key : key.reversed
     }
 
     /// Stores the morning way of `route`, chosen at `now`.

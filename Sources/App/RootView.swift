@@ -356,12 +356,15 @@ struct RootView: View {
                 }
             case nil:
                 // A widget's train or header (TT-182); a cold launch takes the pending-link path. A tap on a widget is
-                // counted with what it opened (TT-183).
+                // counted with what it opened (TT-183) and its Show (TT-257).
                 guard let link = NotificationLink(url: url, today: ServiceDay(containing: clock.now)) else { break }
                 if let widget = WidgetLink.widget(of: url) {
-                    var opensTrip = false
-                    if case .trip = link { opensTrip = true }
-                    Analytics.track(.widgetOpened(widget, opensTrip: opensTrip))
+                    let target: WidgetOpenTarget = switch link {
+                    case .trip: .trip
+                    case .alerts, .rule: .alerts
+                    case .route: .route
+                    }
+                    Analytics.track(.widgetOpened(widget, target: target, mode: WidgetLink.mode(of: url) ?? .route))
                 }
                 router.open(link, source: .link)
             }

@@ -11,6 +11,8 @@ enum NotificationLink: Hashable, Sendable {
     case rule(id: String)
     /// A widget's header (TT-182): Schedule on that route at Today and Now; with no stations, the Schedule tab.
     case route(originId: String?, destinationId: String?)
+    /// My trains' Departures outside its trains (TT-257, D131): the Alerts tab.
+    case alerts
 
     init?(userInfo: [AnyHashable: Any]) {
         if let tripId = userInfo["tripId"] as? String, !tripId.isEmpty,
@@ -35,7 +37,7 @@ enum NotificationLink: Hashable, Sendable {
 
     /// A `traintimes://` link, as a widget's train or header opens the app (TT-182, D107):
     /// `traintimes://trip?tripId=…&serviceDate=20261111&originId=…&destinationId=…` with the notification payload's keys, or
-    /// `traintimes://route?originId=…&destinationId=…` (the stations optional). A train on a service day before `today`
+    /// `traintimes://route?originId=…&destinationId=…` (the stations optional), or `traintimes://alerts` (TT-257). A train on a service day before `today`
     /// opens its route at Now instead of the Alerts tab (D39's exception for widgets). Other query items (`source`,
     /// `widget`, TT-183) are ignored; anything else is nil, so a malformed link opens nothing.
     init?(url: URL, today: ServiceDay) {
@@ -53,6 +55,8 @@ enum NotificationLink: Hashable, Sendable {
             )
         case "route":
             self = .route(originId: items["originId"], destinationId: items["destinationId"])
+        case "alerts":
+            self = .alerts
         default:
             return nil
         }
@@ -71,7 +75,7 @@ enum NotificationLink: Hashable, Sendable {
     func target(today: ServiceDay) -> Target {
         switch self {
         case .trip(let key, _, _): key.serviceDay < today ? .alerts : .trip(key)
-        case .rule: .alerts
+        case .rule, .alerts: .alerts
         case .route: .schedule
         }
     }
@@ -80,7 +84,7 @@ enum NotificationLink: Hashable, Sendable {
     var hasStations: Bool {
         switch self {
         case .trip(_, let originId, let destinationId), .route(let originId, let destinationId): originId != nil && destinationId != nil
-        case .rule: false
+        case .rule, .alerts: false
         }
     }
 
@@ -89,7 +93,7 @@ enum NotificationLink: Hashable, Sendable {
     func route(stations: any StationRepository, saved: Route?) async -> Route? {
         let ids: (String?, String?) = switch self {
         case .trip(_, let originId, let destinationId), .route(let originId, let destinationId): (originId, destinationId)
-        case .rule: (nil, nil)
+        case .rule, .alerts: (nil, nil)
         }
         guard let originId = ids.0, let destinationId = ids.1,
               let all = try? await stations.stations(),

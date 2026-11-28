@@ -52,7 +52,8 @@ runtime_mount() {
   xcrun simctl runtime list -v 2>/dev/null | awk -v build="($IOS_BUILD)" '
     /^[^ \t]/ { here = index($0, build) > 0; next }
     here && /Image Kind:/ { sub(/^[ \t]*Image Kind:[ \t]*/, ""); kind = $0 }
-    here && /Mount Path:/ { sub(/^[ \t]*Mount Path:[ \t]*/, ""); print kind "|" $0; exit }' || true
+    here && /Mount Path:/ { sub(/^[ \t]*Mount Path:[ \t]*/, ""); print kind "|" $0; done = 1; exit }
+    END { if (kind != "" && !done) print kind "|" }' || true
 }
 
 # TT-260: the iOS 26.5 runtime CI downloads is a "Patchable Cryptex Disk Image". It is first mounted under
@@ -63,7 +64,7 @@ runtime_mount() {
 runtime_pending() {
   local state
   state=$(runtime_mount)
-  [[ "$state" == *Patchable*"|/Library/Developer/CoreSimulator/Volumes/"* ]]
+  [[ "$state" == *Patchable*"|" || "$state" == *Patchable*"|/Library/Developer/CoreSimulator/Volumes/"* ]]
 }
 
 # Boots the simulator and waits until it is ready, first-boot data migration included, for 10 min at most.
@@ -75,27 +76,44 @@ boot_simulator() {
 
 # Before each test attempt: have the runtime remounted with no device on it, then boot the simulator and wait for it,
 # so xcodebuild neither boots it during the build nor launches the test host on a device that is still migrating.
+# The cache build and the wait for the remount run once per job (build/ is kept between the workflow's two test steps),
+# so a runtime that never remounts costs 33 min at most, not that on every attempt.
 settle_simulator() {
   echo "::group::Settle the simulator"
   echo "iOS $IOS_VERSION ($IOS_BUILD): $(runtime_mount)"
-  if runtime_pending; then
-    # Build the dyld shared cache now, 15 min at most. Which identifier simctl takes is not documented, so each is tried.
+  local waited=build/runtime-settled was_pending=false rc
+  if runtime_pending && [[ ! -e "$waited" ]]; then
+    was_pending=true
+    touch "$waited"
+    xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+    # Build the dyld shared cache now, 15 min at most. Which identifier simctl takes is not documented, so the next one
+    # is tried only when the first was refused, not when it timed out.
     xcrun simctl help runtime 2>&1 | grep -i -A3 dyld || true
     for id in "$RUNTIME_ID" "$IOS_BUILD"; do
-      if time perl -e 'alarm shift; exec @ARGV' 900 xcrun simctl runtime dyld_shared_cache update "$id"; then break; fi
+      rc=0
+      time perl -e 'alarm shift; exec @ARGV' 900 xcrun simctl runtime dyld_shared_cache update "$id" || rc=$?
+      echo "dyld_shared_cache update $id: exit $rc"
+      if [[ "$rc" -eq 0 || "$rc" -eq 142 ]]; then break; fi
     done
     echo "After the dyld shared cache: $(runtime_mount)"
+    if runtime_pending; then
+      # Still not remounted: boot once so the host starts on the cache, shut down, and wait for the remount, 8 min at most.
+      boot_simulator || true
+      xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+      for _ in $(seq 1 32); do
+        runtime_pending || break
+        sleep 15
+      done
+      echo "After waiting: $(runtime_mount)"
+    fi
   fi
   if runtime_pending; then
-    # Still not remounted: boot once so the host starts on the cache, shut down, and wait for the remount, 8 min at most.
-    boot_simulator || true
-    xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
-    for _ in $(seq 1 32); do
-      runtime_pending || break
-      sleep 15
-    done
-    echo "After waiting: $(runtime_mount)"
-    runtime_pending && echo "::warning::iOS $IOS_VERSION is still mounted under /Library/Developer/CoreSimulator/Volumes; the tests may lose the simulator."
+    echo "::warning::iOS $IOS_VERSION is not remounted as a cryptex yet ($(runtime_mount)); the tests may lose the simulator."
+  elif [[ "$was_pending" == true ]]; then
+    # The runtime moved under the simulator service: restart it, so it reads the runtime from its new place.
+    xcrun simctl shutdown all >/dev/null 2>&1 || true
+    killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+    xcrun simctl list runtimes available | grep "iOS $IOS_VERSION" || echo "::warning::iOS $IOS_VERSION is not listed after the remount."
   fi
   if ! boot_simulator; then
     xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
